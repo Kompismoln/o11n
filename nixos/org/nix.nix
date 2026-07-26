@@ -26,7 +26,7 @@ let
               pkgs.git
             ]
           } \
-          --set REPO "${with org.flake; "${type}:${owner}/${repo}"}" \
+          --set REPO "${org.repo}" \
           --set BUILD_HOST "http://stationary.km:5000"
       '';
 in
@@ -40,13 +40,7 @@ in
     package = lib.mkDefault pkgs.lix;
     registry = {
       self.flake = inputs.self;
-      o11n = {
-        from = {
-          id = "o11n";
-          type = "indirect";
-        };
-        to = org.flake;
-      };
+      o11n.flake = inputs.o11n;
       nixpkgs.flake = inputs.nixpkgs;
     };
     channel.enable = false;

@@ -15,6 +15,10 @@ let
   nixosCfgs = outputs.nixosConfigurations;
 in
 lib.runTests {
+  test_context_flake = {
+    expr = outputs.context.flake;
+    expected = "kompismoln.se";
+  };
   test_endpoint = {
     expr = outputs.org.endpoint;
     expected = "kompismoln.se";

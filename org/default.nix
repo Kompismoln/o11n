@@ -7,18 +7,13 @@
 }:
 {
   options = {
-    endpoint = lib.mkOption {
-      description = "canonical name on internet";
-      type = lib.types.str;
-    };
     name = lib.mkOption {
       description = "name for organisation";
       type = lib.types.str;
     };
-    storePath = lib.mkOption {
-      description = "nix store path to org as a package";
-      type = lib.types.path;
-      default = context.path;
+    endpoint = lib.mkOption {
+      description = "canonical name on internet";
+      type = lib.types.str;
     };
     contact = lib.mkOption {
       description = "contact";
@@ -34,6 +29,15 @@
       description = "default locale";
       type = lib.types.str;
       example = "en_US.UTF-8";
+    };
+    repo = lib.mkOption {
+      description = "path to org source repo";
+      type = lib.types.str;
+    };
+    storePath = lib.mkOption {
+      description = "nix store path to org as a package";
+      type = lib.types.path;
+      default = context.path;
     };
     prefix = lib.mkOption {
       description = "ipv6 private prefix";
@@ -65,30 +69,15 @@
       type = context.types.subnetCidr6;
       default = "${config.loPrefix}::/${toString config.prefixLength}";
     };
-    build-hosts = lib.mkOption {
-      description = "list of designated build hosts";
-      default = [ ];
-      type = lib.types.listOf context.types.host.ref;
-    };
-    namespaces = lib.mkOption {
-      description = "namespaces for hosts in the organisation";
-      default = [ config.endpoint ];
-      type = with lib.types; listOf str;
-    };
-    vpn = lib.mkOption {
-      description = "attrset of vpn configurations";
-      default = { };
-      type = lib.types.attrsOf context.types.vpn.module;
-    };
     mailserver = lib.mkOption {
       description = "main mailserver";
       default = null;
       type = lib.types.nullOr context.types.mailserver.module;
     };
-    flake = lib.mkOption {
-      description = "flake for this organisation";
-      default = { };
-      type = with lib.types; attrsOf str;
+    theme = lib.mkOption {
+      description = "colors, wallpaper and fonts";
+      default = null;
+      type = lib.types.nullOr context.types.theme.module;
     };
     role = lib.mkOption {
       description = "role declaration";
@@ -100,42 +89,10 @@
       default = { };
       type = lib.types.attrsOf context.types.domain.module;
     };
-    public-artifacts = lib.mkOption {
-      description = "path templates for public artifacts";
-      type = with lib.types; attrsOf str;
-    };
-    secrets = lib.mkOption {
-      description = "path templates for secrets";
-      type = with lib.types; attrsOf str;
-    };
-    class = lib.mkOption {
-      description = "metadata for classes";
-      type = lib.types.attrsOf (
-        lib.types.submodule {
-          options = {
-            keys = lib.mkOption {
-              type = with lib.types; listOf str;
-            };
-          };
-        }
-      );
-    };
-    ops = lib.mkOption {
-      description = "operations per entity groups";
-      type = with lib.types; attrsOf (attrsOf (listOf str));
-    };
-    root-identities = lib.mkOption {
-      description = "list of root identities";
-      default = [
-        "root-0"
-        "root-1"
-      ];
-      type = with lib.types; listOf str;
-    };
-    root = lib.mkOption {
-      description = "attrs of root identities";
-      type = lib.types.attrsOf lib.types.anything;
+    vpn = lib.mkOption {
+      description = "attrset of vpn configurations";
       default = { };
+      type = lib.types.attrsOf context.types.vpn.module;
     };
     host = lib.mkOption {
       description = "record of all hosts";
@@ -156,11 +113,6 @@
     store = lib.mkOption {
       description = "record of all stores";
       type = lib.types.attrsOf context.types.store.module;
-    };
-    theme = lib.mkOption {
-      description = "colors, wallpaper and fonts";
-      default = null;
-      type = lib.types.nullOr context.types.theme.module;
     };
   };
 }

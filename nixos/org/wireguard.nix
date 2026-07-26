@@ -91,15 +91,11 @@ in
     };
   };
 
-  sops.secrets = lib.listToAttrs (
-    map (
-      interface:
-      lib.nameValuePair "${interface}-key" {
-        owner = "systemd-network";
-        group = "systemd-network";
-      }
-    ) host.vpns
-  );
+  sops.secrets = lib.genAttrs host.vpns (vpn: {
+    inherit (org.vpn.${vpn}.secrets) sopsFile;
+    owner = "systemd-network";
+    group = "systemd-network";
+  });
 
   boot.kernel.sysctl = lib.mkIf isGateway {
     "net.ipv4.ip_forward" = 1;
@@ -117,14 +113,14 @@ in
           Name = vpn.interface;
         };
         wireguardConfig = {
-          PrivateKeyFile = config.sops.secrets."${vpn.interface}-key".path;
+          PrivateKeyFile = config.sops.secrets."wg-key".path;
           ListenPort = lib.mkIf (host.name == vpn.gateway) vpn.port;
         };
         wireguardPeers = map (
           peer:
           let
             base = {
-              PublicKey = builtins.readFile peer.publicKeys.${"${vpn.interface}-key"};
+              PublicKey = builtins.readFile vpn.publicKeys."wg-key";
               AllowedIPs =
                 if peer.name == vpn.gateway then
                   [

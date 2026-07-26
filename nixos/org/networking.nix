@@ -62,9 +62,13 @@ in
 
   networking = {
     hostId = host.ids.hex8;
-    localCommands = ''
-      ip -6 route add local ${org.loCidr} dev lo
-    '';
+    localCommands =
+      let
+        loCidr = "${org.loPrefix}::/${toString org.prefixLength}";
+      in
+      ''
+        ip -6 route add local ${loCidr} dev lo
+      '';
     useNetworkd = true;
     useDHCP = false;
     firewall = {
