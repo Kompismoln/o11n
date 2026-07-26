@@ -30,7 +30,7 @@ in
     types = lib.mkOption {
       description = "org types";
       type = lib.types.attrsOf lib.types.anything;
-      default = import ../org/types.nix lib config;
+      default = types // (import ../org/types.nix lib config);
     };
     classes = lib.mkOption {
       description = "org types";

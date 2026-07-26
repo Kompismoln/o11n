@@ -49,11 +49,11 @@ in
     };
     users = lib.mkOption {
       description = "users";
-      type = with lib.types; listOf str;
+      type = lib.types.listOf context.types.user.ref;
     };
     roles = lib.mkOption {
       description = "roles that this host has";
-      type = with lib.types; listOf str;
+      type = lib.types.listOf context.types.role.ref;
     };
     endpoint = lib.mkOption {
       description = "maybe canonical name on internet";
@@ -62,7 +62,7 @@ in
     };
     vpns = lib.mkOption {
       description = "list of interface names for vpns";
-      type = with lib.types; listOf str;
+      type = lib.types.listOf context.types.vpn.ref;
     };
     system = lib.mkOption {
       description = "host platform";
@@ -124,6 +124,7 @@ in
           destination = vpn.address;
           address4 = mkAddress4 config vpn;
           destination4 = vpn.address4;
+          fqdn = "${config.name}.${vpn.namespace}";
         }
       ) org.vpn;
   };

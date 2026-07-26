@@ -114,4 +114,8 @@ lib.runTests {
     expr = nixosCfgs.lenovo.config.sops.secrets."locksmith/passwd-sha512" or null;
     expected = null;
   };
+  test_vpn_fqdn = {
+    expr = outputs.org.host.lenovo.network."wg1".fqdn;
+    expected = "lenovo.km1";
+  };
 }

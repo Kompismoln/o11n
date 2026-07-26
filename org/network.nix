@@ -1,3 +1,4 @@
+# org/network.nix
 {
   name,
   config,
@@ -90,6 +91,10 @@
     };
     privacy = lib.mkEnableOption "ipv6 kernel address rotation" // {
       type = with lib.types; nullOr bool;
+      default = null;
+    };
+    fqdn = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
       default = null;
     };
   };

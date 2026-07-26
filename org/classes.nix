@@ -48,4 +48,10 @@
     block = 4000;
     keys = [ ];
   };
+  vpn = {
+    block = 5000;
+    keys = [
+      "wg-key"
+    ];
+  };
 }

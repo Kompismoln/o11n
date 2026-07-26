@@ -50,7 +50,6 @@ entities
 // ip
 // {
   class = with lib.types; enum (lib.attrNames context.classes);
-  flake = lib.types.lazyAttrsOf lib.types.anything;
 
   domain.module = lib.types.submodule ./domain.nix;
   disk.module = lib.types.submodule ./disk.nix;
@@ -62,6 +61,7 @@ entities
     };
   };
 
+  role.ref = lib.types.enum (lib.attrNames context.spec.role);
   role.module = lib.types.submoduleWith {
     modules = [ ./role.nix ];
     specialArgs = {
@@ -69,6 +69,7 @@ entities
     };
   };
 
+  vpn.ref = lib.types.enum (lib.attrNames context.spec.vpn);
   vpn.module = lib.types.submoduleWith {
     modules = [ ./vpn.nix ];
     specialArgs = {

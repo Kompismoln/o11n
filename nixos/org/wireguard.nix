@@ -10,7 +10,7 @@
 
 let
 
-  vpns = builtins.filter (vpn: vpn.enable) (map (vpnName: org.vpn.${vpnName}) host.vpns);
+  vpns = map (vpnName: org.vpn.${vpnName}) host.vpns;
 
   peers =
     vpn:

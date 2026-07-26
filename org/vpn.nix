@@ -1,3 +1,4 @@
+# org/vpn.nix
 {
   name,
   config,
@@ -6,26 +7,15 @@
   ...
 }:
 {
+  imports = [
+    ./entity.nix
+  ];
+
+  config = {
+    class = "vpn";
+  };
+
   options = {
-    enable = lib.mkEnableOption "a wireguard vpn" // {
-      default = true;
-    };
-    id = lib.mkOption {
-      description = "unique integer identifier for the vpn";
-      type = lib.types.int;
-    };
-    ids = lib.mkOption {
-      description = "entity id in various formats";
-      type = context.types.ids.module;
-      default = {
-        int = config.id;
-      };
-    };
-    name = lib.mkOption {
-      description = "name of the vpn";
-      type = lib.types.str;
-      default = name;
-    };
     trusted = lib.mkOption {
       description = "disable firewalls on this vpn";
       type = lib.types.bool;
