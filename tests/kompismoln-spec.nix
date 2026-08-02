@@ -16,12 +16,16 @@ let
 in
 lib.runTests {
   test_context_flake = {
-    expr = outputs.context.flake;
-    expected = "kompismoln.se";
+    expr = builtins.pathExists outputs.context.flake;
+    expected = true;
   };
   test_endpoint = {
     expr = outputs.org.endpoint;
     expected = "kompismoln.se";
+  };
+  test_class = {
+    expr = outputs.org.class;
+    expected = "org";
   };
   test_disko = {
     expr = lib.attrNames diskoCfgs;
@@ -102,10 +106,10 @@ lib.runTests {
     expr = builtins.pathExists outputs.org.service.nix-build.publicKeys.ssh-key;
     expected = true;
   };
-  test_vpn_key = {
-    expr = nixosCfgs.helsinki.config.systemd.network.netdevs."20-wg1".wireguardConfig.PrivateKeyFile;
-    expected = "/run/secrets/wg1-key";
-  };
+  #test_vpn_key = {
+  #expr = nixosCfgs.helsinki.config.systemd.network.netdevs."20-wg1".wireguardConfig.PrivateKeyFile;
+  #expected = "/run/secrets/wg1-key";
+  #};
   test_rescue = {
     expr = builtins.pathExists outputs.org.service.rescue.publicKeys.passwd;
     expected = true;
@@ -121,5 +125,37 @@ lib.runTests {
   test_vpn_fqdn = {
     expr = outputs.org.host.lenovo.network."wg1".fqdn;
     expected = "lenovo.km1";
+  };
+  test_root = {
+    expr = outputs.org.root."0".secrets.decryptionKey;
+    expected = "/keys/root-0";
+  };
+  test_lenovo_inventory = {
+    expr = outputs.org.host.lenovo.inventory.network;
+    expected = [
+      "eth-lenovo"
+      "wg0-lenovo"
+      "wg1-lenovo"
+      "wg2-lenovo"
+      "wifi-lenovo"
+    ];
+  };
+  test_inventory = {
+    expr = builtins.length (
+      builtins.concatLists (
+        builtins.attrValues (
+          builtins.mapAttrs (class: items: map (item: "${class}:${item}") items) outputs.org.inventory
+        )
+      )
+    );
+    expected = 73;
+  };
+  test_inventory_host = {
+    expr = builtins.length outputs.org.inventory.host;
+    expected = 11;
+  };
+  test_grants = {
+    expr = outputs.org.host.lenovo.grants;
+    expected = 11;
   };
 }

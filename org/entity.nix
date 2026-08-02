@@ -13,27 +13,31 @@
       default = null;
       type = with lib.types; nullOr int;
     };
-    name = lib.mkOption {
-      description = "name";
-      default = name;
-      type = lib.types.str;
+    ids = lib.mkOption {
+      description = "entity id in various formats";
+      type = lib.types.nullOr context.types.ids.module;
+      default = if config.id == null then null else { int = config.id; };
     };
     class = lib.mkOption {
       description = "entity class";
       type = context.types.class;
+    };
+    name = lib.mkOption {
+      description = "name";
+      default = name;
+      type = lib.types.str;
     };
     description = lib.mkOption {
       description = "full name or short purpose description";
       default = "[${config.class}] ${config.name}";
       type = lib.types.str;
     };
-    grants = lib.mkOption {
-      type = with lib.types; listOf str;
+    inventory = lib.mkOption {
+      type = context.types.inventory.module;
     };
-    ids = lib.mkOption {
-      description = "entity id in various formats";
-      type = lib.types.nullOr context.types.ids.module;
-      default = if config.id == null then null else { int = config.id; };
+    grants = lib.mkOption {
+      type = context.types.inventory.module;
+      default = config.inventory;
     };
     principal = lib.mkOption {
       description = "optional attached principal";

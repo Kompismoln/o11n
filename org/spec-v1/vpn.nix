@@ -7,15 +7,18 @@
   ...
 }:
 {
-  imports = [
-    ./entity.nix
-  ];
-
-  config = {
-    class = "vpn";
-  };
-
   options = {
+    id = lib.mkOption {
+      description = "numeric internal id used to seed other id's";
+      type = lib.types.int;
+    };
+    ids = lib.mkOption {
+      description = "entity id in various formats";
+      type = context.types.ids.module;
+      default = {
+        int = config.id;
+      };
+    };
     trusted = lib.mkOption {
       description = "disable firewalls on this vpn";
       type = lib.types.bool;

@@ -2,14 +2,14 @@
   root = {
     keys = [ "age-key" ];
   };
+  org = {
+    keys = [ "age-key" ];
+  };
   host = {
     block = 0;
     keys = [
       "age-key"
       "ssh-key"
-      "wg0-key"
-      "wg1-key"
-      "wg2-key"
       "luks-key"
     ];
   };
@@ -46,12 +46,32 @@
   };
   store = {
     block = 4000;
-    keys = [ ];
-  };
-  vpn = {
-    block = 5000;
     keys = [
+      "age-key"
+    ];
+  };
+  network = {
+    keys = [
+      "age-key"
       "wg-key"
+    ];
+  };
+  domain = {
+    keys = [
+      "age-key"
+      "wg-key"
+    ];
+  };
+  diskLayout = {
+    keys = [
+      "age-key"
+      "luks-key"
+    ];
+  };
+  home = {
+    keys = [
+      "age-key"
+      "luks-key"
     ];
   };
 }

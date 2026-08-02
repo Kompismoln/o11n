@@ -1,6 +1,7 @@
-name = "Test AB"
+name = "test-org"
 endpoint = "example.com"
 prefix = "fd12:3456:7890"
 prefix4 = "10.0"
 timezone = "Europe/Stockholm"
 locale = "en_US"
+repo = "github:asdf/asdf"

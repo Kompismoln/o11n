@@ -16,24 +16,24 @@ let
           results = builtins.toJSON testResults;
         }
         ''
-          echo "$results" | jq .
+          echo "$results" | jq -M .
           exit 1
         '';
 in
 {
-  test-kompismoln =
+  test-kompismoln-spec =
     let
       tests = [
-        ./kompismoln.nix
+        ./kompismoln-spec.nix
       ];
     in
-    mkTest "test-kompismoln" tests;
+    mkTest "test-kompismoln-spec" tests;
 
-  test-base =
+  test-base-spec =
     let
       tests = [
-        ./base.nix
+        ./base-spec.nix
       ];
     in
-    mkTest "test-base" tests;
+    mkTest "test-base-spec" tests;
 }

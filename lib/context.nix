@@ -1,9 +1,17 @@
 # lib/context.nix
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  ...
+}:
 let
   types = (import ./types.nix) lib;
+  inventoryFromV1 = import ../org/spec-v1/mkInventory.nix;
 in
 {
+  config = {
+  };
+
   options = {
     path = lib.mkOption {
       description = "path";
@@ -22,11 +30,6 @@ in
         self = config.flake;
       };
     };
-    spec = lib.mkOption {
-      description = "unparsed org";
-      type = types.spec;
-      default = lib.importTOML (config.path + "/org.toml");
-    };
     types = lib.mkOption {
       description = "org types";
       type = lib.types.attrsOf lib.types.anything;
@@ -37,15 +40,29 @@ in
       type = lib.types.attrsOf lib.types.anything;
       default = import ../org/classes.nix;
     };
-    org = lib.mkOption {
-      description = "org";
-      type = lib.types.submodule {
-        imports = [ ../org ];
-        _module.args = {
-          context = config;
-        };
+    raw = lib.mkOption {
+      description = "unparsed org";
+      type = types.raw;
+      default = lib.importTOML (config.path + "/org.toml");
+    };
+    spec-v1 = lib.mkOption {
+      description = "spec-v1";
+      type = lib.types.submoduleWith {
+        modules = [ ../org/spec-v1 ];
+        specialArgs.context = config;
       };
-      default = config.spec;
+      default = config.raw;
+    };
+    inventory = lib.mkOption {
+      description = "inventory";
+      default = inventoryFromV1 {
+        context = config;
+        inherit lib;
+      };
+      type = lib.types.submoduleWith {
+        modules = [ ../org/inventory.nix ];
+        specialArgs.context = config;
+      };
     };
   };
 }

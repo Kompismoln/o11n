@@ -17,97 +17,78 @@ rec {
     });
 
   evalContext =
-    config:
+    context:
     (lib.evalModules {
       modules = [
-        { inherit config; }
+        { config = context; }
         ./context.nix
       ];
     }).config;
 
   mkConfigurations = context: {
     inherit context;
-    inherit (context) org;
 
     diskoConfigurations = mkDiskoConfigurations context;
     homeConfigurations = mkHomeConfigurations context;
     nixosConfigurations = mkNixosConfigurations context;
   };
 
+  mkPkgs = system: o11nInputs.nixpkgs.legacyPackages.${system};
+
   mkNixosConfigurations =
     context:
-    lib.genAttrs' (lib.filter (host: lib.elem "nixos" host.roles) (lib.attrValues context.org.host)) (
-      host:
-      lib.nameValuePair host.name (
-        o11nInputs.nixpkgs.lib.nixosSystem {
-          specialArgs = {
-            inherit (context) inputs org;
-            inherit host o11nInputs;
-            diskoConfigurations = lib.filterAttrs (name: _: lib.hasPrefix "${host.name}-" name) (
-              mkDiskoConfigurations context
-            );
-          };
-          modules =
-            (lib.optionals (host.disk-layouts != { }) [ ../nixos/disko.nix ])
-            ++ map (role: o11nInputs.self.nixosModules.${role}) (
-              lib.unique (host.roles ++ (lib.concatMap (home: home.roles) (lib.attrValues host.home)))
-            );
-        }
-      )
-    );
+    lib.mapAttrs (
+      _: host:
+      o11nInputs.nixpkgs.lib.nixosSystem {
+        specialArgs = {
+          inherit (context) inputs inventory;
+          inherit host o11nInputs;
+          diskoConfigurations = lib.filterAttrs (_: diskLayout: diskLayout.host == host.name) (
+            mkDiskoConfigurations context
+          );
+        };
+        modules = map (role: o11nInputs.self.nixosModules.${role}) host.roles;
+      }
+    ) (lib.filterAttrs (_: host: host.stateVersion != null) context.inventory.host);
 
   mkHomeConfigurations =
     context:
-    lib.listToAttrs (
-      lib.concatMap (
-        host:
-        (map (
-          home:
-          lib.nameValuePair home.name (
-            o11nInputs.home-manager.lib.homeManagerConfiguration {
-              pkgs = import o11nInputs.nixpkgs {
-                inherit (host) system;
-                overlays = [
-                  (import ../overlays/tools.nix)
-                ];
-              };
-              extraSpecialArgs = {
-                inherit (context) inputs org;
-                inherit
-                  home
-                  o11nInputs
-                  ;
-              };
-              modules = [
-                home.configurationFile
-              ]
-              ++ map (role: o11nInputs.self.homeModules.${role}) home.roles;
-            }
-          )
-        ) (lib.attrValues host.home))
-      ) (lib.attrValues context.org.host)
-    );
+    lib.mapAttrs (
+      _: home:
+      let
+        pkgs = mkPkgs home.system;
+      in
+      o11nInputs.home-manager.lib.homeManagerConfiguration {
+        extraSpecialArgs = {
+          inherit (context) inputs inventory;
+          inherit
+            pkgs
+            home
+            o11nInputs
+            ;
+        };
+        modules = [
+          home.configurationFile
+        ];
+      }
+    ) context.inventory.home;
 
   mkDiskoConfigurations =
     context:
-    lib.listToAttrs (
-      lib.concatMap (
-        host:
-        (map (
-          disk:
-          lib.nameValuePair "${host.name}-${disk.name}" (
-
-            (import ../disk-layouts/${disk.layout}.nix) {
-              inherit (context) org;
-              inherit
-                host
-                disk
-                lib
-                ;
-              pkgs = o11nInputs.nixpkgs.legacyPackages.${host.system};
-            }
-          )
-        ) (lib.attrValues host.disk-layouts))
-      ) (lib.attrValues context.org.host)
-    );
+    lib.mapAttrs (
+      _: diskLayout:
+      let
+        host = context.inventory.host.${diskLayout.${diskLayout.host}};
+        pkgs = mkPkgs host.system;
+      in
+      (import diskLayout.diskoFile) {
+        inherit (context) inventory;
+        inherit
+          host
+          pkgs
+          diskLayout
+          lib
+          ;
+      }
+    ) context.inventory.diskLayout;
 }

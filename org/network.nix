@@ -7,6 +7,14 @@
   ...
 }:
 {
+  imports = [
+    ./entity.nix
+  ];
+
+  config = {
+    class = "network";
+  };
+
   options = {
     type = lib.mkOption {
       description = "network type";

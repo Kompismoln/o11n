@@ -92,7 +92,7 @@ in
   };
 
   sops.secrets = lib.genAttrs host.vpns (vpn: {
-    inherit (org.vpn.${vpn}.secrets) sopsFile;
+    inherit (host.network.${vpn}.secrets) sopsFile;
     owner = "systemd-network";
     group = "systemd-network";
   });

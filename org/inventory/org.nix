@@ -1,4 +1,4 @@
-# org/default.nix
+# org/spec-v1.nix
 {
   lib,
   config,
@@ -6,11 +6,17 @@
   ...
 }:
 {
+  config = {
+    class = "org";
+    inventory = lib.mkMerge (
+      lib.concatMap (host: [
+        { host = [ host.name ]; }
+        host.inventory
+      ]) (lib.attrValues config.host)
+    );
+  };
+
   options = {
-    name = lib.mkOption {
-      description = "name for organisation";
-      type = lib.types.str;
-    };
     endpoint = lib.mkOption {
       description = "canonical name on internet";
       type = lib.types.str;
@@ -69,6 +75,10 @@
       type = context.types.subnetCidr6;
       default = "${config.loPrefix}::/${toString config.prefixLength}";
     };
+    classes = lib.mkOption {
+      description = "entity classes";
+      default = context.classes;
+    };
     mailserver = lib.mkOption {
       description = "main mailserver";
       default = null;
@@ -79,20 +89,17 @@
       default = null;
       type = lib.types.nullOr context.types.theme.module;
     };
-    role = lib.mkOption {
-      description = "role declaration";
-      default = { };
-      type = lib.types.attrsOf context.types.role.module;
-    };
     domain = lib.mkOption {
       description = "domains managed by organisation";
-      default = { };
-      type = lib.types.attrsOf context.types.domain.module;
+      type = lib.types.attrsOf context.types.domain.ref;
     };
-    vpn = lib.mkOption {
-      description = "attrset of vpn configurations";
-      default = { };
-      type = lib.types.attrsOf context.types.vpn.module;
+    root = lib.mkOption {
+      description = "root entities";
+      default = {
+        "0" = { };
+        "1" = { };
+      };
+      type = lib.types.attrsOf context.types.root.module;
     };
     host = lib.mkOption {
       description = "record of all hosts";

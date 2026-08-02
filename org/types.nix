@@ -35,7 +35,17 @@ let
   };
 
   entities = lib.genAttrs (lib.attrNames context.classes) (class: {
-    ref = lib.types.enum (lib.attrNames context.spec.${class});
+    ref =
+      if
+        lib.elem class [
+          "root"
+          "org"
+          "network"
+        ]
+      then
+        lib.types.str
+      else
+        lib.types.enum (lib.attrNames context.raw.${class} or { });
     module = lib.types.submoduleWith {
       modules = [ ./${class}.nix ];
       specialArgs = {
@@ -54,6 +64,13 @@ entities
   domain.module = lib.types.submodule ./domain.nix;
   disk.module = lib.types.submodule ./disk.nix;
 
+  inventory.module = lib.types.submoduleWith {
+    modules = [ ./inventory.nix ];
+    specialArgs = {
+      inherit context;
+    };
+  };
+
   ids.module = lib.types.submoduleWith {
     modules = [ ./ids.nix ];
     specialArgs = {
@@ -61,7 +78,7 @@ entities
     };
   };
 
-  role.ref = lib.types.enum (lib.attrNames context.spec.role);
+  role.ref = lib.types.enum (lib.attrNames context.raw.role);
   role.module = lib.types.submoduleWith {
     modules = [ ./role.nix ];
     specialArgs = {
@@ -69,7 +86,7 @@ entities
     };
   };
 
-  vpn.ref = lib.types.enum (lib.attrNames context.spec.vpn);
+  vpn.ref = lib.types.enum (lib.attrNames context.raw.vpn);
   vpn.module = lib.types.submoduleWith {
     modules = [ ./vpn.nix ];
     specialArgs = {
@@ -85,13 +102,6 @@ entities
         inherit context host;
       };
     };
-
-  network.module = lib.types.submoduleWith {
-    modules = [ ./network.nix ];
-    specialArgs = {
-      inherit context;
-    };
-  };
 
   mailserver.module = lib.types.submoduleWith {
     modules = [ ./mailserver.nix ];

@@ -14,14 +14,12 @@
   ];
 
   config = lib.mkMerge (
-    (map (disk: diskoConfigurations."${host.name}-${disk.name}") (lib.attrValues host.disk-layouts))
+    (lib.attrValues diskoConfigurations)
     ++ [
-      (lib.mkIf (host.disk-layouts != { }) {
+      (lib.mkIf (diskoConfigurations != { }) {
         sops.secrets.luks-key = { };
-
         boot.initrd.secrets."${host.luksKeyFile}" = config.sops.secrets.luks-key.path;
       })
     ]
   );
-
 }

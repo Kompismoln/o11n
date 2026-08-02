@@ -8,6 +8,10 @@
     layout = lib.mkOption {
       type = lib.types.str;
     };
+    luksKeyFile = lib.mkOption {
+      type = lib.types.str;
+      default = "/luks-key";
+    };
     devices = lib.mkOption {
       description = "unix path to device(s)";
       type = with lib.types; either str (listOf str);

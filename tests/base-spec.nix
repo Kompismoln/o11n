@@ -9,7 +9,7 @@ let
 in
 lib.runTests {
   test_org_min = {
-    expr = outputs.org.endpoint;
+    expr = outputs.context.inventory.org.test-org.endpoint;
     expected = "example.com";
   };
   test_disko_min = {
@@ -23,5 +23,9 @@ lib.runTests {
   test_nixos_min = {
     expr = outputs.nixosConfigurations;
     expected = { };
+  };
+  test_root = {
+    expr = outputs.context.inventory.org.root;
+    expected = "asdf";
   };
 }
