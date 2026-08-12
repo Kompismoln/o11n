@@ -63,7 +63,7 @@ in
   networking = {
     hostId = host.ids.hex8;
     localCommands = ''
-      ip -6 route add local ${org.loCidr} dev lo
+      ip -6 route replace local ${org.loCidr} dev lo
     '';
     useNetworkd = true;
     useDHCP = false;

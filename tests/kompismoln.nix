@@ -114,4 +114,12 @@ lib.runTests {
     expr = nixosCfgs.lenovo.config.sops.secrets."locksmith/passwd-sha512" or null;
     expected = null;
   };
+  test_qutebrowser_agent = {
+    expr = homeCfgs."alex@lenovo".config.programs.qutebrowser.settings.content.headers.user_agent;
+    expected = "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0";
+  };
+  test_xgrammar = {
+    expr = nixosCfgs.pelle.pkgs.python313Packages.xgrammar.version;
+    expected = "0.2.3";
+  };
 }

@@ -166,9 +166,10 @@ in
           };
 
           services.postgresql.enable = lib.mkForce false;
+          services.postgresql.package = pkgs.postgresql_17;
           systemd.services.mobilizon-postgresql.enable = lib.mkForce false;
 
-          environment.systemPackages = [ pkgs.postgresql ];
+          environment.systemPackages = [ pkgs.postgresql_17 ];
 
           systemd.services.mobilizon = {
             path = [ pkgs.postgresql ];

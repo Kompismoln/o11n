@@ -250,11 +250,6 @@
         treesitter.enable = true;
       };
 
-      rest = {
-        enable = true;
-        enableTelescope = true;
-      };
-
       treesitter = {
         enable = true;
         highlight.enable = true;

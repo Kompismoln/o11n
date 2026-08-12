@@ -14,7 +14,6 @@
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     nixvim.url = "github:nix-community/nixvim";
-    nixvim.inputs.nixpkgs.follows = "nixpkgs";
 
     nixos-mailserver.url = "gitlab:ahbk/nixos-mailserver/relay-26.05";
     nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
@@ -49,6 +48,7 @@
           _module.args.o11nLib = o11nLib;
 
           flake = {
+            inherit (inputs) nixpkgs;
             inherit (o11nLib) fromFlake fromPath;
           };
 

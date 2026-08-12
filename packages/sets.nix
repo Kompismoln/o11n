@@ -55,6 +55,7 @@ pkgs: with pkgs; rec {
     htop
     iotop
     smem
+    nvme-cli
   ];
 
   networking = [

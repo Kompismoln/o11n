@@ -88,17 +88,26 @@ in
         after = [ "network.target" ];
         wantedBy = [ "multi-user.target" ];
 
+        path = [
+          pkgs.which
+          pkgs.gcc
+          pkgs.cudaPackages.cudatoolkit
+        ];
+
         environment = {
           HF_HOME = config.o11n.huggingface.home;
           HF_HUB_CACHE = config.o11n.huggingface.repo;
           HF_HUB_OFFLINE = "1";
           CUDA_VISIBLE_DEVICES = lib.concatMapStringsSep "," toString serverCfg.allowedGPUs;
+          CUDA_HOME = "${pkgs.cudaPackages.cudatoolkit}";
+          VLLM_USE_FLASHINFER_SAMPLER = "0";
         }
         // serverCfg.environment;
 
         serviceConfig = {
           User = cfg.user;
           Group = cfg.user;
+          BindReadOnlyPaths = [ "/bin" ];
           ExecStart =
             let
               inherit (serverCfg)

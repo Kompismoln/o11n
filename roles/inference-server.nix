@@ -23,6 +23,10 @@
         '';
       };
 
+      nixpkgs.overlays = [
+        (import ../overlays/xgrammar.nix)
+      ];
+
       nixpkgs.config = {
         allowUnfreePredicate =
           pkg:
@@ -31,6 +35,9 @@
             "nvidia-kernel-modules"
             "nvidia-x11"
             "nvidia-settings"
+            "nvidia-cutlass-dsl"
+            "nvidia-cutlass-dsl-libs-base"
+            "cuda-bindings"
           ]);
         cudaSupport = true;
       };

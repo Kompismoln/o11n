@@ -1,6 +1,7 @@
 # nixos/nix.nix
 {
   inputs,
+  o11nInputs,
   lib,
   pkgs,
   org,
@@ -47,7 +48,7 @@ in
         };
         to = org.flake;
       };
-      nixpkgs.flake = inputs.nixpkgs;
+      nixpkgs.flake = o11nInputs.nixpkgs;
     };
     channel.enable = false;
     settings = {
@@ -78,7 +79,7 @@ in
 
   environment.etc = {
     "nix/inputs/self".source = "${inputs.self}";
-    "nix/inputs/nixpkgs".source = "${inputs.nixpkgs}";
+    "nix/inputs/nixpkgs".source = "${o11nInputs.nixpkgs}";
   };
 
   services.openssh = {
