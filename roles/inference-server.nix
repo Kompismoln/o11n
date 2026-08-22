@@ -14,6 +14,17 @@
 
       environment.systemPackages = with pkgs; [ vllm ];
 
+      nix = {
+        settings = {
+          substituters = [
+            "https://cache.nixos-cuda.org"
+          ];
+          trusted-public-keys = [
+            "cache.nixos-cuda.org:74DUi4Ye579gUqzH4ziL9IyiJBlDpMRn9MBN8oNan9M="
+          ];
+        };
+      };
+
       boot = {
         kernelModules = [ "nvidia" ];
         blacklistedKernelModules = [ "nouveau" ];
@@ -56,21 +67,6 @@
           repo = "/srv/models/huggingface";
         };
 
-        vllm.enable = true;
-        vllm.servers.qwen3-8b = {
-          model = "Qwen/Qwen3-8B-AWQ";
-          host = "::";
-          port = 12009;
-          extraArgs = [
-            "--enforce-eager"
-            "--gpu-memory-utilization=0.95"
-            "--max-model-len=8192"
-            "--max-num-seqs=1"
-            "--enable-prefix-caching"
-            "--tool-call-parser=hermes"
-            "--enable-auto-tool-choice"
-          ];
-        };
       };
     };
 }
