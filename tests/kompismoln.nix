@@ -25,6 +25,7 @@ lib.runTests {
       "adele-main"
       "helsinki-main"
       "laptop-main"
+      "malborg-main"
       "pelle-main"
       "stationary-main"
       "stationary-single-xfs"
@@ -36,6 +37,7 @@ lib.runTests {
     expected = [
       "alex@laptop"
       "alex@lenovo"
+      "alex@malborg"
       "alex@pelle"
       "ami@adele"
     ];
@@ -49,6 +51,7 @@ lib.runTests {
       "helsinki"
       "laptop"
       "lenovo"
+      "malborg"
       "pelle"
       "stationary"
     ];
@@ -121,5 +124,13 @@ lib.runTests {
   test_xgrammar = {
     expr = nixosCfgs.pelle.pkgs.python313Packages.xgrammar.version;
     expected = "0.2.3";
+  };
+  test_adele_home = {
+    expr = homeCfgs."ami@adele".config.programs.firefox.configPath;
+    expected = ".mozilla/firefox";
+  };
+  test_adele_nixos = {
+    expr = nixosCfgs.adele.config.services.avahi.enable;
+    expected = true;
   };
 }

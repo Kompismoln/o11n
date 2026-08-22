@@ -2,20 +2,16 @@
 {
   flake.homeModules.cinnamon-office = {
     imports = [
-      ../home/home.nix
-      ../home/nix-conf.nix
+      ../home/org/home.nix
+      ../home/org/nix-conf.nix
+      ../home/org/social.nix
+      ../home/org/xdg.nix
       ../home/office.nix
-      ../home/social.nix
-      ../home/xdg.nix
     ];
 
     config = {
       o11n-hm = {
-        home.enable = true;
-        nix-conf.enable = true;
         office.enable = true;
-        social.enable = true;
-        xdg.enable = true;
       };
     };
   };
@@ -24,11 +20,11 @@
     { lib, ... }:
     {
       imports = [
+        ../nixos/org/home-manager.nix
+        ../nixos/org/networkmanager.nix
+        ../nixos/org/sound.nix
         ../nixos/cinnamon.nix
-        ../nixos/home-manager.nix
-        ../nixos/networkmanager.nix
         ../nixos/printing.nix
-        ../nixos/sound.nix
       ];
 
       config = {
@@ -44,10 +40,7 @@
 
         o11n = {
           cinnamon.enable = true;
-          home-manager.enable = true;
-          networkmanager.enable = true;
           printing.enable = true;
-          sound.enable = true;
         };
       };
     };
