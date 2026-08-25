@@ -52,6 +52,7 @@ in
     };
     channel.enable = false;
     settings = {
+      download-attempts = 3;
       auto-optimise-store = false;
       bash-prompt-prefix = "(nix:$name)\\040";
       experimental-features = [
