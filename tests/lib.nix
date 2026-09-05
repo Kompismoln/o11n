@@ -13,7 +13,8 @@
     modules:
     (import "${pkgs.path}/nixos/lib/eval-config.nix" {
       inherit pkgs;
-      inherit (pkgs) lib system;
+      inherit (pkgs) lib;
+      system = pkgs.stdenv.hostPlatform.system;
       inherit modules;
     }).config;
 }

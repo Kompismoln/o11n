@@ -190,7 +190,7 @@ in
               tlsMode = "external";
             };
           in
-          "${lib.getExe cfg.package} start-from-init ${args}";
+          "${lib.getExe' cfg.package "zitadel"} start-from-init ${args}";
       };
     };
 
