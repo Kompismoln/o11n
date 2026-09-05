@@ -24,12 +24,17 @@ let
   settingsFormat = pkgs.formats.yaml { };
   configFile = settingsFormat.generate "zitadel-config.yaml" cfg.settings;
   stepsFile = settingsFormat.generate "zitadel-steps.yaml" cfg.steps;
+
+  # Bracket bare IPv6 addresses for use in a URL, e.g. "::1" -> "[::1]".
+  # IPv4 addresses and hostnames are passed through unchanged.
+  upstreamHost = if lib.hasInfix ":" cfg.bindAddress then "[${cfg.bindAddress}]" else cfg.bindAddress;
+  upstream = "${upstreamHost}:${toString cfg.port}";
 in
 {
   options.o11n.zitadel = {
     enable = lib.mkEnableOption "ZITADEL, a user and identity access management platform";
 
-    package = lib.mkPackageOption pkgs "zitadel" { };
+    package = lib.mkPackageOption pkgs "zitadel" { default = [ "zitadel" ]; };
 
     user = lib.mkOption {
       type = lib.types.str;
@@ -53,6 +58,19 @@ in
       type = lib.types.port;
       default = 8080;
       description = "Port ZITADEL listens on, reverse-proxied by nginx.";
+    };
+
+    bindAddress = lib.mkOption {
+      type = lib.types.str;
+      default = "127.0.0.1";
+      example = "::1";
+      description = ''
+        Address nginx proxies to. ZITADEL itself has no bind-address
+        setting of its own and always listens on all interfaces on `port`,
+        so this only controls what nginx forwards to: keep it loopback
+        unless something other than this host's nginx needs to reach
+        ZITADEL directly. Accepts an IPv6 address, e.g. "::1".
+      '';
     };
 
     masterKeyFile = lib.mkOption {
@@ -137,12 +155,12 @@ in
       # The login UI is plain HTTP(S); everything else (console, APIs) is
       # served over gRPC and needs `grpc_pass`, not `proxy_pass`.
       locations."/ui/v2/login" = {
-        proxyPass = "http://127.0.0.1:${toString cfg.port}";
+        proxyPass = "http://${upstream}";
         recommendedProxySettings = true;
       };
       locations."/" = {
         extraConfig = ''
-          grpc_pass grpc://127.0.0.1:${toString cfg.port};
+          grpc_pass grpc://${upstream};
           grpc_set_header Host $host;
           grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           grpc_set_header X-Forwarded-Proto $scheme;
