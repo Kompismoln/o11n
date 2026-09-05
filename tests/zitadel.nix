@@ -11,9 +11,9 @@ let
     o11n.zitadel = {
       enable = true;
       endpoint = "auth.example.com";
+      home = "/var/lib/zitadel";
       masterKeyFile = "/run/secrets/zitadel-masterkey";
-      hostAddress6 = "fd12:3456:7890:1::1";
-      localAddress6 = "fd12:3456:7890:1::2";
+      bindAddress = "fd12:3456:7890:1::1";
     };
     system.stateVersion = lib.trivial.release;
   };
@@ -30,7 +30,12 @@ in
 lib.runTests {
   test_zitadel_settings_derived = {
     expr = {
-      inherit (cfg.o11n.zitadel.settings) Port ExternalDomain ExternalPort ExternalSecure;
+      inherit (cfg.o11n.zitadel.settings)
+        Port
+        ExternalDomain
+        ExternalPort
+        ExternalSecure
+        ;
     };
     expected = {
       Port = 8080;
@@ -52,11 +57,11 @@ lib.runTests {
 
   test_zitadel_login_proxy_pass = {
     expr = vhost.locations."/ui/v2/login".proxyPass;
-    expected = "http://[fd12:3456:7890:1::2]:8080";
+    expected = "http://[fd12:3456:7890:1::1]:8080";
   };
 
   test_zitadel_grpc_pass = {
-    expr = lib.hasInfix "grpc_pass grpc://[fd12:3456:7890:1::2]:8080;" vhost.locations."/".extraConfig;
+    expr = lib.hasInfix "grpc_pass grpc://[fd12:3456:7890:1::1]:8080;" vhost.locations."/".extraConfig;
     expected = true;
   };
 
@@ -69,8 +74,8 @@ lib.runTests {
     };
     expected = {
       privateNetwork = true;
-      hostAddress6 = "fd12:3456:7890:1::1";
-      localAddress6 = "fd12:3456:7890:1::2";
+      hostAddress6 = "fd00::1";
+      localAddress6 = "fd12:3456:7890:1::1";
     };
   };
 
