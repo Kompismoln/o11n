@@ -1,34 +1,81 @@
-{ config, ... }:
+# nixos/keycloak.nix
 {
-  services.nginx.virtualHosts."keycloak.kompismoln.se" = {
-    forceSSL = true;
-    enableACME = true;
-    locations."/" = {
-      recommendedProxySettings = true;
-      proxyPass = "http://localhost:${toString config.services.keycloak.settings.http-port}";
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  cfg = config.o11n.keycloak;
+in
+{
+  options.o11n.keycloak = {
+    enable = lib.mkEnableOption "keycloak";
+
+    package = lib.mkPackageOption pkgs "zitadel" { default = [ "zitadel" ]; };
+
+    user = lib.mkOption {
+      type = lib.types.str;
+      default = "keycloak";
+      description = "User to run keycloak under";
+    };
+
+    group = lib.mkOption {
+      type = lib.types.str;
+      default = "keycloak";
+      description = "Group to run keycloak under";
+    };
+
+    home = lib.mkOption {
+      description = "State directory";
+      type = lib.types.str;
+    };
+
+    endpoint = lib.mkOption {
+      type = lib.types.str;
+      description = "Public domain keycloak is served on.";
+      example = "auth.kompismoln.se";
+    };
+
+    port = lib.mkOption {
+      type = lib.types.port;
+      default = 8080;
+    };
+
+    bindAddress = lib.mkOption {
+      type = lib.types.str;
+      description = "IPv6 address service is bound to";
+      example = "fd12:3456:7890:1::1";
     };
   };
-  services.keycloak = {
-    enable = false;
-    settings = {
-      hostname = "keycloak.kompismoln.se";
-      http-port = 38080;
-      http-host = "127.0.0.1";
-      http-enabled = true;
-      proxy-headers = "xforwarded";
+
+  config = {
+
+    services.nginx.virtualHosts.${cfg.endpoint} = {
+      forceSSL = true;
+      enableACME = true;
+      locations."/" = {
+        recommendedProxySettings = true;
+        proxyPass = "http://[${cfg.bindAddress}]:${toString cfg.port}";
+      };
     };
-    database.passwordFile = config.age.secrets."keycloak".path;
-    initialAdminPassword = "password";
+
+    services.keycloak = {
+      enable = true;
+      settings = {
+        hostname = cfg.endpoint;
+        http-port = cfg.port;
+        http-host = cfg.bindAddress;
+        http-enabled = true;
+        proxy-headers = "xforwarded";
+      };
+      database.host = "/run/postgresql";
+      plugins = [
+        pkgs.keycloak.plugins.junixsocket-common
+        pkgs.keycloak.plugins.junixsocket-native-common
+      ];
+      initialAdminPassword = "_";
+    };
+
   };
-  age.secrets."keycloak" = {
-    file = ../secrets/keycloak-root.age;
-    owner = "keycloak";
-    group = "keycloak";
-  };
-  users.users.keycloak = {
-    uid = 969;
-    isSystemUser = true;
-    group = "keycloak";
-  };
-  users.groups.keycloak.gid = 969;
 }

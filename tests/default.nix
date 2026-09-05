@@ -36,4 +36,12 @@ in
       ];
     in
     mkTest "test-base" tests;
+
+  test-keycloak =
+    let
+      tests = [
+        ./keycloak.nix
+      ];
+    in
+    mkTest "test-keycloak" tests;
 }
