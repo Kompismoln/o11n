@@ -12,23 +12,20 @@ let
       enable = true;
       endpoint = "auth.example.com";
       masterKeyFile = "/run/secrets/zitadel-masterkey";
+      hostAddress6 = "fd12:3456:7890:1::1";
+      localAddress6 = "fd12:3456:7890:1::2";
     };
     system.stateVersion = lib.trivial.release;
   };
 
-  eval =
-    extraConfig:
-    evalNixosModule [
-      ../nixos/zitadel.nix
-      baseConfig
-      extraConfig
-    ];
-
-  cfg = eval { };
-  cfgIPv6 = eval { o11n.zitadel.bindAddress = "::1"; };
+  cfg = evalNixosModule [
+    ../nixos/zitadel.nix
+    baseConfig
+  ];
 
   vhost = cfg.services.nginx.virtualHosts."auth.example.com";
-  vhostIPv6 = cfgIPv6.services.nginx.virtualHosts."auth.example.com";
+  container = cfg.containers.zitadel;
+  containerCfg = container.config;
 in
 lib.runTests {
   test_zitadel_settings_derived = {
@@ -55,36 +52,57 @@ lib.runTests {
 
   test_zitadel_login_proxy_pass = {
     expr = vhost.locations."/ui/v2/login".proxyPass;
-    expected = "http://127.0.0.1:8080";
+    expected = "http://[fd12:3456:7890:1::2]:8080";
   };
 
   test_zitadel_grpc_pass = {
-    expr = lib.hasInfix "grpc_pass grpc://127.0.0.1:8080;" vhost.locations."/".extraConfig;
+    expr = lib.hasInfix "grpc_pass grpc://[fd12:3456:7890:1::2]:8080;" vhost.locations."/".extraConfig;
     expected = true;
   };
 
-  test_zitadel_login_proxy_pass_ipv6 = {
-    expr = vhostIPv6.locations."/ui/v2/login".proxyPass;
-    expected = "http://[::1]:8080";
+  # ZITADEL always binds all interfaces, so it needs its own network
+  # namespace to not collide with other services on `port` -- this is the
+  # part that keeps 8080 collision-free without a host-wide port registry.
+  test_zitadel_container_private_network = {
+    expr = {
+      inherit (container) privateNetwork hostAddress6 localAddress6;
+    };
+    expected = {
+      privateNetwork = true;
+      hostAddress6 = "fd12:3456:7890:1::1";
+      localAddress6 = "fd12:3456:7890:1::2";
+    };
   };
 
-  test_zitadel_grpc_pass_ipv6 = {
-    expr = lib.hasInfix "grpc_pass grpc://[::1]:8080;" vhostIPv6.locations."/".extraConfig;
-    expected = true;
+  test_zitadel_container_autostart = {
+    expr = {
+      inherit (container) autoStart ephemeral;
+    };
+    expected = {
+      autoStart = true;
+      ephemeral = true;
+    };
+  };
+
+  # The master key never touches the store; it has to reach the container
+  # by bind mount, at the same path it's configured with.
+  test_zitadel_masterkey_bind_mounted = {
+    expr = container.bindMounts."/run/secrets/zitadel-masterkey".hostPath;
+    expected = "/run/secrets/zitadel-masterkey";
   };
 
   test_zitadel_service_user = {
-    expr = cfg.systemd.services.zitadel.serviceConfig.User;
+    expr = containerCfg.systemd.services.zitadel.serviceConfig.User;
     expected = "zitadel";
   };
 
   test_zitadel_exec_start_has_masterkey = {
-    expr = lib.hasInfix "/run/secrets/zitadel-masterkey" cfg.systemd.services.zitadel.serviceConfig.ExecStart;
+    expr = lib.hasInfix "/run/secrets/zitadel-masterkey" containerCfg.systemd.services.zitadel.serviceConfig.ExecStart;
     expected = true;
   };
 
   test_zitadel_user_created = {
-    expr = cfg.users.users.zitadel.isSystemUser;
+    expr = containerCfg.users.users.zitadel.isSystemUser;
     expected = true;
   };
 }

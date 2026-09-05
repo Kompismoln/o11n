@@ -11,6 +11,29 @@
 # always needs. Database bootstrapping is intentionally left out here: like
 # the rest of o11n, databases and roles are created outside Nix, not by the
 # module.
+#
+# ZITADEL runs in a private-networked nixos-container rather than directly
+# on the host, and that's not just following the pattern the other o11n web
+# apps use (their containers actually share the host's network namespace,
+# see e.g. mobilizon.nix/opencloud.nix -- they're containerized for
+# filesystem/dependency isolation, not networking). ZITADEL has no
+# bind-address setting of its own: it always listens on all interfaces on
+# `port`, which is fine behind a reverse proxy but means it can't take part
+# in o11n's usual way of avoiding port collisions (every entity gets its
+# own address and binds *that*, so everyone can default to the same port).
+# A wildcard bind claims the port on every address on the host, so it would
+# collide with any other service using it, and there's no per-app port
+# registry to route around that by hand.
+#
+# The fix has to be network-namespace isolation, since ZITADEL can't be
+# told to bind narrower. A bare `PrivateNetwork=` on the systemd service
+# would do the isolation, but it also cuts off all connectivity -- nginx
+# couldn't reach it either -- and bridging that back over a veth by hand
+# means re-implementing, unit by unit, exactly what systemd-nspawn already
+# does. nixos-container *is* that: it's systemd's own container tooling
+# (systemd-nspawn), not a separate, heavier technology, so reaching for
+# `containers.zitadel` here is the systemd-native answer, just via the
+# tested abstraction instead of hand-rolled `ip netns`/veth plumbing.
 {
   config,
   lib,
@@ -20,15 +43,17 @@
 
 let
   cfg = config.o11n.zitadel;
+  hostConfig = config;
 
   settingsFormat = pkgs.formats.yaml { };
   configFile = settingsFormat.generate "zitadel-config.yaml" cfg.settings;
   stepsFile = settingsFormat.generate "zitadel-steps.yaml" cfg.steps;
 
-  # Bracket bare IPv6 addresses for use in a URL, e.g. "::1" -> "[::1]".
-  # IPv4 addresses and hostnames are passed through unchanged.
-  upstreamHost = if lib.hasInfix ":" cfg.bindAddress then "[${cfg.bindAddress}]" else cfg.bindAddress;
-  upstream = "${upstreamHost}:${toString cfg.port}";
+  # The container's own address, reachable from the host over the veth pair;
+  # what nginx proxies to. Always IPv6, so always bracket for use in a URL.
+  upstream = "[${cfg.localAddress6}]:${toString cfg.port}";
+
+  secretPaths = map toString (cfg.extraSettingsPaths ++ cfg.extraStepsPaths ++ [ cfg.masterKeyFile ]);
 in
 {
   options.o11n.zitadel = {
@@ -39,13 +64,13 @@ in
     user = lib.mkOption {
       type = lib.types.str;
       default = "zitadel";
-      description = "User to run ZITADEL under.";
+      description = "User to run ZITADEL under, inside its container.";
     };
 
     group = lib.mkOption {
       type = lib.types.str;
       default = "zitadel";
-      description = "Group to run ZITADEL under.";
+      description = "Group to run ZITADEL under, inside its container.";
     };
 
     endpoint = lib.mkOption {
@@ -57,20 +82,29 @@ in
     port = lib.mkOption {
       type = lib.types.port;
       default = 8080;
-      description = "Port ZITADEL listens on, reverse-proxied by nginx.";
+      description = ''
+        Port ZITADEL listens on inside its container, reverse-proxied by
+        nginx on the host. Since the container has its own network
+        namespace, this can safely stay at ZITADEL's own unsurprising
+        default regardless of what else runs on the host.
+      '';
     };
 
-    bindAddress = lib.mkOption {
+    hostAddress6 = lib.mkOption {
       type = lib.types.str;
-      default = "127.0.0.1";
-      example = "::1";
+      description = "IPv6 address for the host side of the container's veth pair.";
+      example = "fd12:3456:7890:1::1";
+    };
+
+    localAddress6 = lib.mkOption {
+      type = lib.types.str;
       description = ''
-        Address nginx proxies to. ZITADEL itself has no bind-address
-        setting of its own and always listens on all interfaces on `port`,
-        so this only controls what nginx forwards to: keep it loopback
-        unless something other than this host's nginx needs to reach
-        ZITADEL directly. Accepts an IPv6 address, e.g. "::1".
+        IPv6 address for the container, i.e. ZITADEL itself. This is what
+        nginx proxies to, and (along with `hostAddress6`) is what keeps
+        this instance from colliding with anything else on `port`: give it
+        this entity's own unique address, same as o11n's other apps.
       '';
+      example = "fd12:3456:7890:1::2";
     };
 
     masterKeyFile = lib.mkOption {
@@ -79,7 +113,7 @@ in
         Path to a file containing a 32 byte master encryption key for
         ZITADEL, e.g. from `tr -dc A-Za-z0-9 </dev/urandom | head -c32`.
         Keep it out of the Nix store, it must stay stable for the lifetime
-        of the instance.
+        of the instance. Bind-mounted into the container at the same path.
       '';
     };
 
@@ -92,11 +126,16 @@ in
         details. `Port`, `ExternalDomain`, `ExternalPort` and
         `ExternalSecure` are derived from the options above and don't need
         to be repeated here.
+
+        Since ZITADEL runs in its own network namespace, `localhost` here
+        means the container, not the host: point `Database.postgres.Host`
+        at `hostAddress6` (and make sure Postgres accepts connections from
+        it) rather than at a Unix socket or `localhost`.
       '';
       example = lib.literalExpression ''
         {
           Database.postgres = {
-            Host = "localhost";
+            Host = "fd12:3456:7890:1::1"; # hostAddress6
             Database = "zitadel";
             User.Username = "zitadel";
             Admin.Username = "zitadel";
@@ -109,8 +148,9 @@ in
       type = lib.types.listOf lib.types.path;
       default = [ ];
       description = ''
-        Extra settings files, layered on top of `settings`. Use this to keep
-        secrets such as database passwords out of the Nix store.
+        Extra settings files, layered on top of `settings`. Use this to
+        keep secrets such as database passwords out of the Nix store.
+        Bind-mounted into the container at the same path.
       '';
     };
 
@@ -135,7 +175,10 @@ in
     extraStepsPaths = lib.mkOption {
       type = lib.types.listOf lib.types.path;
       default = [ ];
-      description = "Extra steps files, layered on top of `steps`.";
+      description = ''
+        Extra steps files, layered on top of `steps`. Bind-mounted into the
+        container at the same path.
+      '';
     };
   };
 
@@ -168,36 +211,67 @@ in
       };
     };
 
-    systemd.services.zitadel = {
-      description = "ZITADEL identity and access management";
-      wantedBy = [ "multi-user.target" ];
+    systemd.services."container@zitadel" = {
+      # The container's own systemd doesn't know about the host's
+      # postgresql.service, so make sure it's up before the container
+      # starts (relevant when Database.postgres.Host points at this host).
       after = lib.optional config.services.postgresql.enable "postgresql.service";
-
       serviceConfig = {
-        Type = "simple";
-        User = cfg.user;
-        Group = cfg.group;
-        Restart = "on-failure";
-        ExecStart =
-          let
-            # `start-from-init` runs the setup steps and starts the server
-            # in one go; it's safe to run on every boot since ZITADEL
-            # tracks which steps are already applied in the database.
-            args = lib.cli.toCommandLineShellGNU { } {
-              config = cfg.extraSettingsPaths ++ [ configFile ];
-              steps = cfg.extraStepsPaths ++ [ stepsFile ];
-              masterkeyFile = cfg.masterKeyFile;
-              tlsMode = "external";
-            };
-          in
-          "${lib.getExe' cfg.package "zitadel"} start-from-init ${args}";
+        TimeoutStopSec = 10;
+        KillMode = "mixed";
       };
     };
 
-    users.users.zitadel = lib.mkIf (cfg.user == "zitadel") {
-      isSystemUser = true;
-      group = cfg.group;
+    containers.zitadel = {
+      autoStart = true;
+      ephemeral = true;
+      privateNetwork = true;
+      inherit (cfg) hostAddress6 localAddress6;
+
+      # Secrets live outside the Nix store on the host (an age/sops secret,
+      # typically); bind-mount each one into the container at the same
+      # path so `masterKeyFile`/`extraSettingsPaths`/`extraStepsPaths`
+      # don't need separate in-container paths.
+      bindMounts = lib.genAttrs secretPaths (path: {
+        hostPath = path;
+        isReadOnly = true;
+      });
+
+      config = {
+        system.stateVersion = hostConfig.system.stateVersion;
+
+        users.users.${cfg.user} = lib.mkIf (cfg.user == "zitadel") {
+          isSystemUser = true;
+          group = cfg.group;
+        };
+        users.groups.${cfg.group} = lib.mkIf (cfg.group == "zitadel") { };
+
+        systemd.services.zitadel = {
+          description = "ZITADEL identity and access management";
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            Type = "simple";
+            User = cfg.user;
+            Group = cfg.group;
+            Restart = "on-failure";
+            ExecStart =
+              let
+                # `start-from-init` runs the setup steps and starts the
+                # server in one go; it's safe to run on every boot since
+                # ZITADEL tracks which steps are already applied in the
+                # database.
+                args = lib.cli.toCommandLineShellGNU { } {
+                  config = cfg.extraSettingsPaths ++ [ configFile ];
+                  steps = cfg.extraStepsPaths ++ [ stepsFile ];
+                  masterkeyFile = cfg.masterKeyFile;
+                  tlsMode = "external";
+                };
+              in
+              "${lib.getExe' cfg.package "zitadel"} start-from-init ${args}";
+          };
+        };
+      };
     };
-    users.groups.zitadel = lib.mkIf (cfg.group == "zitadel") { };
   };
 }
