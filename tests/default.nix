@@ -36,4 +36,12 @@ in
       ];
     in
     mkTest "test-base" tests;
+
+  test-zitadel =
+    let
+      tests = [
+        ./zitadel.nix
+      ];
+    in
+    mkTest "test-zitadel" tests;
 }
