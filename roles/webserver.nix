@@ -18,6 +18,7 @@
       ../nixos/reverse-tunnel.nix
       ../nixos/svelte.nix
       ../nixos/wordpress.nix
+      ../nixos/zitadel.nix
     ];
     nixpkgs.overlays = [
       (import ../overlays/webserver.nix { inherit inputs; })
