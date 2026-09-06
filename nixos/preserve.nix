@@ -64,10 +64,10 @@ in
 
     boot.initrd.systemd.enable = true;
 
-    services.journald.extraConfig = ''
-      SystemMaxUse=100M
-      SystemKeepFree=200M
-      MaxRetentionSec=1week
-    '';
+    services.journald.settings.Journal = {
+      SystemMaxUse = "100M";
+      SystemKeepFree = "200M";
+      MaxRetentionSec = "1week";
+    };
   };
 }
