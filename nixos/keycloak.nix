@@ -54,6 +54,11 @@ in
     services.nginx.virtualHosts.${cfg.endpoint} = {
       forceSSL = true;
       enableACME = true;
+      extraConfig = ''
+        proxy_buffer_size   32k;
+        proxy_buffers       4 32k;
+        proxy_busy_buffers_size 32k;
+      '';
       locations."/" = {
         recommendedProxySettings = true;
         proxyPass = "http://[${cfg.bindAddress}]:${toString cfg.port}";
