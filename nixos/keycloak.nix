@@ -55,8 +55,8 @@ in
       forceSSL = true;
       enableACME = true;
       extraConfig = ''
-        proxy_buffer_size   32k;
-        proxy_buffers       4 32k;
+        proxy_buffer_size 32k;
+        proxy_buffers 4 32k;
         proxy_busy_buffers_size 32k;
       '';
       locations."/" = {
