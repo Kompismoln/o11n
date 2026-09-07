@@ -179,11 +179,11 @@ in
           enable = true;
           https = true;
           hostName = "localhost";
-          package = pkgs.nextcloud33;
+          package = pkgs.nextcloud34;
           appstoreEnable = true;
           maxUploadSize = "1G";
           extraApps = {
-            inherit (pkgs.nextcloud33Packages.apps) calendar;
+            inherit (pkgs.nextcloud34Packages.apps) calendar;
           };
           settings = {
             trusted_proxies = [
