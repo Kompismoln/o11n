@@ -169,16 +169,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1781014412,
-        "narHash": "sha256-jzjLlCLRxhu0lsWuResvC5MoDW581Y4SNcMGqCGb7LM=",
+        "lastModified": 1788707132,
+        "narHash": "sha256-4qs9dO1nSNdOWBIXlP02DalJmMupI9JG2j0zmyf94O8=",
         "owner": "ahbk",
         "repo": "nixos-mailserver",
-        "rev": "131b08e6f794d4b57a87b020bba043388ab773af",
+        "rev": "333f618461852853c141ec517a331f7ba7e0e131",
         "type": "gitlab"
       },
       "original": {
         "owner": "ahbk",
-        "ref": "relay-26.05",
+        "ref": "relay",
         "repo": "nixos-mailserver",
         "type": "gitlab"
       }

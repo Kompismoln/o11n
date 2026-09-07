@@ -15,7 +15,7 @@
 
     nixvim.url = "github:nix-community/nixvim";
 
-    nixos-mailserver.url = "gitlab:ahbk/nixos-mailserver/relay-26.05";
+    nixos-mailserver.url = "gitlab:ahbk/nixos-mailserver/relay";
     nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
 
     disko.url = "github:nix-community/disko";
