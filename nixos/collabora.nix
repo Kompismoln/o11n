@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -32,6 +33,10 @@ let
       };
     };
   };
+  dicts = [
+    pkgs.hunspellDicts.sv_SE
+    pkgs.hunspellDicts.en_US
+  ];
 in
 {
   options = {
@@ -41,6 +46,21 @@ in
   };
 
   config = lib.mkIf app.enable {
+    environment.systemPackages = dicts;
+
+    systemd.services.coolwsd = {
+      environment.DICPATH = lib.concatMapStringsSep ":" (d: "${d}/share/hunspell") dicts;
+      preStart = ''
+        mkdir -p /var/lib/cool/systemplate/usr/share/hunspell
+
+        ${pkgs.lib.concatMapStringsSep "\n" (dict: ''
+          for f in ${dict}/share/hunspell/*; do
+            ln -sf "$f" /var/lib/cool/systemplate/usr/share/hunspell/
+          done
+        '') dicts}
+      '';
+    };
+
     services.nginx.virtualHosts.${app.endpoint} =
       let
         proxyPass = "http://[${app.bindAddress}]:${toString app.port}";
@@ -104,6 +124,7 @@ in
       aliasGroups = app.allowedHosts;
 
       settings = {
+        allowed_languages = "en_US sv_SE";
         ssl = {
           enable = false;
           termination = true;

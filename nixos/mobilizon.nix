@@ -153,55 +153,62 @@ in
           };
         };
 
-        config = {
-          system = {
-            inherit (hostConfig.system) stateVersion;
-          };
-          users = {
-            users.mobilizon = {
-              inherit (app) uid;
-              group = "mobilizon";
+        config =
+          let
+            postgresqlPackage = pkgs.postgresql_17;
+          in
+          {
+            system = {
+              inherit (hostConfig.system) stateVersion;
             };
-            groups.mobilizon.gid = app.gid;
-          };
-
-          services.postgresql.enable = lib.mkForce false;
-          services.postgresql.package = pkgs.postgresql_17;
-          systemd.services.mobilizon-postgresql.enable = lib.mkForce false;
-
-          environment.systemPackages = [ pkgs.postgresql_17 ];
-
-          systemd.services.mobilizon = {
-            path = [ pkgs.postgresql ];
-
-          };
-          # ...
-          services.mobilizon =
-            let
-              elixirConf = pkgs.formats.elixirConf { elixir = app.package.elixirPackage; };
-            in
-            {
-              enable = true;
-              inherit (app) package;
-              nginx.enable = false;
-              settings.":mobilizon" = {
-                "Mobilizon.Web.Endpoint".http = {
-                  inherit (app) port;
-                  ip = elixirConf.lib.mkRaw ''elem(:inet.parse_address(~c"${app.bindAddress}"), 1)'';
-                };
-                "Mobilizon.Storage.Repo" = {
-                  inherit (app) database;
-                  socket_dir = "/run/postgresql";
-                  username = app.user;
-                };
-                ":instance" = {
-                  inherit (app) name;
-                  hostname = app.endpoint;
-                };
+            users = {
+              users.mobilizon = {
+                inherit (app) uid;
+                group = "mobilizon";
               };
-
+              groups.mobilizon.gid = app.gid;
             };
-        };
+
+            systemd.services.mobilizon-postgresql.enable = lib.mkForce false;
+
+            environment.systemPackages = [ postgresqlPackage ];
+
+            systemd.services.mobilizon = {
+              path = [ postgresqlPackage ];
+            };
+
+            services.postgresql = {
+              enable = lib.mkForce false;
+              package = postgresqlPackage;
+            };
+
+            # ...
+            services.mobilizon =
+              let
+                elixirConf = pkgs.formats.elixirConf { elixir = app.package.elixirPackage; };
+              in
+              {
+                enable = true;
+                inherit (app) package;
+                nginx.enable = false;
+                settings.":mobilizon" = {
+                  "Mobilizon.Web.Endpoint".http = {
+                    inherit (app) port;
+                    ip = elixirConf.lib.mkRaw ''elem(:inet.parse_address(~c"${app.bindAddress}"), 1)'';
+                  };
+                  "Mobilizon.Storage.Repo" = {
+                    inherit (app) database;
+                    socket_dir = "/run/postgresql";
+                    username = app.user;
+                  };
+                  ":instance" = {
+                    inherit (app) name;
+                    hostname = app.endpoint;
+                  };
+                };
+
+              };
+          };
 
       })
     ) eachApp;
