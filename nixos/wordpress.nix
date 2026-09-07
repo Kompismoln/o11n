@@ -155,7 +155,7 @@ in
             extraConfig = "deny all;";
           };
 
-          "~ \.(log|sql)$" = {
+          "~ \\.(log|sql)$" = {
             priority = 800;
             extraConfig = "deny all;";
           };
