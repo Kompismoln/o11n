@@ -209,7 +209,6 @@
             typstyle.command = lib.getExe pkgs.typstyle;
             squeeze_blanks.command = lib.getExe' pkgs.coreutils "cat";
             nixfmt.command = lib.getExe pkgs.nixfmt;
-            ruff.command = lib.getExe pkgs.ruff;
           };
           formatters_by_ft = {
             markdown = [
@@ -222,10 +221,6 @@
             ];
             nix = [
               "nixfmt"
-            ];
-            python = [
-              "ruff_organize_imports"
-              "ruff_format"
             ];
           };
           format_on_save =
@@ -274,9 +269,6 @@
           ts_ls.enable = true;
           svelte.enable = true;
           tailwindcss.enable = true;
-          basedpyright.enable = true;
-          ty.enable = false; # swap with basedpyright mid 2027
-          ruff.enable = true;
           nixd.enable = true;
           eslint.enable = true;
           bashls.enable = true;
