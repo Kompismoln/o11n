@@ -86,6 +86,16 @@ let
           type = lib.types.listOf lib.types.str;
           default = [ ];
         };
+        env = lib.mkOption {
+          description = "Variables to add to environment.";
+          type = lib.types.attrsOf lib.types.str;
+          default = { };
+        };
+        worker-package = lib.mkOption {
+          description = "Optional worker running besides django";
+          type = lib.types.nullOr lib.types.package;
+          default = null;
+        };
         workers = lib.mkOption {
           description = "The number of worker processes for handling requests.";
           type = lib.types.int;
@@ -100,22 +110,26 @@ let
       };
     };
 
-  envs = lib.mapAttrs (_: app: {
-    DB_NAME = app.database;
-    DB_USER = app.user;
-    DB_HOST = "/run/postgresql";
-    DEBUG = "false";
-    DJANGO_SETTINGS_MODULE = "${app.module}.settings";
-    HOST = app.endpoint;
-    DJANGO_MODE = "main";
-    DJANGO_LOG_LEVEL = "WARNING";
-    SCHEME = if app.ssl then "https" else "http";
-    TRUSTED_ORIGINS = builtins.concatStringsSep "," app.trustedOrigins;
-    SECRET_KEY_FILE = app.secretKeyPath;
-    STATIC_URL = app.locationStatic;
-    STATE_DIR = app.home;
-    STATIC_ROOT = statics.${app.name};
-  }) eachApp;
+  envs = lib.mapAttrs (
+    _: app:
+    {
+      DB_NAME = app.database;
+      DB_USER = app.user;
+      DB_HOST = "/run/postgresql";
+      DEBUG = "false";
+      DJANGO_SETTINGS_MODULE = "${app.module}.settings";
+      HOST = app.endpoint;
+      DJANGO_MODE = "main";
+      DJANGO_LOG_LEVEL = "WARNING";
+      SCHEME = if app.ssl then "https" else "http";
+      TRUSTED_ORIGINS = builtins.concatStringsSep "," app.trustedOrigins;
+      SECRET_KEY_FILE = app.secretKeyPath;
+      STATIC_URL = app.locationStatic;
+      STATE_DIR = app.home;
+      STATIC_ROOT = statics.${app.name};
+    }
+    // app.env
+  ) eachApp;
 
   mkCollectStatic =
     _: app:
@@ -197,9 +211,9 @@ in
       }
     ) eachApp;
 
-    systemd.services = lib.mapAttrs' (
-      _: app:
-      lib.nameValuePair "${app.name}-django" {
+    systemd.services = lib.concatMapAttrs (_: app: {
+
+      "${app.name}-django" = {
         path = [ pkgs.postgresql ];
         description = "serve ${app.name}";
         serviceConfig = {
@@ -216,8 +230,21 @@ in
           Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") envs.${app.name};
         };
         wantedBy = [ "multi-user.target" ];
+      };
 
-      }
+      "${app.name}-django-worker" = lib.mkIf (app.worker-package != null) {
+        path = [ pkgs.postgresql ];
+        description = "serve ${app.name} worker";
+        serviceConfig = {
+          ExecStart = lib.getExe app.worker-package;
+          User = app.user;
+          Group = app.user;
+          Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") envs.${app.name};
+        };
+        wantedBy = [ "multi-user.target" ];
+      };
+    }
+
     ) eachApp;
 
   };
