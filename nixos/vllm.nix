@@ -41,6 +41,21 @@ let
           description = "Path to the model weights or HuggingFace model ID.";
           example = "lmsys/vicuna-7b-v1.5";
         };
+        revision = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "The model's revision (a branch, tag or commit) in the Hugging Face cache; vLLM reads `main` if null.";
+        };
+        chatTemplate = lib.mkOption {
+          type = lib.types.nullOr lib.types.path;
+          default = null;
+          description = "Chat template file passed as --chat-template; if null, vLLM picks one from the model's files.";
+        };
+        servedModelNames = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = "Names passed as --served-model-name; responses carry the first. If empty, the model is served under its own name.";
+        };
         extraArgs = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           default = [ ];
@@ -58,6 +73,89 @@ let
         };
       };
     };
+
+  servicePath = [
+    pkgs.which
+    pkgs.gcc
+    pkgs.cudaPackages.cudatoolkit
+  ];
+
+  servers = lib.mapAttrs (server: serverCfg: {
+    argv = [
+      (lib.getExe' serverCfg.package "vllm")
+      "serve"
+      serverCfg.model
+      "--host=${serverCfg.host}"
+      "--port=${toString serverCfg.port}"
+    ]
+    ++ lib.optional (serverCfg.revision != null) "--revision=${serverCfg.revision}"
+    ++ lib.optional (serverCfg.chatTemplate != null) "--chat-template=${serverCfg.chatTemplate}"
+    ++ lib.optionals (serverCfg.servedModelNames != [ ]) (
+      [ "--served-model-name" ] ++ serverCfg.servedModelNames
+    )
+    ++ serverCfg.extraArgs;
+
+    environment = {
+      HF_HOME = config.o11n.huggingface.home;
+      HF_HUB_CACHE = config.o11n.huggingface.repo;
+      HF_HUB_OFFLINE = "1";
+      CUDA_VISIBLE_DEVICES = lib.concatMapStringsSep "," toString serverCfg.allowedGPUs;
+      CUDA_HOME = "${pkgs.cudaPackages.cudatoolkit}";
+      VLLM_USE_FLASHINFER_SAMPLER = "0";
+    }
+    // serverCfg.environment;
+
+    # Everything the server runs from the store: its path changes when any of it does,
+    # and `nix-store -qR` on it gives the whole runtime closure.
+    runtime = pkgs.writeTextFile {
+      name = "vllm-${server}-runtime";
+      text = lib.concatMapStrings (p: "${p}\n") ([ serverCfg.package ] ++ servicePath);
+    };
+  }) enabledServers;
+
+  reportConfig = pkgs.writeText "vllm-report.json" (
+    builtins.toJSON {
+      hostname = config.networking.hostName;
+      hub_cache = config.o11n.huggingface.repo;
+      servers = lib.mapAttrs (server: serverCfg: {
+        unit = "vllm-${server}.service";
+        package = {
+          name = lib.getName serverCfg.package;
+          version = lib.getVersion serverCfg.package;
+          path = "${serverCfg.package}";
+        };
+        runtime = "${servers.${server}.runtime}";
+        inherit (servers.${server}) argv environment;
+        inherit (serverCfg)
+          host
+          port
+          model
+          revision
+          ;
+        chat_template = if serverCfg.chatTemplate == null then null else "${serverCfg.chatTemplate}";
+        served_model_names = serverCfg.servedModelNames;
+        extra_args = serverCfg.extraArgs;
+        gpus = serverCfg.allowedGPUs;
+      }) enabledServers;
+    }
+  );
+
+  vllmReport =
+    let
+      script = pkgs.writers.writePython3Bin "vllm-report" {
+        flakeIgnore = [
+          "E203"
+          "E501"
+        ];
+      } (builtins.readFile ./vllm-report.py);
+    in
+    pkgs.writeShellScriptBin "vllm-report" ''
+      exec ${lib.getExe script} \
+        --config ${reportConfig} \
+        --nvidia-smi ${lib.getExe' config.hardware.nvidia.package.bin "nvidia-smi"} \
+        --systemctl ${lib.getExe' config.systemd.package "systemctl"} \
+        "$@"
+    '';
 in
 {
   options.o11n.vllm = {
@@ -71,6 +169,19 @@ in
       default = { };
       description = "Definition of per-domain vLLM inference servers.";
     };
+    report = {
+      enable = lib.mkEnableOption "an HTTP endpoint reporting what each vLLM server runs: package, runtime closure, argv, env, GPUs, model files and chat template, hashed";
+      host = lib.mkOption {
+        type = lib.types.str;
+        default = "127.0.0.1";
+        description = "The host address to bind the report endpoint to.";
+      };
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 12008;
+        description = "The port to bind the report endpoint to.";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -81,55 +192,54 @@ in
       }
     ];
 
-    systemd.services = lib.mapAttrs' (
-      server: serverCfg:
-      lib.nameValuePair "vllm-${server}" {
-        description = "vLLM-${server} Inference Server";
-        after = [ "network.target" ];
-        wantedBy = [ "multi-user.target" ];
+    environment.systemPackages = [ vllmReport ];
 
-        path = [
-          pkgs.which
-          pkgs.gcc
-          pkgs.cudaPackages.cudatoolkit
-        ];
+    systemd.services =
+      lib.mapAttrs' (
+        server: serverCfg:
+        lib.nameValuePair "vllm-${server}" {
+          description = "vLLM-${server} Inference Server";
+          after = [ "network.target" ];
+          wantedBy = [ "multi-user.target" ];
 
-        environment = {
-          HF_HOME = config.o11n.huggingface.home;
-          HF_HUB_CACHE = config.o11n.huggingface.repo;
-          HF_HUB_OFFLINE = "1";
-          CUDA_VISIBLE_DEVICES = lib.concatMapStringsSep "," toString serverCfg.allowedGPUs;
-          CUDA_HOME = "${pkgs.cudaPackages.cudatoolkit}";
-          VLLM_USE_FLASHINFER_SAMPLER = "0";
+          path = servicePath;
+
+          inherit (servers.${server}) environment;
+
+          serviceConfig = {
+            User = cfg.user;
+            Group = cfg.user;
+            BindReadOnlyPaths = [ "/bin" ];
+            ExecStart = lib.escapeShellArgs servers.${server}.argv;
+
+            DeviceAllow = [
+              "/dev/nvidiactl rw"
+              "/dev/nvidia-uvm rw"
+              "/dev/nvidia-uvm-tools rw"
+              "/dev/nvidia-modeset rw"
+            ]
+            ++ map (i: "/dev/nvidia${toString i} rw") serverCfg.allowedGPUs;
+          };
         }
-        // serverCfg.environment;
+      ) enabledServers
+      // lib.optionalAttrs cfg.report.enable {
+        vllm-report = {
+          description = "Report of the vLLM servers";
+          after = [ "network.target" ];
+          wantedBy = [ "multi-user.target" ];
 
-        serviceConfig = {
-          User = cfg.user;
-          Group = cfg.user;
-          BindReadOnlyPaths = [ "/bin" ];
-          ExecStart =
-            let
-              inherit (serverCfg)
-                host
-                model
-                extraArgs
-                port
-                ;
-              args = lib.escapeShellArgs extraArgs;
-              cmd = lib.getExe' serverCfg.package "vllm";
-            in
-            "${cmd} serve ${model} --host=${host} --port=${toString port} ${args}";
-
-          DeviceAllow = [
-            "/dev/nvidiactl rw"
-            "/dev/nvidia-uvm rw"
-            "/dev/nvidia-uvm-tools rw"
-            "/dev/nvidia-modeset rw"
-          ]
-          ++ map (i: "/dev/nvidia${toString i} rw") serverCfg.allowedGPUs;
+          serviceConfig = {
+            User = cfg.user;
+            Group = cfg.user;
+            CacheDirectory = "vllm-report";
+            ExecStart = lib.escapeShellArgs [
+              (lib.getExe vllmReport)
+              "--cache=/var/cache/vllm-report"
+              "--listen=${cfg.report.host}"
+              "--port=${toString cfg.report.port}"
+            ];
+          };
         };
-      }
-    ) enabledServers;
+      };
   };
 }
