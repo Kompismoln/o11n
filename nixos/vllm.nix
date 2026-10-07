@@ -22,6 +22,11 @@ let
           default = name;
           description = "The name for this vllm server.";
         };
+        nixpkgs = lib.mkOption {
+          type = lib.types.path;
+          default = pkgs.path;
+          description = "An optional nixpkgs pin for the container";
+        };
         package = lib.mkOption {
           type = lib.types.package;
           default = pkgs.vllm;
