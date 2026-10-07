@@ -44,4 +44,12 @@ in
       ];
     in
     mkTest "test-keycloak" tests;
+
+  test-vllm =
+    let
+      tests = [
+        ./vllm.nix
+      ];
+    in
+    mkTest "test-vllm" tests;
 }
