@@ -81,6 +81,7 @@ lib.runTests {
     expr = nixosCfgs.helsinki.config.o11n.mailserver.relayDomains;
     expected = [
       "esse.nu"
+      "klarabergkonsult.se"
       "klimatkalendern.nu"
     ];
   };
