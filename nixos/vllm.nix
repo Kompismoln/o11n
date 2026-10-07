@@ -300,6 +300,11 @@ in
           system.stateVersion = config.system.stateVersion;
           nixpkgs.pkgs = serverCfg.pkgs;
 
+          # For diagnostics: the host driver's nvidia-smi, as only that matches the loaded
+          # kernel module, and nix-shell with the container's nixpkgs.
+          environment.systemPackages = [ config.hardware.nvidia.package.bin ];
+          nix.nixPath = [ "nixpkgs=${toString serverCfg.nixpkgs}" ];
+
           users = {
             users.${cfg.user} = {
               isSystemUser = true;

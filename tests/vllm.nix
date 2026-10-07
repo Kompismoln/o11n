@@ -7,8 +7,14 @@ let
   inherit (pkgs) lib;
   inherit (import ./lib.nix { inherit pkgs; }) evalNixosModule;
 
-  # A stand-in for vLLM, so the test doesn't evaluate CUDA.
+  # Stand-ins for vLLM and the host's driver, so the test doesn't evaluate CUDA.
   vllm = pkgs.writeShellScriptBin "vllm" "";
+  nvidia = pkgs.runCommand "nvidia-x11" {
+    outputs = [
+      "out"
+      "bin"
+    ];
+  } "mkdir $out $bin";
 
   # A nixpkgs pin with a vLLM of its own, which the host doesn't have.
   pin = builtins.toFile "nixpkgs-pin.nix" ''
@@ -67,6 +73,8 @@ let
       };
     };
 
+    hardware.nvidia.package = nvidia;
+
     system.stateVersion = lib.trivial.release;
   };
 
@@ -93,6 +101,17 @@ lib.runTests {
   test_vllm_from_container_nixpkgs = {
     expr = local.config.systemd.services.vllm.serviceConfig.ExecStart;
     expected = "${pinned.vllm}/bin/vllm serve /srv/models/local '--host=127.0.0.1' '--port=8001' '--chat-template=/srv/templates/local.jinja'";
+  };
+
+  test_vllm_container_diagnostics = {
+    expr = {
+      nvidia = lib.filter (p: lib.getName p == "nvidia-x11") chat.config.environment.systemPackages;
+      nixPath = local.config.nix.nixPath;
+    };
+    expected = {
+      nvidia = [ nvidia.bin ];
+      nixPath = [ "nixpkgs=${pin}" ];
+    };
   };
 
   test_vllm_container_devices = {
