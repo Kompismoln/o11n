@@ -64,9 +64,13 @@ let
           description = "The commit of the model in the Hugging Face cache. Required for a model ID: a branch or tag moves when the cache is updated.";
         };
         chatTemplate = lib.mkOption {
-          type = lib.types.nullOr lib.types.path;
-          default = null;
-          description = "Chat template file in the Nix store, passed as --chat-template; if null, vLLM picks one from the model's files.";
+          type = lib.types.path;
+          description = ''
+            Chat template file in the Nix store, passed as --chat-template: vLLM then uses it for
+            every request, instead of looking for one in the model's files. vLLM renders gpt-oss
+            with Harmony and never reads the template; give it the model's own chat_template.jinja,
+            which describes that format.
+          '';
         };
         servedModelNames = lib.mkOption {
           type = lib.types.listOf lib.types.str;
@@ -107,6 +111,13 @@ let
   inStore = lib.hasPrefix "${builtins.storeDir}/";
   isCommit = revision: revision != null && builtins.match "[0-9a-f]{40}" revision != null;
 
+  # The options a server's extraArgs set, as vLLM reads them: `--a_b=c` sets `--a-b`.
+  extraOptions =
+    serverCfg:
+    map (
+      arg: lib.head (lib.splitString "=" (builtins.replaceStrings [ "_" ] [ "-" ] arg))
+    ) serverCfg.extraArgs;
+
   # The groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
   hostGroups = lib.unique (
     [ hostUser.group ]
@@ -125,7 +136,7 @@ let
       "--port=${toString serverCfg.port}"
     ]
     ++ lib.optional (serverCfg.revision != null) "--revision=${serverCfg.revision}"
-    ++ lib.optional (serverCfg.chatTemplate != null) "--chat-template=${serverCfg.chatTemplate}"
+    ++ [ "--chat-template=${serverCfg.chatTemplate}" ]
     ++ lib.optionals (serverCfg.servedModelNames != [ ]) (
       [ "--served-model-name" ] ++ serverCfg.servedModelNames
     )
@@ -184,7 +195,7 @@ let
           model
           revision
           ;
-        chat_template = if serverCfg.chatTemplate == null then null else "${serverCfg.chatTemplate}";
+        chat_template = "${serverCfg.chatTemplate}";
         served_model_names = serverCfg.servedModelNames;
         extra_args = serverCfg.extraArgs;
         gpus = serverCfg.allowedGPUs;
@@ -255,8 +266,16 @@ in
           message = "o11n.vllm.servers.${server}.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated.";
         }
         {
-          assertion = serverCfg.chatTemplate == null || inStore "${serverCfg.chatTemplate}";
+          assertion = inStore "${serverCfg.chatTemplate}";
           message = "o11n.vllm.servers.${server}.chatTemplate must be in the Nix store, not a file on the host.";
+        }
+        {
+          assertion = !lib.elem "--chat-template" (extraOptions serverCfg);
+          message = "o11n.vllm.servers.${server}.extraArgs must not set --chat-template: set chatTemplate, which the report covers.";
+        }
+        {
+          assertion = !lib.elem "--trust-request-chat-template" (extraOptions serverCfg);
+          message = "o11n.vllm.servers.${server}.extraArgs must not set --trust-request-chat-template: it lets a request replace the chat template.";
         }
       ]) enabledServers
     );
