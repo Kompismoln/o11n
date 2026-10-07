@@ -166,11 +166,11 @@ def model_template(path, model):
 
 
 def chat_template(path, model):
-    with open(path, "rb") as f:
-        digest = hashlib.file_digest(f, "sha256").hexdigest()
+    content = Path(path).read_bytes()
     return {
         "path": path,
-        "sha256": digest,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "text": content.decode(errors="replace"),
         # vLLM 0.24 renders gpt-oss with Harmony and never reads the template:
         # https://github.com/vllm-project/vllm/blob/v0.24.0/vllm/entrypoints/serve/render/serving.py#L234
         "used": model.get("model_type") != "gpt_oss",
