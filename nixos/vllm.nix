@@ -55,18 +55,18 @@ let
         };
         model = lib.mkOption {
           type = lib.types.str;
-          description = "Path to the model weights or HuggingFace model ID.";
+          description = "A Hugging Face model ID, read from the Hugging Face cache at `revision`, or a path to the model weights in the Nix store.";
           example = "lmsys/vicuna-7b-v1.5";
         };
         revision = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
-          description = "The model's revision (a branch, tag or commit) in the Hugging Face cache; vLLM reads `main` if null.";
+          description = "The commit of the model in the Hugging Face cache. Required for a model ID: a branch or tag moves when the cache is updated.";
         };
         chatTemplate = lib.mkOption {
           type = lib.types.nullOr lib.types.path;
           default = null;
-          description = "Chat template file passed as --chat-template; if null, vLLM picks one from the model's files.";
+          description = "Chat template file in the Nix store, passed as --chat-template; if null, vLLM picks one from the model's files.";
         };
         servedModelNames = lib.mkOption {
           type = lib.types.listOf lib.types.str;
@@ -98,6 +98,14 @@ let
   ];
 
   hostUser = config.users.users.${cfg.user};
+  hasHome = hostUser.home != "/var/empty";
+
+  # Each server's home inside the container: its own directory in the user's home on the host.
+  serverHome = server: "${hostUser.home}/${servers.${server}.container}";
+
+  isLocal = lib.hasPrefix "/";
+  inStore = lib.hasPrefix "${builtins.storeDir}/";
+  isCommit = revision: revision != null && builtins.match "[0-9a-f]{40}" revision != null;
 
   # The groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
   hostGroups = lib.unique (
@@ -148,15 +156,12 @@ let
     ]
     ++ map (i: "/dev/nvidia${toString i}") serverCfg.allowedGPUs;
 
-    # What the server reads from the host outside the store: the driver's libraries,
-    # the Hugging Face cache, and a model or chat template given as a local path.
+    # What the server reads from the host outside the store: the driver's libraries
+    # and the Hugging Face cache.
     readOnlyPaths = [
       "/run/opengl-driver"
       config.o11n.huggingface.repo
-    ]
-    ++ lib.filter (path: lib.hasPrefix "/" path && !lib.hasPrefix "${builtins.storeDir}/" path) (
-      [ serverCfg.model ] ++ lib.optional (serverCfg.chatTemplate != null) "${serverCfg.chatTemplate}"
-    );
+    ];
   }) enabledServers;
 
   reportConfig = pkgs.writeText "vllm-report.json" (
@@ -237,7 +242,30 @@ in
         assertion = config.o11n.huggingface.enable;
         message = "o11n.vllm requires o11n.huggingface to be enabled";
       }
-    ];
+    ]
+    # What a server reads must not change under it: no host paths, no moving revisions.
+    ++ lib.concatLists (
+      lib.mapAttrsToList (server: serverCfg: [
+        {
+          assertion = isLocal serverCfg.model -> inStore serverCfg.model;
+          message = "o11n.vllm.servers.${server}.model must be a Hugging Face model ID or a path in the Nix store, not a path on the host.";
+        }
+        {
+          assertion = !isLocal serverCfg.model -> isCommit serverCfg.revision;
+          message = "o11n.vllm.servers.${server}.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated.";
+        }
+        {
+          assertion = serverCfg.chatTemplate == null || inStore "${serverCfg.chatTemplate}";
+          message = "o11n.vllm.servers.${server}.chatTemplate must be in the Nix store, not a file on the host.";
+        }
+      ]) enabledServers
+    );
+
+    systemd.tmpfiles.rules = lib.optionals hasHome (
+      lib.mapAttrsToList (
+        server: _: "d '${serverHome server}' 0750 ${cfg.user} ${hostUser.group} - -"
+      ) enabledServers
+    );
 
     environment.systemPackages = [ vllmReport ];
 
@@ -291,9 +319,12 @@ in
           // lib.genAttrs servers.${server}.readOnlyPaths (_: {
             isReadOnly = true;
           })
-          # vLLM, Triton and FlashInfer keep their compile caches there.
-          // lib.optionalAttrs (hostUser.home != "/var/empty") {
-            ${hostUser.home}.isReadOnly = false;
+          # A home of the server's own, for the caches vLLM, Triton, FlashInfer and CUDA keep there.
+          // lib.optionalAttrs hasHome {
+            ${hostUser.home} = {
+              hostPath = serverHome server;
+              isReadOnly = false;
+            };
           };
 
         config = {
