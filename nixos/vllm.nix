@@ -85,7 +85,18 @@ let
     pkgs.cudaPackages.cudatoolkit
   ];
 
+  hostUser = config.users.users.${cfg.user};
+
+  # The groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
+  hostGroups = lib.unique (
+    [ hostUser.group ]
+    ++ hostUser.extraGroups
+    ++ lib.attrNames (lib.filterAttrs (_: group: lib.elem cfg.user group.members) config.users.groups)
+  );
+
   servers = lib.mapAttrs (server: serverCfg: {
+    container = "vllm-${serverCfg.name}";
+
     argv = [
       (lib.getExe' serverCfg.package "vllm")
       "serve"
@@ -116,6 +127,24 @@ let
       name = "vllm-${server}-runtime";
       text = lib.concatMapStrings (p: "${p}\n") ([ serverCfg.package ] ++ servicePath);
     };
+
+    devices = [
+      "/dev/nvidiactl"
+      "/dev/nvidia-uvm"
+      "/dev/nvidia-uvm-tools"
+      "/dev/nvidia-modeset"
+    ]
+    ++ map (i: "/dev/nvidia${toString i}") serverCfg.allowedGPUs;
+
+    # What the server reads from the host outside the store: the driver's libraries,
+    # the Hugging Face cache, and a model or chat template given as a local path.
+    readOnlyPaths = [
+      "/run/opengl-driver"
+      config.o11n.huggingface.repo
+    ]
+    ++ lib.filter (path: lib.hasPrefix "/" path && !lib.hasPrefix "${builtins.storeDir}/" path) (
+      [ serverCfg.model ] ++ lib.optional (serverCfg.chatTemplate != null) "${serverCfg.chatTemplate}"
+    );
   }) enabledServers;
 
   reportConfig = pkgs.writeText "vllm-report.json" (
@@ -123,7 +152,8 @@ let
       hostname = config.networking.hostName;
       hub_cache = config.o11n.huggingface.repo;
       servers = lib.mapAttrs (server: serverCfg: {
-        unit = "vllm-${server}.service";
+        unit = "container@${servers.${server}.container}.service";
+        service = "vllm.service";
         package = {
           name = lib.getName serverCfg.package;
           version = lib.getVersion serverCfg.package;
@@ -201,29 +231,11 @@ in
 
     systemd.services =
       lib.mapAttrs' (
-        server: serverCfg:
-        lib.nameValuePair "vllm-${server}" {
-          description = "vLLM-${server} Inference Server";
-          after = [ "network.target" ];
-          wantedBy = [ "multi-user.target" ];
-
-          path = servicePath;
-
-          inherit (servers.${server}) environment;
-
+        server: _:
+        lib.nameValuePair "container@${servers.${server}.container}" {
           serviceConfig = {
-            User = cfg.user;
-            Group = cfg.user;
-            BindReadOnlyPaths = [ "/bin" ];
-            ExecStart = lib.escapeShellArgs servers.${server}.argv;
-
-            DeviceAllow = [
-              "/dev/nvidiactl rw"
-              "/dev/nvidia-uvm rw"
-              "/dev/nvidia-uvm-tools rw"
-              "/dev/nvidia-modeset rw"
-            ]
-            ++ map (i: "/dev/nvidia${toString i} rw") serverCfg.allowedGPUs;
+            TimeoutStopSec = 10;
+            KillMode = "mixed";
           };
         }
       ) enabledServers
@@ -246,5 +258,63 @@ in
           };
         };
       };
+
+    containers = lib.mapAttrs' (
+      server: serverCfg:
+      lib.nameValuePair servers.${server}.container {
+        autoStart = true;
+        ephemeral = true;
+        inherit (serverCfg) nixpkgs;
+
+        allowedDevices = map (node: {
+          inherit node;
+          modifier = "rw";
+        }) servers.${server}.devices;
+
+        bindMounts =
+          lib.genAttrs servers.${server}.devices (_: {
+            isReadOnly = false;
+          })
+          // lib.genAttrs servers.${server}.readOnlyPaths (_: {
+            isReadOnly = true;
+          })
+          # vLLM, Triton and FlashInfer keep their compile caches there.
+          // lib.optionalAttrs (hostUser.home != "/var/empty") {
+            ${hostUser.home}.isReadOnly = false;
+          };
+
+        config = {
+          system.stateVersion = config.system.stateVersion;
+
+          users = {
+            users.${cfg.user} = {
+              isSystemUser = true;
+              inherit (hostUser) uid group home;
+              extraGroups = lib.remove hostUser.group hostGroups;
+            };
+            groups = lib.genAttrs hostGroups (group: {
+              inherit (config.users.groups.${group}) gid;
+            });
+          };
+
+          systemd.services.vllm = {
+            description = "vLLM-${server} Inference Server";
+            after = [ "network.target" ];
+            wantedBy = [ "multi-user.target" ];
+
+            path = servicePath;
+
+            inherit (servers.${server}) environment;
+
+            serviceConfig = {
+              User = cfg.user;
+              Group = hostUser.group;
+              BindReadOnlyPaths = [ "/bin" ];
+              ExecStart = lib.escapeShellArgs servers.${server}.argv;
+            };
+          };
+        };
+      }
+    ) enabledServers;
   };
 }

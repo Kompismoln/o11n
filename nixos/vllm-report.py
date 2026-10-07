@@ -144,22 +144,35 @@ def chat_template(path, model_type):
     return {"path": path, "sha256": digest, "used": model_type != "gpt_oss"}
 
 
+def parent(pid):
+    stat = Path(f"/proc/{pid}/stat").read_text()
+    return int(stat.rpartition(")")[2].split()[1])
+
+
+# The server runs as a service in its container, which systemd-nspawn puts in the
+# payload/ cgroup of the container's unit: its processes are listed there by host PID.
 def process(systemctl, server):
-    pid = subprocess.run(
-        [systemctl, "show", "--property=MainPID", "--value", server["unit"]],
+    cgroup = subprocess.run(
+        [systemctl, "show", "--property=ControlGroup", "--value", server["unit"]],
         capture_output=True,
         text=True,
         check=True,
         timeout=10,
     ).stdout.strip()
-    if pid in ("", "0"):
+    procs = Path(
+        f"/sys/fs/cgroup{cgroup}/payload/system.slice/{server['service']}/cgroup.procs"
+    )
+    pids = {int(p) for p in procs.read_text().split()} if procs.is_file() else set()
+    if not pids:
         return {"running": False}
+    # The main process is the one the service's others descend from.
+    pid = min(p for p in pids if parent(p) not in pids)
     cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
     argv = [a.decode(errors="replace") for a in cmdline.split(b"\0")[:-1]]
     tail = server["argv"][1:]
     return {
         "running": True,
-        "pid": int(pid),
+        "pid": pid,
         "argv": argv,
         "matches": argv[-len(tail) :] == tail,
     }
