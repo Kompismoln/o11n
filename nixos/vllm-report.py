@@ -134,14 +134,48 @@ def model(hub_cache, server, hashes):
     }
 
 
-def chat_template(path, model_type):
-    if path is None:
-        return None
+# Where a model keeps its own chat template, in the order transformers prefers them.
+MODEL_TEMPLATES = ("chat_template.jinja", "chat_template.json", "tokenizer_config.json")
+
+
+# The model's own chat template, and whether the configured one is the same to Jinja,
+# which drops a single trailing newline from a template.
+def model_template(path, model):
+    if "path" not in model:
+        raise LookupError("the model's files are unavailable")
+    for name in MODEL_TEMPLATES:
+        file = Path(model["path"]) / name
+        if not file.is_file():
+            continue
+        text = file.read_text(encoding="utf-8")
+        template = text if file.suffix == ".jinja" else json.loads(text).get("chat_template")
+        # A tokenizer may name several; vLLM takes "default" for requests without tools.
+        if isinstance(template, list):
+            template = next(
+                (t.get("template") for t in template if t.get("name") == "default"),
+                None,
+            )
+        if isinstance(template, str):
+            configured = Path(path).read_text(encoding="utf-8")
+            return {
+                "path": name,
+                "sha256": hashlib.sha256(template.encode()).hexdigest(),
+                "matches": configured.removesuffix("\n") == template.removesuffix("\n"),
+            }
+    return None
+
+
+def chat_template(path, model):
     with open(path, "rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
-    # vLLM 0.24 renders gpt-oss with Harmony and never reads the template:
-    # https://github.com/vllm-project/vllm/blob/v0.24.0/vllm/entrypoints/serve/render/serving.py#L234
-    return {"path": path, "sha256": digest, "used": model_type != "gpt_oss"}
+    return {
+        "path": path,
+        "sha256": digest,
+        # vLLM 0.24 renders gpt-oss with Harmony and never reads the template:
+        # https://github.com/vllm-project/vllm/blob/v0.24.0/vllm/entrypoints/serve/render/serving.py#L234
+        "used": model.get("model_type") != "gpt_oss",
+        "model_template": attempt(model_template, path, model),
+    }
 
 
 def parent(pid):
@@ -208,11 +242,10 @@ def served(server):
 
 def server_report(config, args, hashes, found, server):
     resolved = attempt(model, config["hub_cache"], server, hashes)
-    model_type = resolved.get("model_type")
     return server | {
         "gpus": attempt(allowed_gpus, found, server["gpus"]),
         "model": resolved,
-        "chat_template": attempt(chat_template, server["chat_template"], model_type),
+        "chat_template": attempt(chat_template, server["chat_template"], resolved),
         "process": attempt(process, args.systemctl, server),
         "served": attempt(served, server),
     }

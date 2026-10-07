@@ -67,6 +67,7 @@ let
             port = 8000;
             model = "Qwen/Qwen3-8B";
             revision = commit;
+            chatTemplate = template;
             allowedGPUs = [ 1 ];
           };
           local = {
@@ -102,11 +103,13 @@ let
           port = 8002;
           model = "Qwen/Qwen3-8B";
           revision = "main";
+          chatTemplate = template;
         };
         default = {
           package = vllm;
           port = 8003;
           model = "Qwen/Qwen3-8B";
+          chatTemplate = template;
         };
         host = {
           package = vllm;
@@ -114,6 +117,31 @@ let
           model = "/srv/models/local";
           chatTemplate = "/srv/templates/local.jinja";
         };
+        overriding = {
+          package = vllm;
+          port = 8005;
+          model = "Qwen/Qwen3-8B";
+          revision = commit;
+          chatTemplate = template;
+          extraArgs = [
+            "--chat-template=/srv/templates/local.jinja"
+            "--trust_request_chat_template"
+          ];
+        };
+      };
+    }
+  ];
+
+  noTemplateCfg = evalNixosModule [
+    ../nixos/huggingface.nix
+    ../nixos/vllm.nix
+    baseConfig
+    {
+      o11n.vllm.servers.bare = {
+        package = vllm;
+        port = 8006;
+        model = "Qwen/Qwen3-8B";
+        revision = commit;
       };
     }
   ];
@@ -148,7 +176,14 @@ lib.runTests {
       "o11n.vllm.servers.default.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated."
       "o11n.vllm.servers.host.model must be a Hugging Face model ID or a path in the Nix store, not a path on the host."
       "o11n.vllm.servers.host.chatTemplate must be in the Nix store, not a file on the host."
+      "o11n.vllm.servers.overriding.extraArgs must not set --chat-template: set chatTemplate, which the report covers."
+      "o11n.vllm.servers.overriding.extraArgs must not set --trust-request-chat-template: it lets a request replace the chat template."
     ];
+  };
+
+  test_vllm_chat_template_required = {
+    expr = (builtins.tryEval noTemplateCfg.o11n.vllm.servers.bare.chatTemplate).success;
+    expected = false;
   };
 
   test_vllm_container_home = {
@@ -235,7 +270,7 @@ lib.runTests {
     };
     expected = {
       User = "vllm";
-      ExecStart = "${vllm}/bin/vllm serve Qwen/Qwen3-8B '--host=127.0.0.1' '--port=8000' '--revision=${commit}'";
+      ExecStart = "${vllm}/bin/vllm serve Qwen/Qwen3-8B '--host=127.0.0.1' '--port=8000' '--revision=${commit}' '--chat-template=${template}'";
     };
   };
 
