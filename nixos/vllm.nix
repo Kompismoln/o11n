@@ -111,6 +111,18 @@ let
   inStore = lib.hasPrefix "${builtins.storeDir}/";
   isCommit = revision: revision != null && builtins.match "[0-9a-f]{40}" revision != null;
 
+  # A model ID's snapshot in the Hugging Face cache. vLLM is given the directory, not the ID: offline,
+  # it resolves an ID with huggingface_hub, which refuses a snapshot that lacks any file of its commit,
+  # even one vLLM never reads.
+  modelPath =
+    serverCfg:
+    if isLocal serverCfg.model then
+      serverCfg.model
+    else
+      "${config.o11n.huggingface.repo}/models--${
+        builtins.replaceStrings [ "/" ] [ "--" ] serverCfg.model
+      }/snapshots/${toString serverCfg.revision}";
+
   # The options a server's extraArgs set, as vLLM reads them: `--a_b=c` sets `--a-b`.
   extraOptions =
     serverCfg:
@@ -131,7 +143,7 @@ let
     argv = [
       (lib.getExe' serverCfg.package "vllm")
       "serve"
-      serverCfg.model
+      (modelPath serverCfg)
       "--host=${serverCfg.host}"
       "--port=${toString serverCfg.port}"
     ]
