@@ -153,9 +153,11 @@ let
     // serverCfg.environment;
 
     # Everything the server runs from the store: its path changes when any of it does,
-    # and `nix-store -qR` on it gives the whole runtime closure.
-    runtime = pkgs.writeTextFile {
-      name = "vllm-${server}-runtime";
+    # and `nix-store -qR` on it gives the whole runtime closure. Built from the container's
+    # package set under one name, so servers running the same packages share it, and the
+    # host's nixpkgs or a server's name don't move it.
+    runtime = serverCfg.pkgs.writeTextFile {
+      name = "vllm-runtime";
       text = lib.concatMapStrings (p: "${p}\n") ([ serverCfg.package ] ++ servicePath serverCfg.pkgs);
     };
 
