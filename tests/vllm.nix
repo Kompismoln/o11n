@@ -270,7 +270,7 @@ lib.runTests {
     };
     expected = {
       User = "vllm";
-      ExecStart = "${vllm}/bin/vllm serve Qwen/Qwen3-8B '--host=127.0.0.1' '--port=8000' '--revision=${commit}' '--chat-template=${template}'";
+      ExecStart = "${vllm}/bin/vllm serve /srv/models/huggingface/models--Qwen--Qwen3-8B/snapshots/${commit} '--host=127.0.0.1' '--port=8000' '--revision=${commit}' '--chat-template=${template}'";
     };
   };
 
