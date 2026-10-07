@@ -10,6 +10,14 @@ let
   # A stand-in for vLLM, so the test doesn't evaluate CUDA.
   vllm = pkgs.writeShellScriptBin "vllm" "";
 
+  # A nixpkgs pin with a vLLM of its own, which the host doesn't have.
+  pin = builtins.toFile "nixpkgs-pin.nix" ''
+    args:
+    (import ${toString pkgs.path} args).extend (final: _: {
+      vllm = final.writeShellScriptBin "vllm" "# from the pin";
+    })
+  '';
+
   baseConfig = {
     users = {
       users = {
@@ -50,9 +58,7 @@ let
             allowedGPUs = [ 1 ];
           };
           local = {
-            package = vllm;
-            # Never evaluated: the tests below don't look into this container's config.
-            nixpkgs = "/srv/nixpkgs";
+            nixpkgs = pin;
             port = 8001;
             model = "/srv/models/local";
             chatTemplate = "/srv/templates/local.jinja";
@@ -70,7 +76,9 @@ let
     baseConfig
   ];
 
+  pinned = import pin { inherit (pkgs.stdenv.hostPlatform) system; };
   chat = cfg.containers.vllm-chat;
+  local = cfg.containers.vllm-local;
 in
 lib.runTests {
 
@@ -82,15 +90,9 @@ lib.runTests {
     ];
   };
 
-  test_vllm_container_nixpkgs = {
-    expr = {
-      chat = chat.nixpkgs;
-      local = cfg.containers.vllm-local.nixpkgs;
-    };
-    expected = {
-      chat = pkgs.path;
-      local = "/srv/nixpkgs";
-    };
+  test_vllm_from_container_nixpkgs = {
+    expr = local.config.systemd.services.vllm.serviceConfig.ExecStart;
+    expected = "${pinned.vllm}/bin/vllm serve /srv/models/local '--host=127.0.0.1' '--port=8001' '--chat-template=/srv/templates/local.jinja'";
   };
 
   test_vllm_container_devices = {
@@ -105,7 +107,7 @@ lib.runTests {
   };
 
   test_vllm_container_bind_mounts = {
-    expr = lib.mapAttrs (_: mount: mount.isReadOnly) cfg.containers.vllm-local.bindMounts;
+    expr = lib.mapAttrs (_: mount: mount.isReadOnly) local.bindMounts;
     expected = {
       "/dev/nvidiactl" = false;
       "/dev/nvidia-uvm" = false;

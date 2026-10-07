@@ -8,10 +8,11 @@
 
 let
   cfg = config.o11n.vllm;
+  hostConfig = config;
   enabledServers = lib.filterAttrs (_: serverCfg: serverCfg.enable) cfg.servers;
 
   vllmOpts =
-    { name, ... }:
+    { name, config, ... }:
     {
       options = {
         enable = lib.mkEnableOption "vLLM inference server" // {
@@ -27,10 +28,21 @@ let
           default = pkgs.path;
           description = "An optional nixpkgs pin for the container";
         };
+        pkgs = lib.mkOption {
+          type = lib.types.pkgs;
+          readOnly = true;
+          default = import config.nixpkgs {
+            inherit (pkgs.stdenv.hostPlatform) system;
+            inherit (hostConfig.nixpkgs) config overlays;
+          };
+          defaultText = lib.literalMD "`nixpkgs`, imported with the host's `nixpkgs.config` and `nixpkgs.overlays`";
+          description = "The container's package set.";
+        };
         package = lib.mkOption {
           type = lib.types.package;
-          default = pkgs.vllm;
-          description = "The vllm package to use.";
+          default = config.pkgs.vllm;
+          defaultText = lib.literalExpression "pkgs.vllm";
+          description = "The vllm package to use, from the container's package set by default.";
         };
         host = lib.mkOption {
           type = lib.types.str;
@@ -79,10 +91,10 @@ let
       };
     };
 
-  servicePath = [
-    pkgs.which
-    pkgs.gcc
-    pkgs.cudaPackages.cudatoolkit
+  servicePath = serverPkgs: [
+    serverPkgs.which
+    serverPkgs.gcc
+    serverPkgs.cudaPackages.cudatoolkit
   ];
 
   hostUser = config.users.users.${cfg.user};
@@ -116,7 +128,7 @@ let
       HF_HUB_CACHE = config.o11n.huggingface.repo;
       HF_HUB_OFFLINE = "1";
       CUDA_VISIBLE_DEVICES = lib.concatMapStringsSep "," toString serverCfg.allowedGPUs;
-      CUDA_HOME = "${pkgs.cudaPackages.cudatoolkit}";
+      CUDA_HOME = "${serverCfg.pkgs.cudaPackages.cudatoolkit}";
       VLLM_USE_FLASHINFER_SAMPLER = "0";
     }
     // serverCfg.environment;
@@ -125,7 +137,7 @@ let
     # and `nix-store -qR` on it gives the whole runtime closure.
     runtime = pkgs.writeTextFile {
       name = "vllm-${server}-runtime";
-      text = lib.concatMapStrings (p: "${p}\n") ([ serverCfg.package ] ++ servicePath);
+      text = lib.concatMapStrings (p: "${p}\n") ([ serverCfg.package ] ++ servicePath serverCfg.pkgs);
     };
 
     devices = [
@@ -264,7 +276,8 @@ in
       lib.nameValuePair servers.${server}.container {
         autoStart = true;
         ephemeral = true;
-        inherit (serverCfg) nixpkgs;
+        # The NixOS modules come from the same nixpkgs as the package set.
+        nixpkgs = serverCfg.pkgs.path;
 
         allowedDevices = map (node: {
           inherit node;
@@ -285,6 +298,7 @@ in
 
         config = {
           system.stateVersion = config.system.stateVersion;
+          nixpkgs.pkgs = serverCfg.pkgs;
 
           users = {
             users.${cfg.user} = {
@@ -302,7 +316,7 @@ in
             after = [ "network.target" ];
             wantedBy = [ "multi-user.target" ];
 
-            path = servicePath;
+            path = servicePath serverCfg.pkgs;
 
             inherit (servers.${server}) environment;
 
