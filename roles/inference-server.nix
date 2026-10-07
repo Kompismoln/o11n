@@ -12,8 +12,6 @@
         ../nixos/vllm.nix
       ];
 
-      environment.systemPackages = with pkgs; [ vllm ];
-
       nix = {
         settings = {
           substituters = [
