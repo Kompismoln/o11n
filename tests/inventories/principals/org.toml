@@ -1,0 +1,37 @@
+name = "Test AB"
+endpoint = "example.com"
+prefix = "fd12:3456:7890"
+prefix4 = "10.0"
+timezone = "Europe/Stockholm"
+locale = "en_US"
+
+[store.huggingface]
+id = 0
+
+[role.inference-server]
+stores = [
+  "huggingface",
+]
+
+[role.nixos]
+
+[role.app-scheduler]
+
+[app.test-app]
+id = 0
+endpoint = "www.example.com"
+altpoints = ["example.com"]
+run-on-hosts = ["test-host"]
+grants = ["host:app-scheduler"]
+
+[service]
+
+[host.test-host]
+id = 0
+roles = [
+  "nixos",
+  "inference-server",
+  "app-scheduler",
+]
+system = "x86_64-linux"
+stateVersion = "25.11"

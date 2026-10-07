@@ -9,6 +9,7 @@
     }:
     {
       imports = [
+        ../nixos/org/sops.nix
         ../nixos/huggingface.nix
         ../nixos/vllm.nix
       ];

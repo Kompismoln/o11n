@@ -37,6 +37,14 @@ in
     in
     mkTest "test-base" tests;
 
+  test-principals =
+    let
+      tests = [
+        ./principals.nix
+      ];
+    in
+    mkTest "test-principals" tests;
+
   test-keycloak =
     let
       tests = [

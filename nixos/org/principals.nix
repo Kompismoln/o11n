@@ -83,4 +83,15 @@ in
     user = entity.name;
     group = entity.name;
   }) (builtins.filter (entity: entity.principal.home != "/var/empty") entities);
+
+  services.openssh.extraConfig = lib.concatStringsSep "\n" (
+    map (entity: ''
+      Match User ${entity.name}
+        ForceCommand internal-sftp
+        AllowTcpForwarding no
+        X11Forwarding no
+        AllowAgentForwarding no
+        PermitTunnel no
+    '') (builtins.filter (entity: entity.principal.hasSFTP) entities)
+  );
 }

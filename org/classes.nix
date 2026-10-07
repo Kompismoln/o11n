@@ -46,6 +46,9 @@
   };
   store = {
     block = 4000;
-    keys = [ ];
+    keys = [
+      "age-key"
+      "ssh-key"
+    ];
   };
 }

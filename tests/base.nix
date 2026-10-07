@@ -8,19 +8,19 @@ let
   outputs = o11nLib.fromPath ./inventories/base;
 in
 lib.runTests {
-  test_org_min = {
+  test_org_base = {
     expr = outputs.org.endpoint;
     expected = "example.com";
   };
-  test_disko_min = {
+  test_disko_base = {
     expr = outputs.diskoConfigurations;
     expected = { };
   };
-  test_home_min = {
+  test_home_base = {
     expr = outputs.homeConfigurations;
     expected = { };
   };
-  test_nixos_min = {
+  test_nixos_base = {
     expr = outputs.nixosConfigurations;
     expected = { };
   };

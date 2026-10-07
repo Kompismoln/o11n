@@ -55,6 +55,7 @@
       default = builtins.elem entity.class [
         "user"
         "service"
+        "store"
         "app"
       ];
     };
@@ -69,6 +70,13 @@
     hasBash = lib.mkEnableOption "force bash shell for non-normal users" // {
       type = lib.types.bool;
       default = entity.class == "user";
+    };
+    hasSFTP = lib.mkEnableOption "force bash shell for non-normal users" // {
+      type = lib.types.bool;
+      default = builtins.elem entity.class [
+        "app"
+        "store"
+      ];
     };
     bindAddress = lib.mkOption {
       description = "unique ipv6 loopback address for entity to bind to";
