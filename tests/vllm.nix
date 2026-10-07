@@ -16,6 +16,11 @@ let
     ];
   } "mkdir $out $bin";
 
+  # A model's commit in the Hugging Face cache, and a model and chat template in the store.
+  commit = "0123456789abcdef0123456789abcdef01234567";
+  localModel = pkgs.runCommand "local-model" { } "mkdir $out";
+  template = builtins.toFile "local.jinja" "";
+
   # A nixpkgs pin with a vLLM of its own, which the host doesn't have.
   pin = builtins.toFile "nixpkgs-pin.nix" ''
     args:
@@ -61,13 +66,14 @@ let
             package = vllm;
             port = 8000;
             model = "Qwen/Qwen3-8B";
+            revision = commit;
             allowedGPUs = [ 1 ];
           };
           local = {
             nixpkgs = pin;
             port = 8001;
-            model = "/srv/models/local";
-            chatTemplate = "/srv/templates/local.jinja";
+            model = "${localModel}";
+            chatTemplate = template;
           };
         };
       };
@@ -82,6 +88,34 @@ let
     ../nixos/huggingface.nix
     ../nixos/vllm.nix
     baseConfig
+  ];
+
+  # Servers reading what can change under them, next to the ones above that don't.
+  unpinnedCfg = evalNixosModule [
+    ../nixos/huggingface.nix
+    ../nixos/vllm.nix
+    baseConfig
+    {
+      o11n.vllm.servers = {
+        branch = {
+          package = vllm;
+          port = 8002;
+          model = "Qwen/Qwen3-8B";
+          revision = "main";
+        };
+        default = {
+          package = vllm;
+          port = 8003;
+          model = "Qwen/Qwen3-8B";
+        };
+        host = {
+          package = vllm;
+          port = 8004;
+          model = "/srv/models/local";
+          chatTemplate = "/srv/templates/local.jinja";
+        };
+      };
+    }
   ];
 
   pinned = import pin { inherit (pkgs.stdenv.hostPlatform) system; };
@@ -100,7 +134,39 @@ lib.runTests {
 
   test_vllm_from_container_nixpkgs = {
     expr = local.config.systemd.services.vllm.serviceConfig.ExecStart;
-    expected = "${pinned.vllm}/bin/vllm serve /srv/models/local '--host=127.0.0.1' '--port=8001' '--chat-template=/srv/templates/local.jinja'";
+    expected = "${pinned.vllm}/bin/vllm serve ${localModel} '--host=127.0.0.1' '--port=8001' '--chat-template=${template}'";
+  };
+
+  test_vllm_model_inputs_pinned = {
+    expr = map (assertion: assertion.message) (
+      lib.filter (
+        assertion: !assertion.assertion && lib.hasPrefix "o11n.vllm.servers." assertion.message
+      ) unpinnedCfg.assertions
+    );
+    expected = [
+      "o11n.vllm.servers.branch.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated."
+      "o11n.vllm.servers.default.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated."
+      "o11n.vllm.servers.host.model must be a Hugging Face model ID or a path in the Nix store, not a path on the host."
+      "o11n.vllm.servers.host.chatTemplate must be in the Nix store, not a file on the host."
+    ];
+  };
+
+  test_vllm_container_home = {
+    expr = {
+      mount = chat.bindMounts."/var/lib/vllm";
+      rules = lib.filter (lib.hasPrefix "d '/var/lib/vllm/") cfg.systemd.tmpfiles.rules;
+    };
+    expected = {
+      mount = {
+        mountPoint = "/var/lib/vllm";
+        hostPath = "/var/lib/vllm/vllm-chat";
+        isReadOnly = false;
+      };
+      rules = [
+        "d '/var/lib/vllm/vllm-chat' 0750 vllm vllm - -"
+        "d '/var/lib/vllm/vllm-local' 0750 vllm vllm - -"
+      ];
+    };
   };
 
   test_vllm_container_diagnostics = {
@@ -135,8 +201,6 @@ lib.runTests {
       "/dev/nvidia0" = false;
       "/run/opengl-driver" = true;
       "/srv/models/huggingface" = true;
-      "/srv/models/local" = true;
-      "/srv/templates/local.jinja" = true;
       "/var/lib/vllm" = false;
     };
   };
@@ -171,7 +235,7 @@ lib.runTests {
     };
     expected = {
       User = "vllm";
-      ExecStart = "${vllm}/bin/vllm serve Qwen/Qwen3-8B '--host=127.0.0.1' '--port=8000'";
+      ExecStart = "${vllm}/bin/vllm serve Qwen/Qwen3-8B '--host=127.0.0.1' '--port=8000' '--revision=${commit}'";
     };
   };
 
