@@ -1,13 +1,6 @@
-# tests/base.nix
+# tests/inventories/base/tests.nix
+{ outputs }:
 {
-  pkgs,
-  o11nLib,
-}:
-let
-  inherit (pkgs) lib;
-  outputs = o11nLib.fromPath ./inventories/base;
-in
-lib.runTests {
   test_org_base = {
     expr = outputs.org.endpoint;
     expected = "example.com";

@@ -1,11 +1,10 @@
-# tests/vllm.nix
+# tests/nixos/vllm.nix
 {
   pkgs,
-  o11nLib,
+  lib,
+  evalNixosModule,
 }:
 let
-  inherit (pkgs) lib;
-  inherit (import ./lib.nix { inherit pkgs; }) evalNixosModule;
 
   # Stand-ins for vLLM and the host's driver, so the test doesn't evaluate CUDA.
   vllm = pkgs.writeShellScriptBin "vllm" "";
@@ -86,15 +85,15 @@ let
   };
 
   cfg = evalNixosModule [
-    ../nixos/huggingface.nix
-    ../nixos/vllm.nix
+    ../../nixos/huggingface.nix
+    ../../nixos/vllm.nix
     baseConfig
   ];
 
   # Servers reading what can change under them, next to the ones above that don't.
   unpinnedCfg = evalNixosModule [
-    ../nixos/huggingface.nix
-    ../nixos/vllm.nix
+    ../../nixos/huggingface.nix
+    ../../nixos/vllm.nix
     baseConfig
     {
       o11n.vllm.servers = {
@@ -133,8 +132,8 @@ let
   ];
 
   noTemplateCfg = evalNixosModule [
-    ../nixos/huggingface.nix
-    ../nixos/vllm.nix
+    ../../nixos/huggingface.nix
+    ../../nixos/vllm.nix
     baseConfig
     {
       o11n.vllm.servers.bare = {
@@ -150,7 +149,7 @@ let
   chat = cfg.containers.vllm-chat;
   local = cfg.containers.vllm-local;
 in
-lib.runTests {
+{
 
   test_vllm_runs_in_containers = {
     expr = lib.filter (lib.hasInfix "vllm") (lib.attrNames cfg.systemd.services);

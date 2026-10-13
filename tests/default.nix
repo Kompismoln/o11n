@@ -1,55 +1,40 @@
+# tests/default.nix
 { pkgs, o11nLib }:
 let
-  mkTest =
-    name: tests:
+  inherit (pkgs) lib;
+  inherit (import ./lib.nix { inherit pkgs; }) callTests mkCheck evalNixosModule;
+
+  args = {
+    inherit pkgs lib evalNixosModule;
+  };
+
+  entries = dir: type: lib.attrNames (lib.filterAttrs (_: t: t == type) (builtins.readDir dir));
+
+  # tests/nixos/<module>.nix tests nixos/<module>.nix on its own: check nixos-<module>.
+  nixosChecks = lib.genAttrs' (lib.filter (lib.hasSuffix ".nix") (entries ./nixos "regular")) (
+    file:
     let
-      inherit (pkgs) lib;
-      inherit tests;
-      testResults = lib.concatMap (test: import test { inherit pkgs o11nLib; }) tests;
+      name = "nixos-${lib.removeSuffix ".nix" file}";
     in
-    if testResults == [ ] then
-      pkgs.emptyFile
-    else
-      pkgs.runCommand name
-        {
-          buildInputs = [ pkgs.jq ];
-          results = builtins.toJSON testResults;
-        }
-        ''
-          echo "$results" | jq .
-          exit 1
-        '';
+    lib.nameValuePair name (mkCheck name (callTests ./nixos/${file} args))
+  );
+
+  # tests/inventories/<inventory>/tests.nix tests the configurations made from that inventory: check inventory-<inventory>.
+  inventoryChecks = lib.genAttrs' (entries ./inventories "directory") (
+    inventory:
+    let
+      name = "inventory-${inventory}";
+    in
+    lib.nameValuePair name (
+      mkCheck name (
+        callTests ./inventories/${inventory}/tests.nix (
+          args
+          // {
+            outputs = o11nLib.fromPath ./inventories/${inventory};
+          }
+        )
+      )
+    )
+  );
 in
-{
-  test-base =
-    let
-      tests = [
-        ./base.nix
-      ];
-    in
-    mkTest "test-base" tests;
-
-  test-principals =
-    let
-      tests = [
-        ./principals.nix
-      ];
-    in
-    mkTest "test-principals" tests;
-
-  test-keycloak =
-    let
-      tests = [
-        ./keycloak.nix
-      ];
-    in
-    mkTest "test-keycloak" tests;
-
-  test-vllm =
-    let
-      tests = [
-        ./vllm.nix
-      ];
-    in
-    mkTest "test-vllm" tests;
-}
+nixosChecks // inventoryChecks
