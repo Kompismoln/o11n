@@ -9,7 +9,7 @@ km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 . "$km_root/libexec/run-with.bash"
 
 main() {
-    domain="kompismoln.se"
+    domain=$(org-toml.sh endpoint)
 
     case $1 in
     rebuild | login)
@@ -24,7 +24,7 @@ main() {
         ;;
     tunnel)
         user=reverse-tunnel
-        host="helsinki.kompismoln.se"
+        host="${2:?"tunnel host required"}.$domain"
         ;;
     image)
         variant=$2

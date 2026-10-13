@@ -16,7 +16,10 @@
 stdenv.mkDerivation {
   pname = "km-tools";
   version = "0.1.0";
-  src = ../tools;
+  src = lib.fileset.toSource {
+    root = ../tools;
+    fileset = lib.fileset.difference ../tools ../tools/test;
+  };
 
   nativeBuildInputs = [
     makeWrapper
