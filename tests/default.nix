@@ -35,8 +35,20 @@ let
     )
   ) inventories;
 
-  # Every NixOS host in an inventory evaluates: check inventory-<inventory>-<host>.
-  # The check holds the path of the host's system derivation, without building it.
+  # Names from the org o11n was first written for. No host of any inventory should carry them.
+  leakPatterns = [
+    "kompismoln"
+    "ahbk"
+    "helsinki"
+    "stationary"
+    "pelle"
+    "malborg"
+    "\\.km[0-9]*"
+  ];
+
+  # Every NixOS host in an inventory evaluates, and nothing it is built from mentions
+  # the org o11n was first written for: check inventory-<inventory>-<host>.
+  # The check reads the host's derivations without building them.
   hostChecks = lib.concatMapAttrs (
     inventory: outputs:
     lib.mapAttrs' (
@@ -45,7 +57,14 @@ let
         name = "inventory-${inventory}-${host}";
       in
       lib.nameValuePair name (
-        pkgs.writeText name (builtins.unsafeDiscardStringContext nixos.config.system.build.toplevel.drvPath)
+        pkgs.runCommand name
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+            drv = builtins.unsafeDiscardOutputDependency nixos.config.system.build.toplevel.drvPath;
+          }
+          ''
+            python3 ${./leaks.py} ${builtins.storeDir} "$drv" ${lib.escapeShellArgs leakPatterns} > $out
+          ''
       )
     ) outputs.nixosConfigurations
   ) inventories;
