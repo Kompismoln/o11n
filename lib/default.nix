@@ -16,6 +16,21 @@ rec {
       inherit flake;
     });
 
+  # An org in a directory that isn't a flake, such as a test inventory: its inputs
+  # are given here, and its path becomes a store path the way a flake's does.
+  fromInventory =
+    {
+      path,
+      inputs ? { },
+    }:
+    let
+      outPath = "${path}";
+    in
+    mkConfigurations (evalContext {
+      path = outPath;
+      flake = { inherit outPath inputs; };
+    });
+
   evalContext =
     config:
     (lib.evalModules {

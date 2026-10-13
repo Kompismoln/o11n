@@ -49,7 +49,7 @@
 
           flake = {
             inherit (inputs) nixpkgs;
-            inherit (o11nLib) fromFlake fromPath;
+            inherit (o11nLib) fromFlake fromPath fromInventory;
           };
 
           perSystem =

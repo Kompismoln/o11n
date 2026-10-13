@@ -21,7 +21,7 @@ let
 
   # The configurations made from each tests/inventories/<inventory>.
   inventories = lib.genAttrs (entries ./inventories "directory") (
-    inventory: o11nLib.fromPath ./inventories/${inventory}
+    inventory: o11nLib.fromInventory { path = ./inventories/${inventory}; }
   );
 
   # tests/inventories/<inventory>/tests.nix tests the configurations made from that inventory: check inventory-<inventory>.
