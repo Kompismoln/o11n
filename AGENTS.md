@@ -94,7 +94,8 @@ nixservice is being retired. Agreed so far:
   operator runs `nix build --eval-store auto --store ssh-ng://nix-build@<build-host> ...`.
   The operator's machine evaluates, the build host builds and keeps the result.
   On Lix 2.95.2, an untrusted user connecting this way can upload sources and
-  `.drv` files and have them built, but can't import unsigned outputs.
+  `.drv` files and have them built, but can't import unsigned outputs; a whole
+  system (the sample's `web`) built this way.
 - Distribution: every host substitutes from the hosts with the substituter
   role, signed with the nix-serve key; `pull` goes away.
 - Switching: `nix-switch` keeps a narrow root command: realise the path, set the
@@ -139,6 +140,12 @@ nixservice is being retired. Agreed so far:
 - Nix runs in single-user mode on this session's `/nix`. Point any other daemon,
   such as Lix's, at its own store with `NIX_REMOTE="local?root=<dir>"`
   (Lix's `nix-daemon` ignored `--store`).
+- Lix gives fixed-output fetches their network through pasta, which can't start
+  in this sandbox; set `pasta-path =` (empty) for a test daemon here.
+- A fixed-output fetch from a GitHub archive URL fails here too. Fetch the
+  same revision over git into a directory named `source`, remove `.git`, and
+  add it with `nix-store --add-fixed --recursive sha256 <dir>/source`; it lands
+  at the path the fetch would have produced.
 - `pkill -f <pattern>` can match the command line of the shell running it.
   Kill by PID.
 
