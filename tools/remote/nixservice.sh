@@ -2,7 +2,7 @@
 # tools/remote/nixservice.sh
 set -euo pipefail
 
-declare -x SOURCE=${SOURCE:-$REPO}
+declare -x SOURCE=${SOURCE:-${REPO:-}}
 
 main() {
     local cmd=$1
@@ -24,7 +24,7 @@ main() {
 
     build)
         local host=${script_args[0]:?"host required"}
-        local source=${script_args[1]:-$SOURCE}
+        local source=${script_args[1]:-${SOURCE:?"source required"}}
         rm -rf "$HOME/.cache/nix/"*
         nix build "$source#nixosConfigurations.$host.config.system.build.toplevel" \
             --no-link \
@@ -33,7 +33,7 @@ main() {
         ;;
     pull)
         local closure=${script_args[0]:?"closure required"}
-        local build_host=${script_args[1]:-$BUILD_HOST}
+        local build_host=${script_args[1]:?"build host required"}
         nix copy --from "$build_host" "$closure" "${nix_args[@]}"
         ;;
     switch)
