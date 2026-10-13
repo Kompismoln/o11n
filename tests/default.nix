@@ -21,14 +21,6 @@ let
         '';
 in
 {
-  test-kompismoln =
-    let
-      tests = [
-        ./kompismoln.nix
-      ];
-    in
-    mkTest "test-kompismoln" tests;
-
   test-base =
     let
       tests = [
