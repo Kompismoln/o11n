@@ -106,10 +106,15 @@ Work in progress is described in `agents/wip-*.md`. Agreed so far:
 
 ## Working in a Claude Code cloud sandbox
 
+`.claude/hooks/session-start.sh` prepares a session: it fetches the github:
+inputs over git, puts nixfmt, statix, deadnix, shellcheck and the tools'
+dependencies on PATH, and unshallows the clone. Its fetches and tools are
+rooted in `/nix/var/nix/gcroots/claude-session`, so `nix store gc` keeps them.
+
 - Downloads of GitHub archives, which `github:` inputs use, are refused with
   HTTP 403; git over https works. Fetch the same revisions over git once, and
   plain `nix` commands work for the rest of the session, because the inputs are
-  then in the store under the same content hash:
+  then in the store under the same content hash. The hook does this; by hand:
 
   ```sh
   python3 - flake.lock /tmp/flake.git.lock <<'EOF'
@@ -131,8 +136,8 @@ Work in progress is described in `agents/wip-*.md`. Agreed so far:
   nix flake archive --reference-lock-file /tmp/flake.git.lock --no-write-lock-file
   ```
 
-- The clone is shallow. When referring to it as `git+file://`, for example to
-  check a single commit, add `shallow=1`:
+- Without the hook the clone is shallow. When referring to it as `git+file://`,
+  for example to check a single commit, add `shallow=1`:
   `nix flake check "git+file://$PWD?rev=$(git rev-parse HEAD)&shallow=1"`.
 - There is no `/dev/kvm`, so NixOS VM tests can't run.
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub
@@ -159,12 +164,15 @@ Work in progress is described in `agents/wip-*.md`. Agreed so far:
 - When searching store contents for short names, match whole words: store
   hashes can contain them (`ahbk` is valid base32).
 - `nix flake check` stops at the first error; `--keep-going` shows them all.
+- `nix flake check --no-build` fails with "path … is not valid" when a source
+  it would copy isn't in the store yet; run once without it.
 
 ## Style
 
 - Format Nix with nixfmt and lint it with statix and deadnix. statix has
   existing warnings in `nixos/`; keep new code free of them. Shell scripts in
-  `tools/` pass shellcheck (the km-tools package runs it on `bin/` and `libexec/`).
+  `tools/` pass shellcheck run from `tools/`, where `.shellcheckrc` applies (the
+  km-tools package runs it on `bin/` and `libexec/`).
 - Commits: `<area>: <what changed>`, lowercase, with a body that says why.
   Each commit passes the checks on its own.
 - `tools/` is also copied into Kompismoln/org, and the copies have drifted.
