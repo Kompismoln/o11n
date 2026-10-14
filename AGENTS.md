@@ -88,7 +88,8 @@ use. The remaining hardcoding is in modules that no role imports:
 
 ## Deploying: where it is going
 
-nixservice is being retired. Agreed so far:
+nixservice is being retired; the plan is in `agents/wip-nixservice.md`.
+Work in progress is described in `agents/wip-*.md`. Agreed so far:
 
 - Building: `nix-build`'s ForceCommand becomes `nix-daemon --stdio`, and the
   operator runs `nix build --eval-store auto --store ssh-ng://nix-build@<build-host> ...`.
