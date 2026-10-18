@@ -26,9 +26,7 @@ let
               pkgs.lix
               pkgs.git
             ]
-          } \
-          --set REPO "${with org.flake; "${type}:${owner}/${repo}"}" \
-          --set BUILD_HOST "http://stationary.km:5000"
+          }
       '';
 in
 {

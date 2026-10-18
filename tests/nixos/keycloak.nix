@@ -1,12 +1,8 @@
-# tests/keycloak.nix
 {
-  pkgs,
-  o11nLib,
+  lib,
+  evalNixosModule,
 }:
 let
-  inherit (pkgs) lib;
-  inherit (import ./lib.nix { inherit pkgs; }) evalNixosModule;
-
   baseConfig = {
     o11n.keycloak = {
       enable = true;
@@ -18,13 +14,13 @@ let
   };
 
   cfg = evalNixosModule [
-    ../nixos/keycloak.nix
+    ../../nixos/keycloak.nix
     baseConfig
   ];
 
   vhost = cfg.services.nginx.virtualHosts."auth.example.com";
 in
-lib.runTests {
+{
 
   test_keycloak_settings_derived = {
     expr = {

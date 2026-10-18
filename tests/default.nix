@@ -1,63 +1,64 @@
 { pkgs, o11nLib }:
 let
-  mkTest =
-    name: tests:
+  inherit (pkgs) lib;
+  inherit (import ./lib.nix { inherit pkgs; }) callTests mkCheck evalNixosModule;
+
+  args = {
+    inherit pkgs lib evalNixosModule;
+  };
+
+  entries = dir: type: lib.attrNames (lib.filterAttrs (_: t: t == type) (builtins.readDir dir));
+
+  nixosChecks = lib.genAttrs' (lib.filter (lib.hasSuffix ".nix") (entries ./nixos "regular")) (
+    file:
     let
-      inherit (pkgs) lib;
-      inherit tests;
-      testResults = lib.concatMap (test: import test { inherit pkgs o11nLib; }) tests;
+      name = "nixos-${lib.removeSuffix ".nix" file}";
     in
-    if testResults == [ ] then
-      pkgs.emptyFile
-    else
-      pkgs.runCommand name
-        {
-          buildInputs = [ pkgs.jq ];
-          results = builtins.toJSON testResults;
-        }
-        ''
-          echo "$results" | jq .
-          exit 1
-        '';
+    lib.nameValuePair name (mkCheck name (callTests ./nixos/${file} args))
+  );
+
+  inventories = lib.genAttrs (entries ./inventories "directory") (
+    inventory: o11nLib.fromInventory { path = ./inventories/${inventory}; }
+  );
+
+  inventoryChecks = lib.mapAttrs' (
+    inventory: outputs:
+    let
+      name = "inventory-${inventory}";
+    in
+    lib.nameValuePair name (
+      mkCheck name (callTests ./inventories/${inventory}/tests.nix (args // { inherit outputs; }))
+    )
+  ) inventories;
+
+  leakPatterns = [
+    "kompismoln"
+    "ahbk"
+    "helsinki"
+    "stationary"
+    "pelle"
+    "malborg"
+    "\\.km[0-9]*"
+  ];
+
+  hostChecks = lib.concatMapAttrs (
+    inventory: outputs:
+    lib.mapAttrs' (
+      host: nixos:
+      let
+        name = "inventory-${inventory}-${host}";
+      in
+      lib.nameValuePair name (
+        pkgs.runCommand name
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+            drv = builtins.unsafeDiscardOutputDependency nixos.config.system.build.toplevel.drvPath;
+          }
+          ''
+            python3 ${./leaks.py} ${builtins.storeDir} "$drv" ${lib.escapeShellArgs leakPatterns} > $out
+          ''
+      )
+    ) outputs.nixosConfigurations
+  ) inventories;
 in
-{
-  test-kompismoln =
-    let
-      tests = [
-        ./kompismoln.nix
-      ];
-    in
-    mkTest "test-kompismoln" tests;
-
-  test-base =
-    let
-      tests = [
-        ./base.nix
-      ];
-    in
-    mkTest "test-base" tests;
-
-  test-principals =
-    let
-      tests = [
-        ./principals.nix
-      ];
-    in
-    mkTest "test-principals" tests;
-
-  test-keycloak =
-    let
-      tests = [
-        ./keycloak.nix
-      ];
-    in
-    mkTest "test-keycloak" tests;
-
-  test-vllm =
-    let
-      tests = [
-        ./vllm.nix
-      ];
-    in
-    mkTest "test-vllm" tests;
-}
+nixosChecks // inventoryChecks // hostChecks

@@ -1,0 +1,169 @@
+name = "Test AB"
+endpoint = "example.com"
+prefix = "fd12:3456:7890"
+prefix4 = "10.0"
+timezone = "Europe/Stockholm"
+locale = "en_US.UTF-8"
+root-identities = ["root-1"]
+
+[flake]
+type = "github"
+owner = "example"
+repo = "sample"
+
+[vpn.wg0]
+id = 0
+trusted = true
+gateway = "gw"
+namespace = "sample"
+dns = ["gw"]
+
+# The server role sends mail through this host.
+[mailserver]
+dkimSelector = "s1"
+host = "gw"
+int = "gw.sample"
+ext = "mail.example.com"
+
+[public-artifacts]
+default = "public-keys/$class-$entity-$key.pub"
+tls-cert = "public-keys/$class-$entity-$key.pem"
+
+[secrets]
+default = "enc/$class-$entity.yaml"
+root = "keys/$class-$entity"
+
+[class.root]
+keys = ["age-key"]
+
+[class.host]
+keys = [
+  "age-key",
+  "ssh-key",
+  "wg0-key",
+  "wg1-key",
+  "wg2-key",
+  "luks-key",
+]
+
+[class.service]
+keys = [
+  "age-key",
+  "ssh-key",
+  "mail",
+  "passwd",
+  "secret-key",
+  "tls-cert",
+  "nix-sign",
+]
+
+[class.user]
+keys = [
+  "age-key",
+  "ssh-key",
+  "mail",
+  "passwd",
+  "restic-key",
+]
+
+[class.app]
+keys = [
+  "age-key",
+  "ssh-key",
+  "secret-key",
+  "restic-key",
+]
+
+[class.store]
+keys = [
+  "age-key",
+  "ssh-key",
+]
+
+[root.1]
+
+[host.gw]
+id = 1
+rescueMode = true
+boot = "grub"
+endpoint = "gw.example.com"
+users = ["admin"]
+roles = ["nixos", "peer", "server"]
+vpns = ["wg0"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
+[host.web]
+id = 2
+users = ["admin"]
+roles = ["nixos", "peer", "server"]
+vpns = ["wg0"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
+[user.admin]
+id = 0
+description = "Administrator"
+mail = true
+principal.groups = ["wheel"]
+email = "admin@example.com"
+grants = ["host-*"]
+
+[role.nixos]
+services = ["rescue"]
+
+[role.peer]
+services = [
+  "rescue",
+  "locksmith",
+  "nix-build",
+  "nix-push",
+  "nix-switch",
+]
+
+[role.server]
+services = [
+  "egress-proxy",
+  "reverse-tunnel",
+]
+
+[service.rescue]
+grants = ["host-*"]
+
+[service.locksmith]
+id = 0
+principal.hasBash = true
+grants = ["host-*"]
+
+[service.reverse-tunnel]
+id = 1
+principal.hasPasswd = true
+grants = ["host:server"]
+
+[service.nix-build]
+id = 2
+principal.hasHome = true
+principal.hasBash = true
+grants = ["host-*"]
+
+[service.nix-switch]
+id = 3
+principal.hasBash = true
+grants = ["host-*"]
+
+[service.nix-push]
+id = 4
+principal.hasBash = true
+grants = ["host-*"]
+
+[service.egress-proxy]
+id = 7
+grants = ["host:server"]
+
+[service.nix-serve]
+grants = ["host-*"]
+
+# Every class needs a table, even when empty.
+[app]
+
+[store]

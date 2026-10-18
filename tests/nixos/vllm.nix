@@ -1,13 +1,10 @@
-# tests/vllm.nix
 {
   pkgs,
-  o11nLib,
+  lib,
+  evalNixosModule,
 }:
 let
-  inherit (pkgs) lib;
-  inherit (import ./lib.nix { inherit pkgs; }) evalNixosModule;
 
-  # Stand-ins for vLLM and the host's driver, so the test doesn't evaluate CUDA.
   vllm = pkgs.writeShellScriptBin "vllm" "";
   nvidia = pkgs.runCommand "nvidia-x11" {
     outputs = [
@@ -16,7 +13,6 @@ let
     ];
   } "mkdir $out $bin";
 
-  # A model's commit in the Hugging Face cache, and a model and chat template in the store.
   commit = "0123456789abcdef0123456789abcdef01234567";
   localModel = pkgs.runCommand "local-model" { } "mkdir $out";
   template = builtins.toFile "local.jinja" "";
@@ -86,15 +82,15 @@ let
   };
 
   cfg = evalNixosModule [
-    ../nixos/huggingface.nix
-    ../nixos/vllm.nix
+    ../../nixos/huggingface.nix
+    ../../nixos/vllm.nix
     baseConfig
   ];
 
   # Servers reading what can change under them, next to the ones above that don't.
   unpinnedCfg = evalNixosModule [
-    ../nixos/huggingface.nix
-    ../nixos/vllm.nix
+    ../../nixos/huggingface.nix
+    ../../nixos/vllm.nix
     baseConfig
     {
       o11n.vllm.servers = {
@@ -133,8 +129,8 @@ let
   ];
 
   noTemplateCfg = evalNixosModule [
-    ../nixos/huggingface.nix
-    ../nixos/vllm.nix
+    ../../nixos/huggingface.nix
+    ../../nixos/vllm.nix
     baseConfig
     {
       o11n.vllm.servers.bare = {
@@ -150,7 +146,7 @@ let
   chat = cfg.containers.vllm-chat;
   local = cfg.containers.vllm-local;
 in
-lib.runTests {
+{
 
   test_vllm_runs_in_containers = {
     expr = lib.filter (lib.hasInfix "vllm") (lib.attrNames cfg.systemd.services);

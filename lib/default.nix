@@ -16,6 +16,19 @@ rec {
       inherit flake;
     });
 
+  fromInventory =
+    {
+      path,
+      inputs ? { },
+    }:
+    let
+      outPath = "${path}";
+    in
+    mkConfigurations (evalContext {
+      path = outPath;
+      flake = { inherit outPath inputs; };
+    });
+
   evalContext =
     config:
     (lib.evalModules {

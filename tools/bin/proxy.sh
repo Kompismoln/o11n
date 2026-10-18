@@ -8,7 +8,7 @@ km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 proxy() {
     local port=${PORT:-8080}
-    "$km_root/bin/as.sh" proxy ssh -NTD "$port" "proxy@$1.km"
+    "$km_root/bin/as.sh" proxy ssh -NTD "$port" "proxy@$(find-route.sh "$1")"
 }
 
 proxy "$@"

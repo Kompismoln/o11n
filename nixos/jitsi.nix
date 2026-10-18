@@ -49,6 +49,8 @@ in
         "jitsi-meet"
       ];
 
+    users.users.prosody.extraGroups = [ "jitsi-meet" ];
+
     # Jitsi Videobridge is a JVM app, and it depends on libjitsi,
     # which uses JNA (Java Native Access) to call into native code.
     # SystemD's ExecPaths/NoExecPaths restriction block this call.
