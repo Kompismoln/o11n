@@ -55,7 +55,7 @@ for ref in $(printf '%s\n' "${refs[@]}" | sort -u); do
 done
 
 bins=()
-for out in $(nix build --no-link --print-out-paths "${nixpkgs_args[@]}" "${packages[@]/#/$nixpkgs.}"); do
+for out in $(nix build --no-link --print-out-paths "${nixpkgs_args[@]}" "${packages[@]/#/$nixpkgs.}" .#gost); do
     nix-store --quiet --add-root "$roots/tool-$((i++))" --realise "$out" >/dev/null
     if [[ -d $out/bin ]]; then bins+=("$out/bin"); fi
 done

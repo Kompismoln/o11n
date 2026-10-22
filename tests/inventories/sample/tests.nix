@@ -119,7 +119,9 @@ in
         };
       in
       {
-        gw = uids;
+        gw = uids // {
+          nix-remote = 2010;
+        };
         web = uids;
       };
   };
@@ -131,6 +133,7 @@ in
       gw = {
         "admin/mail" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
+        "nix-remote/secret-key" = "service-nix-remote.yaml";
         "reverse-tunnel/passwd-sha512" = "service-reverse-tunnel.yaml";
         "wg0-key" = "host-gw.yaml";
       };
@@ -178,6 +181,80 @@ in
     expected = {
       gw = true;
       web = true;
+    };
+  };
+
+  # Only gw has the remote-builder role: an untrusted relay to its nix-daemon, reached
+  # through the tunnel, behind its nginx and the bearer from nix-remote's secret-key.
+  test_remote_builder = {
+    expr = onHosts (
+      config:
+      let
+        template = config.sops.templates."nix-remote/nginx-bearer" or null;
+      in
+      {
+        relay = config.systemd.sockets.nix-remote.listenStreams or null;
+        relayRestartsWith = config.systemd.sockets.nix-remote.partOf or null;
+        relayUser = config.systemd.services."nix-remote@".serviceConfig.User or null;
+        trusted = lib.elem "nix-remote" config.nix.settings.trusted-users;
+        tunnel = lib.mapNullable (service: lib.last (lib.splitString " " service.serviceConfig.ExecStart)) (
+          config.systemd.services.nix-remote-tunnel or null
+        );
+        location =
+          config.services.nginx.virtualHosts."gw.example.com".locations."/nix-daemon/".proxyPass or null;
+        bearer =
+          template != null
+          && lib.hasInfix config.sops.placeholder."nix-remote/secret-key" template.content
+          && lib.hasInfix template.path config.services.nginx.appendHttpConfig;
+      }
+    );
+    expected = {
+      gw = {
+        relay = [ "[fd12:3456:7890:ffff::2010:000a]:7337" ];
+        relayRestartsWith = [ "nix-remote-tunnel.service" ];
+        relayUser = "nix-remote";
+        trusted = false;
+        tunnel = "'relay+pht://[fd12:3456:7890:ffff::2010:000a]:8080/[fd12:3456:7890:ffff::2010:000a]:7337?authorizePath=/nix-daemon/authorize&pushPath=/nix-daemon/push&pullPath=/nix-daemon/pull'";
+        location = "http://[fd12:3456:7890:ffff::2010:000a]:8080";
+        bearer = true;
+      };
+      web = {
+        relay = null;
+        relayRestartsWith = null;
+        relayUser = null;
+        trusted = false;
+        tunnel = null;
+        location = null;
+        bearer = false;
+      };
+    };
+  };
+
+  # web relays to gw over wg0, with gw's endpoint as Host and as the name its certificate
+  # is checked against.
+  test_remote_builder_relay = {
+    expr = onHosts (
+      config:
+      let
+        location = config.services.nginx.virtualHosts."web.example.com".locations."/nix-daemon/" or null;
+      in
+      lib.mapNullable (location: {
+        inherit (location) proxyPass;
+        upstream = lib.attrNames config.services.nginx.upstreams.nix-remote-builder.servers;
+        host = lib.hasInfix "proxy_set_header Host gw.example.com;" location.extraConfig;
+        verify = lib.hasInfix "proxy_ssl_name gw.example.com;" location.extraConfig;
+        unbuffered = lib.hasInfix "proxy_buffering off;" location.extraConfig;
+      }) location
+    );
+    expected = {
+      gw = null;
+      web = {
+        proxyPass = "https://nix-remote-builder";
+        upstream = [ "[fd12:3456:7890:0000::0001]:443" ];
+        host = true;
+        verify = true;
+        unbuffered = true;
+      };
     };
   };
 

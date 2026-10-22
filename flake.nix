@@ -57,6 +57,8 @@
             {
               checks = import ./tests { inherit pkgs o11nLib; };
 
+              packages.gost = pkgs.callPackage ./packages/gost.nix { };
+
               devShells.default = pkgs.mkShell {
                 buildInputs = [ ];
                 shellHook = "";

@@ -88,15 +88,16 @@ rescueMode = true
 boot = "grub"
 endpoint = "gw.example.com"
 users = ["admin"]
-roles = ["nixos", "peer", "server"]
+roles = ["nixos", "peer", "server", "remote-builder"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
 
 [host.web]
 id = 2
+endpoint = "web.example.com"
 users = ["admin"]
-roles = ["nixos", "peer", "server"]
+roles = ["nixos", "peer", "server", "remote-builder-relay"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -126,6 +127,12 @@ services = [
   "egress-proxy",
   "reverse-tunnel",
 ]
+
+[role.remote-builder]
+services = ["nix-remote"]
+
+[role.remote-builder-relay]
+services = []
 
 [service.rescue]
 grants = ["host-*"]
@@ -162,6 +169,11 @@ grants = ["host:server"]
 
 [service.nix-serve]
 grants = ["host-*"]
+
+[service.nix-remote]
+id = 10
+principal.hasPublicKey = false
+grants = ["host:remote-builder"]
 
 # Every class needs a table, even when empty.
 [app]

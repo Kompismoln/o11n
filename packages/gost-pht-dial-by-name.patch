@@ -1,0 +1,22 @@
+--- a/internal/util/pht/client.go
++++ b/internal/util/pht/client.go
+@@ -22,10 +22,17 @@
+ }
+ 
+ func (c *Client) Dial(ctx context.Context, addr string) (net.Conn, error) {
++	// The name may only resolve beyond the hops before this one, such as an HTTP proxy,
++	// which dial it by name; only the port is needed here.
+ 	raddr, err := net.ResolveTCPAddr("tcp", addr)
+ 	if err != nil {
+-		c.Logger.Error(err)
+-		return nil, err
++		_, sport, serr := net.SplitHostPort(addr)
++		port, perr := strconv.Atoi(sport)
++		if serr != nil || perr != nil {
++			c.Logger.Error(err)
++			return nil, err
++		}
++		raddr = &net.TCPAddr{Port: port}
+ 	}
+ 
+ 	if c.Host != "" {

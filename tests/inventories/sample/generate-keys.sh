@@ -39,3 +39,6 @@ id-entities.sh -s rescue sha512-secret passwd >public-keys/service-rescue-passwd
 
 id-entities.sh -s nix-serve init
 id-entities.sh -s nix-serve new nix-sign
+
+id-entities.sh -s nix-remote init
+id-entities.sh -s nix-remote new secret-key
