@@ -242,6 +242,10 @@ pkgs.testers.runNixOSTest {
           gw.systemctl("start nix-serve.service")
           gw.wait_for_open_port(5000)
 
+      with subtest("build.sh says so when the build host has no build-system"):
+          out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=web build.sh web < /dev/null 2>&1")
+          assert "gw has no build-system" in out, out
+
       with subtest("build.sh builds only on the org's build hosts"):
           out = operator.fail(f"{tools} BUILD_HOST=web build.sh web < /dev/null 2>&1")
           assert "web is not in build-hosts" in out, out

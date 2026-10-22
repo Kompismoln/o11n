@@ -31,7 +31,15 @@ build() {
     # The build host evaluates the flake it is sent, inputs and all, so it needs no access
     # of its own to the private ones.
     "$km_root/bin/as.sh" nix-build nix flake archive --to "ssh-ng://nix-build@$address" .
-    "$km_root/bin/as.sh" nix-build ssh "nix-build@$address" build-system "$flake" "$target"
+    local out
+    out=$("$km_root/bin/as.sh" nix-build ssh -n "nix-build@$address" build-system "$flake" "$target") ||
+        die $? "$BUILD_HOST couldn't build $target"
+
+    # Where nix-build has the daemon alone, the daemon gets no client and answers nothing.
+    [[ $out == /nix/store/* ]] || die 1 "$BUILD_HOST has no build-system: on a configuration from
+before it, nix-build reaches the daemon alone. Deploy it once with:
+    BUILD_HOST=localhost apply.sh $BUILD_HOST"
+    echo "$out"
 }
 
 build "$@"
