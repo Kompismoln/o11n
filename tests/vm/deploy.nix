@@ -46,7 +46,7 @@ let
             builder = "/bin/sh";
             args = [ "-c" "echo ''${name} > $out" ];
           };
-        }) { web = null; other = null; };
+        }) { web = null; other = null; stranded = null; };
       };
     }
   '';
@@ -213,6 +213,13 @@ pkgs.testers.runNixOSTest {
           gw.succeed(f"nix-store --check-validity {path}")
           web.succeed(f"nix-store --check-validity {path}")
           operator.fail(f"nix-store --check-validity {path}")
+
+      with subtest("apply.sh says so when the target can't fetch the build"):
+          gw.systemctl("stop nix-serve.service")
+          out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=gw apply.sh stranded < /dev/null 2>&1")
+          assert "stranded couldn't fetch the build from gw" in out, out
+          gw.systemctl("start nix-serve.service")
+          gw.wait_for_open_port(5000)
 
       with subtest("build.sh builds only on the org's build hosts"):
           out = operator.fail(f"{tools} BUILD_HOST=web build.sh web < /dev/null 2>&1")
