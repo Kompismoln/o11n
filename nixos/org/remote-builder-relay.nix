@@ -15,9 +15,9 @@ let
     The remote-builder-relay role relays to the host with the remote-builder role, and there are ${toString (lib.length builders)}.
   '' (lib.head builders);
 
-  vpn = lib.throwIfNot (lib.any (vpn: lib.elem vpn builder.vpns) host.vpns) ''
+  network = lib.throwIf (host.reach.${builder.name} == null) ''
     ${host.name} relays to ${builder.name} over a vpn, and they share none.
-  '' (lib.findFirst (vpn: lib.elem vpn builder.vpns) null host.vpns);
+  '' host.reach.${builder.name};
 in
 {
   imports = [
@@ -35,7 +35,7 @@ in
 
   # A tunnel sends a request per write, so connections to the builder are kept open.
   services.nginx.upstreams.nix-remote-builder = {
-    servers."[${builder.network.${vpn}.address}]:443" = { };
+    servers."[${network.address}]:443" = { };
     extraConfig = "keepalive 8;";
   };
 

@@ -1,6 +1,7 @@
 # WIP: retire nixservice
 
-Status: agreed, not started. Lix check done (see "Verified").
+Status: all three stages written (see "Rolling out"); stages 1 and 2 deployed in
+Kompismoln/org.
 
 ## In short
 - Building: `nix-build`'s ForceCommand becomes `nix-daemon --stdio`, and the
@@ -123,21 +124,29 @@ and copies to the target.
   `http://gw.sample:5000?priority=50`; `gw` gets none of its own).
 - The assertion fires when a build host lacks the substituter role.
 - The leak check keeps any org name out of the new code.
-- Later, with KVM: a VM test with an operator, a build host and a target that
-  runs the whole deploy: build over ssh-ng, switch, substitute.
+- With KVM, `tests/vm/deploy.nix`: an operator, a build host and a target run
+  the whole deploy: build over ssh-ng, switch, substitute.
 
 ## Rolling out to an existing org
 
-A host's new configuration changes the ForceCommands that old tooling relies
-on, so the order matters:
+nixservice is what makes a host deployable, so the alternative goes in next to
+it before nixservice goes:
 
-1. With the old tooling, deploy every host that isn't a build host. They get
-   the new ForceCommands and substituters; the old flow's last step on each is
-   the switch, whose interface doesn't change.
-2. Deploy the build hosts, still with the old tooling, each with `BUILD_HOST`
-   set to itself: once a build host has switched, the old tooling can no
-   longer build on it.
-3. Switch the operator to the new tooling.
+1. Hosts. `nix-build`'s ForceCommand dispatches: `build` and `pull`, the
+   old tooling's commands, still go to nixservice; anything else, such as an
+   ssh-ng client's `nix-daemon --stdio`, reaches the daemon. `nix-switch`
+   runs `switch-system`, which takes what nixservice `switch` took, and
+   realising an already valid path is a no-op. Hosts get the substituters.
+   The old tooling works against hosts before and after, so they can be
+   deployed with it in any order.
+2. Tooling. The org's `build.sh` and `apply.sh` move to ssh-ng and
+   substitution, and every host is deployed again with them. Against a host
+   still on its old configuration they fail before anything switches: the
+   build host's nixservice rejects `nix-daemon --stdio`, and an old target
+   finds no substituter for the path.
+3. Retire nixservice: the ForceCommand becomes `nix-daemon --stdio` alone,
+   `tools/remote/nixservice.sh` and its package go, in o11n and in the org's
+   copy of `tools/`.
 
 If a step fails halfway, `remote.sh login` as admin and `nixos-rebuild switch
 --rollback` on the affected host still work, independent of all this.
@@ -156,6 +165,30 @@ client evaluating in its own store.
   built by the daemon, the rest substituted.
 - Copying an unsigned, non-content-addressed output is refused: "lacks a
   signature by a trusted key".
+
+`tests/vm/deploy.nix` (`.#vmTests.deploy`), run on the remote builder (KVM)
+from a session: an operator, `gw` as build host and substituter, `web` as
+target, both on o11n's `nixos/org/nix.nix` with the sample org; `gw` runs
+`nixos/org/nix-serve.nix`, its key decrypted by sops-nix with `keys/root-1`.
+
+- ssh-ng as `nix-build` reaches the daemon untrusted; the operator evaluates,
+  `gw` builds and keeps the result; an unsigned output is refused.
+- `switch-system` realises from `http://gw.sample:5000` before it checks the
+  path: a non-system is refused after it is fetched; web switched to a system
+  only `gw` had (3 paths substituted), then back by generation number.
+- Before stage 3, through the dispatcher: the old tooling's `pull` copied from
+  nix-serve, and its `build` reached nixservice.
+- km-tools' `apply.sh`, with the sample's keys: builds on the first build host
+  and the target substitutes; `BUILD_HOST=localhost` builds on the operator and
+  copies as `nix-push`; `build.sh` refuses a host not in `build-hosts`.
+
+Pitfalls seen there:
+- `ssh` in a test driver command needs `-n`: without it, the driver hung after
+  the command had finished.
+- Test VMs leave out `switch-to-configuration` unless
+  `system.switch.enable = true`, and have no bootloader to install.
+- `switch-to-configuration` reloads each user manager and exits 4 when one is
+  stopping, as one does for 10 s after an ssh session ends.
 
 ## Open
 

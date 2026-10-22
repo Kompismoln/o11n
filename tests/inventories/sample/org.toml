@@ -5,6 +5,7 @@ prefix4 = "10.0"
 timezone = "Europe/Stockholm"
 locale = "en_US.UTF-8"
 root-identities = ["root-1"]
+build-hosts = ["gw"]
 
 [flake]
 type = "github"
@@ -88,7 +89,7 @@ rescueMode = true
 boot = "grub"
 endpoint = "gw.example.com"
 users = ["admin"]
-roles = ["nixos", "peer", "server", "remote-builder"]
+roles = ["nixos", "peer", "server", "remote-builder", "substituter"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -128,6 +129,9 @@ services = [
   "reverse-tunnel",
 ]
 
+[role.substituter]
+services = ["nix-serve"]
+
 [role.remote-builder]
 services = ["nix-remote"]
 
@@ -149,7 +153,6 @@ grants = ["host:server"]
 
 [service.nix-build]
 id = 2
-principal.hasHome = true
 principal.hasBash = true
 grants = ["host-*"]
 

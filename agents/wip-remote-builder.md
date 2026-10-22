@@ -176,8 +176,9 @@ Verified from a Claude session through helsinki to pelle:
   environment or Remote Control on the host. The tunnel needs no CI, no
   GitHub access for the host, and gives a session the same `nix build` as a
   local one.
-- o11n has no VM tests of its own yet (`tests/nixos/*` evaluate modules).
-  chatddx-remastered's `nix/test.nix` is the first to run this way.
+- o11n's own VM test, `tests/vm/deploy.nix`, runs this way too
+  (`nix-remote.sh build .#vmTests.deploy`); `tests/nixos/*` evaluate modules.
+  chatddx-remastered's `nix/test.nix` was the first.
 
 ## Open
 - Offer the gost patch upstream.

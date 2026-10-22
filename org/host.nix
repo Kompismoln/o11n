@@ -64,6 +64,18 @@ in
       description = "list of interface names for vpns";
       type = lib.types.listOf context.types.vpn.ref;
     };
+    reach = lib.mkOption {
+      description = "each host's network on the first vpn it shares with this host, in the order of this host's vpns, or null";
+      type = lib.types.lazyAttrsOf (lib.types.nullOr lib.types.raw);
+      readOnly = true;
+      default = lib.mapAttrs (
+        _: peer:
+        let
+          vpn = lib.findFirst (vpn: lib.elem vpn peer.vpns) null config.vpns;
+        in
+        if vpn == null then null else peer.network.${vpn}
+      ) org.host;
+    };
     system = lib.mkOption {
       description = "host platform";
       type = lib.types.str;

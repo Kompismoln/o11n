@@ -9,6 +9,23 @@ let
   };
 
   wg0 = config: config.systemd.network.netdevs."20-wg0";
+
+  withoutStoreHashes =
+    text:
+    lib.concatStrings (
+      lib.filter lib.isString (builtins.split "${builtins.storeDir}/[0-9a-z]{32}-" text)
+    );
+
+  forceCommand =
+    config: user:
+    let
+      lines = map lib.trim (lib.splitString "\n" config.services.openssh.extraConfig);
+    in
+    withoutStoreHashes (
+      lib.removePrefix "ForceCommand " (
+        lib.elemAt lines (lib.lists.findFirstIndex (line: line == "Match User ${user}") null lines + 1)
+      )
+    );
 in
 {
   test_nixos_hosts = {
@@ -142,6 +159,7 @@ in
         "admin/mail" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
         "nix-remote/secret-key" = "service-nix-remote.yaml";
+        "nix-serve/nix-sign" = "service-nix-serve.yaml";
         "reverse-tunnel/passwd-sha512" = "service-reverse-tunnel.yaml";
         "wg0-key" = "host-gw.yaml";
       };
@@ -189,6 +207,74 @@ in
     expected = {
       gw = true;
       web = true;
+    };
+  };
+
+  # nix-build reaches the host's own daemon; nix-switch runs switch-system as root. Hosts
+  # substitute from gw, the substituter.
+  test_deploy = {
+    expr = onHosts (config: {
+      nix-build = lib.replaceStrings [ (withoutStoreHashes "${config.nix.package}") ] [ "nix.package" ] (
+        forceCommand config "nix-build"
+      );
+      nix-switch = forceCommand config "nix-switch";
+      sudo = map (rule: map (command: withoutStoreHashes command.command) rule.commands) (
+        lib.filter (rule: rule.users == [ "nix-switch" ]) config.security.sudo.extraRules
+      );
+      substituters = lib.filter (lib.hasPrefix "http://") config.nix.settings.substituters;
+    });
+    expected =
+      let
+        common = {
+          nix-build = "nix.package/bin/nix-daemon --stdio";
+          nix-switch = "sudo switch-system/bin/switch-system \\$SSH_ORIGINAL_COMMAND";
+          sudo = [
+            [
+              "switch-system/bin/switch-system"
+              "switch-system/bin/switch-system *"
+            ]
+          ];
+        };
+      in
+      {
+        gw = common // {
+          substituters = [ ];
+        };
+        web = common // {
+          substituters = [ "http://gw.sample:5000?priority=50" ];
+        };
+      };
+  };
+
+  test_build_host_without_substituter = {
+    expr =
+      let
+        inherit
+          (web.extendModules {
+            specialArgs.org = outputs.org // {
+              build-hosts = [ "web" ];
+            };
+          })
+          config
+          ;
+      in
+      map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) config.assertions);
+    expected = [
+      "Build host web needs the substituter role, or no host can fetch what it builds."
+    ];
+  };
+
+  test_reach = {
+    expr = lib.mapAttrs (_: host: lib.mapAttrs (_: network: network.fqdn) host.reach) outputs.org.host;
+    expected = {
+      gw = {
+        gw = "gw.sample";
+        web = "web.sample";
+      };
+      web = {
+        gw = "gw.sample";
+        web = "web.sample";
+      };
     };
   };
 

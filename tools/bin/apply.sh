@@ -9,8 +9,8 @@ km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 declare -x target=${1:?target required}
 declare -x \
-    TARGET_ADDRESS=${TARGET_ADDRESS:-$(find-route.sh "$target")} \
-    BUILD_HOST_ADDRESS=${BUILD_HOST_ADDRESS:-$(find-route.sh "$BUILD_HOST" 5000)}
+    BUILD_HOST=${BUILD_HOST:-$(org-toml.sh build-hosts | head -n 1)} \
+    TARGET_ADDRESS=${TARGET_ADDRESS:-$(find-route.sh "$target")}
 
 apply() {
     log info "use $BUILD_HOST to build $target (at $TARGET_ADDRESS)"
@@ -18,15 +18,9 @@ apply() {
     with build
     log important "build=$build"
 
+    # From a build host, the target substitutes the build when it switches.
     if [[ $BUILD_HOST == localhost && $TARGET_ADDRESS != localhost ]]; then
         "$km_root/bin/as.sh" nix-push nix copy --to "ssh://nix-push@$TARGET_ADDRESS" "$build"
-    fi
-
-    if [[ $BUILD_HOST != localhost && "$BUILD_HOST" != "$target" ]]; then
-        "$km_root/bin/as.sh" nix-build ssh "nix-build@$TARGET_ADDRESS" \
-            pull \
-            "$build" \
-            "http://$BUILD_HOST_ADDRESS:5000"
     fi
 
     log important "switching $target to $build"

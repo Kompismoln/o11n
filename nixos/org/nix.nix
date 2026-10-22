@@ -1,5 +1,7 @@
 # nixos/nix.nix
 {
+  config,
+  host,
   inputs,
   o11nInputs,
   lib,
@@ -10,30 +12,46 @@
 
 let
 
-  nixservicePkg =
-    pkgs.runCommand "nixservice"
-      {
-        buildInputs = [ pkgs.makeWrapper ];
-      }
-      ''
-        mkdir -p $out/bin
-        cp ${../../tools/remote/nixservice.sh} $out/bin/nixservice-unwrapped
-        chmod +x $out/bin/nixservice-unwrapped
+  switchSystem = pkgs.writeShellApplication {
+    name = "switch-system";
+    runtimeInputs = [ config.nix.package ];
+    text = ''
+      profile=/nix/var/nix/profiles/system
+      generation=''${1:-}
 
-        makeWrapper $out/bin/nixservice-unwrapped $out/bin/nixservice \
-          --prefix PATH : ${
-            lib.makeBinPath [
-              pkgs.lix
-              pkgs.git
-            ]
-          }
-      '';
+      if [[ $generation == ${builtins.storeDir}/* ]]; then
+        # A lookup made before the build host had the path would otherwise be remembered as
+        # missing for an hour.
+        nix-store --realise "$generation" --option narinfo-cache-negative-ttl 0 >/dev/null
+        if [[ ! -x $generation/bin/switch-to-configuration ]]; then
+          echo "$generation is not a NixOS system" >&2
+          exit 1
+        fi
+        nix-env -p "$profile" --set "$generation"
+      elif [[ $generation =~ ^[0-9]+$ ]]; then
+        nix-env -p "$profile" --switch-generation "$generation"
+      elif [[ -n $generation ]]; then
+        echo "usage: switch-system [store path | generation]" >&2
+        exit 1
+      fi
+
+      nix-env -p "$profile" --list-generations
+
+      if [[ -n $generation ]]; then
+        "$profile/bin/switch-to-configuration" switch
+      fi
+    '';
+  };
+
+  substituters = lib.filter (
+    peer: peer.name != host.name && lib.elem "substituter" peer.roles && host.reach.${peer.name} != null
+  ) (lib.attrValues org.host);
 in
 {
-  programs.ssh.knownHosts.github = {
-    hostNames = [ "github.com" ];
-    publicKeyFile = ../../public-keys/github-ssh-key.pub;
-  };
+  assertions = map (buildHost: {
+    assertion = lib.elem "substituter" org.host.${buildHost}.roles;
+    message = "Build host ${buildHost} needs the substituter role, or no host can fetch what it builds.";
+  }) org.build-hosts;
 
   nix = {
     package = lib.mkDefault pkgs.lix;
@@ -62,7 +80,11 @@ in
       substituters = [
         "https://cache.nixos.org"
         "https://cache.lix.systems"
-      ];
+      ]
+      # After cache.nixos.org (40), so that public paths don't come over a vpn.
+      ++ map (peer: "http://${host.reach.${peer.name}.fqdn}:5000?priority=50") substituters;
+      connect-timeout = 5;
+      fallback = true;
       trusted-users = [
         "@wheel"
         "nix-push"
@@ -84,10 +106,10 @@ in
   services.openssh = {
     extraConfig = ''
       Match User nix-build
-        ForceCommand ${nixservicePkg}/bin/nixservice \$SSH_ORIGINAL_COMMAND
+        ForceCommand ${config.nix.package}/bin/nix-daemon --stdio
 
       Match User nix-switch
-        ForceCommand sudo ${nixservicePkg}/bin/nixservice switch \$SSH_ORIGINAL_COMMAND
+        ForceCommand sudo ${lib.getExe switchSystem} \$SSH_ORIGINAL_COMMAND
 
       Match User nix-push
         ForceCommand ${pkgs.nix}/bin/nix-store --serve --write
@@ -99,11 +121,11 @@ in
       users = [ "nix-switch" ];
       commands = [
         {
-          command = "${nixservicePkg}/bin/nixservice switch";
+          command = lib.getExe switchSystem;
           options = [ "NOPASSWD" ];
         }
         {
-          command = "${nixservicePkg}/bin/nixservice switch *";
+          command = "${lib.getExe switchSystem} *";
           options = [ "NOPASSWD" ];
         }
       ];

@@ -79,6 +79,13 @@ it doesn't put the tools on PATH.
 
 ## Tests
 
+```
+AGENT: add
+A VM test now exists outside the checks, since it needs KVM.
+---
+VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks: they need KVM. Run them with
+`tools/bin/nix-remote.sh build .#vmTests.<name>`.
+```
 Baseline is `nix flake check`.
 
 ### Inventories

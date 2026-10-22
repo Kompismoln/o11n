@@ -59,6 +59,12 @@
 
               packages.gost = pkgs.callPackage ./packages/gost.nix { };
 
+              legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };
+              };
+
               devShells.default = pkgs.mkShell {
                 buildInputs = [ ];
                 shellHook = "";
