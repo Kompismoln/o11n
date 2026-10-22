@@ -96,6 +96,14 @@ in
     ];
   };
 
+  test_wg0_fqdn = {
+    expr = lib.mapAttrs (_: host: host.network.wg0.fqdn) outputs.org.host;
+    expected = {
+      gw = "gw.sample";
+      web = "web.sample";
+    };
+  };
+
   # The host's users and its roles' services, with uids from their class and id.
   test_principal_uids = {
     expr = onHosts (

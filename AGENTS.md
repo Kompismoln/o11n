@@ -13,7 +13,9 @@ This document contains project-wide instructions written by humans for agents.
 
 `.claude/hooks/session-start.sh` prepares a session: it fetches the github: inputs over git, puts nixfmt, statix,
 deadnix, shellcheck and the tools' dependencies on PATH, and unshallows the clone. Its fetches and tools are rooted in
-`/nix/var/nix/gcroots/claude-session`, so `nix store gc` keeps them.
+`/nix/var/nix/gcroots/claude-session`, so `nix store gc` keeps them. The hook runs only in a session that starts in the
+clone. Otherwise run `CLAUDE_PROJECT_DIR=$PWD .claude/hooks/session-start.sh` from the clone; without `CLAUDE_ENV_FILE`
+it doesn't put the tools on PATH.
 
 - Downloads of GitHub archives, which `github:` inputs use, are refused with HTTP 403; git over https works. Fetch the
   same revisions over git once, and plain `nix` commands work for the rest of the session, because the inputs are then
@@ -45,8 +47,11 @@ deadnix, shellcheck and the tools' dependencies on PATH, and unshallows the clon
 - Instead of `/dev/kvm`, NixOS VM tests can run on the `O11N_REMOTE_BUILDER` when set, and its host allowed by the
   session's network policy, `tools/bin/nix-remote.sh build <installable>` builds them on a host with the remote-builder
   role, and `nix-remote.sh check` builds every check there.
+
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub flakes
-  (`--override-input <input> path:<stub>`) that have the attributes the org reads.
+  (`--override-input <input> path:<stub>`) that have the attributes the org reads. Kompismoln/org keeps its stubs in
+  `tests/stubs`, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `nix-remote.sh`
+  command. Fetch the org's `github:` inputs over git first, as above, from the org's `flake.lock`.
 - Nix runs in single-user mode on this session's `/nix`. Point any other daemon, such as Lix's, at its own store with
   `NIX_REMOTE="local?root=<dir>"` (Lix's `nix-daemon` ignored `--store`).
 - Lix gives fixed-output fetches their network through pasta, which can't start in this sandbox; set `pasta-path =`
@@ -67,6 +72,11 @@ deadnix, shellcheck and the tools' dependencies on PATH, and unshallows the clon
 - `nix flake check --no-build` fails with "path … is not valid" when a source it would copy isn't in the store yet; run
   once without it.
 
+- `types.anything` merges a function by wrapping it in one without formal arguments, so a module that passes through it
+  no longer gets `pkgs` or anything else from `_module.args`. Keep flake outputs in `types.raw`.
+- `nix-remote.sh build --dry-run` answers "don't know how to build these paths": nothing has copied the `.drv` files to
+  the builder yet.
+
 ## Tests
 
 Baseline is `nix flake check`.
@@ -74,13 +84,19 @@ Baseline is `nix flake check`.
 ### Inventories
 
 - `base`: an org with nothing in it.
-- `principals`: one host with the inference-server and app-scheduler roles.
+- `principals`: one host with the inference-server and app-scheduler roles, and an app that imports a module from an
+  input. The tests pass an inventory's `inputs.nix`, if it has one, as its `inputs`.
 - `sample`: a cluster meant to use every role. It has `gw` (wg0 gateway and DNS, rescue mode, grub) and `web`, both with
   the nixos, peer and server roles, and an admin user.
 
 Evaluate inventories with `o11nLib.fromInventory { path; inputs ? { }; }`.
 
 A real org, read with `fromFlake`.
+
+To see whether a change alters an org's systems, evaluate each host's `config.system.build.toplevel.drvPath` with
+`--override-input o11n "git+file://<clone>?rev=<rev>&shallow=1"` at the old and the new revision: equal paths are equal
+systems. Keep the org's tree as it is meanwhile: hosts with the peer role carry the org's source
+(`/etc/nix/inputs/self`), so a change to any file git tracks there changes them.
 
 ### Keys and secrets
 
@@ -144,8 +160,17 @@ checks enforce this for code the inventories use. The remaining hardcoding is in
 - `[mailserver]` when any host has the server role: `nixos/org/sendmail.nix` reads it.
 - `[flake]` when any host has the peer role: `nixos/org/nix.nix` reads it.
 - An `endpoint` on the gateway of each vpn.
-- For each NixOS host, a `facter.json` (`{"version":1,"system":"x86_64-linux"}` is enough in tests), a root file system,
-  and a way for root or a wheel user to log in; NixOS rejects a system without them.
+
+- For each NixOS host, a `facter.json` (`{"version":1,"system":"x86_64-linux"}` is enough in tests) or
+  `hardwareReport = "standard"` and a configuration that sets `nixpkgs.hostPlatform` (a `hardware-configuration.nix`
+  does), a root file system, and a way for root or a wheel user to log in; NixOS rejects a system without them.
+
+- o11n's `boot` enables a bootloader on every host, systemd-boot by default: a configuration that enables grub needs
+  `boot = "grub"`, and one without a bootloader turns both off with `lib.mkForce`.
+- Every user, service and app needs an `ssh-key` public key unless `principal.hasPublicKey = false`, and every user a
+  `passwd-sha512` secret unless `principal.hasPasswd = false`. A missing public key fails evaluation; a missing secret
+  fails sops-nix's manifest check when the system builds.
+
 - Services without an `id` get no user, but their public keys can still be read (rescue, nix-serve).
 
 ## Style

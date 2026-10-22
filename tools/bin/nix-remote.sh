@@ -128,17 +128,37 @@ start-tunnel() {
     die 1 "gost didn't start"
 }
 
-store-info() {
-    local cmd=info
+store-info-command() {
     # Lix, forked before `nix store info`, still calls it ping.
-    [[ $(nix --version) != *Lix* ]] || cmd=ping
+    if [[ $(nix --version) == *Lix* ]]; then echo ping; else echo info; fi
+}
+
+store-info() {
     start-tunnel
-    nix store "$cmd" --store "unix://$socket" "$@"
+    nix store "$(store-info-command)" --store "unix://$socket" "$@"
+}
+
+# After a failure: if the store still answers through the tunnel, the build failed, not the tunnel.
+store-answers() {
+    timeout 60 nix store "$(store-info-command)" --store "unix://$socket" >/dev/null 2>&1
 }
 
 remote-build() {
     start-tunnel
     nix build --store "unix://$socket" --eval-store auto --no-link -L "$@"
+}
+
+# The options that apply to listing the checks too, such as --override-input: all but
+# those only nix build takes.
+eval-options() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+        --dry-run | --rebuild | --print-out-paths | --no-link | --stdin) ;;
+        -o | --out-link) shift ;;
+        *) printf '%s\0' "$1" ;;
+        esac
+        shift
+    done
 }
 
 # nix flake check --store asks the store which checks it would build before it has the
@@ -151,10 +171,11 @@ remote-check() {
     fi
     system=$(nix eval --raw --impure --expr builtins.currentSystem)
 
-    local checks=()
-    mapfile -t checks < <(
-        nix eval --json "$flake#checks.$system" --apply builtins.attrNames | jq -r '.[]'
-    )
+    local eval_options=() names checks=()
+    mapfile -d '' -t eval_options < <(eval-options "$@")
+    names=$(nix eval --json "$flake#checks.$system" --apply builtins.attrNames "${eval_options[@]}") ||
+        die 1 "couldn't list the checks of $flake"
+    mapfile -t checks < <(jq -r '.[]' <<<"$names")
     [[ ${#checks[@]} -gt 0 ]] || die 1 "$flake has no checks for $system"
     log info "checks: ${checks[*]}"
 
@@ -174,8 +195,12 @@ nix-remote() {
     esac
 
     if [[ $rc -ne 0 ]]; then
-        tail -n 20 "$tunnel_log" >&2
-        diagnose
+        if [[ $cmd != info ]] && store-answers; then
+            log info "$O11N_REMOTE_BUILDER still answers, so the build failed and not the tunnel"
+        else
+            tail -n 20 "$tunnel_log" >&2
+            diagnose
+        fi
     elif [[ $cmd != info ]]; then
         log success "built on $O11N_REMOTE_BUILDER"
     fi

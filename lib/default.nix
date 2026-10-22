@@ -39,6 +39,7 @@ rec {
     }).config;
 
   mkConfigurations = context: {
+    inherit context;
     inherit (context) org;
 
     diskoConfigurations = mkDiskoConfigurations context;

@@ -15,7 +15,7 @@ let
 
   cfg = config.o11n.nginx;
   vpn = org.vpn.wg0;
-  hostname = "${host.name}.${vpn.namespace}";
+  hostname = host.network.wg0.fqdn;
 in
 {
   options.o11n.nginx = {

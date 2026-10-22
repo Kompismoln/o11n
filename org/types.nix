@@ -35,7 +35,7 @@ let
   };
 
   entities = lib.genAttrs (lib.attrNames context.classes) (class: {
-    ref = lib.types.enum (lib.attrNames context.spec.${class});
+    ref = lib.types.enum (lib.attrNames (context.spec.${class} or { }));
     module = lib.types.submoduleWith {
       modules = [ ./${class}.nix ];
       specialArgs = {
@@ -62,6 +62,7 @@ entities
     };
   };
 
+  role.ref = lib.types.enum (lib.attrNames (context.spec.role or { }));
   role.module = lib.types.submoduleWith {
     modules = [ ./role.nix ];
     specialArgs = {
@@ -69,6 +70,7 @@ entities
     };
   };
 
+  vpn.ref = lib.types.enum (lib.attrNames (context.spec.vpn or { }));
   vpn.module = lib.types.submoduleWith {
     modules = [ ./vpn.nix ];
     specialArgs = {

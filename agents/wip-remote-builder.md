@@ -1,8 +1,8 @@
 # WIP: remote builder over HTTPS
 
-Status: built and tested in a session against a local stand-in for the host,
-not yet deployed. Facts are marked "Verified" (seen working) or "Unverified"
-(to check on the real host).
+Status: deployed in Kompismoln/org (pelle builds, helsinki relays) and used
+from a Claude session. Facts are marked "Verified" (seen working) or
+"Unverified" (to check on the real host).
 
 ## In short
 - NixOS VM tests (`pkgs.testers.runNixOSTest`) need `/dev/kvm`. Claude's cloud
@@ -127,16 +127,22 @@ it "not functional until restarted" and kept it active, bound to nothing, and
 gost got "connection refused". The socket is now `PartOf` the tunnel's
 service, which names the same address and so restarts when it changes.
 
+Verified from a Claude session through helsinki to pelle:
+- `nix-remote.sh info`: Lix 2.95.2, `Trusted: 0`.
+- The proxy passes the PHT pull as it arrives: build logs streamed during
+  runs of up to 80 s. Seven of the org's systems, of which pelle had most
+  paths, took 79 s for 122 derivations, copying the missing `.drv` files
+  included; bootstrap's 65 took 28 s.
+- gost and the daemon relay under their systemd hardening, and both
+  endpoints' ACME certificates (the client checks the relay's, the relay
+  the builder's).
+- A failing build exits non-zero with its log, and `nix-remote.sh` says the
+  builder still answers. When the builder doesn't answer, it diagnoses: through
+  pelle's own endpoint, which has no IPv4, the probe got 502.
+
 ## Unverified
-- Whether a Claude session's proxy passes the PHT pull, a streamed response
-  that stays open, as it arrives, and for how long: a proxy that buffers it,
-  or cuts long responses, would stall or end a build.
-- The time a first upload takes through that proxy: one HTTP round trip per
-  write, after nix's own buffering.
-- gost and the daemon relay under their systemd hardening
-  (`ProtectSystem=strict`, `RestrictAddressFamilies`, ...): not run under
-  systemd here.
-- ACME's HTTP-01 challenge needs the endpoint reachable on port 80.
+- How long the proxy keeps the PHT pull open: a build that runs for hours
+  could be cut.
 - `/dev/kvm` in the build sandbox on the host: NixOS' default
   `system-features` include `kvm`, and udev makes `/dev/kvm` 0666 (check with
   `ls -l /dev/kvm`).

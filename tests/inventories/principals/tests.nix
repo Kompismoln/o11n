@@ -12,6 +12,10 @@
     expr = outputs.homeConfigurations;
     expected = { };
   };
+  test_nixos_input_module = {
+    expr = outputs.nixosConfigurations.test-host.config.environment.etc."test-input".text;
+    expected = "hello";
+  };
   test_nixos_huggingface_name = {
     expr = outputs.nixosConfigurations.test-host.config.users.users.huggingface.name;
     expected = "huggingface";

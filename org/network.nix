@@ -84,6 +84,11 @@
       type = with lib.types; nullOr (listOf str);
       default = null;
     };
+    fqdn = lib.mkOption {
+      description = "host's name in the network";
+      type = with lib.types; nullOr str;
+      default = null;
+    };
     gatewayOnLink = lib.mkEnableOption "onlink for gateway" // {
       type = with lib.types; nullOr bool;
       default = null;

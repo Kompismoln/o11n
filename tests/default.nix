@@ -18,7 +18,16 @@ let
   );
 
   inventories = lib.genAttrs (entries ./inventories "directory") (
-    inventory: o11nLib.fromInventory { path = ./inventories/${inventory}; }
+    inventory:
+    let
+      path = ./inventories/${inventory};
+    in
+    o11nLib.fromInventory {
+      inherit path;
+      inputs = lib.optionalAttrs (builtins.pathExists (path + "/inputs.nix")) (
+        import (path + "/inputs.nix")
+      );
+    }
   );
 
   inventoryChecks = lib.mapAttrs' (

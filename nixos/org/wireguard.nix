@@ -41,8 +41,8 @@ in
         builtins.concatMap (
           vpn:
           map (peer: ''
-            hints['${peer.name}.${vpn.namespace}'] = '${peer.network.${vpn.name}.address}'
-            hints['${peer.name}.${vpn.namespace}'] = '${peer.network.${vpn.name}.address4}'
+            hints['${peer.network.${vpn.name}.fqdn}'] = '${peer.network.${vpn.name}.address}'
+            hints['${peer.network.${vpn.name}.fqdn}'] = '${peer.network.${vpn.name}.address4}'
           '') (peers vpn)
         ) dnsFor
       )}
