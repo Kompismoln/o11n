@@ -22,21 +22,16 @@ build() {
     org-toml.sh build-hosts | grep -x "$BUILD_HOST" >/dev/null ||
         die 1 "$BUILD_HOST is not in build-hosts"
 
-    local address drv
+    [[ $# -eq 0 ]] || die 1 "nix options apply only with BUILD_HOST=localhost: $*"
+
+    local address flake
     address=${BUILD_HOST_ADDRESS:-$(find-route.sh "$BUILD_HOST")}
+    flake=$(nix flake metadata --json . | jq -r .path)
 
-    # Evaluated here, where the operator's own credentials fetch the org's private inputs.
-    drv=$(nix eval --raw "$system.drvPath")
-
-    # The build host builds as the untrusted nix-build and keeps the result, which
-    # targets substitute from it.
-    "$km_root/bin/as.sh" nix-build nix build \
-        --eval-store auto \
-        --store "ssh-ng://nix-build@$address" \
-        "$drv^*" \
-        --no-link \
-        --print-out-paths \
-        "$@"
+    # The build host evaluates the flake it is sent, inputs and all, so it needs no access
+    # of its own to the private ones.
+    "$km_root/bin/as.sh" nix-build nix flake archive --to "ssh-ng://nix-build@$address" .
+    "$km_root/bin/as.sh" nix-build ssh "nix-build@$address" build-system "$flake" "$target"
 }
 
 build "$@"

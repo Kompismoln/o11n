@@ -1,7 +1,7 @@
 # WIP: retire nixservice
 
-Status: all three stages written (see "Rolling out"); stages 1 and 2 deployed in
-Kompismoln/org.
+Status: all three stages done; evaluation then moved to the build host (see
+"Evaluation on the build host").
 
 ## In short
 - Building: `nix-build`'s ForceCommand becomes `nix-daemon --stdio`, and the
@@ -60,7 +60,29 @@ one narrow command for the privileged step.
   the result.
 - No agent forwarding, no working-tree copy, no GitHub access for the
   `nix-build` key, no `BUILD_WORKING_TREE`, no `src` output in the org flake.
-- Cost: evaluation (10–30 s, 1–2 GB per host) moves to the operator. Accepted.
+- Cost: evaluation (10–30 s, 1–2 GB per host) moves to the operator. Accepted
+  at first; see "Evaluation on the build host".
+
+### Evaluation on the build host
+
+- On hosts in `build-hosts`, `nix-build`'s ForceCommand also takes
+  `build-system <flake store path> <host>`; anything else is the daemon. Other
+  hosts give `nix-build` the daemon alone.
+- `build.sh` sends the org's flake with `nix flake archive --to ssh-ng://...`:
+  its source and every locked input, private ones too, all content-addressed,
+  which the untrusted daemon accepts. Then `build-system` runs a pure
+  `nix build path:<store path>#nixosConfigurations.<host>...toplevel`, no other
+  options; the inputs are in the store already, so nothing is fetched.
+- The build host still needs no access to the private repositories, and nothing
+  is forwarded. What the key adds: having a build host evaluate any flake it was
+  sent, purely, as `nix-build` (CPU, memory, eval-time fetches of locked URLs).
+- A `path:` copy of a flake has no `rev`, and Lix gives it `lastModified` 0 and
+  refuses another (`'lastModified' attribute mismatch`); Nix 2.34 takes either
+  from the reference. Both reached systems only through `nix.registry.self`,
+  which NixOS fills with a flake's `rev`, `lastModified` and `narHash`, so o11n
+  registers `self` without the first two. Every host's system then depends on
+  the org's tree alone: the same from a checkout, clean or dirty, and from its
+  copy (all of Kompismoln's hosts, evaluated both ways, with Nix and Lix).
 
 ### Distribution: substituters from the org
 
