@@ -23,6 +23,11 @@ in
       type = lib.types.str;
       default = "/srv/database";
     };
+    postgresqlWal = lib.mkOption {
+      description = "a volume of its own for postgresql's write-ahead log, or null to keep it with the data";
+      type = with lib.types; nullOr str;
+      default = null;
+    };
     onStorage = lib.mkOption {
       description = "where a path's data lives: under storage on a host that preserves, otherwise at the path";
       type = with lib.types; functionTo str;

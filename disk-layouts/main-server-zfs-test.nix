@@ -10,6 +10,7 @@
     preserve = {
       enable = true;
       database = "/srv/zfs_vol";
+      postgresqlWal = "/srv/zfs_vol/pg_wal";
     };
   };
 

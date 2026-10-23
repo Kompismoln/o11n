@@ -10,6 +10,7 @@
 let
   cfg = config.o11n.postgresql;
   inherit (config.services.postgresql) package dataDir;
+  walDir = lib.mapNullable (wal: "${wal}/${package.psqlSchema}") config.o11n.preserve.postgresqlWal;
 in
 {
   imports = [
@@ -41,29 +42,60 @@ in
     };
   };
 
-  config = lib.mkIf (cfg.databases != { }) {
-    services.postgresql = {
-      enable = true;
-      package = pkgs."postgresql_${org.postgres}";
-      dataDir = config.o11n.preserve.onDatabase "/var/lib/postgresql/${package.psqlSchema}";
-      extensions =
-        ps: with ps; [
-          postgis
-          pg_repack
-        ];
-    };
+  config = lib.mkIf (cfg.databases != { }) (
+    lib.mkMerge [
+      {
+        services.postgresql = {
+          enable = true;
+          package = pkgs."postgresql_${org.postgres}";
+          dataDir = config.o11n.preserve.onDatabase "/var/lib/postgresql/${package.psqlSchema}";
+          extensions =
+            ps: with ps; [
+              postgis
+              pg_repack
+            ];
+        };
 
-    # Upstream creates only the default data directory.
-    systemd.tmpfiles.rules = [ "d ${dataDir} 0700 postgres postgres - -" ];
+        # Upstream creates only the default data directory.
+        systemd.tmpfiles.rules = [ "d ${dataDir} 0700 postgres postgres - -" ];
 
-    o11n.dumps = lib.mapAttrs' (
-      _: db:
-      lib.nameValuePair "${db.name}-pgsql" {
-        database = db.name;
-        inherit (db) user;
-        command = "${package}/bin/pg_dump ${lib.escapeShellArg db.name}";
-        after = [ "postgresql.target" ];
+        o11n.dumps = lib.mapAttrs' (
+          _: db:
+          lib.nameValuePair "${db.name}-pgsql" {
+            database = db.name;
+            inherit (db) user;
+            command = "${package}/bin/pg_dump ${lib.escapeShellArg db.name}";
+            after = [ "postgresql.target" ];
+          }
+        ) cfg.databases;
       }
-    ) cfg.databases;
-  };
+
+      (lib.mkIf (walDir != null) {
+        services.postgresql.initdbArgs = [ "--waldir=${walDir}" ];
+        systemd.tmpfiles.rules = [ "d ${walDir} 0700 postgres postgres - -" ];
+        systemd.services.postgresql = {
+          unitConfig.RequiresMountsFor = [ walDir ];
+          serviceConfig.ReadWritePaths = [ walDir ];
+          # A cluster made before the WAL got its own volume moves it there once. A start
+          # interrupted midway finishes the move, and nothing links a pg_wal that went missing.
+          preStart = lib.mkAfter ''
+            pgWal="$PGDATA/pg_wal"
+            if [ ! -L "$pgWal" ]; then
+              if [ -d "$pgWal" ]; then
+                cp -a "$pgWal/." ${walDir}/
+                sync -f ${walDir}
+                mv "$pgWal" "$pgWal.moved"
+              fi
+              if [ -d "$pgWal.moved" ]; then
+                ln -s ${walDir} "$pgWal"
+              fi
+            fi
+            if [ -L "$pgWal" ]; then
+              rm -rf "$pgWal.moved"
+            fi
+          '';
+        };
+      })
+    ]
+  );
 }

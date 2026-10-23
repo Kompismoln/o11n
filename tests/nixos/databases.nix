@@ -66,7 +66,10 @@ let
   preservingCfg = eval {
     o11n.postgresql.databases.chat = { };
     o11n.mysql.databases.blog = { };
-    o11n.preserve.enable = true;
+    o11n.preserve = {
+      enable = true;
+      postgresqlWal = "/srv/wal";
+    };
   };
 
   dataDirs = cfg: {
@@ -144,5 +147,26 @@ in
   test_postgresql_data_dir_created = {
     expr = lib.elem "d /srv/database/var/lib/postgresql/17 0700 postgres postgres - -" preservingCfg.systemd.tmpfiles.rules;
     expected = true;
+  };
+
+  test_postgresql_wal = {
+    expr = {
+      inherit (preservingCfg.services.postgresql) initdbArgs;
+      inherit (preservingCfg.systemd.services.postgresql.serviceConfig) ReadWritePaths;
+      created = lib.elem "d /srv/wal/17 0700 postgres postgres - -" preservingCfg.systemd.tmpfiles.rules;
+    };
+    expected = {
+      initdbArgs = [ "--waldir=/srv/wal/17" ];
+      ReadWritePaths = [
+        "/srv/database/var/lib/postgresql/17"
+        "/srv/wal/17"
+      ];
+      created = true;
+    };
+  };
+
+  test_postgresql_wal_with_data = {
+    expr = cfg.services.postgresql.initdbArgs;
+    expected = [ ];
   };
 }
