@@ -1,19 +1,22 @@
 # nixos/postgresql.nix
 {
   config,
-  inputs,
   lib,
+  org,
   pkgs,
   ...
 }:
 
 let
   cfg = config.o11n.postgresql;
-  eachDatabase = lib.filterAttrs (_db: dbCfg: dbCfg.enable) cfg.databases;
+  inherit (config.services.postgresql) package;
 in
 {
+  imports = [
+    ./dump.nix
+  ];
+
   options.o11n.postgresql = {
-    enable = lib.mkEnableOption "postgresql";
     databases = lib.mkOption {
       description = "databases to manage";
       default = { };
@@ -22,7 +25,6 @@ in
           { name, config, ... }:
           {
             options = {
-              enable = lib.mkEnableOption "database";
               name = lib.mkOption {
                 type = lib.types.str;
                 default = name;
@@ -30,10 +32,6 @@ in
               user = lib.mkOption {
                 type = lib.types.str;
                 default = config.name;
-              };
-              dumpPath = lib.mkOption {
-                type = lib.types.nullOr lib.types.str;
-                default = "/var/lib/${config.name}/dbdump.sql";
               };
             };
           }
@@ -50,13 +48,10 @@ in
         group = "postgres";
       }
     ];
-    nixpkgs.overlays = [
-      (import ../overlays/pgsql-tools.nix { inherit inputs; })
-    ];
 
     services.postgresql = {
       enable = true;
-      package = pkgs.postgresql_17;
+      package = pkgs."postgresql_${org.postgres}";
       extensions =
         ps: with ps; [
           postgis
@@ -64,17 +59,14 @@ in
         ];
     };
 
-    systemd.services = lib.mapAttrs' (
-      _db: dbCfg:
-      lib.nameValuePair "${dbCfg.name}-pgsql-dump" {
-        description = "dump a snapshot of the postgresql database";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${lib.getExe pkgs.bash} -c '${pkgs.postgresql}/bin/pg_dump ${dbCfg.name} > ${dbCfg.dumpPath}'";
-          User = dbCfg.user;
-          Group = dbCfg.user;
-        };
+    o11n.dumps = lib.mapAttrs' (
+      _: db:
+      lib.nameValuePair "${db.name}-pgsql" {
+        database = db.name;
+        inherit (db) user;
+        command = "${package}/bin/pg_dump ${lib.escapeShellArg db.name}";
+        after = [ "postgresql.target" ];
       }
-    ) (lib.filterAttrs (_db: dbCfg: dbCfg.dumpPath != null) eachDatabase);
+    ) cfg.databases;
   };
 }

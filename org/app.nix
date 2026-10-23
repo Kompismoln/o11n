@@ -47,6 +47,11 @@
       default = config.name;
       type = lib.types.str;
     };
+    dump = lib.mkOption {
+      description = "when to dump the app's database, as a systemd calendar event";
+      default = null;
+      type = with lib.types; nullOr str;
+    };
     ssl = lib.mkOption {
       description = "let's encrypt and force https";
       default = true;

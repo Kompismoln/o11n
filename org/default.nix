@@ -35,6 +35,11 @@
       type = lib.types.str;
       example = "en_US.UTF-8";
     };
+    postgres = lib.mkOption {
+      description = "postgresql major version of every server and client";
+      type = lib.types.strMatching "[0-9]+";
+      example = "17";
+    };
     prefix = lib.mkOption {
       description = "ipv6 private prefix";
       type = context.types.globalPrefix6;

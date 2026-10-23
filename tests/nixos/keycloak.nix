@@ -16,6 +16,11 @@ let
   cfg = evalNixosModule [
     ../../nixos/keycloak.nix
     baseConfig
+    {
+      options.o11n.preserve.databases = lib.mkOption {
+        type = lib.types.listOf lib.types.anything;
+      };
+    }
   ];
 
   vhost = cfg.services.nginx.virtualHosts."auth.example.com";
@@ -54,6 +59,11 @@ in
   test_keycloak_login_proxy_pass = {
     expr = vhost.locations."/".proxyPass;
     expected = "http://[fd12:3456:7890:1::1]:8080";
+  };
+
+  test_keycloak_database = {
+    expr = cfg.o11n.postgresql.databases.keycloak.user;
+    expected = "keycloak";
   };
 
 }

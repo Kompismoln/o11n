@@ -62,6 +62,9 @@ let
   ) eachSite;
 in
 {
+  imports = [
+    ./postgresql.nix
+  ];
 
   options.o11n.fastapi = {
     sites = lib.mkOption {
@@ -74,6 +77,8 @@ in
   config = lib.mkIf (eachSite != { }) {
 
     environment.systemPackages = lib.mapAttrsToList (_: bin: bin) bins;
+
+    o11n.postgresql.databases = lib.mapAttrs' (_: cfg: lib.nameValuePair cfg.appname { }) eachSite;
 
     sops.secrets = lib.concatMapAttrs (_: cfg: {
       "${cfg.appname}/secret_key" = {
@@ -123,35 +128,6 @@ in
         };
       };
 
-      "${cfg.appname}-pgsql-dump" = {
-        description = "dump a snapshot of the postgresql database";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${lib.getExe pkgs.bash} -c '${pkgs.postgresql}/bin/pg_dump -U ${cfg.appname} ${cfg.appname} > ${stateDir cfg.appname}/dbdump.sql'";
-          User = cfg.appname;
-          Group = cfg.appname;
-        };
-      };
-      "${cfg.appname}-pgsql-restore" = {
-        description = "restore postgresql database from snapshot";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${lib.getExe pkgs.bash} -c '${pkgs.postgresql}/bin/psql -U ${cfg.appname} ${cfg.appname} < ${stateDir cfg.appname}/dbdump.sql'";
-          User = cfg.appname;
-          Group = cfg.appname;
-        };
-      };
-    }) eachSite;
-
-    systemd.timers = lib.concatMapAttrs (_: cfg: {
-      "${cfg.appname}-pgsql-dump" = {
-        description = "Scheduled PostgreSQL database dump";
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = "daily";
-          Unit = "${cfg.appname}-pgsql-dump.service";
-        };
-      };
     }) eachSite;
 
     #system.activationScripts = mapAttrs (name: cfg: {

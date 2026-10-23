@@ -171,6 +171,9 @@ let
   );
 in
 {
+  imports = [
+    ./postgresql.nix
+  ];
 
   options.o11n.django = {
     apps = lib.mkOption {
@@ -182,6 +185,10 @@ in
 
   config = lib.mkIf (eachApp != { }) {
     environment.systemPackages = lib.attrValues scripts;
+
+    o11n.postgresql.databases = lib.mapAttrs' (
+      _: app: lib.nameValuePair app.database { inherit (app) user; }
+    ) eachApp;
 
     systemd.tmpfiles.rules = lib.concatMap (app: [
       "d '${app.home}' 0750 ${app.user} ${app.user} - -"
@@ -214,7 +221,7 @@ in
     systemd.services = lib.concatMapAttrs (_: app: {
 
       "${app.name}-django" = {
-        path = [ pkgs.postgresql ];
+        path = [ config.services.postgresql.package ];
         description = "serve ${app.name}";
         serviceConfig = {
           ExecStart = lib.escapeShellArgs [
@@ -233,7 +240,7 @@ in
       };
 
       "${app.name}-django-worker" = lib.mkIf (app.worker-package != null) {
-        path = [ pkgs.postgresql ];
+        path = [ config.services.postgresql.package ];
         description = "serve ${app.name} worker";
         serviceConfig = {
           ExecStart = lib.getExe app.worker-package;

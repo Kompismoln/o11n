@@ -9,6 +9,10 @@ let
   cfg = config.o11n.keycloak;
 in
 {
+  imports = [
+    ./postgresql.nix
+  ];
+
   options.o11n.keycloak = {
     enable = lib.mkEnableOption "keycloak";
 
@@ -50,6 +54,9 @@ in
   };
 
   config = {
+
+    o11n.postgresql.databases.${config.services.keycloak.database.name}.user =
+      config.services.keycloak.database.username;
 
     services.nginx.virtualHosts.${cfg.endpoint} = {
       forceSSL = true;
