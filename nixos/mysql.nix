@@ -12,6 +12,7 @@ in
 {
   imports = [
     ./dump.nix
+    ./preserve-paths.nix
   ];
 
   options.o11n.mysql = {
@@ -39,16 +40,10 @@ in
   };
 
   config = lib.mkIf (cfg.databases != { }) {
-    o11n.preserve.databases = [
-      {
-        directory = "/var/lib/mysql";
-        user = "mysql";
-        group = "mysql";
-      }
-    ];
     services.mysql = {
       enable = true;
       package = pkgs.mariadb;
+      dataDir = config.o11n.preserve.onDatabase "/var/lib/mysql";
     };
 
     o11n.dumps = lib.mapAttrs' (

@@ -40,22 +40,17 @@ let
       ../../nixos/postgresql.nix
       ../../nixos/mysql.nix
       {
-        options.o11n.preserve.databases = lib.mkOption {
-          type = lib.types.listOf lib.types.anything;
+        _module.args = {
+          inherit org;
+          host.name = "web";
         };
-        config = {
-          _module.args = {
-            inherit org;
-            host.name = "web";
-          };
-          users = lib.mkMerge [
-            (appUser "blog")
-            (appUser "chat")
-          ];
-          system.stateVersion = lib.trivial.release;
-        }
-        // databases;
+        users = lib.mkMerge [
+          (appUser "blog")
+          (appUser "chat")
+        ];
+        system.stateVersion = lib.trivial.release;
       }
+      databases
     ];
 
   cfg = eval {
@@ -66,6 +61,17 @@ let
   collidingCfg = eval {
     o11n.postgresql.databases.chat = { };
     o11n.mysql.databases.chat = { };
+  };
+
+  preservingCfg = eval {
+    o11n.postgresql.databases.chat = { };
+    o11n.mysql.databases.blog = { };
+    o11n.preserve.enable = true;
+  };
+
+  dataDirs = cfg: {
+    postgresql = cfg.services.postgresql.dataDir;
+    mysql = cfg.services.mysql.dataDir;
   };
 
   dumps = attrs: lib.filterAttrs (name: _: lib.hasSuffix "-dump" name) attrs;
@@ -117,5 +123,26 @@ in
       true
       false
     ];
+  };
+
+  test_data_dirs = {
+    expr = dataDirs cfg;
+    expected = {
+      postgresql = "/var/lib/postgresql/17";
+      mysql = "/var/lib/mysql";
+    };
+  };
+
+  test_data_dirs_on_database = {
+    expr = dataDirs preservingCfg;
+    expected = {
+      postgresql = "/srv/database/var/lib/postgresql/17";
+      mysql = "/srv/database/var/lib/mysql";
+    };
+  };
+
+  test_postgresql_data_dir_created = {
+    expr = lib.elem "d /srv/database/var/lib/postgresql/17 0700 postgres postgres - -" preservingCfg.systemd.tmpfiles.rules;
+    expected = true;
   };
 }

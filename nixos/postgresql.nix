@@ -9,11 +9,12 @@
 
 let
   cfg = config.o11n.postgresql;
-  inherit (config.services.postgresql) package;
+  inherit (config.services.postgresql) package dataDir;
 in
 {
   imports = [
     ./dump.nix
+    ./preserve-paths.nix
   ];
 
   options.o11n.postgresql = {
@@ -41,23 +42,19 @@ in
   };
 
   config = lib.mkIf (cfg.databases != { }) {
-    o11n.preserve.databases = [
-      {
-        directory = "/var/lib/postgresql";
-        user = "postgres";
-        group = "postgres";
-      }
-    ];
-
     services.postgresql = {
       enable = true;
       package = pkgs."postgresql_${org.postgres}";
+      dataDir = config.o11n.preserve.onDatabase "/var/lib/postgresql/${package.psqlSchema}";
       extensions =
         ps: with ps; [
           postgis
           pg_repack
         ];
     };
+
+    # Upstream creates only the default data directory.
+    systemd.tmpfiles.rules = [ "d ${dataDir} 0700 postgres postgres - -" ];
 
     o11n.dumps = lib.mapAttrs' (
       _: db:
