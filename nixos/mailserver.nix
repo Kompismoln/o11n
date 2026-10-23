@@ -80,6 +80,12 @@ in
             user = "rspamd";
             group = "rspamd";
           }
+          {
+            directory = "/var/lib/redis-rspamd";
+            user = "redis-rspamd";
+            group = "redis-rspamd";
+            mode = "0700";
+          }
         ];
       };
 
