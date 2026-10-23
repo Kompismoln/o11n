@@ -104,8 +104,10 @@ let
   hostUser = config.users.users.${cfg.user};
   hasHome = hostUser.home != "/var/empty";
 
-  # Each server's home inside the container: its own directory in the user's home on the host.
-  serverHome = server: "${hostUser.home}/${servers.${server}.container}";
+  # Each server's home inside the container: its own directory in the user's home on the host,
+  # on storage where the host preserves.
+  serverHome =
+    server: config.o11n.preserve.onStorage "${hostUser.home}/${servers.${server}.container}";
 
   isLocal = lib.hasPrefix "/";
   inStore = lib.hasPrefix "${builtins.storeDir}/";
@@ -235,6 +237,10 @@ let
     '';
 in
 {
+  imports = [
+    ./preserve-paths.nix
+  ];
+
   options.o11n.vllm = {
     enable = lib.mkEnableOption "vLLM inference server environment";
     user = lib.mkOption {
