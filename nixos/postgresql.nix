@@ -78,11 +78,13 @@ in
           serviceConfig.ReadWritePaths = [ walDir ];
           # A cluster made before the WAL got its own volume moves it there once. A start
           # interrupted midway finishes the move, and nothing links a pg_wal that went missing.
+          # The unit's syscall filter allows no chown, so cp keeps no ownership: it copies as
+          # postgres, the files' owner.
           preStart = lib.mkAfter ''
             pgWal="$PGDATA/pg_wal"
             if [ ! -L "$pgWal" ]; then
               if [ -d "$pgWal" ]; then
-                cp -a "$pgWal/." ${walDir}/
+                cp -R --preserve=mode,timestamps "$pgWal/." ${walDir}/
                 sync -f ${walDir}
                 mv "$pgWal" "$pgWal.moved"
               fi
