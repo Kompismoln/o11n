@@ -35,21 +35,34 @@ let
     openssh.authorizedKeys.keyFiles = [ org.service.${name}.publicKeys.ssh-key ];
   };
 
-  # Stands in for the org's flake: the tooling evaluates its nixosConfigurations here.
-  orgFlake = pkgs.writeTextDir "flake.nix" ''
-    {
-      outputs = _: {
-        nixosConfigurations = builtins.mapAttrs (name: _: {
-          config.system.build.toplevel = derivation {
+  # Stands in for the org's flake, for the tooling.
+  standIns = [
+    "web"
+    "other"
+    "stranded"
+  ];
+  orgFlake = pkgs.runCommand "org" { } ''
+    mkdir $out
+    cp ${./stand-in.nix} $out/stand-in.nix
+    cp ${pkgs.writeText "flake.nix" ''
+      {
+        outputs = _: {
+          nixosConfigurations = builtins.listToAttrs (map (name: {
             inherit name;
-            system = "x86_64-linux";
-            builder = "/bin/sh";
-            args = [ "-c" "echo ''${name} > $out" ];
-          };
-        }) { web = null; other = null; };
-      };
-    }
+            value.config.system.build.toplevel = import ./stand-in.nix name;
+          }) (builtins.fromJSON '''${builtins.toJSON standIns}'''));
+        };
+      }
+    ''} $out/flake.nix
   '';
+
+  # Without their context, so that the test doesn't build them itself.
+  standIn = lib.genAttrs standIns (
+    name:
+    lib.mapAttrs (_: builtins.unsafeDiscardStringContext) {
+      inherit (import ./stand-in.nix name) drvPath outPath;
+    }
+  );
 
   peer =
     hostName:
@@ -122,6 +135,7 @@ pkgs.testers.runNixOSTest {
       environment.systemPackages = [
         (pkgs.callPackage ../../packages/km-tools.nix { })
         pkgs.gettext
+        pkgs.git
       ];
       environment.etc."nix/inputs/self".source = outputs.context.path;
       environment.etc.org.source = orgFlake;
@@ -198,21 +212,39 @@ pkgs.testers.runNixOSTest {
           assert "(current)" in out, out
           operator.fail("ssh -n nix-switch@web --rollback")
 
+      with subtest("build-system takes a flake in the store and a host, and nothing else"):
+          absent = "${builtins.storeDir}/00000000000000000000000000000000-source"
+          for args in ["/etc/org web", f"{absent} web --impure", f"{absent} web#x", absent]:
+              out = operator.fail(f"ssh -n nix-build@gw build-system {args} 2>&1")
+              assert "usage: build-system" in out, out
+          out = operator.fail(f"ssh -n nix-build@gw build-system {absent} web 2>&1")
+          assert "is not valid" in out, out
+
       tools = "cd /root/org && SOPS_AGE_KEY_FILE=/etc/nix/inputs/self/keys/root-1 TARGET_ADDRESS=web"
-      operator.succeed("rm /root/.ssh/id_ed25519 && cp -rL /etc/org /root/org && chmod -R u+w /root/org")
+      operator.succeed(
+          "rm /root/.ssh/id_ed25519",
+          "cp -rL /etc/org /root/org && chmod -R u+w /root/org",
+          "cd /root/org && git init -q && git add -A && git -c user.name=o -c user.email=o@o commit -qm org",
+      )
 
-      def toplevel(target):
-          return operator.succeed(
-              f"cd /root/org && nix eval --raw .#nixosConfigurations.{target}.config.system.build.toplevel.outPath"
-          ).strip()
-
-      with subtest("apply.sh builds on the first build host, and the target substitutes from it"):
+      with subtest("apply.sh has the first build host evaluate and build, and the target substitutes"):
           out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=gw apply.sh web < /dev/null 2>&1")
           assert "is not a NixOS system" in out, out
-          path = toplevel("web")
-          gw.succeed(f"nix-store --check-validity {path}")
-          web.succeed(f"nix-store --check-validity {path}")
-          operator.fail(f"nix-store --check-validity {path}")
+          gw.succeed("nix-store --check-validity ${standIn.web.drvPath} ${standIn.web.outPath}")
+          web.succeed("nix-store --check-validity ${standIn.web.outPath}")
+          operator.fail("nix-store --check-validity ${standIn.web.drvPath}")
+          operator.fail("nix-store --check-validity ${standIn.web.outPath}")
+
+      with subtest("apply.sh says so when the target can't fetch the build"):
+          gw.systemctl("stop nix-serve.service")
+          out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=gw apply.sh stranded < /dev/null 2>&1")
+          assert "stranded couldn't fetch the build from gw" in out, out
+          gw.systemctl("start nix-serve.service")
+          gw.wait_for_open_port(5000)
+
+      with subtest("build.sh says so when the build host has no build-system"):
+          out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=web build.sh web < /dev/null 2>&1")
+          assert "gw has no build-system" in out, out
 
       with subtest("build.sh builds only on the org's build hosts"):
           out = operator.fail(f"{tools} BUILD_HOST=web build.sh web < /dev/null 2>&1")
@@ -221,9 +253,8 @@ pkgs.testers.runNixOSTest {
       with subtest("apply.sh with BUILD_HOST=localhost builds here and copies as nix-push"):
           out = operator.fail(f"{tools} BUILD_HOST=localhost apply.sh other < /dev/null 2>&1")
           assert "is not a NixOS system" in out, out
-          path = toplevel("other")
-          operator.succeed(f"nix-store --check-validity {path}")
-          web.succeed(f"nix-store --check-validity {path}")
-          gw.fail(f"nix-store --check-validity {path}")
+          operator.succeed("nix-store --check-validity ${standIn.other.outPath}")
+          web.succeed("nix-store --check-validity ${standIn.other.outPath}")
+          gw.fail("nix-store --check-validity ${standIn.other.outPath}")
     '';
 }

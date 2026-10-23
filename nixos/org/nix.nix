@@ -43,6 +43,49 @@ let
     '';
   };
 
+  daemon = "${config.nix.package}/bin/nix-daemon --stdio";
+
+  # The operator sends the flake first, inputs and all (nix flake archive).
+  buildSystem = pkgs.writeShellApplication {
+    name = "build-system";
+    runtimeInputs = [
+      config.nix.package
+      pkgs.coreutils
+    ];
+    text = ''
+      usage() {
+        echo "usage: build-system <flake store path> <host>" >&2
+        exit 1
+      }
+
+      [[ $# -eq 2 ]] || usage
+      flake=$1 host=$2
+      [[ $flake =~ ^${builtins.storeDir}/[0-9a-z]{32}-[0-9A-Za-z+._-]+$ && $host =~ ^[0-9A-Za-z_-]+$ ]] ||
+        usage
+      nix-store --check-validity "$flake"
+
+      # nix-build has no home of its own for nix's caches.
+      HOME=$(mktemp -d)
+      export HOME
+      trap 'rm -rf "$HOME"' EXIT
+
+      nix build --no-link --print-out-paths --option accept-flake-config false \
+        "path:$flake#nixosConfigurations.$host.config.system.build.toplevel"
+    '';
+  };
+
+  nixBuildCommand =
+    if lib.elem host.name org.build-hosts then
+      pkgs.writeShellScript "nix-build-command" ''
+        read -ra args <<<"''${SSH_ORIGINAL_COMMAND:-}"
+        if [[ ''${args[0]:-} == build-system ]]; then
+          exec ${lib.getExe buildSystem} "''${args[@]:1}"
+        fi
+        exec ${daemon}
+      ''
+    else
+      daemon;
+
   substituters = lib.filter (
     peer: peer.name != host.name && lib.elem "substituter" peer.roles && host.reach.${peer.name} != null
   ) (lib.attrValues org.host);
@@ -56,7 +99,12 @@ in
   nix = {
     package = lib.mkDefault pkgs.lix;
     registry = {
-      self.flake = inputs.self;
+      # Without the checkout's rev and lastModified, which a build host can't know when it
+      # evaluates a copy (build-system): a host's system depends on the org's tree alone.
+      self.flake = removeAttrs inputs.self [
+        "rev"
+        "lastModified"
+      ];
       o11n = {
         from = {
           id = "o11n";
@@ -106,7 +154,7 @@ in
   services.openssh = {
     extraConfig = ''
       Match User nix-build
-        ForceCommand ${config.nix.package}/bin/nix-daemon --stdio
+        ForceCommand ${nixBuildCommand}
 
       Match User nix-switch
         ForceCommand sudo ${lib.getExe switchSystem} \$SSH_ORIGINAL_COMMAND

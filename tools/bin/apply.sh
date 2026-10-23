@@ -24,7 +24,20 @@ apply() {
     fi
 
     log important "switching $target to $build"
-    "$km_root/bin/as.sh" nix-switch ssh "nix-switch@$TARGET_ADDRESS" "$build"
+    local rc=0
+    "$km_root/bin/as.sh" nix-switch ssh "nix-switch@$TARGET_ADDRESS" "$build" 2>&1 |
+        tee "$tmpdir/switch.log" || rc=$?
+
+    # Nix's words for a path that no substituter has.
+    if ((rc != 0)) && [[ $BUILD_HOST != localhost ]] &&
+        grep -q "don't know how to build these paths" "$tmpdir/switch.log"; then
+        die "$rc" "$target couldn't fetch the build from $BUILD_HOST. To copy it there instead:
+    BUILD_HOST=localhost apply.sh $target
+$target fetches from the hosts with the substituter role in the configuration it runs
+now: check that its /etc/nix/nix.conf lists $BUILD_HOST among the substituters, and
+that it reaches $BUILD_HOST on port 5000."
+    fi
+    return "$rc"
 }
 
 declare -g build

@@ -210,8 +210,8 @@ in
     };
   };
 
-  # nix-build reaches the host's own daemon; nix-switch runs switch-system as root. Hosts
-  # substitute from gw, the substituter.
+  # nix-build reaches the host's own daemon, and on gw, the build host, also build-system;
+  # nix-switch runs switch-system as root. Hosts substitute from gw, the substituter.
   test_deploy = {
     expr = onHosts (config: {
       nix-build = lib.replaceStrings [ (withoutStoreHashes "${config.nix.package}") ] [ "nix.package" ] (
@@ -226,7 +226,6 @@ in
     expected =
       let
         common = {
-          nix-build = "nix.package/bin/nix-daemon --stdio";
           nix-switch = "sudo switch-system/bin/switch-system \\$SSH_ORIGINAL_COMMAND";
           sudo = [
             [
@@ -238,9 +237,11 @@ in
       in
       {
         gw = common // {
+          nix-build = "nix-build-command";
           substituters = [ ];
         };
         web = common // {
+          nix-build = "nix.package/bin/nix-daemon --stdio";
           substituters = [ "http://gw.sample:5000?priority=50" ];
         };
       };
