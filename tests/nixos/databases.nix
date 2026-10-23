@@ -54,7 +54,10 @@ let
     ];
 
   cfg = eval {
-    o11n.postgresql.databases.chat = { };
+    o11n.postgresql = {
+      databases.chat = { };
+      containers = [ "web" ];
+    };
     o11n.mysql.databases.blog = { };
   };
 
@@ -168,5 +171,16 @@ in
   test_postgresql_wal_with_data = {
     expr = cfg.services.postgresql.initdbArgs;
     expected = [ ];
+  };
+
+  test_postgresql_containers = {
+    expr = {
+      inherit (cfg.systemd.services."container@web") after requires wantedBy;
+    };
+    expected = {
+      after = [ "postgresql.service" ];
+      requires = [ "postgresql.service" ];
+      wantedBy = [ "postgresql.service" ];
+    };
   };
 }

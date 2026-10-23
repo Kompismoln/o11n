@@ -89,9 +89,10 @@ in
 
   config = lib.mkIf (eachApp != { }) {
 
-    o11n.postgresql.databases = lib.mapAttrs' (
-      _: app: lib.nameValuePair app.database { inherit (app) user; }
-    ) eachApp;
+    o11n.postgresql = {
+      databases = lib.mapAttrs' (_: app: lib.nameValuePair app.database { inherit (app) user; }) eachApp;
+      containers = lib.attrNames eachApp;
+    };
 
     systemd.tmpfiles.rules = lib.concatMap (app: [
       "d '${app.home}' 0750 ${app.user} ${app.user} - -"

@@ -84,9 +84,11 @@ in
   };
 
   config = lib.mkIf (eachApp != { }) {
-    o11n.postgresql.databases = lib.mapAttrs' (
-      _: app: lib.nameValuePair app.database { inherit (app) user; }
-    ) eachApp;
+    o11n.postgresql = {
+      databases = lib.mapAttrs' (_: app: lib.nameValuePair app.database { inherit (app) user; }) eachApp;
+      # Through a bind of /run/postgresql, which postgresql makes anew each time it starts.
+      containers = map (app: app.name) (lib.attrValues eachApp);
+    };
 
     services.nginx.virtualHosts = lib.mapAttrs' (
       _: app:

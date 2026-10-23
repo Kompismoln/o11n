@@ -65,6 +65,8 @@
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };
               };
 
+              legacyPackages.vmTests.containers = import ./tests/vm/containers.nix { inherit pkgs; };
+
               devShells.default = pkgs.mkShell {
                 buildInputs = [ ];
                 shellHook = "";

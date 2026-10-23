@@ -40,6 +40,11 @@ in
         )
       );
     };
+    containers = lib.mkOption {
+      description = "containers that use the host's postgresql, to start after it and restart with it";
+      default = [ ];
+      type = with lib.types; listOf str;
+    };
   };
 
   config = lib.mkIf (cfg.databases != { }) (
@@ -58,6 +63,17 @@ in
 
         # Upstream creates only the default data directory.
         systemd.tmpfiles.rules = [ "d ${dataDir} 0700 postgres postgres - -" ];
+
+        # Requires restarts a container when postgresql restarts, crashes included, and stops
+        # it when postgresql stops; being wanted by postgresql brings it back when that starts.
+        systemd.services = lib.genAttrs' cfg.containers (
+          name:
+          lib.nameValuePair "container@${name}" {
+            after = [ "postgresql.service" ];
+            requires = [ "postgresql.service" ];
+            wantedBy = [ "postgresql.service" ];
+          }
+        );
 
         o11n.dumps = lib.mapAttrs' (
           _: db:
