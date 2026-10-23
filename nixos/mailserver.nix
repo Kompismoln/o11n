@@ -68,26 +68,19 @@ in
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
 
-      o11n.preserve.directories = with config.mailserver; [
-        dkim.keyDirectory
-        storage.path
+      o11n.preserve.databases = [
+        {
+          directory = "/var/lib/rspamd";
+          user = "rspamd";
+          group = "rspamd";
+        }
+        {
+          directory = "/var/lib/redis-rspamd";
+          user = "redis-rspamd";
+          group = "redis-rspamd";
+          mode = "0700";
+        }
       ];
-
-      preservation.preserveAt."/srv/database" = {
-        directories = [
-          {
-            directory = "/var/lib/rspamd";
-            user = "rspamd";
-            group = "rspamd";
-          }
-          {
-            directory = "/var/lib/redis-rspamd";
-            user = "redis-rspamd";
-            group = "redis-rspamd";
-            mode = "0700";
-          }
-        ];
-      };
 
       sops.secrets =
         lib.concatMapAttrs (user: _: {
@@ -113,7 +106,11 @@ in
         enable = true;
         stateVersion = 3;
         fqdn = "mail.${cfg.endpoint}";
-        dkim.defaults.selector = cfg.dkimSelector;
+        storage.path = config.o11n.preserve.onStorage "/var/vmail";
+        dkim = {
+          keyDirectory = config.o11n.preserve.onStorage "/var/dkim";
+          defaults.selector = cfg.dkimSelector;
+        };
         domains = cfg.mailboxDomains;
         domainsWithoutMailbox = cfg.relayDomains;
         enableSubmission = true;
