@@ -35,6 +35,8 @@ let
     text = ''
       endpoint=${lib.escapeShellArg server.endpoint}
       socket=/run/phonehome.ssh
+      # Keys met on this boot, once the one the stick was made with stops answering.
+      met=/run/phonehome.known_hosts
       log=$(mktemp)
 
       say() {
@@ -106,11 +108,20 @@ let
         done
       }
 
+      # As `reverse-tunnel open` shows them, to be compared over the phone.
+      words() {
+        ssh-keygen -l -B -f "$met" | cut -d' ' -f2 | cut -d- -f1-4 | tr - ' '
+      }
+
       call() {
+        local -a trust=(-o StrictHostKeyChecking=yes)
+        if [[ -n $unknown ]]; then
+          trust=(-o StrictHostKeyChecking=accept-new -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$met")
+        fi
         hang-up
         PHONEHOME_CODE=$code SSH_ASKPASS=${askpass} SSH_ASKPASS_REQUIRE=force \
           ssh -f -N -M -S "$socket" -p ${toString port} \
-          -o StrictHostKeyChecking=yes \
+          "''${trust[@]}" \
           -o PubkeyAuthentication=no \
           -o PreferredAuthentications=password \
           -o NumberOfPasswordPrompts=1 \
@@ -130,6 +141,7 @@ let
       fi
 
       code=
+      unknown=
       while true; do
         if [[ -z $code ]]; then
           ask "Type the code you were given over the phone and press Enter:"
@@ -142,6 +154,9 @@ let
         if call; then
           say "Connected! This computer can now be reached." \
             "Leave it on and this screen as it is. Ctrl+C hangs up."
+          if [[ -n $unknown ]]; then
+            say "Read these words to the person on the phone:  $(words)"
+          fi
           while ssh -S "$socket" -O check "reverse-tunnel@$endpoint" 2>/dev/null; do
             sleep 5
           done
@@ -149,8 +164,12 @@ let
         elif grep -q "Permission denied" "$log"; then
           say "That code didn't work."
           code=
+        elif grep -q "Host key verification failed" "$log" && [[ -z $unknown ]]; then
+          say "Warning: the other end isn't the one this stick was made for. It may have been" \
+            "reinstalled since. Calling anyway, and the person on the phone can check it..."
+          unknown=1
         elif grep -q "Host key verification failed" "$log"; then
-          say "Stop: the other end isn't who it should be. Tell the person on the phone."
+          say "Stop: the other end has changed during this call. Tell the person on the phone."
           exit 1
         elif grep -q "Connection refused" "$log"; then
           ask "The line isn't open. Ask for it to be opened, then press Enter."
@@ -236,7 +255,11 @@ in
       To call ${org.name} for help, type  phonehome  and press Enter.
     '';
 
-    environment.systemPackages = [ phonehome ];
+    environment.systemPackages = [
+      phonehome
+      # nixos-anywhere reads the hardware with it.
+      pkgs.nixos-facter
+    ];
 
     image.modules.iso-installer.isoImage.appendToMenuLabel = " ${org.name} rescue";
   };

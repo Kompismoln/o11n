@@ -61,6 +61,7 @@ let
       pkgs.gnugrep
       pkgs.iproute2
       pkgs.mkpasswd
+      pkgs.openssh
       pkgs.procps
       pkgs.shadow
     ];
@@ -97,6 +98,8 @@ let
         printf '%s:%s\n' ${user} "$(mkpasswd --method=sha-512 --stdin <<<"$code")" | chpasswd --encrypted
         systemctl restart reverse-tunnel.service reverse-tunnel-expire.timer
         echo "open until $(date --date='${toString openForMinutes} minutes' +%H:%M), code: $(fold -w 4 <<<"$code" | paste -sd ' ')"
+        # A caller that doesn't know this host's key shows these words of the key it met.
+        echo "this host's key: $(ssh-keygen -l -B -f ${hostKey} | cut -d' ' -f2 | cut -d- -f1-4 | tr - ' ')"
         ;;
       expire)
         lock

@@ -2,7 +2,8 @@
 #
 # The rescue stick calls gw's reverse tunnel: it is refused while closed, a wrong code doesn't
 # get through or keep the right one from it, and with the right one gw reaches the stick's sshd
-# with the rescue key. When the line expires the call stays up; when gw closes it, it ends. It
+# with the rescue key, as does an operator through gw. When the line expires the call stays up;
+# when gw closes it, it ends. A gw with a new host key is called anyway, with a warning. It
 # needs KVM, so it isn't among the checks: nix-remote.sh build .#vmTests.phone-home
 {
   pkgs,
@@ -13,6 +14,29 @@ let
   inherit (pkgs) lib;
   inherit (outputs) org;
   enc = "${outputs.context.path}/enc";
+  sshKeys = import "${pkgs.path}/nixos/tests/ssh-keys.nix" pkgs;
+
+  # The sample's committed root identity reads every secret. sops-nix refuses a key file in
+  # the store.
+  sampleSecrets = {
+    imports = [ o11nInputs.sops-nix.nixosModules.sops ];
+    system.activationScripts = {
+      sample-age-key = lib.stringAfter [ "specialfs" ] ''
+        install -m 400 ${outputs.context.path}/keys/root-1 /run/sample-age-key
+      '';
+      setupSecrets.deps = [ "sample-age-key" ];
+    };
+    sops = {
+      age = {
+        keyFile = "/run/sample-age-key";
+        sshKeyPaths = [ ];
+      };
+      secrets.rescue-key = {
+        sopsFile = "${enc}/service-rescue.yaml";
+        key = "rescue/ssh-key";
+      };
+    };
+  };
 in
 pkgs.testers.runNixOSTest {
   name = "o11n-phone-home";
@@ -22,7 +46,7 @@ pkgs.testers.runNixOSTest {
   nodes = {
     gw = {
       imports = [
-        o11nInputs.sops-nix.nixosModules.sops
+        sampleSecrets
         ../../nixos/org/ssh.nix
         ../../nixos/org/fail2ban.nix
         ../../nixos/org/reverse-tunnel.nix
@@ -36,32 +60,29 @@ pkgs.testers.runNixOSTest {
         group = "reverse-tunnel";
       };
       users.groups.reverse-tunnel = { };
+      users.users.admin = {
+        isNormalUser = true;
+        openssh.authorizedKeys.keys = [ sshKeys.snakeOilEd25519PublicKey ];
+      };
 
-      # The sample's committed root identity reads gw's host key and the rescue key.
-      # sops-nix refuses a key file in the store.
-      system.activationScripts = {
-        sample-age-key = lib.stringAfter [ "specialfs" ] ''
-          install -m 400 ${outputs.context.path}/keys/root-1 /run/sample-age-key
-        '';
-        setupSecrets.deps = [ "sample-age-key" ];
+      sops.secrets.host-key = {
+        sopsFile = "${enc}/host-gw.yaml";
+        key = "ssh-key";
+        path = "/keys/ssh_host_ed25519_key";
       };
-      sops = {
-        age = {
-          keyFile = "/run/sample-age-key";
-          sshKeyPaths = [ ];
-        };
-        secrets = {
-          host-key = {
-            sopsFile = "${enc}/host-gw.yaml";
-            key = "ssh-key";
-            path = "/keys/ssh_host_ed25519_key";
-          };
-          rescue-key = {
-            sopsFile = "${enc}/service-rescue.yaml";
-            key = "rescue/ssh-key";
-          };
-        };
-      };
+    };
+
+    # Reaches the stick through gw as the operator's tools do.
+    operator = {
+      imports = [ sampleSecrets ];
+      system.activationScripts.admin-key = ''
+        install -D -m 600 ${sshKeys.snakeOilEd25519PrivateKey} /root/.ssh/id_ed25519
+      '';
+      programs.ssh.extraConfig = ''
+        Host gw
+          StrictHostKeyChecking no
+          UserKnownHostsFile /dev/null
+      '';
     };
 
     stick =
@@ -88,6 +109,7 @@ pkgs.testers.runNixOSTest {
           stick.wait_until_succeeds(f"[ $(grep -c {shlex.quote(text)} /tmp/phonehome.out) -ge {times} ]", timeout=timedelta(seconds=90))
 
       ssh_stick = "ssh -i /run/secrets/rescue-key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2603 root@localhost"
+      ssh_stick_through_gw = ssh_stick.replace(" -p ", " -o ProxyJump=admin@gw -p ")
 
       start_all()
       gw.wait_for_unit("sshd.service")
@@ -115,6 +137,8 @@ pkgs.testers.runNixOSTest {
           gw.succeed("reverse-tunnel status | grep -q connected")
           hostname = gw.succeed(f"{ssh_stick} hostname").strip()
           assert hostname == "rescue-usb", hostname
+          hostname = operator.succeed(f"{ssh_stick_through_gw} hostname").strip()
+          assert hostname == "rescue-usb", hostname
           # fail2ban took the wrong code for an attack on sshd, which is all it guards.
           banned = gw.succeed("fail2ban-client get sshd banned")
           assert "${nodes.stick.networking.primaryIPAddress}" in banned, banned
@@ -130,6 +154,16 @@ pkgs.testers.runNixOSTest {
           gw.wait_for_closed_port(2603)
           heard("The connection dropped")
           heard("The line isn't open", times=2)
+
+      with subtest("a reinstalled gw is called anyway, and the stick shows the words of its key"):
+          gw.succeed('rm /keys/ssh_host_ed25519_key && ssh-keygen -q -t ed25519 -N "" -f /keys/ssh_host_ed25519_key')
+          opened = gw.succeed("reverse-tunnel open 1234-5678-9012")
+          words = opened.split("this host's key: ")[1].strip()
+          say("")
+          heard("Warning: the other end")
+          heard("Connected!", times=2)
+          heard(f"Read these words to the person on the phone:  {words}")
+          operator.succeed(f"{ssh_stick_through_gw} true")
           print(stick.succeed("cat /tmp/phonehome.out"))
     '';
 }
