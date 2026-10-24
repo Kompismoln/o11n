@@ -73,6 +73,10 @@ let
   };
 in
 {
+  imports = [
+    ./postgresql.nix
+  ];
+
   options = {
     o11n.nextcloud = {
       apps = lib.mkOption {
@@ -84,6 +88,10 @@ in
   };
 
   config = lib.mkIf (eachApp != { }) {
+
+    o11n.postgresql.databases = lib.mapAttrs' (
+      _: app: lib.nameValuePair app.database { inherit (app) user; }
+    ) eachApp;
 
     systemd.tmpfiles.rules = lib.concatMap (app: [
       "d '${app.home}' 0750 ${app.user} ${app.user} - -"
@@ -148,7 +156,7 @@ in
         users.users.nextcloud.uid = app.uid;
         users.groups.nextcloud.gid = app.gid;
 
-        environment.systemPackages = [ pkgs.postgresql ];
+        environment.systemPackages = [ config.services.postgresql.package ];
 
         services.nginx = {
           virtualHosts.localhost = {

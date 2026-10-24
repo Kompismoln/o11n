@@ -17,7 +17,7 @@
   };
 
   flake.nixosModules.hypr-devstation =
-    { pkgs, ... }:
+    { org, pkgs, ... }:
     {
       imports = [
         ../nixos/org/home-manager.nix
@@ -36,7 +36,7 @@
           redis.servers."test".enable = true;
           postgresql = {
             enable = true;
-            package = pkgs.postgresql_17;
+            package = pkgs."postgresql_${org.postgres}";
             extensions =
               ps: with ps; [
                 postgis

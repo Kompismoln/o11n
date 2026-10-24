@@ -69,6 +69,10 @@ let
   hostConfig = config;
 in
 {
+  imports = [
+    ./postgresql.nix
+  ];
+
   options = {
     o11n.mobilizon = {
       apps = lib.mkOption {
@@ -80,6 +84,10 @@ in
   };
 
   config = lib.mkIf (eachApp != { }) {
+    o11n.postgresql.databases = lib.mapAttrs' (
+      _: app: lib.nameValuePair app.database { inherit (app) user; }
+    ) eachApp;
+
     services.nginx.virtualHosts = lib.mapAttrs' (
       _: app:
       let
@@ -155,7 +163,7 @@ in
 
         config =
           let
-            postgresqlPackage = pkgs.postgresql_17;
+            postgresqlPackage = hostConfig.services.postgresql.package;
           in
           {
             system = {

@@ -1,19 +1,24 @@
 # nixos/postgresql.nix
 {
   config,
-  inputs,
   lib,
+  org,
   pkgs,
   ...
 }:
 
 let
   cfg = config.o11n.postgresql;
-  eachDatabase = lib.filterAttrs (_db: dbCfg: dbCfg.enable) cfg.databases;
+  inherit (config.services.postgresql) package dataDir;
+  walDir = lib.mapNullable (wal: "${wal}/${package.psqlSchema}") config.o11n.preserve.postgresqlWal;
 in
 {
+  imports = [
+    ./dump.nix
+    ./preserve-paths.nix
+  ];
+
   options.o11n.postgresql = {
-    enable = lib.mkEnableOption "postgresql";
     databases = lib.mkOption {
       description = "databases to manage";
       default = { };
@@ -22,7 +27,6 @@ in
           { name, config, ... }:
           {
             options = {
-              enable = lib.mkEnableOption "database";
               name = lib.mkOption {
                 type = lib.types.str;
                 default = name;
@@ -31,10 +35,6 @@ in
                 type = lib.types.str;
                 default = config.name;
               };
-              dumpPath = lib.mkOption {
-                type = lib.types.nullOr lib.types.str;
-                default = "/var/lib/${config.name}/dbdump.sql";
-              };
             };
           }
         )
@@ -42,39 +42,60 @@ in
     };
   };
 
-  config = lib.mkIf (cfg.databases != { }) {
-    o11n.preserve.databases = [
+  config = lib.mkIf (cfg.databases != { }) (
+    lib.mkMerge [
       {
-        directory = "/var/lib/postgresql";
-        user = "postgres";
-        group = "postgres";
-      }
-    ];
-    nixpkgs.overlays = [
-      (import ../overlays/pgsql-tools.nix { inherit inputs; })
-    ];
-
-    services.postgresql = {
-      enable = true;
-      package = pkgs.postgresql_17;
-      extensions =
-        ps: with ps; [
-          postgis
-          pg_repack
-        ];
-    };
-
-    systemd.services = lib.mapAttrs' (
-      _db: dbCfg:
-      lib.nameValuePair "${dbCfg.name}-pgsql-dump" {
-        description = "dump a snapshot of the postgresql database";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${lib.getExe pkgs.bash} -c '${pkgs.postgresql}/bin/pg_dump ${dbCfg.name} > ${dbCfg.dumpPath}'";
-          User = dbCfg.user;
-          Group = dbCfg.user;
+        services.postgresql = {
+          enable = true;
+          package = pkgs."postgresql_${org.postgres}";
+          dataDir = config.o11n.preserve.onDatabase "/var/lib/postgresql/${package.psqlSchema}";
+          extensions =
+            ps: with ps; [
+              postgis
+              pg_repack
+            ];
         };
+
+        # Upstream creates only the default data directory.
+        systemd.tmpfiles.rules = [ "d ${dataDir} 0700 postgres postgres - -" ];
+
+        o11n.dumps = lib.mapAttrs' (
+          _: db:
+          lib.nameValuePair "${db.name}-pgsql" {
+            database = db.name;
+            inherit (db) user;
+            command = "${package}/bin/pg_dump ${lib.escapeShellArg db.name}";
+            after = [ "postgresql.target" ];
+          }
+        ) cfg.databases;
       }
-    ) (lib.filterAttrs (_db: dbCfg: dbCfg.dumpPath != null) eachDatabase);
-  };
+
+      (lib.mkIf (walDir != null) {
+        services.postgresql.initdbArgs = [ "--waldir=${walDir}" ];
+        systemd.tmpfiles.rules = [ "d ${walDir} 0700 postgres postgres - -" ];
+        systemd.services.postgresql = {
+          unitConfig.RequiresMountsFor = [ walDir ];
+          serviceConfig.ReadWritePaths = [ walDir ];
+          # A cluster made before the WAL got its own volume moves it there once. A start
+          # interrupted midway finishes the move, and nothing links a pg_wal that went missing.
+          preStart = lib.mkAfter ''
+            pgWal="$PGDATA/pg_wal"
+            if [ ! -L "$pgWal" ]; then
+              if [ -d "$pgWal" ]; then
+                cp -a "$pgWal/." ${walDir}/
+                sync -f ${walDir}
+                mv "$pgWal" "$pgWal.moved"
+              fi
+              if [ -d "$pgWal.moved" ]; then
+                ln -s ${walDir} "$pgWal"
+              fi
+            fi
+            if [ -L "$pgWal" ]; then
+              rm -rf "$pgWal.moved"
+            fi
+          '';
+        };
+      })
+    ]
+  );
 }

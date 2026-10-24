@@ -164,6 +164,12 @@ checks enforce this for code the inventories use. The remaining hardcoding is in
   others with o11n (remote).
 - A table for every entity class, even when empty (`[app]`, `[store]`, ...). Without one, evaluation fails deep in
   `org/types.nix` and `org-toml.sh` queries fail.
+```
+AGENT: add
+postgresql.nix and hypr-devstation take the postgres version from org.toml, which has no default.
+---
+- `postgres = "<major>"` when any host runs postgresql (an app's module registers a database, or hypr-devstation).
+```
 - `[mailserver]` when any host has the server role: `nixos/org/sendmail.nix` reads it.
 - `[flake]` when any host has the peer role: `nixos/org/nix.nix` reads it.
 - An `endpoint` on the gateway of each vpn.

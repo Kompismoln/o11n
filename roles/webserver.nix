@@ -1,5 +1,4 @@
 # roles/webserver.nix
-{ inputs, ... }:
 {
   flake.nixosModules.webserver = {
     imports = [
@@ -19,14 +18,10 @@
       ../nixos/svelte.nix
       ../nixos/wordpress.nix
     ];
-    nixpkgs.overlays = [
-      (import ../overlays/webserver.nix { inherit inputs; })
-    ];
     o11n = {
       reverse-tunnel.enable = true;
       egress-proxy.enable = true;
       fail2ban.enable = true;
-      postgresql.enable = true;
       nginx = {
         enable = true;
         monitor = false;

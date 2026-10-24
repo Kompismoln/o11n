@@ -73,6 +73,20 @@ in
       '';
     };
 
+    services.logrotate.settings.nginx = {
+      frequency = "weekly";
+      rotate = 0;
+    };
+
+    # Request and response bodies too large for memory are buffered here.
+    o11n.preserve.directories = [
+      {
+        directory = "/var/cache/nginx";
+        inherit (config.services.nginx) user group;
+        mode = "0750";
+      }
+    ];
+
     services.prometheus.exporters.nginx = {
       enable = true;
       scrapeUri = "http://${hostname}/nginx_status";

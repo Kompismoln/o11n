@@ -56,4 +56,9 @@ in
     expected = "http://[fd12:3456:7890:1::1]:8080";
   };
 
+  test_keycloak_database = {
+    expr = cfg.o11n.postgresql.databases.keycloak.user;
+    expected = "keycloak";
+  };
+
 }

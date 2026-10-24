@@ -77,6 +77,10 @@ let
     '';
 in
 {
+  imports = [
+    ./mysql.nix
+  ];
+
   options = {
     o11n.wordpress = {
       apps = lib.mkOption {
@@ -92,6 +96,10 @@ in
     environment.systemPackages = [
       pkgs.wp-cli
     ];
+
+    o11n.mysql.databases = lib.mapAttrs' (
+      _: app: lib.nameValuePair app.database { inherit (app) user; }
+    ) eachApp;
 
     systemd.tmpfiles.rules = lib.concatMap (app: [
       "d '${app.home}' 0750 ${app.user} ${app.user} - -"
