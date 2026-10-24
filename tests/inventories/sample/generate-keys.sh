@@ -22,6 +22,15 @@ for host in gw web; do
     id-entities.sh -h "$host" new wg0-key
 done
 
+# A host's ssh-key is pulled from the live host, which the sample has none of.
+tmp=$(mktemp -d)
+for host in gw web; do
+    ssh-keygen -q -t ed25519 -N "" -C "host-$host" -f "$tmp/$host"
+    sops set "enc/host-$host.yaml" '["ssh-key"]' "$(jq -Rs . <"$tmp/$host")"
+    ssh-keygen -y -C "" -f "$tmp/$host" >"public-keys/host-$host-ssh-key.pub"
+done
+rm -r "$tmp"
+
 id-entities.sh -u admin init
 for key in ssh-key passwd mail; do
     id-entities.sh -u admin new "$key"
@@ -32,9 +41,7 @@ for service in rescue locksmith reverse-tunnel nix-build nix-switch nix-push egr
     id-entities.sh -s "$service" new ssh-key
 done
 
-for service in rescue reverse-tunnel; do
-    id-entities.sh -s "$service" new passwd
-done
+id-entities.sh -s rescue new passwd
 id-entities.sh -s rescue sha512-secret passwd >public-keys/service-rescue-passwd.sha512
 
 id-entities.sh -s nix-serve init

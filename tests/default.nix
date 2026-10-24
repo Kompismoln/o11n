@@ -69,5 +69,25 @@ let
       )
     ) outputs.nixosConfigurations
   ) inventories;
+
+  # A stick goes where it's needed and can be lost there: nothing of the inventory's may be on
+  # it but the public keys it reads.
+  rescueUsb = evalNixosModule [
+    ../nixos/org/rescue-usb.nix
+    {
+      _module.args.org = inventories.sample.org;
+      o11n.rescue-usb.via = "gw";
+    }
+  ];
+
+  rescueUsbChecks.inventory-sample-rescue-usb =
+    pkgs.runCommand "inventory-sample-rescue-usb"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+        drv = builtins.unsafeDiscardOutputDependency rescueUsb.system.build.images.iso-installer.drvPath;
+      }
+      ''
+        python3 ${./leaks.py} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
+      '';
 in
-nixosChecks // inventoryChecks // hostChecks
+nixosChecks // inventoryChecks // hostChecks // rescueUsbChecks

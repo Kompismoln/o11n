@@ -23,11 +23,12 @@ main() {
         address=${3:-"$host.$domain"}
         ;;
     tunnel)
-        user=reverse-tunnel
-        host="${2:?"tunnel host required"}.$domain"
+        action=${2:?"tunnel open|close|status|connect required"}
+        host="${3:?"tunnel host required"}.$domain"
+        code=${4:-}
         ;;
     image)
-        variant=$2
+        variant=${2:-iso-installer}
         ;;
     pull | push)
         user="admin"
@@ -41,7 +42,7 @@ main() {
 }
 
 image() {
-    nixos-rebuild build-image --flake .#iso --image-variant "$variant"
+    nixos-rebuild build-image --flake .#rescue-usb --image-variant "$variant"
 }
 
 pull() {
@@ -105,22 +106,27 @@ reset() {
         --copy-host-keys
 }
 
+# The reverse tunnel on a server, for a machine booted from the rescue stick to call in through.
 tunnel() {
-    local ssh_opts=(
-        -N
-        -T
-        -R "0.0.0.0:2602:localhost:22"
-        -o "ServerAliveInterval=30"
-        -o "ServerAliveCountMax=3"
-        -o "ExitOnForwardFailure=yes"
-        -o "StrictHostKeyChecking=no"
-        -o "UserKnownHostsFile=/dev/null"
-        -o "LogLevel=ERROR"
-        -o "ConnectTimeout=30"
-        -o "TCPKeepAlive=yes"
-    )
-
-    ssh "${ssh_opts[@]}" "reverse-tunnel@$host"
+    case $action in
+    open)
+        "$km_root/bin/as.sh" admin ssh -t "admin@$host" sudo reverse-tunnel open ${code:+"$(printf '%q' "$code")"}
+        ;;
+    close | status)
+        "$km_root/bin/as.sh" admin ssh -t "admin@$host" sudo reverse-tunnel "$action"
+        ;;
+    connect)
+        # As nixos/org/reverse-tunnel.nix forwards it.
+        "$km_root/bin/as.sh" rescue ssh \
+            -o ProxyCommand="$km_root/bin/as.sh admin ssh -W %h:%p admin@$host" \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -p 2603 root@localhost
+        ;;
+    *)
+        die 1 "tunnel open|close|status|connect"
+        ;;
+    esac
 }
 
 main "$@"

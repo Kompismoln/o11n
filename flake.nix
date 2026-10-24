@@ -50,6 +50,8 @@
           flake = {
             inherit (inputs) nixpkgs;
             inherit (o11nLib) fromFlake fromPath fromInventory;
+            # Not a host role: an org builds its stick from it, passing `org` as a specialArg.
+            nixosModules.rescue-usb = ./nixos/org/rescue-usb.nix;
           };
 
           perSystem =
@@ -60,6 +62,12 @@
               packages.gost = pkgs.callPackage ./packages/gost.nix { };
 
               legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };
+              };
+
+              legacyPackages.vmTests.phone-home = import ./tests/vm/phone-home.nix {
                 inherit pkgs;
                 o11nInputs = inputs;
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };

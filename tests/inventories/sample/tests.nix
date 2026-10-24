@@ -1,5 +1,9 @@
 # tests/inventories/sample/tests.nix
-{ lib, outputs }:
+{
+  lib,
+  outputs,
+  evalNixosModule,
+}:
 let
   inherit (outputs.nixosConfigurations) gw web;
 
@@ -160,13 +164,11 @@ in
         "admin/passwd-sha512" = "user-admin.yaml";
         "nix-remote/secret-key" = "service-nix-remote.yaml";
         "nix-serve/nix-sign" = "service-nix-serve.yaml";
-        "reverse-tunnel/passwd-sha512" = "service-reverse-tunnel.yaml";
         "wg0-key" = "host-gw.yaml";
       };
       web = {
         "admin/mail" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
-        "reverse-tunnel/passwd-sha512" = "service-reverse-tunnel.yaml";
         "wg0-key" = "host-web.yaml";
       };
     };
@@ -352,6 +354,69 @@ in
       };
     };
   };
+
+  # Nothing answers on the reverse tunnel's port, and its account is locked, until it's opened.
+  test_reverse_tunnel = {
+    expr = onHosts (config: {
+      inherit (config.users.users.reverse-tunnel) hashedPassword hashedPasswordFile;
+      inherit (config.services.openssh.settings) DenyUsers;
+      startedBy =
+        config.systemd.services.reverse-tunnel.wantedBy
+        ++ config.systemd.timers.reverse-tunnel-expire.wantedBy;
+      port = lib.elem 2602 config.networking.firewall.allowedTCPPorts;
+    });
+    expected =
+      let
+        closed = {
+          hashedPassword = "!";
+          hashedPasswordFile = null;
+          DenyUsers = [ "reverse-tunnel" ];
+          startedBy = [ ];
+          port = true;
+        };
+      in
+      {
+        gw = closed;
+        web = closed;
+      };
+  };
+
+  # The stick calls gw on its endpoint, trusts gw's host key and lets in the rescue key.
+  test_rescue_usb =
+    let
+      config = evalNixosModule [
+        ../../../nixos/org/rescue-usb.nix
+        {
+          _module.args.org = outputs.org;
+          o11n.rescue-usb.via = "gw";
+        }
+      ];
+      inherit (config.programs.ssh.knownHosts) gw;
+    in
+    {
+      expr = {
+        sops = config ? sops;
+        inherit (gw) hostNames;
+        hostKey = builtins.readFile gw.publicKeyFile == builtins.readFile ./public-keys/host-gw-ssh-key.pub;
+        rootKeys =
+          map builtins.readFile config.users.users.root.openssh.authorizedKeys.keyFiles == [
+            (builtins.readFile ./public-keys/service-rescue-ssh-key.pub)
+          ];
+        sshd = config.services.openssh.listenAddresses;
+      };
+      expected = {
+        sops = false;
+        hostNames = [ "[gw.example.com]:2602" ];
+        hostKey = true;
+        rootKeys = true;
+        sshd = [
+          {
+            addr = "127.0.0.1";
+            port = 22;
+          }
+        ];
+      };
+    };
 
   test_boot = {
     expr = onHosts (config: {
