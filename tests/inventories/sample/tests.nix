@@ -403,6 +403,7 @@ in
             (builtins.readFile ./public-keys/service-rescue-ssh-key.pub)
           ];
         sshd = config.services.openssh.listenAddresses;
+        evaluates = builtins.isString config.system.build.toplevel.drvPath;
       };
       expected = {
         sops = false;
@@ -415,6 +416,7 @@ in
             port = 22;
           }
         ];
+        evaluates = true;
       };
     };
 

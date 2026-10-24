@@ -187,6 +187,13 @@ in
     system.stateVersion = config.system.nixos.release;
     networking.hostName = "rescue-usb";
 
+    # The image brings its own; these let the system evaluate without it, as flake checks do.
+    fileSystems."/" = lib.mkDefault {
+      device = "none";
+      fsType = "tmpfs";
+    };
+    boot.loader.grub.enable = lib.mkDefault false;
+
     hardware.enableRedistributableFirmware = true;
     networking.networkmanager.enable = true;
 
