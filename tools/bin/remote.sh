@@ -8,6 +8,10 @@ km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
 . "$km_root/libexec/run-with.bash"
 
+# How reset reaches a machine that isn't on the network, as tunnel reset sets them.
+ssh_through=()
+anywhere_through=()
+
 main() {
     domain=$(org-toml.sh endpoint)
 
@@ -23,11 +27,12 @@ main() {
         address=${3:-"$host.$domain"}
         ;;
     tunnel)
-        user=reverse-tunnel
-        host="${2:?"tunnel host required"}.$domain"
+        action=${2:?"tunnel open|close|status|connect|facts|reset required"}
+        server="${3:?"tunnel server required"}.$domain"
+        arg=${4:-}
         ;;
     image)
-        variant=$2
+        variant=${2:-iso-installer}
         ;;
     pull | push)
         user="admin"
@@ -41,7 +46,7 @@ main() {
 }
 
 image() {
-    nixos-rebuild build-image --flake .#iso --image-variant "$variant"
+    nixos-rebuild build-image --flake .#rescue-usb --image-variant "$variant"
 }
 
 pull() {
@@ -87,7 +92,11 @@ reset() {
     eval "$(ssh-agent -s)" > >(log info)
     ssh-add "$rescue_ssh_key" |& log info
 
-    if ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$address" true |& log error; then
+    if [[ -n ${server:-} ]]; then
+        id-entities.sh -u admin cat-secret ssh-key | ssh-add - |& log info
+    fi
+
+    if ssh "${ssh_through[@]}" -o BatchMode=yes -o ConnectTimeout=5 "root@$address" true |& log error; then
         log success "SSH connection to root@$address successful"
     else
         die 1 "SSH to root@$address connection failed"
@@ -102,25 +111,65 @@ reset() {
         --disk-encryption-keys "/luks-key" "$luks_key" \
         --generate-hardware-config nixos-facter hosts/"$host"/facter.json \
         --extra-files "$extra_files" \
-        --copy-host-keys
+        --copy-host-keys \
+        "${anywhere_through[@]}"
 }
 
-tunnel() {
-    local ssh_opts=(
-        -N
-        -T
-        -R "0.0.0.0:2602:localhost:22"
-        -o "ServerAliveInterval=30"
-        -o "ServerAliveCountMax=3"
-        -o "ExitOnForwardFailure=yes"
-        -o "StrictHostKeyChecking=no"
-        -o "UserKnownHostsFile=/dev/null"
-        -o "LogLevel=ERROR"
-        -o "ConnectTimeout=30"
-        -o "TCPKeepAlive=yes"
-    )
+# A machine booted from the rescue stick, as nixos/org/reverse-tunnel.nix forwards it.
+stick() {
+    "$km_root/bin/as.sh" rescue ssh \
+        -o ProxyCommand="$km_root/bin/as.sh admin ssh -W %h:%p admin@$server" \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        -p 2603 root@localhost "$@"
+}
 
-    ssh "${ssh_opts[@]}" "reverse-tunnel@$host"
+# The reverse tunnel on a server, for a machine booted from the rescue stick to call in through.
+tunnel() {
+    case $action in
+    open)
+        "$km_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel open ${arg:+"$(printf '%q' "$arg")"}
+        ;;
+    close | status)
+        "$km_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel "$action"
+        ;;
+    connect)
+        stick
+        ;;
+    facts)
+        host=${arg:?"tunnel facts needs the host it will be"}
+        mkdir -p "hosts/$host"
+        stick nixos-facter >"hosts/$host/facter.json"
+        git add --intent-to-add "hosts/$host/facter.json"
+        log success "wrote hosts/$host/facter.json; its disks:"
+        stick 'ls -l /dev/disk/by-id/ | grep -v -- -part'
+        ;;
+    reset)
+        host=${arg:?"tunnel reset needs the host to install"}
+        address=localhost
+        ssh_through=(-p 2603 -o "ProxyJump=admin@$server" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+        # The machine builds its system from the caches over its own line, rather than receive it
+        # through the server, and reboots only once it has the wifi it called in on.
+        anywhere_through=(-p 2603 --ssh-option "ProxyJump=admin@$server" --build-on remote --phases "kexec,disko,install")
+
+        # Needs the host's facter.json, as from tunnel facts.
+        local nm
+        nm=$(nix eval --raw ".#nixosConfigurations.$host.config" --apply '
+            c: let p = c.o11n.preserve or { enable = false; };
+            in (if p.enable then p.storage else "") + "/etc/NetworkManager"')
+
+        reset
+        ssh "${ssh_through[@]}" "root@$address" "
+            if [ -d /etc/NetworkManager/system-connections ]; then
+                mkdir -p /mnt$nm && cp -a /etc/NetworkManager/system-connections /mnt$nm/
+            fi"
+        ssh "${ssh_through[@]}" "root@$address" systemctl reboot || true
+        log success "$host is rebooting into its new system"
+        ;;
+    *)
+        die 1 "tunnel open|close|status|connect|facts|reset"
+        ;;
+    esac
 }
 
 main "$@"

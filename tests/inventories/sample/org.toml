@@ -148,7 +148,6 @@ grants = ["host-*"]
 
 [service.reverse-tunnel]
 id = 1
-principal.hasPasswd = true
 grants = ["host:server"]
 
 [service.nix-build]
