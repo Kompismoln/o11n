@@ -10,11 +10,11 @@ set -euo pipefail
 declare -x act_as entity prefix class key
 declare -g slot
 
-km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 # import run, with, log/try/die etc.
 # shellcheck source=../libexec/run-with.bash
-. "$km_root/libexec/run-with.bash"
+. "$tools_root/libexec/run-with.bash"
 
 main() {
     # setup prefix, class, key etc.
@@ -57,9 +57,10 @@ setup() {
     -h | --host) class="host" ;;
     -u | --user) class="user" ;;
     -s | --service) class="service" ;;
+    -S | --store) class="store" ;;
     -a | --app) class="app" ;;
     -H | --help)
-        less "$km_root/share/doc/id-entities-usage.txt"
+        less "$tools_root/share/doc/id-entities-usage.txt"
         exit 0
         ;;
     *)
@@ -291,7 +292,9 @@ create-secret:age-key() {
 
 create-secret:ssh-key() {
     with id tmp_path
-    try ssh-keygen -t "ed25519" -f "$tmp_path" -N "" -C "$id" > >(log info)
+    local out
+    out=$(try ssh-keygen -t "ed25519" -f "$tmp_path" -N "" -C "$id") || exit
+    log info "$out"
     cat "$tmp_path"
 }
 
@@ -553,13 +556,13 @@ unset:() {
 rebuild:() {
     [[ $class != "root" ]] || return 0
 
-    local rc=0
+    local rc=0 out=$tmpdir/updatekeys.out err=$tmpdir/updatekeys.err
     with backend_path sops_yaml
 
-    (cd "$(dirname "$sops_yaml")" && sops updatekeys -y "$backend_path" \
-        > >(log important) \
-        2> >(grep "synced with" | log info)) ||
+    (cd "$(dirname "$sops_yaml")" && sops updatekeys -y "$backend_path" >"$out" 2>"$err") ||
         rc=$?
+    log important <"$out"
+    sed -n '/synced with/p' "$err" | log info
 
     case $rc in
     0 | 1) return ;;
@@ -746,10 +749,11 @@ tmp_path() {
 # === misc helpers
 
 usage() {
-    sed -n '/^USAGE$/,/^$/p' "$km_root/share/doc/id-entities-usage.txt"
+    sed -n '/^USAGE$/,/^$/p' "$tools_root/share/doc/id-entities-usage.txt"
 }
 
-locksmith() {
+# A subshell of its own, so that its trap can't replace run-with.bash's in the caller.
+locksmith() (
     with id fqdn
 
     if [ -t 0 ]; then
@@ -777,17 +781,17 @@ locksmith() {
         run cat-secret
     ) | try ssh-add -
 
+    local out
     # shellcheck disable=SC2029
     # - "$key" expands client side intentionally
-    echo "$payload" | ssh "locksmith@$fqdn" "$key" \
-        > >(log info) \
-        2> >(log error) || die
+    out=$(echo "$payload" | try ssh "locksmith@$fqdn" "$key") || exit
+    log info "$out"
 
     case $lines in
     1) log success "$key on $id confirmed" ;;
     2) log success "$key on $id deployed" ;;
     esac
-}
+)
 
 # === main
 main "$@"

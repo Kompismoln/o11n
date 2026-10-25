@@ -3,11 +3,12 @@
 
 set -euo pipefail
 
-km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
-. "$km_root/libexec/run-with.bash"
+. "$tools_root/libexec/run-with.bash"
 
 cleanup() {
+    rm -rf "$tmpdir"
     ssh-agent -k > >(log info)
 }
 trap cleanup EXIT
@@ -21,9 +22,9 @@ as() {
 
     eval "$(ssh-agent -s)" > >(log info)
 
-    "$km_root/bin/id-entities.sh" "$identity" cat-secret age-key >"$key_file"
+    "$tools_root/bin/id-entities.sh" "$identity" cat-secret age-key >"$key_file"
 
-    SOPS_AGE_KEY_FILE=$key_file "$km_root/bin/id-entities.sh" "$identity" cat-secret ssh-key |
+    SOPS_AGE_KEY_FILE=$key_file "$tools_root/bin/id-entities.sh" "$identity" cat-secret ssh-key |
         ssh-add - 2> >(log info)
 
     SOPS_AGE_KEY_FILE=$key_file "$@"

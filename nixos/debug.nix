@@ -17,7 +17,7 @@ in
 {
   options.o11n.debug = {
     enable = mkOption {
-      description = ''Enable this debugging module'';
+      description = "Enable this debugging module";
       type = types.bool;
       default = false;
     };

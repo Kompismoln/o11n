@@ -9,7 +9,7 @@
 let
   cfg = config.o11n.react;
 
-  eachSite = lib.filterAttrs (name: cfg: cfg.enable) cfg.sites;
+  eachSite = lib.filterAttrs (_: cfg: cfg.enable) cfg.sites;
 
   siteOpts = {
     options = {
@@ -41,7 +41,7 @@ let
   reactPkgs' = appname: inputs.${appname}.packages.${host.system}.vite-static;
 
   reactPkgs = lib.mapAttrs (
-    name: cfg:
+    _: cfg:
     (reactPkgs' cfg.appname).overrideAttrs {
       env = {
         VITE_API_ENDPOINT = cfg.api;
@@ -63,7 +63,7 @@ in
 
   config = lib.mkIf (eachSite != { }) {
     services.nginx.virtualHosts = lib.mapAttrs' (
-      name: cfg:
+      _: cfg:
       lib.nameValuePair cfg.hostname {
         forceSSL = cfg.ssl;
         enableACME = cfg.ssl;

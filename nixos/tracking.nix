@@ -89,12 +89,7 @@ in
     };
 
     services.grafana.provision.datasources.settings.datasources = lib.mkMerge [
-      (
-        if config.services.grafana.provision.datasources.settings ? datasources then
-          config.services.grafana.provision.datasources.settings.datasources
-        else
-          [ ]
-      )
+      (config.services.grafana.provision.datasources.settings.datasources or [ ])
       [
         {
           name = "Loki (Tracking)";

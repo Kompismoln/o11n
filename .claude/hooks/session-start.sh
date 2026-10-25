@@ -19,7 +19,7 @@ cd "$CLAUDE_PROJECT_DIR"
 nixpkgs=".#nixpkgs.legacyPackages.x86_64-linux"
 nixpkgs_args=()
 
-packages=(nixfmt statix deadnix shellcheck bats age sops jq toml2json wireguard-tools openssh openssl mkpasswd gettext)
+packages=(nixfmt statix deadnix shellcheck bats age sops jq toml2json wireguard-tools openssh openssl mkpasswd gettext tree util-linux)
 
 roots=/nix/var/nix/gcroots/claude-session
 rm -rf "$roots"

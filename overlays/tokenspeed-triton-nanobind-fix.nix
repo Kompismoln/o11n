@@ -1,8 +1,8 @@
 # overlays/tokenspeed-triton-nanobind-fix.nix
-final: prev: {
+_: prev: {
   python313Packages = prev.python313Packages.overrideScope (
-    pyFinal: pyPrev: {
-      flashinfer = pyPrev.flashinfer.overridePythonAttrs (old: {
+    _: pyPrev: {
+      flashinfer = pyPrev.flashinfer.overridePythonAttrs (_: {
         pname = "flashinfer-python";
       });
       tokenspeed-triton = pyPrev.tokenspeed-triton.overrideAttrs (old: {

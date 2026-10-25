@@ -11,15 +11,13 @@
 let
   cfg = config.o11n.preserve;
 
-  containersRoot = cfg.onStorage "/var/lib/${lib.optionalString (lib.versionAtLeast config.system.stateVersion "22.05") "nixos-"}containers";
-  snapshotSuffix = lib.concatStrings (lib.replicate 16 "[0-9a-f]");
-
   # Piggyback on preservation's options for files and directories
   preserveAtOptions = options.preservation.preserveAt.type.nestedTypes.elemType.getSubOptions [ ];
 in
 {
   imports = [
     o11nInputs.preservation.nixosModules.preservation
+    ./containers.nix
     ./preserve-paths.nix
   ];
 
@@ -44,24 +42,6 @@ in
         directories = cfg.databases;
       };
     };
-
-    systemd.tmpfiles.rules = lib.optional (
-      config.containers != { }
-    ) "d ${containersRoot} 0700 root root - -";
-
-    # Upstream keeps container roots on /var, and an ephemeral one's on /run, where nspawn
-    # snapshots it next to its root.
-    systemd.services = lib.mapAttrs' (
-      name: container:
-      lib.nameValuePair "container@${name}" {
-        environment.root = lib.mkForce "${containersRoot}/%i";
-        unitConfig.RequiresMountsFor = [ "${containersRoot}/%i" ];
-        # A container killed before nspawn removes its snapshot leaves it behind.
-        preStart = lib.mkIf container.ephemeral (
-          lib.mkBefore "rm -rf -- ${containersRoot}/.#snapshot.${name}${snapshotSuffix}"
-        );
-      }
-    ) config.containers;
 
     security.sudo = {
       extraConfig = ''

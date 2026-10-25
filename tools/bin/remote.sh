@@ -4,11 +4,11 @@
 
 set -euo pipefail
 
-km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
-. "$km_root/libexec/run-with.bash"
+. "$tools_root/libexec/run-with.bash"
 
-# How reset reaches a machine that isn't on the network, as tunnel reset sets them.
+# How reset reaches a machine that isn't on the network, as tunnel sets them.
 ssh_through=()
 anywhere_through=()
 
@@ -68,6 +68,7 @@ push() {
 }
 
 ssh_cleanup() {
+    rm -rf "$tmpdir"
     ssh-agent -k > >(log info)
 }
 
@@ -115,29 +116,38 @@ reset() {
         "${anywhere_through[@]}"
 }
 
-# A machine booted from the rescue stick, as nixos/org/reverse-tunnel.nix forwards it.
+# Both hops' keys in one agent: an as.sh nested in another's ProxyCommand would act as the outer
+# one's identity, which can't read the other key.
+stick_keys() {
+    trap ssh_cleanup EXIT
+    eval "$(ssh-agent -s)" > >(log info)
+    id-entities.sh -u admin cat-secret ssh-key | ssh-add - |& log info
+    id-entities.sh -s rescue cat-secret ssh-key | ssh-add - |& log info
+}
+
 stick() {
-    "$km_root/bin/as.sh" rescue ssh \
-        -o ProxyCommand="$km_root/bin/as.sh admin ssh -W %h:%p admin@$server" \
-        -o StrictHostKeyChecking=no \
-        -o UserKnownHostsFile=/dev/null \
-        -p 2603 root@localhost "$@"
+    ssh "${ssh_through[@]}" root@localhost "$@"
 }
 
 # The reverse tunnel on a server, for a machine booted from the rescue stick to call in through.
 tunnel() {
+    # As nixos/org/reverse-tunnel.nix forwards the stick.
+    ssh_through=(-p 2603 -o "ProxyJump=admin@$server" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+
     case $action in
     open)
-        "$km_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel open ${arg:+"$(printf '%q' "$arg")"}
+        "$tools_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel open ${arg:+"$(printf '%q' "$arg")"}
         ;;
     close | status)
-        "$km_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel "$action"
+        "$tools_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel "$action"
         ;;
     connect)
+        stick_keys
         stick
         ;;
     facts)
         host=${arg:?"tunnel facts needs the host it will be"}
+        stick_keys
         mkdir -p "hosts/$host"
         stick nixos-facter >"hosts/$host/facter.json"
         git add --intent-to-add "hosts/$host/facter.json"
@@ -147,7 +157,6 @@ tunnel() {
     reset)
         host=${arg:?"tunnel reset needs the host to install"}
         address=localhost
-        ssh_through=(-p 2603 -o "ProxyJump=admin@$server" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
         # The machine builds its system from the caches over its own line, rather than receive it
         # through the server, and reboots only once it has the wifi it called in on.
         anywhere_through=(-p 2603 --ssh-option "ProxyJump=admin@$server" --build-on remote --phases "kexec,disko,install")

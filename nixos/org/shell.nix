@@ -10,7 +10,7 @@
   ];
 
   programs.bash = {
-    promptInit = builtins.readFile ../../tools/session/prompt-init.sh;
+    promptInit = builtins.readFile ./prompt-init.sh;
     shellAliases = {
     };
   };

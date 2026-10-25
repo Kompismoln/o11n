@@ -12,7 +12,7 @@ let
   nixosChecks = lib.genAttrs' (lib.filter (lib.hasSuffix ".nix") (entries ./nixos "regular")) (
     file:
     let
-      name = "nixos-${lib.removeSuffix ".nix" file}";
+      name = "eval-nixos-${lib.removeSuffix ".nix" file}";
     in
     lib.nameValuePair name (mkCheck name (callTests ./nixos/${file} args))
   );
@@ -33,7 +33,7 @@ let
   inventoryChecks = lib.mapAttrs' (
     inventory: outputs:
     let
-      name = "inventory-${inventory}";
+      name = "eval-inventory-${inventory}";
     in
     lib.nameValuePair name (
       mkCheck name (callTests ./inventories/${inventory}/tests.nix (args // { inherit outputs; }))
@@ -55,7 +55,7 @@ let
     lib.mapAttrs' (
       host: nixos:
       let
-        name = "inventory-${inventory}-${host}";
+        name = "leaks-${inventory}-${host}";
       in
       lib.nameValuePair name (
         pkgs.runCommand name
@@ -70,8 +70,8 @@ let
     ) outputs.nixosConfigurations
   ) inventories;
 
-  # A stick goes where it's needed and can be lost there: nothing of the inventory's may be on
-  # it but the public keys it reads.
+  # Policy: a stick goes where it's needed and can be lost there, so nothing of the inventory's
+  # may be on it but the public keys it reads.
   rescueUsb = evalNixosModule [
     ../nixos/org/rescue-usb.nix
     {
@@ -80,8 +80,8 @@ let
     }
   ];
 
-  rescueUsbChecks.inventory-sample-rescue-usb =
-    pkgs.runCommand "inventory-sample-rescue-usb"
+  rescueUsbChecks.leaks-sample-rescue-usb =
+    pkgs.runCommand "leaks-sample-rescue-usb"
       {
         nativeBuildInputs = [ pkgs.python3 ];
         drv = builtins.unsafeDiscardOutputDependency rescueUsb.system.build.images.iso-installer.drvPath;
@@ -90,4 +90,8 @@ let
         python3 ${./leaks.py} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
       '';
 in
-nixosChecks // inventoryChecks // hostChecks // rescueUsbChecks
+{
+  eval = nixosChecks // inventoryChecks;
+  leaks = hostChecks // rescueUsbChecks;
+}
+// lib.mapAttrs (name: check: { ${name} = check; }) (import ./source.nix { inherit pkgs; })

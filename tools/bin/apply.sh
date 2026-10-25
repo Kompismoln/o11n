@@ -3,9 +3,9 @@
 
 set -euo pipefail
 
-km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
-. "$km_root/libexec/run-with.bash"
+. "$tools_root/libexec/run-with.bash"
 
 declare -x target=${1:?target required}
 declare -x \
@@ -20,12 +20,12 @@ apply() {
 
     # From a build host, the target substitutes the build when it switches.
     if [[ $BUILD_HOST == localhost && $TARGET_ADDRESS != localhost ]]; then
-        "$km_root/bin/as.sh" nix-push nix copy --to "ssh://nix-push@$TARGET_ADDRESS" "$build"
+        "$tools_root/bin/as.sh" nix-push nix copy --to "ssh://nix-push@$TARGET_ADDRESS" "$build"
     fi
 
     log important "switching $target to $build"
     local rc=0
-    "$km_root/bin/as.sh" nix-switch ssh "nix-switch@$TARGET_ADDRESS" "$build" 2>&1 |
+    "$tools_root/bin/as.sh" nix-switch ssh "nix-switch@$TARGET_ADDRESS" "$build" 2>&1 |
         tee "$tmpdir/switch.log" || rc=$?
 
     # Nix's words for a path that no substituter has.
@@ -42,7 +42,7 @@ that it reaches $BUILD_HOST on port 5000."
 
 declare -g build
 build() {
-    "$km_root/bin/build.sh" "$target"
+    "$tools_root/bin/build.sh" "$target"
 }
 
 apply

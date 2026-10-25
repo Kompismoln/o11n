@@ -40,6 +40,11 @@ in
         )
       );
     };
+    containers = lib.mkOption {
+      description = "containers that use the host's postgresql, to start after it and restart with it";
+      default = [ ];
+      type = with lib.types; listOf str;
+    };
   };
 
   config = lib.mkIf (cfg.databases != { }) (
@@ -58,6 +63,17 @@ in
 
         # Upstream creates only the default data directory.
         systemd.tmpfiles.rules = [ "d ${dataDir} 0700 postgres postgres - -" ];
+
+        # Requires restarts a container when postgresql restarts, crashes included, and stops
+        # it when postgresql stops; being wanted by postgresql brings it back when that starts.
+        systemd.services = lib.genAttrs' cfg.containers (
+          name:
+          lib.nameValuePair "container@${name}" {
+            after = [ "postgresql.service" ];
+            requires = [ "postgresql.service" ];
+            wantedBy = [ "postgresql.service" ];
+          }
+        );
 
         o11n.dumps = lib.mapAttrs' (
           _: db:
@@ -78,11 +94,13 @@ in
           serviceConfig.ReadWritePaths = [ walDir ];
           # A cluster made before the WAL got its own volume moves it there once. A start
           # interrupted midway finishes the move, and nothing links a pg_wal that went missing.
+          # The unit's syscall filter allows no chown, so cp keeps no ownership: it copies as
+          # postgres, the files' owner.
           preStart = lib.mkAfter ''
             pgWal="$PGDATA/pg_wal"
             if [ ! -L "$pgWal" ]; then
               if [ -d "$pgWal" ]; then
-                cp -a "$pgWal/." ${walDir}/
+                cp -R --preserve=mode,timestamps "$pgWal/." ${walDir}/
                 sync -f ${walDir}
                 mv "$pgWal" "$pgWal.moved"
               fi

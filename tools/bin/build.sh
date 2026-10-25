@@ -3,9 +3,9 @@
 
 set -euo pipefail
 
-km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
-. "$km_root/libexec/run-with.bash"
+. "$tools_root/libexec/run-with.bash"
 
 declare -x BUILD_HOST=${BUILD_HOST:-$(org-toml.sh build-hosts | head -n 1)}
 
@@ -30,9 +30,9 @@ build() {
 
     # The build host evaluates the flake it is sent, inputs and all, so it needs no access
     # of its own to the private ones.
-    "$km_root/bin/as.sh" nix-build nix flake archive --to "ssh-ng://nix-build@$address" .
+    "$tools_root/bin/as.sh" nix-build nix flake archive --to "ssh-ng://nix-build@$address" .
     local out
-    out=$("$km_root/bin/as.sh" nix-build ssh -n "nix-build@$address" build-system "$flake" "$target") ||
+    out=$("$tools_root/bin/as.sh" nix-build ssh -n "nix-build@$address" build-system "$flake" "$target") ||
         die $? "$BUILD_HOST couldn't build $target"
 
     # Where nix-build has the daemon alone, the daemon gets no client and answers nothing.

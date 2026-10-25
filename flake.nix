@@ -1,4 +1,3 @@
-# flake.nix
 {
   description = "o11n nixos fleet manager";
 
@@ -50,16 +49,41 @@
           flake = {
             inherit (inputs) nixpkgs;
             inherit (o11nLib) fromFlake fromPath fromInventory;
-            # Not a host role: an org builds its stick from it, passing `org` as a specialArg.
+            # Policy: not a host role, an org builds its stick from it, passing `org` as a specialArg.
             nixosModules.rescue-usb = ./nixos/org/rescue-usb.nix;
           };
 
           perSystem =
-            { pkgs, ... }:
+            { config, pkgs, ... }:
+            let
+              categories = import ./tests { inherit pkgs o11nLib; };
+              stage =
+                name: checks:
+                pkgs.linkFarm "stage-${name}" (
+                  lib.mapAttrsToList (check: path: {
+                    name = check;
+                    inherit path;
+                  }) checks
+                );
+            in
             {
-              checks = import ./tests { inherit pkgs o11nLib; };
+              checks = lib.concatMapAttrs (_: checks: checks) categories;
 
-              packages.gost = pkgs.callPackage ./packages/gost.nix { };
+              legacyPackages.stages = lib.mapAttrs stage categories // {
+                baseline = stage "baseline" categories.stamps;
+                vm = stage "vm" config.legacyPackages.vmTests;
+              };
+
+              packages = rec {
+                gost = pkgs.callPackage ./packages/gost.nix { };
+                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { };
+                o11n-scripts = pkgs.callPackage ./packages/o11n-scripts.nix { };
+                stamps = pkgs.callPackage ./packages/stamps.nix { };
+                write-stamps = pkgs.writeShellApplication {
+                  name = "write-stamps";
+                  text = ''exec ${pkgs.lib.getExe stamps} write "$@"'';
+                };
+              };
 
               legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
                 inherit pkgs;
@@ -73,9 +97,20 @@
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };
               };
 
+              legacyPackages.vmTests.containers = import ./tests/vm/containers.nix { inherit pkgs; };
+
               devShells.default = pkgs.mkShell {
-                buildInputs = [ ];
-                shellHook = "";
+                packages = [
+                  config.packages.o11n-scripts
+                  config.packages.o11n-tools
+                  config.packages.stamps
+                  config.packages.write-stamps
+                ];
+                shellHook = ''
+                  if [[ -f .env ]]; then
+                    set -a && source .env && set +a
+                  fi
+                '';
               };
             };
         }

@@ -2,13 +2,6 @@
 
 This document contains project-wide instructions written by humans for agents.
 
-## o11n basics
-
-- o11n is a library that takes an `org` and returns NixOS, home-manager and disko configurations.
-- An `org` must contain a root-level `org.toml` and calls `o11n.fromFlake self` to get its configurations.
-- o11n has no `org` of its own, so it is tested against sample `org`s in `tests/inventories/`.
-- An `org`'s own expectations live in that `org`'s checks, not here.
-
 ## Environment
 
 `.claude/hooks/session-start.sh` prepares a session: it fetches the github: inputs over git, puts nixfmt, statix,
@@ -16,6 +9,9 @@ deadnix, shellcheck and the tools' dependencies on PATH, and unshallows the clon
 `/nix/var/nix/gcroots/claude-session`, so `nix store gc` keeps them. The hook runs only in a session that starts in the
 clone. Otherwise run `CLAUDE_PROJECT_DIR=$PWD .claude/hooks/session-start.sh` from the clone; without `CLAUDE_ENV_FILE`
 it doesn't put the tools on PATH.
+
+- An org's `org.toml` is its source of truth, and `org/` reads it.
+- Archeology is not allowed unless said otherwise, the commit given has all you need.
 
 - Downloads of GitHub archives, which `github:` inputs use, are refused with HTTP 403; git over https works. Fetch the
   same revisions over git once, and plain `nix` commands work for the rest of the session, because the inputs are then
@@ -52,6 +48,9 @@ it doesn't put the tools on PATH.
   (`--override-input <input> path:<stub>`) that have the attributes the org reads. Kompismoln/org keeps its stubs in
   `tests/stubs`, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `nix-remote.sh`
   command. Fetch the org's `github:` inputs over git first, as above, from the org's `flake.lock`.
+- Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools` and exports `REPO_ROOT=$PWD`, which the
+  wrapper only defaults to `/etc/nix/inputs/self`. To try changes to the tools on the org, `O11N_TOOLS=<o11n
+  clone>/tools` puts the clone's `bin/` first on its PATH.
 - Nix runs in single-user mode on this session's `/nix`. Point any other daemon, such as Lix's, at its own store with
   `NIX_REMOTE="local?root=<dir>"` (Lix's `nix-daemon` ignored `--store`).
 - Lix gives fixed-output fetches their network through pasta, which can't start in this sandbox; set `pasta-path =`
@@ -60,6 +59,8 @@ it doesn't put the tools on PATH.
   `source`, remove `.git`, and add it with `nix-store --add-fixed --recursive sha256 <dir>/source`; it lands at the path
   the fetch would have produced.
 - `pkill -f <pattern>` can match the command line of the shell running it. Kill by PID.
+- Don't evaluate every host of an org here, as Kompismoln/org's `stages.systems` does: ~11 GB and minutes, and more
+  with its homes. That belongs on a host such as pelle (`agents/plan-remote-evaluation.md`).
 
 ### Pitfalls
 
@@ -77,16 +78,87 @@ it doesn't put the tools on PATH.
 - `nix-remote.sh build --dry-run` answers "don't know how to build these paths": nothing has copied the `.drv` files to
   the builder yet.
 
-## Tests
+## Workflow
 
-```
-AGENT: add
-A VM test now exists outside the checks, since it needs KVM.
----
+The workflow spans over a session, starts from a human-reviewed commit and ends with a handover.
+
+### 1. Before work starts
+
+Run `nix build .#stages.baseline`: on non-zero exit, pause work and relay the flags.
+
+### 2. Between units of work
+
+No rules: use your own judgement and the tests and checks at your disposal (see "Tests and checks"). Commit and push as
+you see fit, a session's hooks may ask for both at a turn's end, but neither is a handover.
+
+### 3. Handing over
+
+When asked for a handover or pull request:
+
+1. Remove all comments that don't pass "Comments" in the files the change touches, pre-existing included.
+2. Run `nix flake check` and relay the flags.
+3. Commit, run `nix run .#write-stamps` and commit what it writes, then push.
+
+## Handling errors and warnings
+
+How to handle a warning or error, in order of preference:
+
+### 0. Ignore
+
+Consider not handling an error or warning if:
+
+- it's out of scope of the current task
+- its timing, fallout and message are already about right
+
+### 1. Fail at evaluation
+
+If it's an error at build, switch or runtime on a host that could have been known when the org is evaluated:
+
+1. write an assertion that fails evaluation and says what in the org to change
+2. should it occur on a host anyway, make its message name the assertion that let it through
+
+### 2. Raw writes to stderr and/or edges
+
+These are for developers and ops, so:
+
+- minimize tampering with the message
+- maximize simplicity in handling
+
+`try` in `tools/libexec/run-with.bash` does both: it dies with the command's own stderr.
+
+## Tests and checks
+
+The handover check is `nix flake check`. It takes about a minute when only evaluation is to be redone, and about three
+more when bats runs, as after a change to `tools/`, `dev/` or `scripts/`.
+
+### Stages
+
+`nix build .#stages.<name>` builds one category of the checks, those named `<name>` or `<name>-*`:
+
+- `baseline`: what a human settles before work proceeds, `stamps` for now
+- `stamps`: `stamps check` over every Markdown file, ~2s
+- `lint`: nixfmt, statix and deadnix over all Nix, and shellcheck over all shell, from `tools/` for `tools/`, where
+  `.shellcheckrc` applies, ~10s
+- `eval`: `tests/nixos/*.nix` and each inventory's `tests.nix`, evaluation tests, ~40s
+- `leaks`: each inventory host's build plan checked for org names, and the rescue stick's for secrets
+  (`tests/leaks.py`), ~90s
+- `bats`: `tools/test`, `dev/test` and `scripts/test`, ~3 minutes
+- `vm`: the VM tests, which aren't checks (see "VM")
+
+Between units of work, by what changed: docs, `stamps`; Nix, `lint` and `eval`, and `leaks` for what hosts run;
+`tools/`, `dev/` or `scripts/`, `lint` and `bats`; what a module does on a host, its VM test.
+
+### Bats
+
+- `bats tools/test dev/test scripts/test` runs them outside the sandbox, with the tools the session hook puts on
+  PATH, ~3 minutes.
+- `tools/test` copies `tools/` for each test and stubs `ssh`, `ssh-keyscan`, `cryptsetup` and `find-route.sh`; the
+  `ssh` stub runs `nixos/org/locksmith.sh` for the locksmith.
+
+### VM
+
 VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks: they need KVM. Run them with
-`tools/bin/nix-remote.sh build .#vmTests.<name>`.
-```
-Baseline is `nix flake check`.
+`tools/bin/nix-remote.sh build .#vmTests.<name>`, or all of them with `.#stages.vm`.
 
 ### Inventories
 
@@ -98,7 +170,13 @@ Baseline is `nix flake check`.
 
 Evaluate inventories with `o11nLib.fromInventory { path; inputs ? { }; }`.
 
-A real org, read with `fromFlake`.
+### An org
+
+An org's own expectations live in that org's checks, not here. A real org is read with `fromFlake`.
+
+`scripts/check-org.sh`, with `ORG` set to an org's clone, builds that org's `eval` stage with this tree as its o11n;
+nothing else runs it. Here, Kompismoln/org needs its stubs for that:
+`tests/stubs/with-stubs.sh nix build .#stages.eval --override-input o11n git+file://<clone>` from the org.
 
 To see whether a change alters an org's systems, evaluate each host's `config.system.build.toplevel.drvPath` with
 `--override-input o11n "git+file://<clone>?rev=<rev>&shallow=1"` at the old and the new revision: equal paths are equal
@@ -119,78 +197,23 @@ Use `generate-keys.sh` with the org tooling in `tools/bin`.
 - In tests, compare with the files on disk (`builtins.readFile ./public-keys/...`) rather than with values computed by
   the same o11n code that is under test.
 
-## Documentation rules
+## Documentation
 
-### 1. Humans write, agents suggest.
+The handover's `nix run .#write-stamps` inserts git conflict markers between the latest commit a human made and now, a
+human needs to stamp these for next baseline to pass.
 
-In all docs except `agents/*`, agents are only allowed to insert suggestions.
+- The primary document is `docs/o11n.md`: If a contradiction to it is discovered, stop, describe the landscape and
+  provide options.
+- Placeholder usernames in docs and tests are alice, bob, carol..., or semantic names (archive, guest, nobody, other,
+  collaborator-one, admin).
+- Docs refer to the code, and comments don't refer to the docs.
+- Don't reference branch commits: they'll be squashed.
 
-A suggestion is inserted as a fenced code-block immediately above the subject to change. The backticks are part of the
-template, use 4 backticks as envelope if the suggestion contains a code-block. Prefer whole lines for new content.
-
-```
-AGENT: <verb>
-<short explanation>
----
-<optional suggestion for new content>
-```
-
-### 2. Docs refer to the code, the code speaks for itself.
-
-The primary document is `docs/o11n.md`: If a contradiction to it is discovered, stop and prompt a resolution.
-
-Before committing, remove all and any docstrings and comments that:
-
-- reference the docs
-- tell what the code does
-
-### 3. When and how to write a comment.
+## Comments
 
 - A) Every line of comment imposes a readability tax.
 - B) A future reader can be saved work by knowing about non-evident details.
-- A comment is justified when B is considerable enough to offset A.
+- ∟ When B is considerable enough to offset A, a comment is justified.
 
-### 4. Don't reference branch commits
-
-They'll be squashed.
-
-## Good to know (subject to change)
-
-No org names, hosts, domains or namespaces in o11n: take them from `org`, or from `org.toml` in the tools. The host
-checks enforce this for code the inventories use. The remaining hardcoding is in modules that no role imports:
-`nixos/org/monitor.nix`, `nixos/monitor-node.nix`, `nixos/backup.nix` and `nixos/glesys-updaterecord.nix`.
-
-- `tools/*` (aka km-tools) are duplicated in both o11n and orgs, some commands belong with the orgs (the bins) and
-  others with o11n (remote).
-- A table for every entity class, even when empty (`[app]`, `[store]`, ...). Without one, evaluation fails deep in
-  `org/types.nix` and `org-toml.sh` queries fail.
-```
-AGENT: add
-postgresql.nix and hypr-devstation take the postgres version from org.toml, which has no default.
----
-- `postgres = "<major>"` when any host runs postgresql (an app's module registers a database, or hypr-devstation).
-```
-- `[mailserver]` when any host has the server role: `nixos/org/sendmail.nix` reads it.
-- `[flake]` when any host has the peer role: `nixos/org/nix.nix` reads it.
-- An `endpoint` on the gateway of each vpn.
-
-- For each NixOS host, a `facter.json` (`{"version":1,"system":"x86_64-linux"}` is enough in tests) or
-  `hardwareReport = "standard"` and a configuration that sets `nixpkgs.hostPlatform` (a `hardware-configuration.nix`
-  does), a root file system, and a way for root or a wheel user to log in; NixOS rejects a system without them.
-
-- o11n's `boot` enables a bootloader on every host, systemd-boot by default: a configuration that enables grub needs
-  `boot = "grub"`, and one without a bootloader turns both off with `lib.mkForce`.
-- Every user, service and app needs an `ssh-key` public key unless `principal.hasPublicKey = false`, and every user a
-  `passwd-sha512` secret unless `principal.hasPasswd = false`. A missing public key fails evaluation; a missing secret
-  fails sops-nix's manifest check when the system builds.
-
-- Services without an `id` get no user, but their public keys can still be read (rescue, nix-serve).
-
-## Style
-
-- Format Nix with nixfmt and lint it with statix and deadnix. statix has existing warnings in `nixos/`; keep new code
-  free of them. Shell scripts in `tools/` pass shellcheck run from `tools/`, where `.shellcheckrc` applies (the km-tools
-  package runs it on `bin/` and `libexec/`).
-- Commits: `<area>: <what changed>`, lowercase, with a body that says why. Each commit passes the checks on its own.
-- `tools/` is also copied into Kompismoln/org, and the copies have drifted. Hosts get o11n's copy through km-tools;
-  operators run the org's copy.
+1. Prefix with the comment's nature
+2. Tell what's non-evident and only what the code doesn't already tell

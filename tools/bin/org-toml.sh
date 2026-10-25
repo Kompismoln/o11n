@@ -7,9 +7,9 @@ set -euo pipefail
 
 declare -x class entity key slot
 
-km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
-. "$km_root/libexec/run-with.bash"
+. "$tools_root/libexec/run-with.bash"
 
 org-toml() {
     if declare -F "$1:" >/dev/null; then
@@ -158,7 +158,7 @@ ids-by-substring:() {
             ids-by-substring "$_class" "$2"
         done
     else
-        ids-by-substring
+        ids-by-substring "$@"
     fi
 }
 

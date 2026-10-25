@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tools/bin/state.sh
+# nixos/org/state.sh
 
 set -euo pipefail
 mntdir=$(mktemp -d)

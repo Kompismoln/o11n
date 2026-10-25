@@ -11,8 +11,8 @@ declare -rx tmpdir
 trap "rm -rf '$tmpdir'" EXIT
 
 here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-declare -x km_root
-km_root="$(cd "$here/.." && pwd)"
+declare -x tools_root
+tools_root="$(cd "$here/.." && pwd)"
 
 # implement a function that maps a prefix to a list of (potential) functions
 callchain() {

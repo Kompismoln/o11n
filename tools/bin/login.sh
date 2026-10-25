@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-km_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 login() {
-    "$km_root/bin/as.sh" "${1%%@*}" "ssh" "$1"
+    "$tools_root/bin/as.sh" "${1%%@*}" "ssh" "$1"
 }
 
 login "$@"

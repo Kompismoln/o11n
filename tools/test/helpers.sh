@@ -8,6 +8,8 @@ setup-testenv() {
 
     here="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     root=$TESTROOT
+    # The other end of id-entities.sh's locksmith, which the ssh stub runs.
+    export LOCKSMITH=$here/../../nixos/org/locksmith.sh
     mkdir -p "$root"
     cp -a "$here/../." "$root"
     mv "$root/test/org.toml" "$root/org.toml"

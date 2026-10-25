@@ -7,7 +7,7 @@ locksmith)
 	export LUKS_DEVICE="/dev/null"
 	export KEY_FILE=$BATS_TEST_TMPDIR/host-$fqdn/keys/host-$host
 	shift
-	"$TESTROOT/remote/locksmith.sh" "$@"
+	"$LOCKSMITH" "$@"
 	;;
 *)
 	echo "invalid user '$user'" >&2

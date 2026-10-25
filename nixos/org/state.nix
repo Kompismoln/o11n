@@ -8,14 +8,14 @@
 }:
 let
   statePkg =
-    user: userCfg:
+    user: _:
     pkgs.runCommand "state"
       {
         buildInputs = [ pkgs.makeWrapper ];
       }
       ''
           mkdir -p $out/bin
-          cp ${../tools/remote/state.sh} $out/bin/state-unwrapped
+          cp ${./state.sh} $out/bin/state-unwrapped
           chmod +x $out/bin/state-unwrapped
           makeWrapper $out/bin/state-unwrapped $out/bin/state \
             --prefix PATH : ${
@@ -29,7 +29,7 @@ let
       '';
 
   userMatchBlocks = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (user: userCfg: ''
+    lib.mapAttrsToList (user: _: ''
       Match User ${user}
         ForceCommand internal-sftp
         AllowTcpForwarding no

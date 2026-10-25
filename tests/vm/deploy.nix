@@ -2,7 +2,7 @@
 #
 # A deploy on the sample org: the operator builds on gw over ssh-ng as the untrusted
 # nix-build, web substitutes from gw's nix-serve and switches with switch-system, and
-# km-tools' apply.sh does the same with the sample's keys. It needs KVM, so it isn't
+# o11n-tools' apply.sh does the same with the sample's keys. It needs KVM, so it isn't
 # among the checks: nix-remote.sh build .#vmTests.deploy
 {
   pkgs,
@@ -133,7 +133,7 @@ pkgs.testers.runNixOSTest {
         "flakes"
       ];
       environment.systemPackages = [
-        (pkgs.callPackage ../../packages/km-tools.nix { })
+        (pkgs.callPackage ../../packages/o11n-tools.nix { })
         pkgs.gettext
         pkgs.git
       ];

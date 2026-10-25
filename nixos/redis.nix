@@ -166,24 +166,21 @@ in
                     type =
                       with types;
                       nullOr (
-                        submodule (
-                          { ... }:
-                          {
-                            options = {
-                              ip = lib.mkOption {
-                                type = str;
-                                description = "IP of the Redis master";
-                                example = "192.168.1.100";
-                              };
-
-                              port = lib.mkOption {
-                                type = port;
-                                description = "port of the Redis master";
-                                default = 6379;
-                              };
+                        submodule (_: {
+                          options = {
+                            ip = lib.mkOption {
+                              type = str;
+                              description = "IP of the Redis master";
+                              example = "192.168.1.100";
                             };
-                          }
-                        )
+
+                            port = lib.mkOption {
+                              type = port;
+                              description = "port of the Redis master";
+                              default = 6379;
+                            };
+                          };
+                        })
                       );
 
                     default = null;

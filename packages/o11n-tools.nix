@@ -14,7 +14,7 @@
 }:
 
 stdenv.mkDerivation {
-  pname = "km-tools";
+  pname = "o11n-tools";
   version = "0.1.0";
   src = lib.fileset.toSource {
     root = ../tools;
@@ -42,7 +42,7 @@ stdenv.mkDerivation {
 
     for script in $out/bin/*; do
       wrapProgram "$script" \
-        --set REPO_ROOT /etc/nix/inputs/self \
+        --set-default REPO_ROOT /etc/nix/inputs/self \
         --prefix PATH : ${
           lib.makeBinPath [
             age

@@ -1,6 +1,6 @@
-final: prev: {
+_: prev: {
   python313Packages = prev.python313Packages.overrideScope (
-    pyFinal: pyPrev: {
+    pyFinal: _: {
       xgrammar = pyFinal.callPackage ../packages/xgrammar.nix { };
     }
   );

@@ -13,7 +13,7 @@ let
       }
       ''
         mkdir -p $out/bin
-        cp ${../../tools/remote/locksmith.sh} $out/bin/locksmith-unwrapped
+        cp ${./locksmith.sh} $out/bin/locksmith-unwrapped
         chmod +x $out/bin/locksmith-unwrapped
 
         makeWrapper $out/bin/locksmith-unwrapped $out/bin/locksmith \

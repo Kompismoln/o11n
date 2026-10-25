@@ -139,7 +139,7 @@ let
     ++ lib.attrNames (lib.filterAttrs (_: group: lib.elem cfg.user group.members) config.users.groups)
   );
 
-  servers = lib.mapAttrs (server: serverCfg: {
+  servers = lib.mapAttrs (_: serverCfg: {
     container = "vllm-${serverCfg.name}";
 
     argv = [
