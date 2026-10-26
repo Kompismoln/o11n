@@ -12,6 +12,11 @@ type = "github"
 owner = "example"
 repo = "sample"
 
+[repository]
+type = "github"
+owner = "example"
+repo = "sample"
+
 [vpn.wg0]
 id = 0
 trusted = true
@@ -102,6 +107,7 @@ roles = ["nixos", "peer", "server", "remote-builder-relay"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
+home.admin.roles = ["cinnamon-office"]
 
 [user.admin]
 id = 0

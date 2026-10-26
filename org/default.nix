@@ -91,7 +91,12 @@
       type = lib.types.nullOr context.types.mailserver.module;
     };
     flake = lib.mkOption {
-      description = "flake for this organisation";
+      description = "flake that the hosts' nix registry calls o11n";
+      default = { };
+      type = with lib.types; attrsOf str;
+    };
+    repository = lib.mkOption {
+      description = "the organisation's own flake, where the remote builder fetches its revisions";
       default = { };
       type = with lib.types; attrsOf str;
     };

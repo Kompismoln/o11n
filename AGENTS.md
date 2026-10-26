@@ -15,27 +15,8 @@ it doesn't put the tools on PATH.
 
 - Downloads of GitHub archives, which `github:` inputs use, are refused with HTTP 403; git over https works. Fetch the
   same revisions over git once, and plain `nix` commands work for the rest of the session, because the inputs are then
-  in the store under the same content hash. The hook does this; by hand:
-
-  ```sh
-  python3 - flake.lock /tmp/flake.git.lock <<'EOF'
-  import json, sys
-  lock = json.load(open(sys.argv[1]))
-  for node in lock["nodes"].values():
-      locked = node.get("locked", {})
-      if locked.get("type") == "github":
-          node["locked"] = {
-              "type": "git",
-              "url": f"https://github.com/{locked['owner']}/{locked['repo']}",
-              "rev": locked["rev"],
-              "narHash": locked["narHash"],
-              "lastModified": locked["lastModified"],
-              "shallow": True,
-          }
-  json.dump(lock, open(sys.argv[2], "w"))
-  EOF
-  nix flake archive --reference-lock-file /tmp/flake.git.lock --no-write-lock-file
-  ```
+  in the store under the same content hash. The hook does this with `dev/fetch-github-inputs.sh`, which takes another
+  flake's lock as well: `dev/fetch-github-inputs.sh <org clone>/flake.lock`.
 
 - Without the hook the clone is shallow. When referring to it as `git+file://`, for example to check a single commit,
   add `shallow=1`: `nix flake check "git+file://$PWD?rev=$(git rev-parse HEAD)&shallow=1"`.
@@ -47,8 +28,8 @@ it doesn't put the tools on PATH.
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub flakes
   (`--override-input <input> path:<stub>`) that have the attributes the org reads. Kompismoln/org keeps its stubs in
   `tests/stubs`, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `nix-remote.sh`
-  command. Fetch the org's `github:` inputs over git first, as above, from the org's `flake.lock`.
-- Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools` and exports `REPO_ROOT=$PWD`, which the
+  command. Fetch the org's `github:` inputs over git first, as above.
+- Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools` and exports `O11N_ORG_ROOT=$PWD`, which the
   wrapper only defaults to `/etc/nix/inputs/self`. To try changes to the tools on the org, `O11N_TOOLS=<o11n
   clone>/tools` puts the clone's `bin/` first on its PATH.
 - Nix runs in single-user mode on this session's `/nix`. Point any other daemon, such as Lix's, at its own store with
@@ -60,7 +41,8 @@ it doesn't put the tools on PATH.
   the fetch would have produced.
 - `pkill -f <pattern>` can match the command line of the shell running it. Kill by PID.
 - Don't evaluate every host of an org here, as Kompismoln/org's `stages.systems` does: ~11 GB and minutes, and more
-  with its homes. That belongs on a host such as pelle (`agents/plan-remote-evaluation.md`).
+  with its homes. That belongs on the remote builder: `nix-remote.sh eval systems [o11n revision]` from the org's
+  clone, once it runs there (`agents/wip-remote-evaluation.md`).
 
 ### Pitfalls
 
@@ -80,18 +62,31 @@ it doesn't put the tools on PATH.
 
 ## Workflow
 
-The workflow spans over a session, starts from a human-reviewed commit and ends with a handover.
+The workflow spans over a session, starts from a human-reviewed commit and ends with a handover. A session is turns,
+each from a human's message to where the agent stops.
 
 ### 1. Before work starts
 
 Run `nix build .#stages.baseline`: on non-zero exit, pause work and relay the flags.
 
-### 2. Between units of work
+### 2. At a turn's start
 
-No rules: use your own judgement and the tests and checks at your disposal (see "Tests and checks"). Commit and push as
-you see fit, a session's hooks may ask for both at a turn's end, but neither is a handover.
+A message that names a commit (`At <rev>`) starts the turn there: fetch the branch and fast-forward to it, or merge it
+in when the branch has commits of the agent's it doesn't. A human's commit since, such as a stamp, is then where the
+next stamps count from, and a push isn't refused for it.
 
-### 3. Handing over
+### 3. Between units of work
+
+Use your own judgement and the tests and checks at your disposal (see "Tests and checks"). Commit and push as you see
+fit; neither is a handover.
+
+### 4. At a turn's end
+
+`.claude/hooks/stop.sh` runs `stamps check`, which fails while the docs that changed since a human last signed have no
+stamps: write them with `nix run .#write-stamps` and commit what it writes. A session's hooks may ask for a commit and
+a push as well.
+
+### 5. Handing over
 
 When asked for a handover or pull request:
 
@@ -135,11 +130,14 @@ more when bats runs, as after a change to `tools/`, `dev/` or `scripts/`.
 
 `nix build .#stages.<name>` builds one category of the checks, those named `<name>` or `<name>-*`:
 
-- `baseline`: what a human settles before work proceeds, `stamps` for now
-- `stamps`: `stamps check` over every Markdown file, ~2s
+- `baseline`: what a human settles before work proceeds: `stamps check --baseline`, which fails on stamps pending, for
+  now
+- `stamps`: `stamps check` over every Markdown file, which fails on a conflict marker that isn't a stamp's and flags
+  stamps pending, ~2s
 - `lint`: nixfmt, statix and deadnix over all Nix, and shellcheck over all shell, from `tools/` for `tools/`, where
   `.shellcheckrc` applies, ~10s
-- `eval`: `tests/nixos/*.nix` and each inventory's `tests.nix`, evaluation tests, ~40s
+- `eval`: `tests/nixos/*.nix` and each inventory's `tests.nix`, evaluation tests, and every inventory home's
+  `activationPackage`, ~40s
 - `leaks`: each inventory host's build plan checked for org names, and the rescue stick's for secrets
   (`tests/leaks.py`), ~90s
 - `bats`: `tools/test`, `dev/test` and `scripts/test`, ~3 minutes
@@ -166,7 +164,7 @@ VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks:
 - `principals`: one host with the inference-server and app-scheduler roles, and an app that imports a module from an
   input. The tests pass an inventory's `inputs.nix`, if it has one, as its `inputs`.
 - `sample`: a cluster meant to use every role. It has `gw` (wg0 gateway and DNS, rescue mode, grub) and `web`, both with
-  the nixos, peer and server roles, and an admin user.
+  the nixos, peer and server roles, and an admin user with a cinnamon-office home on `web`.
 
 Evaluate inventories with `o11nLib.fromInventory { path; inputs ? { }; }`.
 
@@ -199,8 +197,8 @@ Use `generate-keys.sh` with the org tooling in `tools/bin`.
 
 ## Documentation
 
-The handover's `nix run .#write-stamps` inserts git conflict markers between the latest commit a human made and now, a
-human needs to stamp these for next baseline to pass.
+`nix run .#write-stamps` inserts git conflict markers between the latest commit a human made and now, and a human
+stamps them for the next baseline to pass.
 
 - The primary document is `docs/o11n.md`: If a contradiction to it is discovered, stop, describe the landscape and
   provide options.

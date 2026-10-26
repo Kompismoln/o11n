@@ -67,10 +67,9 @@
                 );
             in
             {
-              checks = lib.concatMapAttrs (_: checks: checks) categories;
+              checks = lib.concatMapAttrs (_: checks: checks) (removeAttrs categories [ "baseline" ]);
 
               legacyPackages.stages = lib.mapAttrs stage categories // {
-                baseline = stage "baseline" categories.stamps;
                 vm = stage "vm" config.legacyPackages.vmTests;
               };
 
@@ -92,6 +91,12 @@
               };
 
               legacyPackages.vmTests.phone-home = import ./tests/vm/phone-home.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };
+              };
+
+              legacyPackages.vmTests.remote-eval = import ./tests/vm/remote-eval.nix {
                 inherit pkgs;
                 o11nInputs = inputs;
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };

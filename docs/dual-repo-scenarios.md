@@ -6,11 +6,13 @@ it lands.
 ## The pieces
 
 - An agent's handover, in each repo it changed: `nix flake check`, commit, `nix run .#write-stamps`, commit, push
-  (AGENTS.md, "Workflow").
+  (AGENTS.md, "Workflow"). At the end of each of its turns, the repo's Stop hook already asks it for the stamps of
+  what changed in the docs, so its work arrives stamped.
 - The human's side, from each repo's devShell, with `O11N_DEV` in a `.env` git ignores:
   - `fetch.sh` pulls the branch and builds `stages.baseline`, which flags the stamps pending.
-  - `stamp.sh`, once they're stamped, builds the baseline, commits all as "stamp", pushes, and prints the revision
-    the next session starts at.
+  - `write-stamps` writes them for what changed since their own latest commit, for work pushed without a handover.
+  - `stamp.sh`, once they're stamped, builds the baseline, commits all as "stamp", even with nothing changed when the
+    latest commit isn't theirs, pushes, and prints the revision the next session starts at.
   - `merge.sh` builds the baseline, squashes the branch onto main, pushes main and deletes the branch. It refuses an
     org whose `flake.lock` pins o11n to a commit that isn't on o11n's main.
 - `check-org.sh`, from o11n's devShell with `ORG` in its `.env`, builds the org's `eval` stage with o11n's tree as its

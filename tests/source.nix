@@ -20,6 +20,7 @@ let
     ];
 
   stamps = pkgs.callPackage ../packages/stamps.nix { };
+  docs = source (fileset.fileFilter (f: f.hasExt "md") root);
 in
 {
   lint =
@@ -73,6 +74,7 @@ in
           pkgs.nix
           pkgs.openssh
           pkgs.openssl
+          pkgs.python3
           pkgs.sops
           pkgs.toml2json
           pkgs.tree
@@ -91,7 +93,13 @@ in
       '';
 
   stamps = pkgs.runCommand "stamps" { } ''
-    ${lib.getExe stamps} check ${source (fileset.fileFilter (f: f.hasExt "md") root)}
+    ${lib.getExe stamps} check ${docs}
+    touch $out
+  '';
+
+  # Policy: not a check, so stamps pending fail only what a human settles before work proceeds.
+  baseline = pkgs.runCommand "stamps-baseline" { } ''
+    ${lib.getExe stamps} check --baseline ${docs}
     touch $out
   '';
 }

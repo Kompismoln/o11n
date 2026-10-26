@@ -7,9 +7,11 @@ tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
 . "$tools_root/libexec/run-with.bash"
 
+agent=
+
 cleanup() {
     rm -rf "$tmpdir"
-    ssh-agent -k > >(log info)
+    [[ -z $agent ]] || SSH_AGENT_PID=$agent ssh-agent -k > >(log info)
 }
 trap cleanup EXIT
 
@@ -21,6 +23,7 @@ as() {
     shift
 
     eval "$(ssh-agent -s)" > >(log info)
+    agent=$SSH_AGENT_PID
 
     "$tools_root/bin/id-entities.sh" "$identity" cat-secret age-key >"$key_file"
 

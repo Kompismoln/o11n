@@ -7,8 +7,6 @@
   ...
 }:
 let
-  pathPrefix = "nix-daemon";
-
   builders = lib.filter (peer: lib.elem "remote-builder" peer.roles) (lib.attrValues org.host);
 
   builder = lib.throwIfNot (lib.length builders == 1) ''
@@ -40,27 +38,31 @@ in
   };
 
   # For clients that can't reach the builder themselves, such as an IPv4-only one when the
-  # builder has only IPv6. The builder checks their bearer.
+  # builder has only IPv6: its daemon and its evaluations. The builder checks their bearer.
   services.nginx.virtualHosts.${host.endpoint} = {
     forceSSL = true;
     enableACME = true;
-    locations."/${pathPrefix}/" = {
-      proxyPass = "https://nix-remote-builder";
-      # The builder's nginx picks its vhost by Host, so it gets the builder's endpoint.
-      recommendedProxySettings = false;
-      extraConfig = ''
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_buffering off;
-        proxy_request_buffering off;
-        proxy_set_header Host ${builder.endpoint};
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_ssl_server_name on;
-        proxy_ssl_name ${builder.endpoint};
-        proxy_ssl_verify on;
-        proxy_ssl_verify_depth 2;
-        proxy_ssl_trusted_certificate ${config.security.pki.caBundle};
-      '';
-    };
+    locations =
+      lib.genAttrs ([ "/nix-daemon/" ] ++ lib.optional (org.repository != { }) "/nix-eval/")
+        (_: {
+          proxyPass = "https://nix-remote-builder";
+          # The builder's nginx picks its vhost by Host, so it gets the builder's endpoint.
+          recommendedProxySettings = false;
+          extraConfig = ''
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_request_buffering off;
+            gzip off;
+            brotli off;
+            proxy_set_header Host ${builder.endpoint};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${builder.endpoint};
+            proxy_ssl_verify on;
+            proxy_ssl_verify_depth 2;
+            proxy_ssl_trusted_certificate ${config.security.pki.caBundle};
+          '';
+        });
   };
 }

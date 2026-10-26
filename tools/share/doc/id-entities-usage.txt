@@ -85,8 +85,8 @@ ENVIRONMENT VARIABLES
         REQUIRED. Path to the private age key file of the identity authorized to
         perform the requested action (e.g., a root key).
 
-    REPO_ROOT=<path>
-        The location of the repo to be managed, defaults to pwd if not set.
+    O11N_ORG_ROOT=<path>
+        The location of the org's repo to be managed, defaults to pwd if not set.
         A .sops.yaml is expected directly under this path.
 
     SECRET_SEED=<path>

@@ -1,4 +1,7 @@
 # roles/cinnamon-office.nix
+let
+  unfree = [ "zoom" ];
+in
 {
   flake.homeModules.cinnamon-office = {
     imports = [
@@ -7,41 +10,38 @@
       ../home/org/social.nix
       ../home/org/xdg.nix
       ../home/office.nix
+      ../home/unfree.nix
     ];
 
     config = {
+      o11n.unfree = unfree;
+
       o11n-hm = {
         office.enable = true;
       };
     };
   };
 
-  flake.nixosModules.cinnamon-office =
-    { lib, ... }:
-    {
-      imports = [
-        ../nixos/org/home-manager.nix
-        ../nixos/org/networkmanager.nix
-        ../nixos/org/sound.nix
-        ../nixos/cinnamon.nix
-        ../nixos/printing.nix
-      ];
+  flake.nixosModules.cinnamon-office = {
+    imports = [
+      ../nixos/org/home-manager.nix
+      ../nixos/org/networkmanager.nix
+      ../nixos/org/sound.nix
+      ../nixos/cinnamon.nix
+      ../nixos/printing.nix
+      ../nixos/unfree.nix
+    ];
 
-      config = {
-        nixpkgs.config.allowUnfreePredicate =
-          pkg:
-          builtins.elem (lib.getName pkg) [
-            "zoom"
-          ];
+    config = {
+      programs.evince = {
+        enable = true;
+      };
 
-        programs.evince = {
-          enable = true;
-        };
-
-        o11n = {
-          cinnamon.enable = true;
-          printing.enable = true;
-        };
+      o11n = {
+        inherit unfree;
+        cinnamon.enable = true;
+        printing.enable = true;
       };
     };
+  };
 }

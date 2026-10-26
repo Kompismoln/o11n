@@ -11,6 +11,7 @@ setup() {
   git config user.name agent
   git config user.email agent@example.org
   git config commit.gpgsign false
+  unset O11N_DEV
 }
 
 signed() {
@@ -55,6 +56,34 @@ $opening
 $divider
 five
 $closing" ]
+}
+
+@test "write, with O11N_DEV set as on the human's side, stamps against their own latest commit" {
+  printf 'one\ntwo\n' >doc.md
+  signed
+  printf 'one\nTWO\n' >doc.md
+  worked
+
+  export O11N_DEV=human GIT_AUTHOR_EMAIL=human@example.org
+  run "$stamps" write
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "against $(git log -1 --format='%h %s' HEAD~1)" ]
+  [ "${lines[1]}" = "doc.md: 1 stamps" ]
+
+  printf 'one\nTWO\n' >doc.md
+  git commit -q --allow-empty -m stamp
+  run "$stamps" write
+  [ "${lines[0]}" = "against $(git log -1 --format='%h %s' HEAD)" ]
+  [ "${lines[1]}" = "nothing to write" ]
+}
+
+@test "write, with O11N_DEV set, needs a commit of theirs" {
+  echo one >doc.md
+  worked
+
+  O11N_DEV=human GIT_AUTHOR_EMAIL=human@example.org run "$stamps" write
+  [ "$status" -eq 1 ]
+  [[ $output == *"no commit on HEAD's first parents is by human@example.org"* ]]
 }
 
 @test "write leaves its stamps as they are, and restamps a further change against what was signed" {
@@ -114,18 +143,35 @@ $closing" ]
   [ "$(cat notes.txt)" = two ]
 }
 
-@test "check flags stamps pending until a human stamps them" {
+@test "check, in a clone, fails until the stamps are written" {
+  printf 'one\ntwo\n' >doc.md
+  signed
+  printf 'one\nTWO\n' >doc.md
+  worked
+
+  run "$stamps" check
+  [ "$status" -eq 1 ]
+  [ "$output" = "flag: doc.md: stamps aren't written: run write-stamps" ]
+
+  "$stamps" write
+  run "$stamps" check
+  [ "$status" -eq 0 ]
+  [ "$output" = "flag: doc.md: 1 stamps pending: a human stamps them before work proceeds" ]
+}
+
+@test "check flags stamps pending, and with --baseline fails on them until a human stamps them" {
   printf 'one\ntwo\n' >doc.md
   signed
   printf 'one\nTWO\n' >doc.md
   "$stamps" write
 
-  run "$stamps" check
+  run "$stamps" check --baseline
   [ "$status" -eq 1 ]
   [ "$output" = "flag: doc.md: 1 stamps pending: a human stamps them before work proceeds" ]
 
   printf 'one\nTWO\n' >doc.md
-  run "$stamps" check
+  signed stamp
+  run "$stamps" check --baseline
   [ "$status" -eq 0 ]
   [ "$output" = ok ]
 }
@@ -149,6 +195,9 @@ $closing" ]
 
   printf '%s\n%s\none\n%s\n' "$opening" "$divider" "$closing" >"$BATS_TEST_TMPDIR/plain/docs/doc.md"
   run "$stamps" check "$BATS_TEST_TMPDIR/plain"
-  [ "$status" -eq 1 ]
+  [ "$status" -eq 0 ]
   [ "$output" = "flag: docs/doc.md: 1 stamps pending: a human stamps them before work proceeds" ]
+
+  run "$stamps" check --baseline "$BATS_TEST_TMPDIR/plain"
+  [ "$status" -eq 1 ]
 }

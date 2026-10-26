@@ -97,6 +97,18 @@ pin() {
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
 }
 
+@test "stamp signs what an agent handed over as it is with an empty commit" {
+  GIT_AUTHOR_NAME=agent GIT_AUTHOR_EMAIL=agent@example.org handover two
+  "$scripts/fetch.sh"
+
+  run "$scripts/stamp.sh"
+  [ "$status" -eq 0 ]
+  [ "$(git log -1 --format='%s %ae')" = "stamp alice@example.org" ]
+  [ "$(git rev-parse HEAD~1)" = "$(git rev-parse origin/work~1)" ]
+  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
+  git diff --quiet HEAD~1 HEAD
+}
+
 @test "stamp takes a message" {
   echo two >>file
 

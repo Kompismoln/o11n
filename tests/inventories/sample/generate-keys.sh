@@ -49,3 +49,4 @@ id-entities.sh -s nix-serve new nix-sign
 
 id-entities.sh -s nix-remote init
 id-entities.sh -s nix-remote new secret-key
+id-entities.sh -s nix-remote new ssh-key

@@ -27,7 +27,7 @@
       imports = [
         home.configurationFile
       ]
-      ++ map (role: inputs.o11n.homeModules.${role}) home.roles;
+      ++ map (role: o11nInputs.self.homeModules.${role}) home.roles;
     }) org.host.${host.name}.home;
   };
 }

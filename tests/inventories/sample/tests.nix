@@ -85,20 +85,20 @@ in
   test_wg0_gateway = {
     expr = onHosts (config: {
       listenPort = (wg0 config).wireguardConfig.ListenPort or null;
-      allowedUDPPorts = config.networking.firewall.allowedUDPPorts;
+      portOpen = lib.elem 51820 config.networking.firewall.allowedUDPPorts;
       forwarding = config.boot.kernel.sysctl."net.ipv4.ip_forward" or 0;
       dns = config.services.kresd.enable;
     });
     expected = {
       gw = {
         listenPort = 51820;
-        allowedUDPPorts = [ 51820 ];
+        portOpen = true;
         forwarding = 1;
         dns = true;
       };
       web = {
         listenPort = null;
-        allowedUDPPorts = [ ];
+        portOpen = false;
         forwarding = 0;
         dns = false;
       };
@@ -163,6 +163,7 @@ in
         "admin/mail" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
         "nix-remote/secret-key" = "service-nix-remote.yaml";
+        "nix-remote/ssh-key" = "service-nix-remote.yaml";
         "nix-serve/nix-sign" = "service-nix-serve.yaml";
         "wg0-key" = "host-gw.yaml";
       };
@@ -299,6 +300,14 @@ in
         );
         location =
           config.services.nginx.virtualHosts."gw.example.com".locations."/nix-daemon/".proxyPass or null;
+        evalLocation =
+          config.services.nginx.virtualHosts."gw.example.com".locations."/nix-eval/".proxyPass or null;
+        evaluator = config.systemd.sockets.nix-remote-eval.listenStreams or null;
+        evaluatorUser = config.systemd.services."nix-remote-eval@".serviceConfig.User or null;
+        orgFlake = config.systemd.services."nix-remote-eval@".environment.ORG_FLAKE or null;
+        sshKey = lib.hasInfix (config.sops.secrets."nix-remote/ssh-key".path or "/nonexistent") (
+          config.systemd.services."nix-remote-eval@".environment.GIT_SSH_COMMAND or ""
+        );
         bearer =
           template != null
           && lib.hasInfix config.sops.placeholder."nix-remote/secret-key" template.content
@@ -313,6 +322,11 @@ in
         trusted = false;
         tunnel = "'relay+pht://[fd12:3456:7890:ffff::2010:000a]:8080/[fd12:3456:7890:ffff::2010:000a]:7337?authorizePath=/nix-daemon/authorize&pushPath=/nix-daemon/push&pullPath=/nix-daemon/pull'";
         location = "http://[fd12:3456:7890:ffff::2010:000a]:8080";
+        evalLocation = "http://[fd12:3456:7890:ffff::2010:000a]:7338";
+        evaluator = [ "[fd12:3456:7890:ffff::2010:000a]:7338" ];
+        evaluatorUser = "nix-remote";
+        orgFlake = "github:example/sample/{rev}";
+        sshKey = true;
         bearer = true;
       };
       web = {
@@ -322,18 +336,57 @@ in
         trusted = false;
         tunnel = null;
         location = null;
+        evalLocation = null;
+        evaluator = null;
+        evaluatorUser = null;
+        orgFlake = null;
+        sshKey = false;
         bearer = false;
       };
     };
   };
 
-  # web relays to gw over wg0, with gw's endpoint as Host and as the name its certificate
-  # is checked against.
+  # Without [repository], gw evaluates nothing, and one it can't fetch at a revision fails evaluation.
+  test_remote_builder_repository = {
+    expr =
+      let
+        withRepository =
+          repository:
+          (gw.extendModules {
+            specialArgs.org = outputs.org // {
+              inherit repository;
+            };
+          }).config;
+        without = withRepository { };
+      in
+      {
+        evaluator = without.systemd.sockets ? nix-remote-eval;
+        location = without.services.nginx.virtualHosts."gw.example.com".locations ? "/nix-eval/";
+        failed = map (assertion: assertion.message) (
+          lib.filter (assertion: !assertion.assertion)
+            (withRepository {
+              type = "path";
+              path = "/srv/org";
+            }).assertions
+        );
+      };
+    expected = {
+      evaluator = false;
+      location = false;
+      failed = [
+        ''The remote-builder role evaluates the org from [repository] in org.toml, whose type has to be "github" or "git".''
+      ];
+    };
+  };
+
+  # web relays the daemon and evaluations to gw over wg0, with gw's endpoint as Host and as the
+  # name its certificate is checked against.
   test_remote_builder_relay = {
     expr = onHosts (
       config:
       let
-        location = config.services.nginx.virtualHosts."web.example.com".locations."/nix-daemon/" or null;
+        locations = config.services.nginx.virtualHosts."web.example.com".locations or { };
+        location = locations."/nix-daemon/" or null;
       in
       lib.mapNullable (location: {
         inherit (location) proxyPass;
@@ -341,6 +394,7 @@ in
         host = lib.hasInfix "proxy_set_header Host gw.example.com;" location.extraConfig;
         verify = lib.hasInfix "proxy_ssl_name gw.example.com;" location.extraConfig;
         unbuffered = lib.hasInfix "proxy_buffering off;" location.extraConfig;
+        evaluations = locations."/nix-eval/" == location;
       }) location
     );
     expected = {
@@ -351,6 +405,7 @@ in
         host = true;
         verify = true;
         unbuffered = true;
+        evaluations = true;
       };
     };
   };

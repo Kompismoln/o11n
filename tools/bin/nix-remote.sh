@@ -6,11 +6,15 @@
 #   nix-remote.sh info
 #   nix-remote.sh build <installable>... [nix build options]
 #   nix-remote.sh check [flake] [nix build options]
+#   nix-remote.sh eval <stage> [o11n revision]
 #
 # O11N_REMOTE_BUILDER is the host's URL (https://<endpoint>). The bearer token is read
 # from O11N_REMOTE_BUILDER_TOKEN, or left to a proxy that adds the header itself.
 # Evaluation happens here and the host builds. The outputs stay on the host and
 # can't be read from here, so the build logs are printed as they come.
+#
+# eval, from an org's clone, has the host evaluate and build a stage of the org at HEAD,
+# with o11n at the revision given: both pushed, for the host fetches them itself.
 #
 # gost carries the connection over plain HTTP requests (PHT), through HTTPS_PROXY when
 # it is set. Where only that proxy resolves names, gost needs o11n's patch (o11n#gost).
@@ -182,16 +186,52 @@ remote-check() {
     remote-build "${checks[@]/#/$flake#checks.$system.}" "$@"
 }
 
+# The host answers with nix's output, and a last line with its exit status.
+remote-eval() {
+    local stage=${1:-} o11n=${2:-} org server line status=
+    [[ -n $stage && $# -le 2 ]] || die 1 "usage: nix-remote.sh eval <stage> [o11n revision]"
+    [[ -z $o11n || $o11n =~ ^[0-9a-f]{40}$ ]] || die 1 "$o11n: give o11n's revision whole"
+    command -v curl >/dev/null || die 1 "curl is not on PATH"
+    org=$(git rev-parse HEAD)
+    [[ -n $(git branch -r --contains "$org") ]] || die 1 "$org isn't pushed, and the host fetches it"
+
+    server=${O11N_REMOTE_BUILDER:?"set O11N_REMOTE_BUILDER to the builder's https:// URL"}
+    server=${server#*://}
+    local args=(-sS -N --fail-with-body)
+    if [[ -n ${O11N_REMOTE_BUILDER_TOKEN:-} ]]; then
+        (umask 077 && echo "Authorization: Bearer $O11N_REMOTE_BUILDER_TOKEN" >"$tmpdir/headers")
+        args+=(-H "@$tmpdir/headers")
+    fi
+
+    while IFS= read -r line; do
+        if [[ $line =~ ^nix-remote-eval:\ exit\ ([0-9]+)$ ]]; then
+            status=${BASH_REMATCH[1]}
+        else
+            printf '%s\n' "$line"
+        fi
+    done < <(curl "${args[@]}" "https://${server%%/*}/nix-eval/$stage/$org${o11n:+/$o11n}")
+    [[ -n $status ]] || die 1 "the evaluation on ${server%%/*} didn't finish"
+    return "$status"
+}
+
 nix-remote() {
     local cmd=${1:-}
     local rc=0
     shift || true
 
+    if [[ $cmd == eval ]]; then
+        remote-eval "$@" || rc=$?
+        if [[ $rc -eq 0 ]]; then
+            log success "evaluated and built on $O11N_REMOTE_BUILDER"
+        fi
+        return "$rc"
+    fi
+
     case $cmd in
     info) store-info "$@" || rc=$? ;;
     build) remote-build "$@" || rc=$? ;;
     check) remote-check "$@" || rc=$? ;;
-    *) die 1 "usage: nix-remote.sh info | build <installable>... | check [flake]" ;;
+    *) die 1 "usage: nix-remote.sh info | build <installable>... | check [flake] | eval <stage> [o11n revision]" ;;
     esac
 
     if [[ $rc -ne 0 ]]; then

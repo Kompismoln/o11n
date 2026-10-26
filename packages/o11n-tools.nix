@@ -1,5 +1,6 @@
 {
   age,
+  curl,
   jq,
   lib,
   makeWrapper,
@@ -42,10 +43,11 @@ stdenv.mkDerivation {
 
     for script in $out/bin/*; do
       wrapProgram "$script" \
-        --set-default REPO_ROOT /etc/nix/inputs/self \
+        --set-default O11N_ORG_ROOT /etc/nix/inputs/self \
         --prefix PATH : ${
           lib.makeBinPath [
             age
+            curl
             jq
             openssl
             openssh

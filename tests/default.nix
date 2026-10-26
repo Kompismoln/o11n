@@ -40,6 +40,15 @@ let
     )
   ) inventories;
 
+  homeChecks.eval-homes = pkgs.runCommand "eval-homes" {
+    drvs = lib.concatMap (
+      outputs:
+      map (home: builtins.unsafeDiscardOutputDependency home.activationPackage.drvPath) (
+        lib.attrValues outputs.homeConfigurations
+      )
+    ) (lib.attrValues inventories);
+  } "touch $out";
+
   leakPatterns = [
     "kompismoln"
     "ahbk"
@@ -91,7 +100,7 @@ let
       '';
 in
 {
-  eval = nixosChecks // inventoryChecks;
+  eval = nixosChecks // inventoryChecks // homeChecks;
   leaks = hostChecks // rescueUsbChecks;
 }
 // lib.mapAttrs (name: check: { ${name} = check; }) (import ./source.nix { inherit pkgs; })

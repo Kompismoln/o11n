@@ -3,7 +3,6 @@
   flake.nixosModules.inference-server =
     {
       config,
-      lib,
       pkgs,
       ...
     }:
@@ -11,6 +10,7 @@
       imports = [
         ../nixos/org/sops.nix
         ../nixos/huggingface.nix
+        ../nixos/unfree.nix
         ../nixos/vllm.nix
       ];
 
@@ -39,17 +39,7 @@
       ];
 
       nixpkgs.config = {
-        allowUnfreePredicate =
-          pkg:
-          (pkgs._cuda.lib.allowUnfreeCudaPredicate pkg)
-          || (builtins.elem (lib.getName pkg) [
-            "nvidia-kernel-modules"
-            "nvidia-x11"
-            "nvidia-settings"
-            "nvidia-cutlass-dsl"
-            "nvidia-cutlass-dsl-libs-base"
-            "cuda-bindings"
-          ]);
+        allowUnfreePredicate = pkgs._cuda.lib.allowUnfreeCudaPredicate;
         cudaSupport = true;
       };
 
@@ -76,6 +66,14 @@
           repo = "/srv/models/huggingface";
         };
 
+        unfree = [
+          "nvidia-kernel-modules"
+          "nvidia-x11"
+          "nvidia-settings"
+          "nvidia-cutlass-dsl"
+          "nvidia-cutlass-dsl-libs-base"
+          "cuda-bindings"
+        ];
       };
     };
 }

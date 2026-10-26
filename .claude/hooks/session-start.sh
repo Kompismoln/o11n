@@ -3,9 +3,8 @@
 #
 # Claude Code cloud sessions can't download GitHub archives (HTTP 403), and
 # that is how Nix fetches github: flake inputs; git over https works. This
-# fetches every github: input in flake.lock over git, at the locked revision,
-# so it is in the store under the content hash the lock expects and plain nix
-# commands work. Inputs it can't reach, like private git+ssh ones, are left out.
+# fetches every github: input in flake.lock over git with
+# dev/fetch-github-inputs.sh, so plain nix commands work, and roots them.
 #
 # It also puts the formatters, linters and the tools' dependencies on PATH, and
 # unshallows the clone so it can be read as git+file://.
@@ -31,28 +30,10 @@ if [[ $(git rev-parse --is-shallow-repository) == true ]]; then
     git fetch --quiet --unshallow || log "could not unshallow the clone"
 fi
 
-mapfile -t refs < <(
-    python3 - flake.lock <<'EOF'
-import json, sys
-for node in json.load(open(sys.argv[1]))["nodes"].values():
-    locked = node.get("locked", {})
-    if locked.get("type") == "github":
-        print(f"git+https://github.com/{locked['owner']}/{locked['repo']}?rev={locked['rev']}&shallow=1")
-EOF
-)
-
-fetch_log=$(mktemp)
-trap 'rm -f "$fetch_log"' EXIT
-
 i=0
-for ref in $(printf '%s\n' "${refs[@]}" | sort -u); do
-    if path=$(nix flake prefetch --json "$ref" 2>"$fetch_log" | python3 -c 'import json, sys; print(json.load(sys.stdin)["storePath"])'); then
-        nix-store --quiet --add-root "$roots/input-$((i++))" --realise "$path" >/dev/null
-    else
-        log "could not fetch $ref:"
-        cat "$fetch_log" >&2
-    fi
-done
+while IFS= read -r path; do
+    nix-store --quiet --add-root "$roots/input-$((i++))" --realise "$path" >/dev/null
+done < <(dev/fetch-github-inputs.sh)
 
 bins=()
 for out in $(nix build --no-link --print-out-paths "${nixpkgs_args[@]}" "${packages[@]/#/$nixpkgs.}" .#gost); do

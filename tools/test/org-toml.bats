@@ -162,3 +162,11 @@ setup() {
   run org-toml.sh "ids-by-substring" "*" "l"
   expect 0 "service-sysctl-user-portal" 4
 }
+
+@test "org-toml reads the org at O11N_ORG_ROOT, whatever another project calls its root" {
+  mkdir "$BATS_TEST_TMPDIR/project"
+  cd "$BATS_TEST_TMPDIR/project"
+
+  REPO_ROOT=$PWD O11N_ORG_ROOT=$TESTROOT run org-toml.sh "name"
+  expect 0 "Testorg"
+}

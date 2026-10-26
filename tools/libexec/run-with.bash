@@ -147,7 +147,7 @@ trailing-newline() {
 
 declare -g repo_root
 repo_root() {
-    local repo_root=${REPO_ROOT:-$(pwd)}
+    local repo_root=${O11N_ORG_ROOT:-$(pwd)}
     [[ -d $repo_root ]] || die 1 "$repo_root is not a directory"
     echo "$repo_root"
 }

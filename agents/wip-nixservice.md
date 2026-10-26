@@ -135,7 +135,7 @@ and copies to the target.
   `tools/remote/` or as a `writeShellApplication` in `nixos/org/nix.nix`).
 - The org runs its own copy of `tools/`, which has drifted from o11n's. Either
   apply the same changes there, or first let the org's devShell use o11n's
-  km-tools (needs km-tools to `--set-default` rather than `--set` `REPO_ROOT`,
+  km-tools (needs km-tools to `--set-default` rather than `--set` `O11N_ORG_ROOT`,
   so the operator's working tree can win).
 
 ## Tests (in tests/inventories/sample)

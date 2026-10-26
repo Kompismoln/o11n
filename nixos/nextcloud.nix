@@ -10,67 +10,69 @@ let
 
   eachApp = lib.filterAttrs (_app: appCfg: appCfg.enable) cfg.apps;
 
-  appOpts = {
-    options = {
-      enable = lib.mkEnableOption "nextcloud";
-      name = lib.mkOption {
-        description = "app name";
-        type = lib.types.str;
-      };
-      endpoint = lib.mkOption {
-        description = "app's endpoint";
-        type = lib.types.str;
-      };
-      home = lib.mkOption {
-        description = "app's home";
-        type = lib.types.str;
-      };
-      package = lib.mkOption {
-        description = "app package";
-        type = lib.types.package;
-      };
-      bindAddress = lib.mkOption {
-        description = "address this app should bind to";
-        type = lib.types.str;
-      };
-      uid = lib.mkOption {
-        description = "host user id for container mirroring";
-        type = lib.types.int;
-      };
-      gid = lib.mkOption {
-        description = "group id for container mirroring";
-        type = lib.types.int;
-      };
-      secretKeyPath = lib.mkOption {
-        description = "path to secret key file";
-        type = lib.types.str;
-      };
-      port = lib.mkOption {
-        description = "port";
-        type = lib.types.port;
-        default = 4000;
-      };
-      ssl = lib.mkOption {
-        description = "force encrypted connections";
-        type = lib.types.bool;
-        default = true;
-      };
-      database = lib.mkOption {
-        description = "database name";
-        type = lib.types.str;
-        default = config.name;
-      };
-      user = lib.mkOption {
-        description = "user name";
-        type = lib.types.str;
-        default = config.name;
-      };
-      collaboraEndpoint = lib.mkOption {
-        description = "collabora endpoint";
-        type = with lib.types; nullOr str;
+  appOpts =
+    { config, ... }:
+    {
+      options = {
+        enable = lib.mkEnableOption "nextcloud";
+        name = lib.mkOption {
+          description = "app name";
+          type = lib.types.str;
+        };
+        endpoint = lib.mkOption {
+          description = "app's endpoint";
+          type = lib.types.str;
+        };
+        home = lib.mkOption {
+          description = "app's home";
+          type = lib.types.str;
+        };
+        package = lib.mkOption {
+          description = "app package";
+          type = lib.types.package;
+        };
+        bindAddress = lib.mkOption {
+          description = "address this app should bind to";
+          type = lib.types.str;
+        };
+        uid = lib.mkOption {
+          description = "host user id for container mirroring";
+          type = lib.types.int;
+        };
+        gid = lib.mkOption {
+          description = "group id for container mirroring";
+          type = lib.types.int;
+        };
+        secretKeyPath = lib.mkOption {
+          description = "path to secret key file";
+          type = lib.types.str;
+        };
+        port = lib.mkOption {
+          description = "port";
+          type = lib.types.port;
+          default = 4000;
+        };
+        ssl = lib.mkOption {
+          description = "force encrypted connections";
+          type = lib.types.bool;
+          default = true;
+        };
+        database = lib.mkOption {
+          description = "database name";
+          type = lib.types.str;
+          default = config.name;
+        };
+        user = lib.mkOption {
+          description = "user name";
+          type = lib.types.str;
+          default = config.name;
+        };
+        collaboraEndpoint = lib.mkOption {
+          description = "collabora endpoint";
+          type = with lib.types; nullOr str;
+        };
       };
     };
-  };
 in
 {
   imports = [
@@ -89,8 +91,16 @@ in
 
   config = lib.mkIf (eachApp != { }) {
 
+    # Policy: the container connects as the host user with its uid, by peer authentication.
+    assertions = lib.mapAttrsToList (_: app: {
+      assertion = (config.users.users.${app.user}.uid or null) == app.uid;
+      message = "Nextcloud ${app.name} connects to postgresql as the host's user ${app.user}, whose uid has to be ${toString app.uid}.";
+    }) eachApp;
+
     o11n.postgresql = {
       databases = lib.mapAttrs' (_: app: lib.nameValuePair app.database { inherit (app) user; }) eachApp;
+      # Fact: the container reaches it through a bind of /run/postgresql, which postgresql makes
+      # anew each time it starts.
       containers = lib.attrNames eachApp;
     };
 
@@ -141,9 +151,8 @@ in
           isReadOnly = false;
           hostPath = app.home;
         };
-        "/run/secrets/db-password" = {
-          isReadOnly = true;
-          hostPath = app.secretKeyPath;
+        "/run/postgresql" = {
+          isReadOnly = false;
         };
         "/run/secrets/admin-password" = {
           isReadOnly = true;
@@ -217,8 +226,7 @@ in
           };
           config = {
             dbtype = "pgsql";
-            dbhost = "localhost";
-            dbpassFile = "/run/secrets/db-password";
+            dbhost = "/run/postgresql";
             dbuser = app.user;
             dbname = app.database;
             adminpassFile = "/run/secrets/admin-password";
