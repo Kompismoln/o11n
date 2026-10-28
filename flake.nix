@@ -2,7 +2,7 @@
   description = "o11n nixos fleet manager";
 
   inputs = {
-    nixpkgs.url = "github:Kompismoln/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:Kompismoln/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
