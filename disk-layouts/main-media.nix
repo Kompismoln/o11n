@@ -11,9 +11,7 @@
   };
 
   boot.initrd.systemd = {
-    enable = true;
     services."format-root" = {
-      enable = true;
       description = "Format the root LV partition at boot";
       unitConfig = {
         DefaultDependencies = "no";

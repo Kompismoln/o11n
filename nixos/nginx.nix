@@ -68,7 +68,6 @@ in
       '';
 
       appendConfig = ''
-        worker_processes auto;
         worker_cpu_affinity auto;
       '';
     };
