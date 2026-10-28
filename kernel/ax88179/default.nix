@@ -1,4 +1,8 @@
-{ stdenv, kernel }:
+{
+  stdenv,
+  kernel,
+  kernelModuleMakeFlags,
+}:
 
 stdenv.mkDerivation rec {
   pname = "ax88179-vendor";
@@ -19,21 +23,25 @@ stdenv.mkDerivation rec {
 
   KDIR = "${kernel.dev}/lib/modules/${kernel.modDirVersion}/build";
 
-  makeFlags = [
+  makeFlags = kernelModuleMakeFlags ++ [
     "KDIR=${KDIR}"
     "TOOL_EXTRA_CFLAGS="
+    "INSTALL_MOD_PATH=${placeholder "out"}"
+    "INSTALL_MOD_DIR=kernel/drivers/net/usb"
   ];
 
-  installPhase = ''
-    runHook preInstall
+  # Call kbuild's modules_install directly; it signs the module and writes the
+  # ax_usb_nic.ko.cer certificate aggregateModules expects.
+  installFlags = [
+    "-C"
+    KDIR
+    "M=$(PWD)"
+  ];
 
-    long_mod_dir="$out/lib/modules/${kernel.modDirVersion}/kernel/drivers/net/usb"
-    mkdir -p "$long_mod_dir"
-    cp ax_usb_nic.ko "$long_mod_dir/"
+  installTargets = [ "modules_install" ];
 
+  postInstall = ''
     mkdir -p "$out/bin"
     cp axcmd *_programmer *_ieee "$out/bin/"
-
-    runHook postInstall
   '';
 }
