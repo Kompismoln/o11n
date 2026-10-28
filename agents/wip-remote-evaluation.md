@@ -35,7 +35,7 @@ nix-remote.sh eval --GET https://<endpoint>/nix-eval/<stage>/<org rev>[/<o11n re
   `drvs`, which nix doesn't print again once it's built. The last line is `nix-remote-eval: exit <status>`, which
   `nix-remote.sh` exits with.
 - With an o11n revision, it reads o11n's source from the org's lock at that revision (a `github` or `git` input) and
-  overrides the input named `o11n`, as `check-org.sh` does.
+  overrides the input named `o11n`, as `./dev/operator.sh check-org` does.
 - A `git` repository is fetched with all its refs (`allRefs=1`), for a revision on a branch: by revision alone, nix
   looks for it on the default branch.
 - Private inputs, and a private org: when the org has `public-keys/service-nix-remote-ssh-key.pub`, git gets
@@ -46,8 +46,8 @@ nix-remote.sh eval --GET https://<endpoint>/nix-eval/<stage>/<org rev>[/<o11n re
 
 ## Verified
 
-In a VM (`vmTests.remote-eval`, Lix, built on pelle with `nix-remote.sh build`): the sample's gw with the
-remote-builder module, its nginx and the sample's secrets, and an org flake in a repository on gw:
+In a VM (`vmTests.remote-eval`, Lix, built on pelle with `nix-remote.sh build`): the sample's gw with the remote-builder
+module, its nginx and the sample's secrets, and an org flake in a repository on gw:
 
 - A request without the bearer gets 401, and one that isn't for a stage and whole revisions gets 400 and the usage.
 - A stage is built at the org's revision and its lock, with the private input fetched over ssh with nix-remote's key,
@@ -63,13 +63,13 @@ remote-builder module, its nginx and the sample's secrets, and an org flake in a
 
 Against pelle and helsinki, from a Claude session:
 
-- The session's network secret for helsinki carries the bearer to `/nix-eval/` too: a request that isn't for a stage
-  got pelle's 400 and usage.
+- The session's network secret for helsinki carries the bearer to `/nix-eval/` too: a request that isn't for a stage got
+  pelle's 400 and usage.
 - With `[repository]` as `github`, pelle's nix got 404 for the archive of Kompismoln/org, which is private: GitHub
   answers 404 to a download without a token. A private org is `git` over ssh with nix-remote's key.
 - `nix-remote.sh eval systems`, at a revision on a branch: pelle fetched the org and its private inputs over ssh,
-  evaluated every host's system and built the stage, in about three minutes. The lines every 30 s kept the response
-  open through the proxy and both nginx.
+  evaluated every host's system and built the stage, in about three minutes. The lines every 30 s kept the response open
+  through the proxy and both nginx.
 
 ## Unverified
 
@@ -82,8 +82,8 @@ Against pelle and helsinki, from a Claude session:
 - `[repository]` in `org.toml`: the org's own flake, not `[flake]`, which is what the hosts' registry calls `o11n`. A
   public org can be `type = "github"`; a private one is `type = "git"` with
   `url = "ssh://git@github.com/<owner>/<repo>"`.
-- For a private org or private inputs: `id-entities.sh -s nix-remote new ssh-key`, and its public half given read
-  access to them. GitHub takes a deploy key for one repository only, so for several it's a machine user with the key.
+- For a private org or private inputs: `id-entities.sh -s nix-remote new ssh-key`, and its public half given read access
+  to them. GitHub takes a deploy key for one repository only, so for several it's a machine user with the key.
 - Room on the builder for the evaluation: Kompismoln/org's `stages.systems` peaked at ~11 GB in a session.
 
 Then, from an org's clone: `<o11n clone>/tools/bin/nix-remote.sh eval systems [o11n revision]`.
@@ -91,7 +91,7 @@ Then, from an org's clone: `<o11n clone>/tools/bin/nix-remote.sh eval systems [o
 ## Considered
 
 - The plan's gost tunnel to the service: HTTP does it with less.
-- Running `nix build .#stages.systems` on pelle after `fetch.sh` and relaying what fails: needs nothing new, and still
-  works.
+- Running `nix build .#stages.systems` on pelle after `./dev/operator.sh fetch` and relaying what fails: needs nothing
+  new, and still works.
 - Evaluating inside a build on pelle with recursive-nix: it needs an experimental daemon feature and the network inside
   the sandbox to fetch the org's inputs.

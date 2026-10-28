@@ -5,7 +5,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/dev/agent.sh session-start",
+            "timeout": 900
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/dev/agent.sh turn-start",
+            "timeout": 900
           }
         ]
       }
@@ -15,7 +27,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop.sh"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/dev/agent.sh turn-end",
+            "timeout": 300
           }
         ]
       }

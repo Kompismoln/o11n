@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Usage: stamps write | stamps check [--baseline] [dir]
+# Usage: stamps write <commit> | stamps check [dir] | stamps pending [dir]
 #
-# A stamp pending is a git conflict in a Markdown file, from `<<<<<<< signed` to `=======` as a
-# human last signed it and on to the `>>>>>>>` closing it as written now: a human stamps it.
-# `stamps write`, in a clone, writes one around each change since what a human last signed.
-# `stamps check` fails on a conflict marker that isn't a stamp's, and in a clone on stamps that
-# aren't written; it flags the stamps pending, and with --baseline fails on them too. It reads a
-# clone or a directory without git.
+# A stamp pending is a git conflict in a Markdown file, from `<<<<<<< signed` to `=======` as the
+# operator last signed it and on to the `>>>>>>>` closing it as written now: the operator stamps it.
+# `stamps write`, in a clone, writes one around each change to a doc since the commit, against what
+# the operator had signed of it there. `stamps check` flags a conflict marker that isn't a stamp's
+# and a stamp that isn't closed, and `stamps pending` the stamps pending as well; each fails if it
+# flags any, and reads a clone or a directory without git.
 set -euo pipefail
 
 opening="<<<<<<< signed"
@@ -37,22 +37,6 @@ marked() {
         --new-group-format="$opening"$'\n'"$divider"$'\n'%\>"$closing"$'\n' \
         --changed-group-format="$opening"$'\n'%\<"$divider"$'\n'%\>"$closing"$'\n' \
         "$1" "$2" || [[ $? -eq 1 ]]
-}
-
-# Sets base to what a human last signed: the latest commit on HEAD's first parents that someone
-# else made, or, with O11N_DEV set as on the human's side, that you made; and signer to who that is.
-find-base() {
-    local mine commits
-    mine=$(git var GIT_AUTHOR_IDENT | sed 's/.*<\(.*\)>.*/\1/')
-    commits=$(git log --first-parent --format='%H %ae' 2>/dev/null) || commits=
-    if [[ -n ${O11N_DEV:-} ]]; then
-        signer=$mine
-        base=$(awk -v mine="$mine" '!found && $2 == mine { print $1; found = 1 }' <<<"$commits")
-    else
-        signer="anyone but $mine"
-        base=$(awk -v mine="$mine" '!found && $2 != mine { print $1; found = 1 }' <<<"$commits")
-    fi
-    [[ -n $base ]]
 }
 
 # Calls $1 with each document changed since base, and the path it had then, if any.
@@ -97,17 +81,10 @@ restamp() {
     written=1
 }
 
-unwritten() {
-    stamped "$@"
-    cmp -s "$tmp/written" "$1" && return
-    echo "flag: $1: stamps aren't written: run write-stamps" >&2
-    behind=1
-}
-
 write() {
     cd "$(git rev-parse --show-toplevel)"
-    local base signer written=0
-    find-base || die "write: no commit on HEAD's first parents is by $signer, so nothing says what a human signed"
+    local base written=0
+    base=$(git rev-parse --verify -q "${1:-}^{commit}") || die "write: '${1:-}' isn't a commit"
     echo "against $(git log -1 --format='%h %s' "$base")"
 
     tmp=$(mktemp -d)
@@ -116,40 +93,23 @@ write() {
     ((written)) || echo "nothing to write"
 }
 
-check() {
-    local baseline=0
-    if [[ ${1:-} == --baseline ]]; then
-        baseline=1
-        shift
-    fi
-    cd "${1:-.}"
-    local path n why flagged=0 failed=0
+# Flags each document's conflict markers that aren't a stamp's or aren't closed, and with $1 set its
+# stamps pending, and fails if it flags any.
+scan() {
+    local pending=$1 path why n failed=0
+    cd "${2:-.}"
     while IFS= read -r -d '' path; do
         path=${path#./}
         [[ -f $path ]] || continue
         if ! why=$(side applied "$path" "$path" 2>&1 >/dev/null); then
             echo "flag: $why" >&2
             failed=1
-            continue
-        fi
-        n=$(grep -cxF "$opening" "$path" || :)
-        if ((n > 0)); then
-            echo "flag: $path: $n stamps pending: a human stamps them before work proceeds" >&2
-            flagged=1
-            ((baseline == 0)) || failed=1
+        elif ((pending)) && n=$(grep -cxF "$opening" "$path"); then
+            echo "flag: $path: $n stamps pending: the operator stamps them before work proceeds" >&2
+            failed=1
         fi
     done < <(documents)
-
-    local base signer behind=0
-    if ((failed == 0)) && git rev-parse --git-dir >/dev/null 2>&1 && find-base; then
-        cd "$(git rev-parse --show-toplevel)"
-        tmp=$(mktemp -d)
-        trap 'rm -rf "$tmp"' EXIT
-        changes unwritten
-        ((behind == 0)) || failed=1
-    fi
-    ((failed == 0)) || exit 1
-    ((flagged)) || echo ok
+    ((failed == 0))
 }
 
 documents() {
@@ -161,10 +121,8 @@ documents() {
 }
 
 case ${1:-} in
-write) write ;;
-check)
-    shift
-    check "$@"
-    ;;
-*) die "usage: stamps write | stamps check [--baseline] [dir]" ;;
+write) write "${2:-}" ;;
+check) scan 0 "${2:-}" ;;
+pending) scan 1 "${2:-}" ;;
+*) die "usage: stamps write <commit> | stamps check [dir] | stamps pending [dir]" ;;
 esac

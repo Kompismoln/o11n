@@ -2,23 +2,34 @@
 
 # shellcheck disable=SC2016 # Accommodating for the stubs, whose variables expand when they run
 setup() {
-  scripts=$BATS_TEST_DIRNAME/..
+  operator=$BATS_TEST_DIRNAME/../operator.sh
   cd "$BATS_TEST_TMPDIR" || exit
   mkdir bin
-  stub as.sh 'shift; exec "$@"'
-  stub nix 'echo "$PWD: nix $*" >>"$BATS_TEST_TMPDIR/nix.log"; [[ $PWD != "${NIX_FAILS_IN:-}" ]]'
-  stub empty-editor ': >"$1"'
+  stub bin/as.sh 'shift; exec "$@"'
+  stub bin/nix 'echo "$PWD: nix $*" >>"$BATS_TEST_TMPDIR/nix.log"; [[ $PWD != "${NIX_FAILS_IN:-}" ]]'
+  stub bin/empty-editor ': >"$1"'
   export PATH=$BATS_TEST_TMPDIR/bin:$PATH O11N_DEV=alice GIT_EDITOR=true
   export GIT_AUTHOR_NAME=alice GIT_AUTHOR_EMAIL=alice@example.org
   export GIT_COMMITTER_NAME=alice GIT_COMMITTER_EMAIL=alice@example.org
+  unset CHECK_FAILS
 
   git init -q --bare -b main origin.git
   git init -q -b main repo
   cd repo || exit
+  git config commit.gpgsign false
   top=$(git rev-parse --show-toplevel)
   git remote add origin ../origin.git
+  mkdir dev
+  cp "$BATS_TEST_DIRNAME/../.gitignore" dev/
+  stub check.sh 'echo "$*" >>"$BATS_TEST_TMPDIR/checks.log"
+for stage in "$@"; do
+  if [[ " ${CHECK_FAILS:-} " == *" $stage "* ]]; then
+    echo "flag: $stage" >&2
+    exit 1
+  fi
+done'
   echo one >file
-  git add file
+  git add -A
   git commit -q -m one
   git push -q -u origin main
   git checkout -q -b work
@@ -26,14 +37,19 @@ setup() {
 }
 
 stub() {
-  printf '#!%s\n%s\n' "$BASH" "$2" >"$BATS_TEST_TMPDIR/bin/$1"
-  chmod +x "$BATS_TEST_TMPDIR/bin/$1"
+  printf '#!%s\n%s\n' "$BASH" "$2" >"$1"
+  chmod +x "$1"
 }
 
-handover() {
+# Commits $1 on a line of its own to file, as the agent, and pushes it.
+push() {
   local agent=$BATS_TEST_TMPDIR/agent
-  [[ -d $agent ]] || git clone -q -b work "$BATS_TEST_TMPDIR/origin.git" "$agent"
-  (cd "$agent" && git pull -q && echo "$1" >>file && git commit -qam "$1" && git push -q)
+  [[ -d $agent ]] || git clone -q -c commit.gpgsign=false -b work "$BATS_TEST_TMPDIR/origin.git" "$agent"
+  (
+    cd "$agent" || exit
+    export GIT_AUTHOR_NAME=agent GIT_AUTHOR_EMAIL=agent@example.org
+    git pull -q && echo "$1" >>file && git commit -qam "$1" && git push -q
+  )
 }
 
 commit() {
@@ -48,83 +64,78 @@ pin() {
   git commit -qm "pin o11n"
 }
 
-@test "fetch pulls what an agent handed over and checks the baseline" {
-  handover two
+@test "fetch switches to the branch, brings it up to its tip on origin, and says what is pending" {
+  push two
+  git checkout -q main
 
-  run "$scripts/fetch.sh"
+  CHECK_FAILS=pending run "$operator" fetch work
   [ "$status" -eq 0 ]
+  [ "$(git branch --show-current)" = work ]
   [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/work)" ]
-  [ "$(tail -1 file)" = two ]
-  grep -qxF "$top: nix build --no-link -L .#stages.baseline" "$BATS_TEST_TMPDIR/nix.log"
+  [ "$output" = "flag: pending" ]
 }
 
-@test "fetch fails with the baseline, and on a branch that went its own way" {
-  handover two
-  NIX_FAILS_IN=$top run "$scripts/fetch.sh"
-  [ "$status" -ne 0 ]
-
+@test "fetch fails on a branch that went its own way" {
   commit mine
-  handover three
-  run "$scripts/fetch.sh"
+  push two
+
+  run "$operator" fetch
   [ "$status" -ne 0 ]
   [ "$(tail -1 file)" = mine ]
 }
 
-@test "stamp checks, commits all as stamp, pushes and prints the revision" {
+@test "stamp, once nothing is pending, commits all as stamp, pushes and prints the revision" {
+  push two
+  "$operator" fetch
   echo two >>file
   echo new >new
 
-  run "$scripts/stamp.sh"
+  run "$operator" stamp
   [ "$status" -eq 0 ]
   [ "$output" = "$(git rev-parse --short HEAD)" ]
   [ "$(git log -1 --format=%s)" = stamp ]
   [ "$(git show HEAD:new)" = new ]
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-  grep -qxF "$top: nix build --no-link -L .#stages.baseline" "$BATS_TEST_TMPDIR/nix.log"
+  [ "$(cat dev/stamped)" = "$(git rev-parse HEAD)" ]
 }
 
-@test "stamp commits nothing the baseline fails, and pushes what's committed when nothing is left to" {
+@test "stamp commits nothing while something is pending, and takes a message" {
   echo two >>file
-  NIX_FAILS_IN=$top run "$scripts/stamp.sh"
-  [ "$status" -ne 0 ]
+
+  CHECK_FAILS=pending run "$operator" stamp
+  [ "$status" -eq 1 ]
+  [ "${lines[-1]}" = "error: pending, as flagged above; nothing was committed" ]
   [ "$(git log -1 --format=%s)" = one ]
-  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
 
-  git commit -qm two
-  run "$scripts/stamp.sh"
-  [ "$status" -eq 0 ]
-  [ "$(git log -1 --format=%s)" = two ]
-  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-}
-
-@test "stamp signs what an agent handed over as it is with an empty commit" {
-  GIT_AUTHOR_NAME=agent GIT_AUTHOR_EMAIL=agent@example.org handover two
-  "$scripts/fetch.sh"
-
-  run "$scripts/stamp.sh"
-  [ "$status" -eq 0 ]
-  [ "$(git log -1 --format='%s %ae')" = "stamp alice@example.org" ]
-  [ "$(git rev-parse HEAD~1)" = "$(git rev-parse origin/work~1)" ]
-  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-  git diff --quiet HEAD~1 HEAD
-}
-
-@test "stamp takes a message" {
-  echo two >>file
-
-  run "$scripts/stamp.sh" "stamp the docs"
+  run "$operator" stamp "stamp the docs"
   [ "$status" -eq 0 ]
   [ "$(git log -1 --format=%s)" = "stamp the docs" ]
 }
 
-@test "merge squashes the branch onto main, pushes it and deletes the branch" {
+@test "stamp prints at once when nothing changed since it last stamped, and pushes what's committed" {
+  "$operator" stamp
+  rm "$BATS_TEST_TMPDIR/checks.log"
+
+  run "$operator" stamp
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(git rev-parse --short HEAD)" ]
+  [ ! -e "$BATS_TEST_TMPDIR/checks.log" ]
+
+  commit two
+  run "$operator" stamp
+  [ "$(git log -1 --format=%s)" = two ]
+  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
+}
+
+@test "merge squashes the branch onto main once it holds, pushes it and deletes the branch" {
   commit two
   commit three
   git push -q
   tree=$(git rev-parse "HEAD^{tree}")
 
-  run "$scripts/merge.sh"
+  run "$operator" merge
   [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "pending eval" ]
   [ "${lines[-1]}" = "$(git rev-parse --short main)" ]
   [ "$(git branch --show-current)" = main ]
   [ "$(git rev-list --count main)" = 2 ]
@@ -139,18 +150,20 @@ three" ]
   [ "$status" -ne 0 ]
 }
 
-@test "merge changes nothing on an empty message, or when the baseline fails" {
+@test "merge commits what's left on the branch, and changes nothing on an empty message or when it doesn't hold" {
   commit two
+  echo three >>file
 
-  GIT_EDITOR=$BATS_TEST_TMPDIR/bin/empty-editor run "$scripts/merge.sh"
+  GIT_EDITOR=$BATS_TEST_TMPDIR/bin/empty-editor run "$operator" merge
   [ "$status" -eq 1 ]
   [[ $output == *"commit aborted; nothing was changed"* ]]
+  [ "$(git log -1 --format=%s)" = merge ]
   [ "$(git branch --show-current)" = work ]
   [ "$(git rev-list --count main)" = 1 ]
 
-  NIX_FAILS_IN=$top run "$scripts/merge.sh"
+  CHECK_FAILS="eval" run "$operator" merge
   [ "$status" -eq 1 ]
-  [[ $output == *"'work' doesn't hold, for the above; nothing was changed"* ]]
+  [[ $output == *"'work' doesn't hold, for the above; nothing was merged"* ]]
   [ "$(git branch --show-current)" = work ]
   [ "$(git rev-list --count main)" = 1 ]
 }
@@ -161,7 +174,7 @@ three" ]
   commit other
   git checkout -q work
 
-  run "$scripts/merge.sh"
+  run "$operator" merge
   [ "$status" -eq 1 ]
   [[ $output == *"'work' is not based on the tip of 'main'"* ]]
 }
@@ -176,47 +189,43 @@ three" ]
   git -C "$BATS_TEST_TMPDIR/o11n" checkout -q main
 
   pin "$on_branch"
-  run "$scripts/merge.sh"
+  run "$operator" merge
   [ "$status" -eq 1 ]
   [[ $output == *"'work' pins o11n at $on_branch, which isn't on o11n's main"* ]]
   [ "$(git rev-list --count main)" = 1 ]
 
   pin "$on_main"
-  run "$scripts/merge.sh"
+  run "$operator" merge
   [ "$status" -eq 0 ]
   [ "$(git show main:flake.lock | jq -r .nodes.o11n.locked.rev)" = "$on_main" ]
 }
 
-@test "check-org builds the org's eval stage with this tree as its o11n" {
-  mkdir "$BATS_TEST_TMPDIR/org"
+@test "check-org builds the org's eval stage with this tree as its o11n, ORG relative to the clone's root" {
+  mkdir "$BATS_TEST_TMPDIR/org" sub
+  cd sub || exit
 
-  ORG=$BATS_TEST_TMPDIR/org run "$scripts/check-org.sh"
+  ORG=../org run "$operator" check-org
   [ "$status" -eq 0 ]
   grep -qxF "$BATS_TEST_TMPDIR/org: nix build --no-link -L .#stages.eval --override-input o11n git+file://$top" \
     "$BATS_TEST_TMPDIR/nix.log"
 
-  ORG=$BATS_TEST_TMPDIR/org NIX_FAILS_IN=$BATS_TEST_TMPDIR/org run "$scripts/check-org.sh"
+  ORG=$BATS_TEST_TMPDIR/org NIX_FAILS_IN=$BATS_TEST_TMPDIR/org run "$operator" check-org
   [ "$status" -ne 0 ]
-}
 
-@test "check-org takes ORG relative to the clone's root, and needs it" {
-  mkdir "$BATS_TEST_TMPDIR/org" sub
-  cd sub || exit
-
-  ORG=../org run "$scripts/check-org.sh"
-  [ "$status" -eq 0 ]
-  grep -qF "$BATS_TEST_TMPDIR/org: nix build" "$BATS_TEST_TMPDIR/nix.log"
-
-  run "$scripts/check-org.sh"
+  run "$operator" check-org
   [ "$status" -eq 1 ]
   [[ $output == *"ORG is unset"* ]]
 }
 
-@test "the scripts need O11N_DEV to pull and push as" {
+@test "operator.sh needs O11N_DEV to pull and push as, and a command" {
   unset O11N_DEV
-  for script in fetch stamp merge; do
-    run "$scripts/$script.sh"
+  for command in fetch stamp merge; do
+    run "$operator" "$command"
     [ "$status" -eq 1 ]
     [[ $output == *"O11N_DEV is unset"* ]]
   done
+
+  run "$operator"
+  [ "$status" -eq 1 ]
+  [[ $output == *"usage: ./dev/operator.sh"* ]]
 }

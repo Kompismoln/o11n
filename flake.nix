@@ -67,21 +67,17 @@
                 );
             in
             {
-              checks = lib.concatMapAttrs (_: checks: checks) (removeAttrs categories [ "baseline" ]);
+              checks = lib.concatMapAttrs (_: checks: checks) categories;
 
               legacyPackages.stages = lib.mapAttrs stage categories // {
                 vm = stage "vm" config.legacyPackages.vmTests;
               };
 
-              packages = rec {
+              packages = {
                 gost = pkgs.callPackage ./packages/gost.nix { };
                 o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { };
-                o11n-scripts = pkgs.callPackage ./packages/o11n-scripts.nix { };
+                operator = pkgs.callPackage ./packages/operator.nix { };
                 stamps = pkgs.callPackage ./packages/stamps.nix { };
-                write-stamps = pkgs.writeShellApplication {
-                  name = "write-stamps";
-                  text = ''exec ${pkgs.lib.getExe stamps} write "$@"'';
-                };
               };
 
               legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
@@ -106,11 +102,30 @@
 
               devShells.default = pkgs.mkShell {
                 packages = [
-                  config.packages.o11n-scripts
+                  config.packages.gost
                   config.packages.o11n-tools
                   config.packages.stamps
-                  config.packages.write-stamps
-                ];
+                ]
+                ++ (with pkgs; [
+                  age
+                  bats
+                  deadnix
+                  gettext
+                  jq
+                  mkpasswd
+                  nixfmt
+                  openssh
+                  openssl
+                  prettier
+                  python3
+                  shellcheck
+                  sops
+                  statix
+                  toml2json
+                  tree
+                  util-linux
+                  wireguard-tools
+                ]);
                 shellHook = ''
                   if [[ -f .env ]]; then
                     set -a && source .env && set +a

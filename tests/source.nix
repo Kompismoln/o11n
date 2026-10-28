@@ -19,49 +19,80 @@ let
       "bats"
     ];
 
-  stamps = pkgs.callPackage ../packages/stamps.nix { };
-  docs = source (fileset.fileFilter (f: f.hasExt "md") root);
-in
-{
-  lint =
-    pkgs.runCommand "lint"
+  md = fileset.fileFilter (f: f.hasExt "md") root;
+  nix = fileset.fileFilter (f: f.hasExt "nix") root;
+
+  # Optimization: a stage of check.sh sees only the files it reads, so that nix runs it again only
+  # when one of them changes.
+  stage =
+    name: files: inputs:
+    pkgs.runCommand name
       {
         src = source (
-          fileset.unions [
-            (fileset.fileFilter (f: f.hasExt "nix" || shell f) root)
-            ../statix.toml
-            ../tools
-          ]
+          fileset.unions (
+            [
+              ../check.sh
+              ../dev/files.bash
+            ]
+            ++ files
+          )
         );
-        nativeBuildInputs = [
-          pkgs.deadnix
-          pkgs.nixfmt
-          pkgs.shellcheck
-          pkgs.statix
-        ];
+        nativeBuildInputs = inputs;
       }
       ''
-        cd $src
-        find . -name '*.nix' -print0 | xargs -0 nixfmt --check
-        statix check .
-        deadnix --fail .
-        # Accommodating for tools/.shellcheckrc, whose source path is relative to tools/.
-        find . -path ./tools -prune -o -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 |
-          xargs -0 shellcheck -s bash
-        (cd tools && find . -type f \( -path './test/bin/*' -o -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 |
-          xargs -0 shellcheck -s bash)
+        cp -r $src src
+        chmod -R u+w src
+        patchShebangs src
+        cd src
+        bash check.sh ${name}
         touch $out
       '';
+in
+{
+  stamps =
+    stage "stamps"
+      [
+        md
+        ../dev/stamps.sh
+      ]
+      [ ];
+
+  format =
+    stage "format"
+      [
+        md
+        nix
+        ../.prettierrc.yaml
+      ]
+      [
+        pkgs.nixfmt
+        pkgs.prettier
+      ];
+
+  lint =
+    stage "lint"
+      [
+        (fileset.fileFilter (f: f.hasExt "nix" || shell f) root)
+        ../statix.toml
+        ../tools
+      ]
+      [
+        pkgs.deadnix
+        pkgs.shellcheck
+        pkgs.statix
+      ];
 
   bats =
     pkgs.runCommand "bats"
       {
         src = source (
           fileset.unions [
+            ../.prettierrc.yaml
+            ../check.sh
             ../dev
             ../nixos/org/locksmith.sh
-            ../scripts
             ../tools
+            ../write.sh
           ]
         );
         nativeBuildInputs = [
@@ -72,8 +103,10 @@ in
           pkgs.jq
           pkgs.mkpasswd
           pkgs.nix
+          pkgs.nixfmt
           pkgs.openssh
           pkgs.openssl
+          pkgs.prettier
           pkgs.python3
           pkgs.sops
           pkgs.toml2json
@@ -88,18 +121,7 @@ in
         patchShebangs src
         export HOME=$TMPDIR
         export NIX_CONFIG='experimental-features = nix-command'
-        bats src/tools/test src/dev/test src/scripts/test
+        bats src/tools/test src/dev/test
         touch $out
       '';
-
-  stamps = pkgs.runCommand "stamps" { } ''
-    ${lib.getExe stamps} check ${docs}
-    touch $out
-  '';
-
-  # Policy: not a check, so stamps pending fail only what a human settles before work proceeds.
-  baseline = pkgs.runCommand "stamps-baseline" { } ''
-    ${lib.getExe stamps} check --baseline ${docs}
-    touch $out
-  '';
 }
