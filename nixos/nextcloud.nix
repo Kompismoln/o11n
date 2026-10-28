@@ -154,10 +154,6 @@ in
         "/run/postgresql" = {
           isReadOnly = false;
         };
-        "/run/secrets/admin-password" = {
-          isReadOnly = true;
-          hostPath = app.secretKeyPath;
-        };
       };
 
       config = {
@@ -229,7 +225,6 @@ in
             dbhost = "/run/postgresql";
             dbuser = app.user;
             dbname = app.database;
-            adminpassFile = "/run/secrets/admin-password";
           };
         };
       };
