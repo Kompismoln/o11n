@@ -23,19 +23,21 @@ stdenv.mkDerivation rec {
 
   KDIR = "${kernel.dev}/lib/modules/${kernel.modDirVersion}/build";
 
-  makeFlags = kernelModuleMakeFlags ++ [
+  makeFlags = [
     "KDIR=${KDIR}"
     "TOOL_EXTRA_CFLAGS="
-    "INSTALL_MOD_PATH=${placeholder "out"}"
-    "INSTALL_MOD_DIR=kernel/drivers/net/usb"
   ];
 
   # Call kbuild's modules_install directly; it signs the module and writes the
-  # ax_usb_nic.ko.cer certificate aggregateModules expects.
-  installFlags = [
+  # ax_usb_nic.ko.cer certificate aggregateModules expects. The kernel's make
+  # flags (which carry the signing rule) are kept out of the build, where
+  # they would point the userspace tools at the kernel's libc-less CC.
+  installFlags = kernelModuleMakeFlags ++ [
     "-C"
     KDIR
     "M=$(PWD)"
+    "INSTALL_MOD_PATH=${placeholder "out"}"
+    "INSTALL_MOD_DIR=kernel/drivers/net/usb"
   ];
 
   installTargets = [ "modules_install" ];
