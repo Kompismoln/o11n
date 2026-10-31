@@ -72,6 +72,14 @@ setup() {
   grep -qxF "$opening" doc.md
 }
 
+@test "write.sh writes the index, and, given a commit, stamps it" {
+  printf '%s\n' 'from pathlib import Path' 'Path("index.md").write_text("# Index\n\nWritten.\n")' >dev/index.py
+  run dev/write.sh HEAD
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = "index.md: 1 stamps" ]
+  grep -qxF 'Written.' index.md
+}
+
 @test "docs flags paths that aren't there and commits off main, but not what's elsewhere or ignored" {
   mkdir tools
   touch tools/there.sh

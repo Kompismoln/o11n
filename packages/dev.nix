@@ -42,12 +42,12 @@ let
   write = stamps ++ [
     nixfmt
     prettier
+    python3
   ];
   check =
     write
     ++ [
       deadnix
-      python3
       shellcheck
       statix
     ]

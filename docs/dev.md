@@ -46,14 +46,16 @@ type, its default and its description, under the part whose code declares it. Th
 reads them from `org/context.nix`, evaluated for `tests/inventories/base`, which holds nothing: a default computed from
 an entity's own config has a `defaultText`, as `lib.literalExpression` over the entity's options, the org's as
 `org.<option>`, or as `lib.literalMD` where it draws on more, or the index fails to evaluate. `python3 dev/index.py`
-writes a doc for each part that has any, and removes the rest; turn-end leaves it to be run. Each is a doc of the part
-it indexes, and stamped like any other, so that a change to a part's interface is stamped.
+writes a doc for each part that has any, and removes the rest, as `dev/write.sh` does. Each is a doc of the part it
+indexes, and stamped like any other, so that a change to a part's interface is stamped.
 
 ## Write
 
 `dev/write.sh [commit]` writes what follows from the code and the docs:
 
-- the format of the Nix and of the docs that hold no stamps pending
+- the format of the Nix
+- the index (`python3 dev/index.py`)
+- the format of the docs that hold no stamps pending
 - given a commit, each change to a doc since it as stamps pending, against what the operator had signed of it there.
 
 A failing `format` stage says to run it rather than nixfmt or prettier: prettier reads a stamp's markers as Markdown and

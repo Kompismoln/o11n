@@ -44,7 +44,7 @@ stage-parts() {
 
 stage-index() {
     python3 dev/index.py --check || {
-        echo "python3 dev/index.py writes it." >&2
+        echo "dev/write.sh writes it." >&2
         return 1
     }
 }
