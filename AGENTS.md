@@ -37,11 +37,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
 
 - `builtins.pathExists drv.outPath` builds the derivation during evaluation.
 - `exportReferencesGraph` on a `.drv` also requires every output it refers to, so it can't read a build plan without
-<<<<<<< signed
-  building it; read the `.drv` files instead, as `tests/leaks.py` does.
-=======
   building it; read the `.drv` files instead, as `tests/leaks.sh` does.
->>>>>>> @stamp
 - When searching store contents for short names, match whole words: store hashes can contain them (`ahbk` is valid
   base32).
 - `nix flake check` stops at the first error; `--keep-going` shows them all.
@@ -134,19 +130,12 @@ Use `generate-keys.sh` with the org tooling in `tools/bin`.
 
 - `keys/root-1` is a committed throwaway root identity. With `SOPS_AGE_KEY_FILE=keys/root-1`, `sops decrypt enc/<file>`
   shows any secret.
-<<<<<<< signed
-- To add an entity, declare it in `org.toml`, then from the inventory directory run
-  `id-entities.sh -<class> <name> init` and `id-entities.sh -<class> <name> new <key>` for each key the configuration
-  reads, as `generate-keys.sh` does. Create hosts before what is granted to them: they have to exist to be recipients.
-- The tools need age, jq, mkpasswd, nix, openssl, sops, ssh-keygen, toml2json, wg and envsubst on PATH.
-  `nix build .#nixpkgs.legacyPackages.x86_64-linux.<package>` gives each from o11n's own nixpkgs.
-=======
 - To add an entity, declare it in `org.toml`, then from the inventory directory, with `O11N_EXPORT` naming the
   inventory's export as `generate-keys.sh` writes it, run `id-entities.sh -<class> <name> init` and
-  `id-entities.sh -<class> <name> new <key>` for each key the configuration reads, as `generate-keys.sh` does. Create hosts before what is granted to them: they have to exist to be recipients.
-- The tools need age, jq, mkpasswd, nix, o11n, openssl, sops, ssh-keygen and wg on PATH. `nix build .#o11n` gives
-  o11n, and `nix build .#nixpkgs.legacyPackages.x86_64-linux.<package>` each of the others from o11n's own nixpkgs.
->>>>>>> @stamp
+  `id-entities.sh -<class> <name> new <key>` for each key the configuration reads, as `generate-keys.sh` does. Create
+  hosts before what is granted to them: they have to exist to be recipients.
+- The tools need age, jq, mkpasswd, nix, o11n, openssl, sops, ssh-keygen and wg on PATH. `nix build .#o11n` gives o11n,
+  and `nix build .#nixpkgs.legacyPackages.x86_64-linux.<package>` each of the others from o11n's own nixpkgs.
 - In tests, compare with the files on disk (`builtins.readFile ./public-keys/...`) rather than with values computed by
   the same o11n code that is under test.
 

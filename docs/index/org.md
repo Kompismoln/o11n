@@ -1,10 +1,6 @@
 # `org`
 
-<<<<<<< signed
-Written by `dev/index.py` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
-=======
 Written by `dev/index.sh` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
->>>>>>> @stamp
 them, each by its place in `org.toml`.
 
 ## Options
@@ -366,23 +362,6 @@ Default: `[ ]`
 
 list of designated build hosts
 
-<<<<<<< signed
-### `class`
-
-`org/default.nix` · attribute set of (submodule)
-
-metadata for classes
-
-### `class.<name>.keys`
-
-`org/default.nix` · list of string
-
-Default: `[ ]`
-
-keys an entity of the class has
-
-=======
->>>>>>> @stamp
 ### `contact`
 
 `org/default.nix` · string
@@ -1202,17 +1181,6 @@ Default: `24`
 
 ipv4 private prefix length
 
-<<<<<<< signed
-### `public-artifacts`
-
-`org/default.nix` · attribute set of string
-
-Default: `{ }`
-
-path templates for public artifacts
-
-=======
->>>>>>> @stamp
 ### `repository`
 
 `org/default.nix` · attribute set of string
@@ -1275,17 +1243,6 @@ Default:
 ```
 
 list of root identities
-<<<<<<< signed
-
-### `secrets`
-
-`org/default.nix` · attribute set of string
-
-Default: `{ }`
-
-path templates for secrets
-=======
->>>>>>> @stamp
 
 ### `service`
 
