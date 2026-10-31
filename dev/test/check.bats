@@ -41,8 +41,9 @@ setup() {
   [ "$output" = "no stage nowhere: stamps pending format lint docs parts index eval leaks bats vm" ]
 }
 
-@test "format checks the Nix and the docs but those with stamps pending, which write.sh formats" {
+@test "format checks the Nix, the Rust and the docs but those with stamps pending, which write.sh formats" {
   echo '{a=1;}' >default.nix
+  echo 'fn main(){}' >main.rs
   printf '* one\n' >doc.md
   printf '%s\n%s\n* held\n%s\n' "$opening" "$divider" "$closing" >held.md
   run dev/check.sh format
@@ -51,13 +52,18 @@ setup() {
   nixfmt default.nix
   run dev/check.sh format
   [ "$status" -ne 0 ]
+  [[ $output == *"main.rs"* ]]
+  rustfmt main.rs
+  run dev/check.sh format
+  [ "$status" -ne 0 ]
   [[ $output == *"doc.md"* ]]
   [[ $output != *"held.md"* ]]
-  [[ $output == *"dev/write.sh writes the format; run it, not nixfmt or prettier."* ]]
+  [[ $output == *"dev/write.sh writes the format; run it, not nixfmt, rustfmt or prettier."* ]]
 
   run dev/write.sh
   [ "$status" -eq 0 ]
   [ "$(cat default.nix)" = "{ a = 1; }" ]
+  [ "$(cat main.rs)" = "fn main() {}" ]
   [ "$(cat doc.md)" = "- one" ]
   [ "$(sed -n 3p held.md)" = "* held" ]
   run dev/check.sh format

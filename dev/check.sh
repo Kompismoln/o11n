@@ -21,8 +21,9 @@ stage-format() {
     local docs=()
     mapfile -d '' docs < <(unheld)
     files '*.nix' | xargs -0 nixfmt --check &&
+        files '*.rs' | xargs -0 -r rustfmt --check &&
         { ((${#docs[@]} == 0)) || prettier --check --log-level warn -- "${docs[@]}"; } && return
-    echo "dev/write.sh writes the format; run it, not nixfmt or prettier." >&2
+    echo "dev/write.sh writes the format; run it, not nixfmt, rustfmt or prettier." >&2
     return 1
 }
 

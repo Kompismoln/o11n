@@ -14,6 +14,7 @@
   nixfmt,
   o11n-tools,
   prettier,
+  rustfmt,
   shellcheck,
   statix,
   toml2json,
@@ -43,6 +44,7 @@ let
     jq
     nixfmt
     prettier
+    rustfmt
   ];
   check =
     write

@@ -61,11 +61,14 @@ in
       [
         md
         nix
+        (fileset.fileFilter (f: f.hasExt "rs") root)
         ../.prettierrc.yaml
+        ../rustfmt.toml
       ]
       [
         pkgs.nixfmt
         pkgs.prettier
+        pkgs.rustfmt
       ];
 
   lint =
@@ -104,6 +107,7 @@ in
           pkgs.openssh
           pkgs.openssl
           pkgs.prettier
+          pkgs.rustfmt
           pkgs.socat
           pkgs.sops
           pkgs.toml2json

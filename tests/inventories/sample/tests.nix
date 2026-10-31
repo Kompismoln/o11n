@@ -499,18 +499,13 @@ in
 
   test_export_entity = {
     expr = {
-      inherit (outputs.org.export.entities.service-reverse-tunnel) recipients secrets;
+      inherit (outputs.org.export.entities.service-reverse-tunnel) grants secrets;
       publicKeys = lib.mapAttrs (_: path: builtins.pathExists (./. + "/${path}")) (
         lib.getAttrs [ "age-key" "ssh-key" ] outputs.org.export.entities.service-reverse-tunnel.publicKeys
       );
     };
     expected = {
-      recipients = [
-        "host-gw"
-        "host-web"
-        "root-1"
-        "service-reverse-tunnel"
-      ];
+      grants = [ "host:server" ];
       secrets = {
         sopsFile = "enc/service-reverse-tunnel.yaml";
         decryptionKey = "/keys/service-reverse-tunnel";
@@ -536,23 +531,5 @@ in
   test_export_classes = {
     expr = outputs.org.export.classes == import ../../../org/classes.nix;
     expected = true;
-  };
-
-  test_export_ops = {
-    expr = outputs.org.export.ops;
-    expected.check = [
-      {
-        entity = "host-gw";
-        op = "check:age-key";
-      }
-      {
-        entity = "service-rescue";
-        op = "verify:ssh-key";
-      }
-      {
-        entity = "service-rescue";
-        op = "verify:passwd";
-      }
-    ];
   };
 }

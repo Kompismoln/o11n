@@ -18,7 +18,11 @@ failed, and in a git checkout logs each to `dev/state/logs/<stage>.log`:
 
 - `stamps`, every conflict marker a stamp's
 - `pending`, what is left to stamp
+<<<<<<< signed
 - `format`, the Nix and the docs that hold no stamps pending, as `dev/write.sh` writes them
+=======
+- `format`, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+>>>>>>> @stamp
 - `lint`, statix, deadnix and shellcheck
 <<<<<<< signed
 - `docs`, the references of the docs (`dev/refcheck.py`)
@@ -68,13 +72,17 @@ indexes, and stamped like any other, so that a change to a part's interface is s
 <<<<<<< signed
 - the format of the Nix and of the docs that hold no stamps pending
 =======
-- the format of the Nix
+- the format of the Nix and the Rust
 - the index (`dev/index.sh`)
 - the format of the docs that hold no stamps pending
 >>>>>>> @stamp
 - given a commit, each change to a doc since it as stamps pending, against what the operator had signed of it there.
 
+<<<<<<< signed
 A failing `format` stage says to run it rather than nixfmt or prettier: prettier reads a stamp's markers as Markdown and
+=======
+A failing `format` stage says to run it rather than nixfmt, rustfmt or prettier: prettier reads a stamp's markers as Markdown and
+>>>>>>> @stamp
 reflows them.
 
 ## Stamps
