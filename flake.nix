@@ -56,7 +56,10 @@
           perSystem =
             { config, pkgs, ... }:
             let
-              categories = import ./tests { inherit pkgs o11nLib; };
+              categories = import ./tests {
+                inherit pkgs o11nLib;
+                inherit (config.packages) o11n;
+              };
               stage =
                 name: checks:
                 pkgs.linkFarm "stage-${name}" (
@@ -81,7 +84,8 @@
 
               packages = {
                 gost = pkgs.callPackage ./packages/gost.nix { };
-                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { inherit (config.packages) gost; };
+                o11n = pkgs.callPackage ./packages/o11n.nix { };
+                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { inherit (config.packages) gost o11n; };
               }
               // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n-tools; };
 
@@ -106,7 +110,7 @@
               legacyPackages.vmTests.containers = import ./tests/vm/containers.nix { inherit pkgs; };
 
               # Policy: the dev shell runs each package's source as it is, with what the package runs,
-              # and bats for their tests.
+              # bats and socat for their tests, and cargo, rustc and clippy for o11n's crate.
               devShells.default = pkgs.mkShell {
                 packages = lib.unique (
                   lib.concatMap (package: package.runtimeInputs or [ ]) (lib.attrValues config.packages)
@@ -114,6 +118,10 @@
                     config.packages.gost
                     config.packages.o11n-tools
                     pkgs.bats
+                    pkgs.cargo
+                    pkgs.clippy
+                    pkgs.rustc
+                    pkgs.socat
                   ]
                 );
                 shellHook = ''

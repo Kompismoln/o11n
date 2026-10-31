@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: ./dev/operator.sh fetch [branch] | stamp [message] | merge [branch] | check-org, in the dev
-# shell, pulling and pushing through as.sh as $O11N_DEV.
+# shell, pulling and pushing through as.sh as $O11N_DEV, an entity's id.
 set -euo pipefail
 
 die() {
@@ -12,7 +12,7 @@ git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
 cd "$(git rev-parse --show-toplevel)"
 
 as-dev() {
-    as.sh "$O11N_DEV" "$@"
+    as.sh "user-$O11N_DEV" "$@"
 }
 
 # Optimization: stamp needn't look again while what it last stamped is all there is.

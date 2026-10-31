@@ -7,28 +7,23 @@ tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 declare -g cloudaccount domainname apikey endpoint
 
 cloudaccount() {
-    org-toml.sh service glesys-api data account
+    o11n get entities service-glesys-api settings account
 }
 
 endpoint() {
-    org-toml.sh service glesys-api endpoint
+    o11n get entities service-glesys-api settings endpoint
 }
 
 domainname() {
-    org-toml.sh domain
+    o11n get endpoint
 }
 
 apikey() {
-    id-entities.sh -s glesys-api cat-secret secret-key
+    o11n secret show service-glesys-api secret-key
 }
 
-#recordid="3357682"
-#user="$account:$secret"
-#data="recordid=$recordid&data=asdf"
-#ip -4 -o addr show "wlp3s0" | awk '{split($4, a, "/"); print a[1]}'
-#curl -sSX POST -d "$data" -u "$user" ${endpoint}
-
 glesys-api() {
+    org-exported
     if declare -F "$1:" >/dev/null; then
         fn="$1:"
         shift

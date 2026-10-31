@@ -123,8 +123,8 @@ Verified from a Claude session through helsinki to pelle:
 
 - `[service.nix-remote]` with an `id`, `principal.hasPublicKey = false` and `grants = ["host:remote-builder"]`;
   `[role.remote-builder] services = ["nix-remote"]`; the role on a host with an `endpoint`.
-- `id-entities.sh -s nix-remote init` and `id-entities.sh -s nix-remote new secret-key`; the token is
-  `id-entities.sh -s nix-remote cat-secret secret-key`.
+- `o11n identity create service-nix-remote` and `o11n secret generate service-nix-remote secret-key`; the token is
+  `o11n secret show service-nix-remote secret-key`.
 - Ports 80 and 443 reach the host (nginx opens them in its firewall).
 - For IPv4-only clients, `[role.remote-builder-relay] services = []` and the role on a host with an endpoint reachable
   over IPv4 that shares a vpn with the builder. Clients then use `https://<relay endpoint>`, and a network secret goes

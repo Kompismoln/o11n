@@ -9,8 +9,7 @@ setup() {
   printf '#!%s\n%s\n' "$BASH" '
     { echo "args: $*"; echo "remote: $NIX_REMOTE"; echo "socket: $NIX_DAEMON_SOCKET_PATH"; echo "$NIX_CONFIG"; } >"$BATS_TEST_TMPDIR/daemon.env"
     [[ -z ${DAEMON_FAILS:-} ]] || { echo "error: broken" >&2; exit 1; }
-    python3 -c "import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])" "$NIX_DAEMON_SOCKET_PATH"
-    exec tail -f /dev/null
+    exec socat UNIX-LISTEN:"$NIX_DAEMON_SOCKET_PATH",fork /dev/null
   ' >lix/bin/nix-daemon
   chmod +x bin/nix lix/bin/nix-daemon
   export PATH=$BATS_TEST_TMPDIR/bin:$PATH

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2029
-# Yes, we know unescaped variables expand client side
+# - unescaped variables expand client side on purpose
 
 set -euo pipefail
 
@@ -13,7 +13,8 @@ ssh_through=()
 anywhere_through=()
 
 main() {
-    domain=$(org-toml.sh endpoint)
+    org-exported
+    domain=$(o11n get endpoint)
 
     case $1 in
     rebuild | login)
@@ -83,9 +84,9 @@ reset() {
 
     install -d -m700 "$(dirname "$age_key")"
 
-    id-entities.sh -h "$host" cat-secret luks-key >"$luks_key" || die 1 "no luks-key"
-    id-entities.sh -h "$host" cat-secret age-key >"$age_key" || die 1 "no age-key"
-    id-entities.sh -s rescue cat-secret ssh-key >"$rescue_ssh_key" || die 1 "no ssh-key for rescue"
+    try o11n secret show "host-$host" luks-key >"$luks_key"
+    try o11n identity show "host-$host" >"$age_key"
+    try o11n secret show service-rescue ssh-key >"$rescue_ssh_key"
 
     chmod 600 "$age_key"
     chmod 600 "$rescue_ssh_key"
@@ -94,7 +95,7 @@ reset() {
     ssh-add "$rescue_ssh_key" |& log info
 
     if [[ -n ${server:-} ]]; then
-        id-entities.sh -u admin cat-secret ssh-key | ssh-add - |& log info
+        try o11n secret show user-admin ssh-key | ssh-add - |& log info
     fi
 
     if ssh "${ssh_through[@]}" -o BatchMode=yes -o ConnectTimeout=5 "root@$address" true |& log error; then
@@ -116,13 +117,13 @@ reset() {
         "${anywhere_through[@]}"
 }
 
-# Both hops' keys in one agent: an as.sh nested in another's ProxyCommand would act as the outer
-# one's identity, which can't read the other key.
+# Accommodating for ssh's ProxyCommand: both hops' keys are in one agent, as an as.sh nested in another's
+# ProxyCommand would act as the outer one's identity, which can't read the other key.
 stick_keys() {
     trap ssh_cleanup EXIT
     eval "$(ssh-agent -s)" > >(log info)
-    id-entities.sh -u admin cat-secret ssh-key | ssh-add - |& log info
-    id-entities.sh -s rescue cat-secret ssh-key | ssh-add - |& log info
+    try o11n secret show user-admin ssh-key | ssh-add - |& log info
+    try o11n secret show service-rescue ssh-key | ssh-add - |& log info
 }
 
 stick() {
@@ -136,10 +137,10 @@ tunnel() {
 
     case $action in
     open)
-        "$tools_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel open ${arg:+"$(printf '%q' "$arg")"}
+        "$tools_root/bin/as.sh" user-admin ssh -t "admin@$server" sudo reverse-tunnel open ${arg:+"$(printf '%q' "$arg")"}
         ;;
     close | status)
-        "$tools_root/bin/as.sh" admin ssh -t "admin@$server" sudo reverse-tunnel "$action"
+        "$tools_root/bin/as.sh" user-admin ssh -t "admin@$server" sudo reverse-tunnel "$action"
         ;;
     connect)
         stick_keys

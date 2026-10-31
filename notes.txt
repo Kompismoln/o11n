@@ -1,0 +1,10 @@
+move STAMPED to an env var and unify how write and check decides on a reference.
+now that write.sh is free to take arguments, have the checks check.sh checks in step with write.sh, so that every write has a corresponding check
+put these in a settings.toml at the root.
+
+also "stages" are now just called "check", because they aren't stages
+
+the contract between org and rust may deserve its own part? apart from org in domain.
+
+o11n is layer "ux"
+o11n-dev is layer "dev"

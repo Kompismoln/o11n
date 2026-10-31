@@ -12,8 +12,9 @@ setup() {
   git config commit.gpgsign false
   mkdir dev
   cp "$BATS_TEST_DIRNAME/../../.prettierrc.yaml" .
-  cp "$BATS_TEST_DIRNAME"/../{check.sh,write.sh,files.bash,stamps.sh,refcheck.py,parts.py} dev/
-  : >dev/index.py
+  cp "$BATS_TEST_DIRNAME"/../{check.sh,write.sh,files.bash,stamps.sh,refcheck.sh,parts.sh} dev/
+  printf '#!%s\n' "$BASH" >dev/index.sh
+  chmod +x dev/index.sh
   echo '# Doc' >doc.md
   echo '{ }' >default.nix
   git add -A
@@ -40,8 +41,9 @@ setup() {
   [ "$output" = "no stage nowhere: stamps pending format lint docs parts index eval leaks bats vm" ]
 }
 
-@test "format checks the Nix and the docs but those with stamps pending, which write.sh formats" {
+@test "format checks the Nix, the Rust and the docs but those with stamps pending, which write.sh formats" {
   echo '{a=1;}' >default.nix
+  echo 'fn main(){}' >main.rs
   printf '* one\n' >doc.md
   printf '%s\n%s\n* held\n%s\n' "$opening" "$divider" "$closing" >held.md
   run dev/check.sh format
@@ -50,13 +52,18 @@ setup() {
   nixfmt default.nix
   run dev/check.sh format
   [ "$status" -ne 0 ]
+  [[ $output == *"main.rs"* ]]
+  rustfmt main.rs
+  run dev/check.sh format
+  [ "$status" -ne 0 ]
   [[ $output == *"doc.md"* ]]
   [[ $output != *"held.md"* ]]
-  [[ $output == *"dev/write.sh writes the format; run it, not nixfmt or prettier."* ]]
+  [[ $output == *"dev/write.sh writes the format; run it, not nixfmt, rustfmt or prettier."* ]]
 
   run dev/write.sh
   [ "$status" -eq 0 ]
   [ "$(cat default.nix)" = "{ a = 1; }" ]
+  [ "$(cat main.rs)" = "fn main() {}" ]
   [ "$(cat doc.md)" = "- one" ]
   [ "$(sed -n 3p held.md)" = "* held" ]
   run dev/check.sh format
@@ -70,6 +77,14 @@ setup() {
   [ "${lines[0]}" = "against $(git log -1 --format='%h %s')" ]
   [ "${lines[1]}" = "doc.md: 1 stamps" ]
   grep -qxF "$opening" doc.md
+}
+
+@test "write.sh writes the index, and, given a commit, stamps it" {
+  printf '#!%s\nprintf "# Index\\n\\nWritten.\\n" >index.md\n' "$BASH" >dev/index.sh
+  run dev/write.sh HEAD
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = "index.md: 1 stamps" ]
+  grep -qxF 'Written.' index.md
 }
 
 @test "docs flags paths that aren't there and commits off main, but not what's elsewhere or ignored" {

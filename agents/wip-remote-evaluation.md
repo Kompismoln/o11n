@@ -82,8 +82,8 @@ Against pelle and helsinki, from a Claude session:
 - `[repository]` in `org.toml`: the org's own flake, not `[flake]`, which is what the hosts' registry calls `o11n`. A
   public org can be `type = "github"`; a private one is `type = "git"` with
   `url = "ssh://git@github.com/<owner>/<repo>"`.
-- For a private org or private inputs: `id-entities.sh -s nix-remote new ssh-key`, and its public half given read access
-  to them. GitHub takes a deploy key for one repository only, so for several it's a machine user with the key.
+- For a private org or private inputs: `o11n secret generate service-nix-remote ssh-key`, and its public half given read
+  access to them. GitHub takes a deploy key for one repository only, so for several it's a machine user with the key.
 - Room on the builder for the evaluation: Kompismoln/org's `stages.systems` peaked at ~11 GB in a session.
 
 Then, from an org's clone: `<o11n clone>/tools/bin/nix-remote.sh eval systems [o11n revision]`.

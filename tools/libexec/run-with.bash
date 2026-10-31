@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# libexec/run-with.bash
 
 [[ ${_RUN_WITH_BASH_SOURCED:-0} -eq 1 ]] && return
 _RUN_WITH_BASH_SOURCED=1
@@ -14,61 +13,15 @@ here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 declare -x tools_root
 tools_root="$(cd "$here/.." && pwd)"
 
-# implement a function that maps a prefix to a list of (potential) functions
-callchain() {
-    die 1 "callchain for prefix '$prefix' not implemented"
-}
-
-# satisfy shellcheck
-declare -g callchain
-
-# for each prefix, run its' matching list of commands (call them links)
-run() {
-    local link links prefix
-
-    for prefix; do
-        # call callchain and bring it into scope as $callchain
-        with callchain
-
-        # call them "links" to distinguish from normal fns/cmds
-        links=$(for link in $callchain; do
-            # trailing colon terminates the callchain
-            declare -F "$link:" && break
-            # other matches are added in sequence
-            declare -F "$link" || continue
-        done)
-
-        # life will be easier if we enforce this
-        [[ -n $links ]] ||
-            die 1 "'$prefix' didn't match any link in the callchain:"$'\n'"$(callchain)"
-
-        for link in $links; do
-            log debug "run $link"
-            "$link"
-        done
-    done
-}
-
-# bring into scope the result of some-command as $some_command
 with() {
     local cmd out var
     for cmd; do
         log trace "with $cmd"
-        out=$(if [[ $cmd == *:* ]]; then
-            run "$cmd"
-        else
-            "$cmd"
-        fi) && {
+        out=$("$cmd") && {
             var="${cmd//[^a-zA-Z0-9_]/_}"
             declare -g "$var=$out"
         } || exit 1
     done
-}
-
-tlog() {
-    local rc=$?
-    tee >(log "$1")
-    return $rc
 }
 
 log() {
@@ -85,7 +38,7 @@ log() {
         return 0
 
     local backtrack=1
-    while [[ ${FUNCNAME[$backtrack]} =~ ^(tlog|die|try|with|run)$ ]]; do
+    while [[ ${FUNCNAME[$backtrack]} =~ ^(die|try|with)$ ]]; do
         ((backtrack++))
     done
 
@@ -137,12 +90,13 @@ try() {
     fi
 }
 
-links-by-prefix() {
-    declare -F | awk '{print $3}' | grep -E "$1"
-}
-
-trailing-newline() {
-    [[ $(tail -c1 "$1" | hexdump -C) == *"0a"* ]]
+# Optimization: o11n evaluates the org once for a command, and hands the export to what the command runs.
+org-exported() {
+    [[ -z ${O11N_EXPORT:-} ]] || return 0
+    with repo_root
+    O11N_EXPORT=$tmpdir/org-export.json
+    O11N_ORG_ROOT=$repo_root try o11n export >"$O11N_EXPORT"
+    export O11N_EXPORT
 }
 
 declare -g repo_root

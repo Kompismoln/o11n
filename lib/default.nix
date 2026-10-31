@@ -1,4 +1,3 @@
-# lib/default.nix
 {
   lib,
   o11nInputs,
@@ -34,7 +33,7 @@ rec {
     (lib.evalModules {
       modules = [
         { inherit config; }
-        ./context.nix
+        ../org/context.nix
       ];
     }).config;
 

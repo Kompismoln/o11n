@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+while [[ $1 == -* ]]; do
+	shift 2
+done
 IFS='@' read -r user fqdn <<<"$1"
 IFS='.' read -r host _ <<<"$fqdn"
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# tools/bin/as.sh
 
 set -euo pipefail
 
@@ -11,24 +10,22 @@ agent=
 
 cleanup() {
     rm -rf "$tmpdir"
-    [[ -z $agent ]] || SSH_AGENT_PID=$agent ssh-agent -k > >(log info)
+    [[ -z $agent ]] || SSH_AGENT_PID=$agent ssh-agent -k >/dev/null
 }
 trap cleanup EXIT
 
 as() {
-    local identity
-    identity=$(org-toml.sh "autocomplete-identity" "$1")
-    mkdir -p "$tmpdir/keys"
-    local key_file=$tmpdir/keys/$identity
+    local id=$1 key_file=$tmpdir/keys/$1
     shift
+    org-exported
+    mkdir -p "$tmpdir/keys"
 
     eval "$(ssh-agent -s)" > >(log info)
     agent=$SSH_AGENT_PID
 
-    "$tools_root/bin/id-entities.sh" "$identity" cat-secret age-key >"$key_file"
+    (umask 077 && try o11n identity show "$id" >"$key_file")
 
-    SOPS_AGE_KEY_FILE=$key_file "$tools_root/bin/id-entities.sh" "$identity" cat-secret ssh-key |
-        ssh-add - 2> >(log info)
+    SOPS_AGE_KEY_FILE=$key_file try o11n secret show "$id" ssh-key | ssh-add - 2> >(log info)
 
     SOPS_AGE_KEY_FILE=$key_file "$@"
 }

@@ -8,20 +8,18 @@ tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 find-route() {
     local host=$1 port=${2:-22}
 
-    # Let localhost through
     if [[ $host == localhost ]]; then
         echo "$host"
         return 0
     fi
 
-    # Fast-path for IPs
     if ip route get "$host" &>/dev/null; then
         log success "$host:$port is up"
         echo "$host"
         return 0
     fi
 
-    # Fast-path for dotted names (likely FQDNs)
+    # Optimization: a dotted name, likely a fqdn, is tried as it is before the namespaces.
     if [[ "$host" == *.* ]] && ping-port "$host" "$port"; then
         log success "$host:$port is up"
         echo "$host"
@@ -37,7 +35,7 @@ find-route() {
             echo "$fqdn"
             return 0
         fi
-    done < <(org-toml.sh "namespaces")
+    done < <(org-exported && o11n get namespaces)
     die 1 "no contact with $host:$port"
 }
 

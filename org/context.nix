@@ -1,8 +1,4 @@
-# lib/context.nix
 { config, lib, ... }:
-let
-  types = (import ./types.nix) lib;
-in
 {
   options = {
     path = lib.mkOption {
@@ -12,35 +8,35 @@ in
     };
     flake = lib.mkOption {
       description = "flake";
-      type = types.flake;
+      type = lib.types.lazyAttrsOf lib.types.raw;
       default = builtins.getFlake (toString config.path);
     };
     inputs = lib.mkOption {
       description = "inputs";
-      type = lib.types.attrsOf types.flake;
+      type = lib.types.attrsOf (lib.types.lazyAttrsOf lib.types.raw);
       default = config.flake.inputs // {
         self = config.flake;
       };
     };
     spec = lib.mkOption {
       description = "unparsed org";
-      type = types.spec;
+      type = lib.types.lazyAttrsOf lib.types.anything;
       default = lib.importTOML (config.path + "/org.toml");
     };
     types = lib.mkOption {
       description = "org types";
       type = lib.types.attrsOf lib.types.anything;
-      default = import ../org/types.nix lib config;
+      default = import ./types.nix lib config;
     };
     classes = lib.mkOption {
-      description = "org types";
+      description = "entity classes";
       type = lib.types.attrsOf lib.types.anything;
-      default = import ../org/classes.nix;
+      default = import ./classes.nix;
     };
     org = lib.mkOption {
       description = "org";
       type = lib.types.submodule {
-        imports = [ ../org ];
+        imports = [ ./. ];
         _module.args = {
           context = config;
         };

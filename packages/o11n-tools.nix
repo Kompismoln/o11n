@@ -1,35 +1,25 @@
 {
-  age,
   curl,
-  gettext,
   gost,
   jq,
   lib,
   makeWrapper,
-  mkpasswd,
   openssh,
-  openssl,
   shellcheck,
   sops,
   stdenv,
-  toml2json,
-  wireguard-tools,
+  o11n,
   ...
 }:
 
 let
   runtimeInputs = [
-    age
     curl
-    gettext
     gost
     jq
-    mkpasswd
-    openssl
+    o11n
     openssh
     sops
-    toml2json
-    wireguard-tools
   ];
 in
 stdenv.mkDerivation {

@@ -1,4 +1,3 @@
-# tests/inventories/sample/tests.nix
 {
   lib,
   outputs,
@@ -40,7 +39,7 @@ in
     ];
   };
 
-  # Each side of wg0 holds the other's public key, as id-entities.sh wrote it.
+  # Each side of wg0 holds the other's public key, as o11n wrote it.
   test_wg0_peers = {
     expr = onHosts (config: (wg0 config).wireguardPeers);
     expected = {
@@ -490,5 +489,47 @@ in
         systemd-boot = true;
       };
     };
+  };
+
+  test_export_is_plain_data = {
+    expr = lib.hasInfix builtins.storeDir (builtins.toJSON outputs.org.export);
+    expected = false;
+  };
+
+  test_export_entity = {
+    expr = {
+      inherit (outputs.org.export.entities.service-reverse-tunnel) grants secrets;
+      publicKeys = lib.mapAttrs (_: path: builtins.pathExists (./. + "/${path}")) (
+        lib.getAttrs [ "age-key" "ssh-key" ] outputs.org.export.entities.service-reverse-tunnel.publicKeys
+      );
+    };
+    expected = {
+      grants = [ "host:server" ];
+      secrets = {
+        sopsFile = "enc/service-reverse-tunnel.yaml";
+        identityFile = "enc/service-reverse-tunnel.age";
+        decryptionKey = "/keys/service-reverse-tunnel";
+      };
+      publicKeys = {
+        age-key = true;
+        ssh-key = true;
+      };
+    };
+  };
+
+  test_export_root = {
+    expr = lib.mapAttrs (_: path: builtins.pathExists (./. + "/${path}")) {
+      inherit (outputs.org.export.entities.root-1.publicKeys) age-key;
+      inherit (outputs.org.export.entities.root-1.secrets) identityFile;
+    };
+    expected = {
+      age-key = true;
+      identityFile = true;
+    };
+  };
+
+  test_export_classes = {
+    expr = outputs.org.export.classes == import ../../../org/classes.nix;
+    expected = true;
   };
 }

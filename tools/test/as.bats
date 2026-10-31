@@ -1,5 +1,4 @@
 #!/usr/bin/env bats
-# tests/as.bats
 
 setup() {
   load helpers.sh
@@ -11,7 +10,7 @@ setup() {
   mkdir "$BATS_TEST_TMPDIR/elsewhere"
   cd "$BATS_TEST_TMPDIR/elsewhere"
 
-  run as.sh testadmin true
+  run as.sh user-testadmin true
   [ "$status" -ne 0 ]
   [[ $output != *"SSH_AGENT_PID"* ]]
   kill -0 "$SSH_AGENT_PID"

@@ -1,4 +1,8 @@
-{ pkgs, o11nLib }:
+{
+  pkgs,
+  o11nLib,
+  o11n,
+}:
 let
   inherit (pkgs) lib;
   inherit (import ./lib.nix { inherit pkgs; }) callTests mkCheck evalNixosModule;
@@ -49,6 +53,36 @@ let
     ) (lib.attrValues inventories);
   } "touch $out";
 
+  # Policy: o11n reads the sample as an org's clone, and its answers are checked against the keys on disk.
+  o11nChecks.eval-o11n-sample =
+    pkgs.runCommand "eval-o11n-sample"
+      {
+        nativeBuildInputs = [ o11n ];
+        export = builtins.toFile "export.json" (builtins.toJSON inventories.sample.org.export);
+        org = ./inventories/sample;
+      }
+      ''
+        export O11N_EXPORT=$export O11N_ORG_ROOT=$org
+        [[ $(o11n recipients service-nix-remote | tr '\n' ' ') == "host-gw root-1 service-nix-remote " ]]
+        [[ $(o11n entities 'host:remote-builder+server' 'user-*' | tr '\n' ' ') == "host-gw user-admin " ]]
+        [[ $(o11n search tunnel) == service-reverse-tunnel ]]
+        [[ $(o11n get build-hosts) == gw ]]
+        [[ $(o11n ops check | tr '\n' ' ') == "host-gw check:age-key service-rescue verify:ssh-key service-rescue verify:passwd " ]]
+        [[ -f $org/$(o11n path public-key host-gw ssh-key) && -f $org/$(o11n path sops-file user-admin) ]]
+        [[ -f $org/$(o11n path identity user-admin) ]]
+        diff <(o11n sops-yaml service-nix-remote) - <<EOF
+        creation_rules:
+          - path_regex: enc/service-nix-remote.yaml
+            key_groups:
+              - age:
+                - $(cat $org/public-keys/host-gw-age-key.pub)
+                - $(cat $org/public-keys/root-1-age-key.pub)
+                - $(cat $org/public-keys/service-nix-remote-age-key.pub)
+        EOF
+        ! o11n entities user-nobody
+        touch $out
+      '';
+
   leakPatterns = [
     "kompismoln"
     "ahbk"
@@ -69,11 +103,10 @@ let
       lib.nameValuePair name (
         pkgs.runCommand name
           {
-            nativeBuildInputs = [ pkgs.python3 ];
             drv = builtins.unsafeDiscardOutputDependency nixos.config.system.build.toplevel.drvPath;
           }
           ''
-            python3 ${./leaks.py} ${builtins.storeDir} "$drv" ${lib.escapeShellArgs leakPatterns} > $out
+            bash ${./leaks.sh} ${builtins.storeDir} "$drv" ${lib.escapeShellArgs leakPatterns} > $out
           ''
       )
     ) outputs.nixosConfigurations
@@ -92,15 +125,21 @@ let
   rescueUsbChecks.leaks-sample-rescue-usb =
     pkgs.runCommand "leaks-sample-rescue-usb"
       {
-        nativeBuildInputs = [ pkgs.python3 ];
         drv = builtins.unsafeDiscardOutputDependency rescueUsb.system.build.images.iso-installer.drvPath;
       }
       ''
-        python3 ${./leaks.py} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
+        bash ${./leaks.sh} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
       '';
 in
 {
-  eval = nixosChecks // inventoryChecks // homeChecks;
+  eval = nixosChecks // inventoryChecks // homeChecks // o11nChecks;
   leaks = hostChecks // rescueUsbChecks;
 }
-// lib.mapAttrs (name: check: { ${name} = check; }) (import ./source.nix { inherit pkgs; })
+// lib.mapAttrs (name: check: { ${name} = check; }) (
+  import ./source.nix {
+    inherit pkgs o11n;
+    toolsExport = builtins.toFile "org-export.json" (
+      builtins.toJSON (o11nLib.fromInventory { path = ../tools/test; }).org.export
+    );
+  }
+)

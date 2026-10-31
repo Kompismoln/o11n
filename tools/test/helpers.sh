@@ -8,50 +8,43 @@ setup-testenv() {
 
     here="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     root=$TESTROOT
-    # The other end of id-entities.sh's locksmith, which the ssh stub runs.
+    # Dependency: the ssh stub runs the other end of o11n's locksmith.
     export LOCKSMITH=$here/../../nixos/org/locksmith.sh
     mkdir -p "$root"
     cp -a "$here/../." "$root"
     mv "$root/test/org.toml" "$root/org.toml"
-    mkdir "$root/enc" "$root/keys" "$root/artifacts"
-
-    tree "$root"
+    mkdir "$root/enc" "$root/keys" "$root/public-keys"
+    export O11N_EXPORT
+    O11N_EXPORT=$(test-export "$here")
 
     cd "$root" || exit 1
 
     export PATH="$root/test/bin:$root/bin:$PATH"
 }
 
+# Optimization: the test org is evaluated once a run, unless the check that runs the tests has evaluated it.
+test-export() {
+    local export=${O11N_TEST_EXPORT:-$BATS_RUN_TMPDIR/org-export.json}
+    [[ -s $export ]] || nix eval --json --no-warn-dirty --impure --expr "
+        (builtins.getFlake \"git+file://$(cd "$1/../.." && pwd)\").fromInventory { path = $1; }
+    " --apply 'outputs: outputs.org.export' >"$export"
+    echo "$export"
+}
+
 declare -g output status
-expect() {
-    local lines
-    lines="$(echo "$output" | wc -l)"
-    local expected_lines=${3:-$lines}
 
-    local lastline
-    local expected_status=$1
-    local expected_lastline=${2:-}
+succeeds() {
+    ((status == 0)) || {
+        echo "expected success, got $status: $output" >&2
+        return 1
+    }
+}
 
-    lastline=$(echo "$output" | tail -n 1 | strip-color)
-
-    [[ 
-        "$lastline" == *"$expected_lastline"* &&
-        "$status" == "$expected_status" &&
-        "$lines" == "$expected_lines" ]] &&
-        return 0
-
-    cat >&2 <<EOF
-
-=== '$BATS_TEST_NAME' ===
-$output
-
-in '$BATS_TEST_NAME'
-run '$BATS_RUN_COMMAND' failed:
-expected: $expected_lastline ($expected_status) (lines: $expected_lines)
-got:      $lastline ($status) (lines: $lines)
-
-EOF
-    return 1
+fails() {
+    ((status != 0)) && [[ $output == *"$1"* ]] || {
+        echo "expected failure saying '$1', got $status: $output" >&2
+        return 1
+    }
 }
 
 mock-host() {
@@ -62,10 +55,6 @@ mock-host() {
     echo "$test_ssh_key_1" >"$hostroot/keys/ssh-key"
     chmod 600 "$hostroot/keys/ssh-key"
     echo "$test_luks_key_1" >"$hostroot/keys/luks-key"
-}
-
-strip-color() {
-    sed 's/\x1B\[[0-9;]*[JKmsu]//g'
 }
 
 test_age_key_1=AGE-SECRET-KEY-1L0EJY3FLSYHDE46Y80F0KLUKUWP6V3J340UR7G2GWNFGXJQ0P6ZQ6X37TN

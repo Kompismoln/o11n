@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+members = ["crates/o11n"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }

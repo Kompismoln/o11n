@@ -1,6 +1,6 @@
 # `org`
 
-Written by `dev/index.py` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
+Written by `dev/index.sh` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
 them, each by its place in `org.toml`.
 
 ## Options
@@ -10,6 +10,14 @@ them, each by its place in `org.toml`.
 `org/default.nix` · attribute set of (submodule)
 
 record of all apps
+
+### `app.<name>.actors`
+
+`org/entity.nix` · list of (one of "root-0", "root-1")
+
+Default: `[ ]`
+
+the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
 
 ### `app.<name>.altpoints`
 
@@ -322,6 +330,14 @@ Default: `"/keys/app-‹name›"`
 
 path on the host to the age key that decrypts the entity's secrets
 
+### `app.<name>.secrets.identityFile`
+
+`org/secrets.nix` · absolute path
+
+Default: `"<org>/enc/app-‹name›.age"`
+
+the entity's age key, encrypted to itself, its actors and the root identities
+
 ### `app.<name>.secrets.sopsFile`
 
 `org/secrets.nix` · absolute path
@@ -361,20 +377,6 @@ public url including scheme
 Default: `[ ]`
 
 list of designated build hosts
-
-### `class`
-
-`org/default.nix` · attribute set of (submodule)
-
-metadata for classes
-
-### `class.<name>.keys`
-
-`org/default.nix` · list of string
-
-Default: `[ ]`
-
-keys an entity of the class has
 
 ### `contact`
 
@@ -427,6 +429,14 @@ flake that the hosts' nix registry calls o11n
 `org/default.nix` · attribute set of (submodule)
 
 record of all hosts
+
+### `host.<name>.actors`
+
+`org/entity.nix` · list of (one of "root-0", "root-1")
+
+Default: `[ ]`
+
+the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
 
 ### `host.<name>.boot`
 
@@ -1031,6 +1041,14 @@ Default: `"/keys/host-‹name›"`
 
 path on the host to the age key that decrypts the entity's secrets
 
+### `host.<name>.secrets.identityFile`
+
+`org/secrets.nix` · absolute path
+
+Default: `"<org>/enc/host-‹name›.age"`
+
+the entity's age key, encrypted to itself, its actors and the root identities
+
 ### `host.<name>.secrets.sopsFile`
 
 `org/secrets.nix` · absolute path
@@ -1195,14 +1213,6 @@ Default: `24`
 
 ipv4 private prefix length
 
-### `public-artifacts`
-
-`org/default.nix` · attribute set of string
-
-Default: `{ }`
-
-path templates for public artifacts
-
 ### `repository`
 
 `org/default.nix` · attribute set of string
@@ -1266,19 +1276,19 @@ Default:
 
 list of root identities
 
-### `secrets`
-
-`org/default.nix` · attribute set of string
-
-Default: `{ }`
-
-path templates for secrets
-
 ### `service`
 
 `org/default.nix` · attribute set of (submodule)
 
 record of all services
+
+### `service.<name>.actors`
+
+`org/entity.nix` · list of (one of "root-0", "root-1")
+
+Default: `[ ]`
+
+the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
 
 ### `service.<name>.class`
 
@@ -1569,6 +1579,14 @@ Default: `"/keys/service-‹name›"`
 
 path on the host to the age key that decrypts the entity's secrets
 
+### `service.<name>.secrets.identityFile`
+
+`org/secrets.nix` · absolute path
+
+Default: `"<org>/enc/service-‹name›.age"`
+
+the entity's age key, encrypted to itself, its actors and the root identities
+
 ### `service.<name>.secrets.sopsFile`
 
 `org/secrets.nix` · absolute path
@@ -1590,6 +1608,14 @@ entity-specific options, passed through as-is to the entity's configuration
 `org/default.nix` · attribute set of (submodule)
 
 record of all stores
+
+### `store.<name>.actors`
+
+`org/entity.nix` · list of (one of "root-0", "root-1")
+
+Default: `[ ]`
+
+the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
 
 ### `store.<name>.class`
 
@@ -1824,6 +1850,14 @@ Default: `"/keys/store-‹name›"`
 
 path on the host to the age key that decrypts the entity's secrets
 
+### `store.<name>.secrets.identityFile`
+
+`org/secrets.nix` · absolute path
+
+Default: `"<org>/enc/store-‹name›.age"`
+
+the entity's age key, encrypted to itself, its actors and the root identities
+
 ### `store.<name>.secrets.sopsFile`
 
 `org/secrets.nix` · absolute path
@@ -1907,6 +1941,14 @@ timezone
 `org/default.nix` · attribute set of (submodule)
 
 record of all users
+
+### `user.<name>.actors`
+
+`org/entity.nix` · list of (one of "root-0", "root-1")
+
+Default: `[ ]`
+
+the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
 
 ### `user.<name>.class`
 
@@ -2188,6 +2230,14 @@ where the entity's secrets are, and the key that decrypts them
 Default: `"/keys/user-‹name›"`
 
 path on the host to the age key that decrypts the entity's secrets
+
+### `user.<name>.secrets.identityFile`
+
+`org/secrets.nix` · absolute path
+
+Default: `"<org>/enc/user-‹name›.age"`
+
+the entity's age key, encrypted to itself, its actors and the root identities
 
 ### `user.<name>.secrets.sopsFile`
 

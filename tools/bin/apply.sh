@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# tools/bin/apply.sh
 
 set -euo pipefail
 
 tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
 . "$tools_root/libexec/run-with.bash"
+org-exported
 
 declare -x target=${1:?target required}
 declare -x \
-    BUILD_HOST=${BUILD_HOST:-$(org-toml.sh build-hosts | head -n 1)} \
+    BUILD_HOST=${BUILD_HOST:-$(o11n get build-hosts | head -n 1)} \
     TARGET_ADDRESS=${TARGET_ADDRESS:-$(find-route.sh "$target")}
 
 apply() {
@@ -20,12 +20,12 @@ apply() {
 
     # From a build host, the target substitutes the build when it switches.
     if [[ $BUILD_HOST == localhost && $TARGET_ADDRESS != localhost ]]; then
-        "$tools_root/bin/as.sh" nix-push nix copy --to "ssh://nix-push@$TARGET_ADDRESS" "$build"
+        "$tools_root/bin/as.sh" service-nix-push nix copy --to "ssh://nix-push@$TARGET_ADDRESS" "$build"
     fi
 
     log important "switching $target to $build"
     local rc=0
-    "$tools_root/bin/as.sh" nix-switch ssh "nix-switch@$TARGET_ADDRESS" "$build" 2>&1 |
+    "$tools_root/bin/as.sh" service-nix-switch ssh "nix-switch@$TARGET_ADDRESS" "$build" 2>&1 |
         tee "$tmpdir/switch.log" || rc=$?
 
     # Nix's words for a path that no substituter has.

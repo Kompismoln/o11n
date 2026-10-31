@@ -28,7 +28,17 @@
     };
     grants = lib.mkOption {
       description = "entity groups whose members get to decrypt the entity's secrets";
+      default = [ ];
       type = with lib.types; listOf str;
+    };
+    actors = lib.mkOption {
+      description = "the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities";
+      default = [ ];
+      type = lib.types.listOf (
+        lib.types.enum (
+          map (name: "user-${name}") (lib.attrNames (context.spec.user or { })) ++ context.org.root-identities
+        )
+      );
     };
     ids = lib.mkOption {
       description = "entity id in various formats";

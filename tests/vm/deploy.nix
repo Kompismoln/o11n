@@ -1,5 +1,3 @@
-# tests/vm/deploy.nix
-#
 # A deploy on the sample org: the operator builds on gw over ssh-ng as the untrusted
 # nix-build, web substitutes from gw's nix-serve and switches with switch-system, and
 # o11n-tools' apply.sh does the same with the sample's keys. It needs KVM, so it isn't
@@ -55,6 +53,8 @@ let
       }
     ''} $out/flake.nix
   '';
+
+  orgExport = pkgs.writeText "org-export.json" (builtins.toJSON outputs.org.export);
 
   # Without their context, so that the test doesn't build them itself.
   standIn = lib.genAttrs standIns (
@@ -133,7 +133,9 @@ pkgs.testers.runNixOSTest {
         "flakes"
       ];
       environment.systemPackages = [
-        (pkgs.callPackage ../../packages/o11n-tools.nix { })
+        (pkgs.callPackage ../../packages/o11n-tools.nix {
+          o11n = pkgs.callPackage ../../packages/o11n.nix { };
+        })
         pkgs.gettext
         pkgs.git
       ];
@@ -220,7 +222,7 @@ pkgs.testers.runNixOSTest {
           out = operator.fail(f"ssh -n nix-build@gw build-system {absent} web 2>&1")
           assert "is not valid" in out, out
 
-      tools = "cd /root/org && SOPS_AGE_KEY_FILE=/etc/nix/inputs/self/keys/root-1 TARGET_ADDRESS=web"
+      tools = "cd /root/org && O11N_EXPORT=${orgExport} SOPS_AGE_KEY_FILE=/etc/nix/inputs/self/keys/root-1 TARGET_ADDRESS=web"
       operator.succeed(
           "rm /root/.ssh/id_ed25519",
           "cp -rL /etc/org /root/org && chmod -R u+w /root/org",

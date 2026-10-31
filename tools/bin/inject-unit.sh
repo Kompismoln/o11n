@@ -20,7 +20,7 @@ inject-unit() {
     else
         # shellcheck disable=SC2029
         nix eval --raw "$module" >"$tmpdir/$unit" 2>/dev/null || die 1 "not a unit: $module"
-        as.sh rescue scp "root@$target_address" "$tmpdir/$unit" "/run/systemd/system/$unit"
+        as.sh service-rescue scp "root@$target_address" "$tmpdir/$unit" "/run/systemd/system/$unit"
     fi
 
 }

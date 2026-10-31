@@ -14,9 +14,10 @@
   nixfmt,
   o11n-tools,
   prettier,
-  python3,
+  rustfmt,
   shellcheck,
   statix,
+  toml2json,
   util-linux,
   writeShellApplication,
 }:
@@ -40,19 +41,21 @@ let
   ];
   stamps = shell ++ [ diffutils ];
   write = stamps ++ [
+    jq
     nixfmt
     prettier
+    rustfmt
   ];
   check =
     write
     ++ [
       deadnix
-      python3
       shellcheck
       statix
+      toml2json
     ]
     ++ o11n-tools.runtimeInputs;
-  fetch-inputs = shell ++ [ python3 ];
+  fetch-inputs = shell ++ [ jq ];
 in
 lib.mapAttrs script {
   inherit

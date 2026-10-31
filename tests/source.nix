@@ -1,4 +1,8 @@
-{ pkgs }:
+{
+  pkgs,
+  o11n,
+  toolsExport,
+}:
 let
   inherit (pkgs) lib;
   inherit (lib) fileset;
@@ -61,11 +65,14 @@ in
       [
         md
         nix
+        (fileset.fileFilter (f: f.hasExt "rs") root)
         ../.prettierrc.yaml
+        ../rustfmt.toml
       ]
       [
         pkgs.nixfmt
         pkgs.prettier
+        pkgs.rustfmt
       ];
 
   lint =
@@ -95,28 +102,26 @@ in
         nativeBuildInputs = [
           pkgs.age
           pkgs.bats
-          pkgs.gettext
           pkgs.git
           pkgs.jq
-          pkgs.mkpasswd
           pkgs.nix
           pkgs.nixfmt
+          o11n
           pkgs.openssh
-          pkgs.openssl
           pkgs.prettier
-          pkgs.python3
+          pkgs.rustfmt
+          pkgs.socat
           pkgs.sops
           pkgs.toml2json
           pkgs.tree
           pkgs.util-linux
-          pkgs.wireguard-tools
         ];
       }
       ''
         cp -r $src src
         chmod -R u+w src
         patchShebangs src
-        export HOME=$TMPDIR
+        export HOME=$TMPDIR O11N_TEST_EXPORT=${toolsExport}
         export NIX_CONFIG='experimental-features = nix-command'
         bats src/tools/test src/dev/test
         touch $out

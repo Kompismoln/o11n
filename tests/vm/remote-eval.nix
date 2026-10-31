@@ -1,5 +1,3 @@
-# tests/vm/remote-eval.nix
-#
 # gw evaluates and builds a stage of the org's flake at a revision, with its o11n input at
 # another, for a client that names them with the bearer, and streams nix's output back with
 # the exit status last. The org and a private input come over ssh with nix-remote's key, a
@@ -95,7 +93,9 @@ pkgs.testers.runNixOSTest {
 
     environment.systemPackages = [
       pkgs.git
-      (pkgs.callPackage ../../packages/o11n-tools.nix { })
+      (pkgs.callPackage ../../packages/o11n-tools.nix {
+        o11n = pkgs.callPackage ../../packages/o11n.nix { };
+      })
     ];
     virtualisation.memorySize = 2048;
     virtualisation.cores = 2;
