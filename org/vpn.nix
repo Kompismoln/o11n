@@ -20,6 +20,7 @@
       default = {
         int = config.id;
       };
+      defaultText = lib.literalExpression "{ int = id; }";
     };
     name = lib.mkOption {
       description = "name of the vpn";
@@ -34,11 +35,13 @@
       description = "ipv4 vpn address";
       type = context.types.subnetCidr4;
       default = "${config.prefix4}.0/${toString config.prefixLength4}";
+      defaultText = lib.literalExpression ''"''${prefix4}.0/''${toString prefixLength4}"'';
     };
     prefix4 = lib.mkOption {
       description = "ipv4 prefix for peers in vpn";
       type = context.types.subnetPrefix4;
       default = "${context.org.prefix4}.${toString config.id}";
+      defaultText = lib.literalExpression ''"''${org.prefix4}.''${toString id}"'';
     };
     prefixLength4 = lib.mkOption {
       description = "ipv4 prefix length for peers in vpn";
@@ -49,17 +52,20 @@
       description = "ipv6 vpn address";
       type = context.types.subnetCidr6;
       default = "${config.prefix}::/${toString config.prefixLength}";
+      defaultText = lib.literalExpression ''"''${prefix}::/''${toString prefixLength}"'';
     };
     addressWithBrackets = lib.mkOption {
       description = "ipv6 vpn address enclosed in square brackets";
       type = context.types.subnetCidrBracketed6;
       readOnly = true;
       default = "[${config.prefix}::]/${toString config.prefixLength}";
+      defaultText = lib.literalExpression ''"[''${prefix}::]/''${toString prefixLength}"'';
     };
     prefix = lib.mkOption {
       description = "ipv6 prefix for peers in vpn";
       type = context.types.subnetPrefix6;
       default = "${context.org.prefix}:${config.ids.hex4}";
+      defaultText = lib.literalExpression ''"''${org.prefix}:''${ids.hex4}"'';
     };
     prefixLength = lib.mkOption {
       description = "ipv6 prefix length for peers in vpn";
@@ -79,6 +85,7 @@
       description = "port allocated for the vpn";
       type = lib.types.port;
       default = 51820 + config.id;
+      defaultText = lib.literalExpression "51820 + id";
     };
     keepalive = lib.mkOption {
       description = "port allocated for the vpn";

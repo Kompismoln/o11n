@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# tools/bin/nix-remote.sh
-#
-# Builds on a host with the remote-builder role, through its endpoint on 443:
+# Usage: builds on a host with the remote-builder role, through its endpoint on 443:
 #
 #   nix-remote.sh info
 #   nix-remote.sh build <installable>... [nix build options]
 #   nix-remote.sh check [flake] [nix build options]
 #   nix-remote.sh eval <stage> [o11n revision]
 #
-# O11N_REMOTE_BUILDER is the host's URL (https://<endpoint>). The bearer token is read
+# O11N_REMOTE_BUILDER is the host's name, a scheme before it ignored. The bearer token is read
 # from O11N_REMOTE_BUILDER_TOKEN, or left to a proxy that adds the header itself.
 # Evaluation happens here and the host builds. The outputs stay on the host and
 # can't be read from here, so the build logs are printed as they come.
@@ -25,7 +23,7 @@ tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
 . "$tools_root/libexec/run-with.bash"
 
-# As nixos/org/remote-builder.nix sets it.
+# Duplication: as nixos/org/remote-builder.nix sets it.
 path_prefix=nix-daemon
 
 socket=$tmpdir/nix-daemon.sock
@@ -39,7 +37,7 @@ cleanup() {
 trap cleanup EXIT
 
 gost-config() {
-    local url=${O11N_REMOTE_BUILDER:?"set O11N_REMOTE_BUILDER to the builder's https:// URL"}
+    local url=${O11N_REMOTE_BUILDER:?"set O11N_REMOTE_BUILDER to the builder's host"}
     local proxy=${HTTPS_PROXY:-${https_proxy:-}}
     local server=${url#*://}
     server=${server%%/*}
@@ -94,8 +92,9 @@ EOF
 EOF
 }
 
-# gost logs nothing when the tunnel's requests fail, so ask the endpoint once, the same
-# way: a path under the prefix that the builder's gost doesn't serve answers 404.
+# Accommodating for gost, which logs nothing when the tunnel's requests fail: the endpoint is asked
+# once, the same way, for a path under the prefix that the builder's gost doesn't serve, which
+# answers 404.
 diagnose() {
     local server=${O11N_REMOTE_BUILDER#*://}
     local url=https://${server%%/*}/$path_prefix/probe
@@ -133,7 +132,7 @@ start-tunnel() {
 }
 
 store-info-command() {
-    # Lix, forked before `nix store info`, still calls it ping.
+    # Accommodating for Lix, forked before `nix store info`, which still calls it ping.
     if [[ $(nix --version) == *Lix* ]]; then echo ping; else echo info; fi
 }
 
@@ -142,7 +141,8 @@ store-info() {
     nix store "$(store-info-command)" --store "unix://$socket" "$@"
 }
 
-# After a failure: if the store still answers through the tunnel, the build failed, not the tunnel.
+# Policy: after a failure, a store that still answers through the tunnel means the build failed, not
+# the tunnel.
 store-answers() {
     timeout 60 nix store "$(store-info-command)" --store "unix://$socket" >/dev/null 2>&1
 }
@@ -152,8 +152,6 @@ remote-build() {
     nix build --store "unix://$socket" --eval-store auto --no-link -L "$@"
 }
 
-# The options that apply to listing the checks too, such as --override-input: all but
-# those only nix build takes.
 eval-options() {
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -165,8 +163,8 @@ eval-options() {
     done
 }
 
-# nix flake check --store asks the store which checks it would build before it has the
-# derivations, so it builds none of them and passes; build each check instead.
+# Accommodating for nix flake check --store, which asks the store which checks it would build
+# before it has the derivations, and so builds none of them and passes: each is built instead.
 remote-check() {
     local flake=. system
     if [[ -n ${1:-} && $1 != -* ]]; then
@@ -186,7 +184,7 @@ remote-check() {
     remote-build "${checks[@]/#/$flake#checks.$system.}" "$@"
 }
 
-# The host answers with nix's output, and a last line with its exit status.
+# Dependency: the host answers with nix's output, and a last line with its exit status.
 remote-eval() {
     local stage=${1:-} o11n=${2:-} org server line status=
     [[ -n $stage && $# -le 2 ]] || die 1 "usage: nix-remote.sh eval <stage> [o11n revision]"
@@ -195,7 +193,7 @@ remote-eval() {
     org=$(git rev-parse HEAD)
     [[ -n $(git branch -r --contains "$org") ]] || die 1 "$org isn't pushed, and the host fetches it"
 
-    server=${O11N_REMOTE_BUILDER:?"set O11N_REMOTE_BUILDER to the builder's https:// URL"}
+    server=${O11N_REMOTE_BUILDER:?"set O11N_REMOTE_BUILDER to the builder's host"}
     server=${server#*://}
     local args=(-sS -N --fail-with-body)
     if [[ -n ${O11N_REMOTE_BUILDER_TOKEN:-} ]]; then

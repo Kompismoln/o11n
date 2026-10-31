@@ -17,6 +17,7 @@
       type = lib.types.str;
     };
     mode = lib.mkOption {
+      description = "how the interface gets its address, statically or by dhcp; null leaves it unconfigured";
       type =
         with lib.types;
         nullOr (enum [
@@ -81,6 +82,7 @@
       default = config.metric;
     };
     dns = lib.mkOption {
+      description = "name servers of the network";
       type = with lib.types; nullOr (listOf str);
       default = null;
     };

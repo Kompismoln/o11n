@@ -1,8 +1,2 @@
-# Policy: what agent.sh keeps of a session and operator.sh of stamping stays out of git.
-/*
-!/.gitignore
-!/*.sh
-!/*.bash
-!/*.py
-!/README.md
-!/test/
+# Policy: what agent.sh keeps of a session and check.sh of its stages stays out of git.
+/state/

@@ -1,9 +1,7 @@
 # shellcheck shell=bash
-# Usage: . dev/files.bash, as check.sh and write.sh do, so that what format checks is what write.sh
+# Usage: . dev/files.bash, as dev/check.sh and dev/write.sh do, so that what format checks is what write.sh
 # writes.
 
-# Prints, each ending in a NUL, the files matching the patterns that git tracks or would, or without
-# git that are there.
 files() {
     local pattern path
     if git rev-parse --git-dir >/dev/null 2>&1; then

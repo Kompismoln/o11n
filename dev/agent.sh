@@ -1,80 +1,38 @@
 #!/usr/bin/env bash
-# Usage: ./dev/agent.sh session-start | turn-start | turn-end | hand-over [clone]. The hooks of
-# .claude/settings.json run all but hand-over, with a hook's JSON on stdin. Given a clone, each sees
-# to it alone, with the stages its dev/agent.bash names; without, to this clone and then to each
-# clone beside it that pins o11n and has a dev/agent.bash. Each says nothing unless the agent has
-# something to do, and exits 0, but turn-end, which exits 2 to have the turn go on.
+# Usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over. The hooks of
+# .claude/settings.json run all but hand-over, with a hook's JSON on stdin. Each says nothing unless
+# the agent has something to do, and exits 0, but tool-end and turn-end, which exit 2 to tell the
+# agent.
 set -euo pipefail
-here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 command=${1:-}
 case $command in
-session-start | turn-start | turn-end | hand-over | provision) ;;
+session-start | turn-start | tool-end | turn-end | hand-over | provision) ;;
 *)
-    echo "usage: ./dev/agent.sh session-start | turn-start | turn-end | hand-over [clone]" >&2
+    echo "usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over" >&2
     exit 1
     ;;
 esac
 
 event=""
 case $command in
-session-start | turn-start | turn-end) [[ -t 0 ]] || event="$(cat)" ;;
+session-start | turn-start | tool-end | turn-end) [[ -t 0 ]] || event="$(cat)" ;;
 esac
 
-# Prints this clone, then each beside it that pins o11n and has a dev/agent.bash: those come after,
-# as they pin what this one pushes.
-clones() {
-    local root dir
-    root=$(cd "$here/.." && pwd)
-    echo "$root"
-    for dir in "$root"/../*/; do
-        dir=$(cd "$dir" && pwd)
-        [[ $dir != "$root" && -f $dir/dev/agent.bash ]] || continue
-        if jq -e '.nodes.o11n' "$dir/flake.lock" >/dev/null 2>&1; then echo "$dir"; fi
-    done
-}
+cd "$(git rev-parse --show-toplevel)"
 
-# Runs the command for each clone, says what each said, under its name when there are several, and
-# stops at a turn-end that has the turn go on. The clones after the first pin it, with O11N, unless
-# it's set aside.
-each() {
-    local clones=() clone said rc
-    mapfile -t clones < <(clones)
-    if ((${#clones[@]} > 1)); then
-        export AGENT_SEVERAL=yes
-    fi
-    for clone in "${clones[@]}"; do
-        rc=0
-        said=$(bash "$here/agent.sh" "$command" "$clone" 2>&1 <<<"$event") || rc=$?
-        if [[ -n $said && -n ${AGENT_SEVERAL:-} ]]; then
-            said="In $(basename "$clone"):"$'\n'"$said"
-        fi
-        if ((rc == 0)); then
-            [[ -z $said ]] || printf '%s\n' "$said"
-        else
-            printf '%s\n' "$said" >&2
-            exit "$rc"
-        fi
-        if [[ $clone == "${clones[0]}" && ! -e $clone/dev/aside ]]; then
-            export O11N=$clone
-        fi
-    done
-}
+CHECKED_AT_SESSION_START=(stamps pending format lint docs parts index eval)
+REFUSED_AT_TURN_START=(stamps)
+TOLD_AT_TURN_START=(pending format lint docs parts index eval)
+HANDED_OVER=(format lint docs parts index eval leaks bats)
 
-if [[ -z ${2:-} ]]; then
-    each
-    exit 0
-fi
-
-cd "$2"
-# shellcheck source=/dev/null
-. dev/agent.bash
-
-ROOTS=dev/roots
-STARTED=dev/session-start
-TURN=dev/turn-start
-REFUSED=dev/refused
-ASIDE=dev/aside
+STATE=dev/state
+ENV=$STATE/env
+ROOTS=$STATE/roots
+STARTED=$STATE/session-start
+TURN=$STATE/turn-start
+REFUSED=$STATE/refused
+mkdir -p "$STATE"
 
 remote() {
     [[ ${CLAUDE_CODE_REMOTE:-} == true ]]
@@ -82,9 +40,9 @@ remote() {
 
 # Accommodating for Claude Code, which hands what session-start writes to $CLAUDE_ENV_FILE to the
 # session's commands but not to its hooks.
-if [[ -f dev/env ]]; then
+if [[ -f $ENV ]]; then
     # shellcheck source=/dev/null
-    . ./dev/env
+    . "$ENV"
 fi
 
 field() {
@@ -96,17 +54,26 @@ session-start() {
     local state=()
     case "$(field source)" in
     resume | clear | compact) ;;
-    *)
-        state+=(fresh)
-        rm -f "$ASIDE"
-        ;;
+    *) state+=(fresh) ;;
     esac
     if remote && ! provisioned; then
         state+=(unprovisioned refused)
-    elif [[ ${state[*]} == fresh ]] && ! session-checked; then
-        state+=(refused)
+    else
+        builder-probed
+        if [[ ${state[*]} == fresh ]] && ! session-checked; then
+            state+=(refused)
+        fi
     fi
     echo "${state[*]}" >"$STARTED"
+}
+
+# Policy: a builder that doesn't answer is told of, not refused for, as only VM tests and remote
+# evaluation need it.
+builder-probed() {
+    remote && [[ -n ${O11N_REMOTE_BUILDER:-} && -x tools/bin/nix-remote.sh ]] || return 0
+    said="$(timeout 120 tools/bin/nix-remote.sh info 2>&1)" && return
+    echo "Tell the user that the remote builder, $O11N_REMOTE_BUILDER, doesn't answer, as below, so nothing can be built on it this session, and go on."
+    echo "$said"
 }
 
 session-checked() {
@@ -120,9 +87,9 @@ session-checked() {
 # Accommodating for bash, which ignores errexit wherever a status is tested: provisioning runs as a
 # process of its own, so that it still stops at its first failure.
 provisioned() {
-    if said="$(bash "$here/agent.sh" provision "$PWD" 2>&1)"; then
+    if said="$(bash "${BASH_SOURCE[0]}" provision 2>&1)"; then
         # shellcheck source=/dev/null
-        . ./dev/env
+        . "$ENV"
         return
     fi
     refuse "a container that fails to provision" details
@@ -139,17 +106,17 @@ provision() {
     fi
     rm -rf "$ROOTS"
     mkdir -p "$ROOTS"
-    inputs="$("$here/fetch-github-inputs.sh")"
+    inputs="$(dev/fetch-inputs.sh)"
     for path in $inputs; do
         nix-store --quiet --add-root "$ROOTS/input-$((i++))" --realise "$path" >/dev/null
     done
     nix print-dev-env --quiet --no-warn-dirty --profile "$ROOTS/dev-shell" --json |
-        jq -r '"export PATH=\(.variables.PATH.value | @sh):\"$PATH\""' >dev/env
-    [[ -z ${CLAUDE_ENV_FILE:-} ]] || cat dev/env >>"$CLAUDE_ENV_FILE"
+        jq -r '"export PATH=\(.variables.PATH.value | @sh):\"$PATH\""' >"$ENV"
+    [[ -z ${CLAUDE_ENV_FILE:-} ]] || cat "$ENV" >>"$CLAUDE_ENV_FILE"
 }
 
 turn-start() {
-    local state=() refused="" was revs rev
+    local state=() refused="" was rev
     if [[ -f $STARTED ]]; then
         read -ra state <"$STARTED"
         rm -f "$STARTED"
@@ -158,16 +125,10 @@ turn-start() {
     was="$(git rev-parse HEAD)"
     if ! remote || [[ " ${state[*]} " == *" unprovisioned "* ]]; then
         :
-    elif [[ " ${state[*]} " == *" fresh "* ]] && revs="$(supplied)"; then
-        rm -f "$ASIDE"
-        if ! rev="$(found "$revs")"; then
-            if [[ -n ${AGENT_SEVERAL:-} ]]; then
-                : >"$ASIDE"
-                echo "Leave $(basename "$PWD") as it is this session: the prompt names no commit of it."
-            else
-                refuse "$revs, the commit the prompt starts at, which isn't to be found"
-                refused=refused
-            fi
+    elif [[ " ${state[*]} " == *" fresh "* ]] && rev="$(supplied)"; then
+        if ! found "$rev"; then
+            refuse "$rev, the commit the prompt starts at, which isn't to be found"
+            refused=refused
         elif ! moved "$rev"; then
             refused=refused
         elif [[ $(git rev-parse HEAD) != "$was" ]]; then
@@ -179,7 +140,7 @@ turn-start() {
                 refused=refused
             fi
         fi
-    elif [[ -z $refused && ! -e $ASIDE ]]; then
+    elif [[ -z $refused ]]; then
         synced
         if [[ $(git rev-parse HEAD) != "$was" ]]; then
             { provisioned && turn-checked; } || refused=refused
@@ -193,32 +154,20 @@ turn-start() {
     fi
 }
 
-# Prints the revisions the prompt starts at, after "At", one for each clone the session sees to.
 supplied() {
-    local prompt words word revs=()
+    local prompt words rev
     prompt="$(field prompt)"
     read -ra words <<<"${prompt%%$'\n'*}"
     [[ ${words[0]:-} == At ]] || return 1
-    for word in "${words[@]:1}"; do
-        word=${word%[,.:;]}
-        [[ $word =~ ^[0-9a-f]{7,40}$ ]] || break
-        revs+=("$word")
-    done
-    ((${#revs[@]})) || return 1
-    echo "${revs[*]}"
+    rev=${words[1]:-}
+    rev=${rev%[,.:;]}
+    [[ $rev =~ ^[0-9a-f]{7,40}$ ]] || return 1
+    echo "$rev"
 }
 
-# Prints the first of the revisions that is a commit here.
 found() {
-    local rev
-    git fetch --quiet origin 2>/dev/null || true
-    for rev in $1; do
-        if git rev-parse --verify --quiet "$rev^{commit}" >/dev/null; then
-            echo "$rev"
-            return
-        fi
-    done
-    return 1
+    fetched || true
+    git rev-parse --verify --quiet "$1^{commit}" >/dev/null
 }
 
 moved() {
@@ -239,7 +188,7 @@ synced() {
     local branch upstream
     branch="$(git symbolic-ref --quiet --short HEAD)" || return 0
     upstream="origin/$branch"
-    git fetch --quiet origin 2>/dev/null || return 0
+    fetched || return 0
     if ! git rev-parse --verify --quiet "$upstream" >/dev/null || git merge-base --is-ancestor "$upstream" HEAD; then
         return 0
     fi
@@ -275,7 +224,7 @@ refuse() {
 checked() {
     local line
     failed=()
-    said="$(./check.sh "$@" 2>&1)" && return
+    said="$(dev/check.sh "$@" 2>&1)" && return
     line="$(grep '^• failed: ' <<<"$said" | tail -n 1)" || true
     if [[ -n $line ]]; then
         read -ra failed <<<"${line#• failed: }"
@@ -297,6 +246,8 @@ named() {
         format) names+=("formatting errors") ;;
         lint) names+=("lint errors") ;;
         docs) names+=("broken references") ;;
+        parts) names+=("files the parts hold amiss") ;;
+        index) names+=("an index that isn't written") ;;
         eval) names+=("failing evaluation tests") ;;
         leaks) names+=("leaks") ;;
         bats) names+=("failing bats tests") ;;
@@ -306,24 +257,52 @@ named() {
     printf '%s, ' "${names[@]}" | sed 's/, $//'
 }
 
+fetched() {
+    git fetch --quiet origin '+refs/heads/*:refs/remotes/origin/*' '+refs/stamped/*:refs/stamped/*' 2>/dev/null
+}
+
+# Policy: stamps are written against what the operator last stamped on the branch, or, while the
+# branch has no refs/stamped, against the commit the turn started at, or else where the branch left
+# main, so that what wasn't stamped is stamped again rather than left out.
+base() {
+    local branch ref
+    if branch="$(git symbolic-ref --quiet --short HEAD)" &&
+        ref="$(git rev-parse --verify --quiet "refs/stamped/$branch^{commit}")" &&
+        git merge-base --is-ancestor "$ref" HEAD; then
+        echo "$ref"
+    elif [[ -f $TURN ]]; then
+        cat "$TURN"
+    else
+        git merge-base HEAD "origin/${MAIN:-main}" 2>/dev/null || git merge-base HEAD "${MAIN:-main}" 2>/dev/null
+    fi
+}
+
+UNBASED="no commit to stamp against: no refs/stamped/<branch> HEAD is on, no $TURN, and no main HEAD shares history with"
+
 # Policy: turn-end has the turn go on to set right what it found, but only once a turn, lest the
-# turn never end. With O11N set, it writes even when the turn changed nothing here, as what it pins
-# may have moved.
+# turn never end.
 turn-end() {
     local start again="" before
     [[ $(field stop_hook_active) != true ]] || again=yes
-    [[ ! -e $REFUSED && ! -e $ASIDE ]] || return 0
-    start="$(cat "$TURN" 2>/dev/null)" ||
-        ended "turn-end has no commit the turn started at to stamp against: run ./dev/agent.sh turn-start first."
-    [[ $(git rev-parse HEAD) != "$start" || -n $(git status --porcelain) || -n ${O11N:-} ]] || return 0
+    [[ ! -e $REFUSED ]] || return 0
+    if [[ -f $TURN && $(git rev-parse HEAD) == "$(cat "$TURN")" && -z $(git status --porcelain) ]]; then
+        return 0
+    fi
+    start="$(base)" || ended "turn-end finds $UNBASED."
     before="$(tree)"
-    step ./write.sh "$start" ||
+    step dev/write.sh "$start" ||
         ended "$stepped fails, as below: fix it before you end the turn, or tell the user why you can't." "$said"
     if [[ $(tree) != "$before" ]]; then
         { step git add --all && step git commit --quiet -m turn-end; } ||
             ended "$stepped fails, as below: see to it, and commit and push what turn-end wrote." "$said"
     fi
     step git push --quiet -u origin HEAD || ended "git push fails, as below: see to it, and push the branch." "$said"
+}
+
+# Accommodating for the environment's own Stop hook, which runs beside turn-end and has the turn go
+# on for commits turn-end is about to push: what the agent commits, turn-end sees to at once.
+tool-end() {
+    [[ -z $(git rev-list -n 1 HEAD --not --remotes) ]] || turn-end
 }
 
 ended() {
@@ -348,16 +327,14 @@ tree() {
 
 hand-over() {
     local start again="fix it and run ./dev/agent.sh hand-over again."
-    if [[ -e $ASIDE ]]; then
-        return
-    elif [[ -e $REFUSED ]]; then
+    if [[ -e $REFUSED ]]; then
         echo "Work is refused this turn, so nothing is handed over: tell the user so."
         return
-    elif ! start="$(cat "$TURN" 2>/dev/null)"; then
-        echo "hand-over has no commit the turn started at to stamp against: run ./dev/agent.sh turn-start first."
+    elif ! start="$(base)"; then
+        echo "hand-over finds $UNBASED."
         return
     fi
-    if ! step ./write.sh "$start"; then
+    if ! step dev/write.sh "$start"; then
         printf '%s\n' "$stepped fails, as below: $again" "$said"
         return
     fi
@@ -374,10 +351,11 @@ hand-over() {
 }
 
 # Accommodating for Claude Code, which adds what a hook says to the session only if it exits 0, and
-# what a Stop hook says only if it exits 2.
+# what a PostToolUse or Stop hook says only if it exits 2.
 case $command in
 session-start) session-start ;;
 turn-start) turn-start ;;
+tool-end) tool-end ;;
 turn-end) turn-end ;;
 hand-over) hand-over ;;
 provision) provision ;;

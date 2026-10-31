@@ -69,16 +69,21 @@
             {
               checks = lib.concatMapAttrs (_: checks: checks) categories;
 
+              legacyPackages.index = import ./dev/index.nix {
+                inherit lib;
+                src = inputs.self;
+                inherit (lib.importTOML ./dev/parts.toml) parts;
+              };
+
               legacyPackages.stages = lib.mapAttrs stage categories // {
                 vm = stage "vm" config.legacyPackages.vmTests;
               };
 
               packages = {
                 gost = pkgs.callPackage ./packages/gost.nix { };
-                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { };
-                operator = pkgs.callPackage ./packages/operator.nix { };
-                stamps = pkgs.callPackage ./packages/stamps.nix { };
-              };
+                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { inherit (config.packages) gost; };
+              }
+              // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n-tools; };
 
               legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
                 inherit pkgs;
@@ -100,32 +105,17 @@
 
               legacyPackages.vmTests.containers = import ./tests/vm/containers.nix { inherit pkgs; };
 
+              # Policy: the dev shell runs each package's source as it is, with what the package runs,
+              # and bats for their tests.
               devShells.default = pkgs.mkShell {
-                packages = [
-                  config.packages.gost
-                  config.packages.o11n-tools
-                  config.packages.stamps
-                ]
-                ++ (with pkgs; [
-                  age
-                  bats
-                  deadnix
-                  gettext
-                  jq
-                  mkpasswd
-                  nixfmt
-                  openssh
-                  openssl
-                  prettier
-                  python3
-                  shellcheck
-                  sops
-                  statix
-                  toml2json
-                  tree
-                  util-linux
-                  wireguard-tools
-                ]);
+                packages = lib.unique (
+                  lib.concatMap (package: package.runtimeInputs or [ ]) (lib.attrValues config.packages)
+                  ++ [
+                    config.packages.gost
+                    config.packages.o11n-tools
+                    pkgs.bats
+                  ]
+                );
                 shellHook = ''
                   if [[ -f .env ]]; then
                     set -a && source .env && set +a

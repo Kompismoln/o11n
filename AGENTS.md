@@ -1,46 +1,30 @@
 # Agent instructions
 
-This document contains project-wide instructions for agents.
-
 ## Environment
 
-`./dev/agent.sh session-start` provisions a cloud session: it unshallows the clone, fetches the github: inputs over git,
-and puts the dev shell's tools on PATH. Its fetches and the dev shell are rooted in `dev/roots`, so `nix store gc` keeps
-them. `./dev/agent.sh` sees to an org's clone beside this one as well, one that pins o11n and has a `dev/agent.bash`:
-after this clone, and pinning o11n there to what this clone pushed. A session's first prompt names a commit of each
-clone it's to work on, `At <rev> <rev>`, and a clone it names none of is left as it is.
-
-The hooks run in a session that starts in the clone, from `.claude/settings.json`. A session with an org's clone beside
-this one starts above both, and runs them only from the settings its environment's setup script writes there (see
-`dev/README.md`). Otherwise run `./dev/agent.sh` as they would, a prompt that starts `At <rev>` as
-`{"prompt": "At <rev>"}` on turn-start's stdin, and source `dev/env` for the tools.
+`docs/dev.md` details `dev/`: the checks, the stamps, the operator's side, and the agent's hooks, which provision a
+cloud session. A session's first prompt names the commit it starts at, `At <rev>`. Where the hooks don't run, run
+`./dev/agent.sh` as they would (`docs/dev.md`, "Agent").
 
 - An org's `org.toml` is its source of truth, and `org/` reads it.
 - Archeology is not allowed unless said otherwise, the commit given has all you need.
 
-- Downloads of GitHub archives, which `github:` inputs use, are refused with HTTP 403; git over https works. Fetch the
-  same revisions over git once, and plain `nix` commands work for the rest of the session, because the inputs are then
-  in the store under the same content hash. session-start does this with `dev/fetch-github-inputs.sh`, which takes
-  another flake's lock as well: `dev/fetch-github-inputs.sh <org clone>/flake.lock`.
-
-- Without session-start the clone is shallow. When referring to it as `git+file://`, for example to check a single
-  commit, add `shallow=1`: `nix flake check "git+file://$PWD?rev=$(git rev-parse HEAD)&shallow=1"`.
+- The archives `github:` and `gitlab:` inputs download are refused (HTTP 403) or rate-limited (HTTP 429); git over https
+  works. session-start fetches the inputs over git, so plain `nix` finds them in the store. For another lock, run
+  `dev/fetch-inputs.sh <flake.lock>`.
 
 - Instead of `/dev/kvm`, NixOS VM tests can run on the `O11N_REMOTE_BUILDER` when set, and its host allowed by the
   session's network policy, `tools/bin/nix-remote.sh build <installable>` builds them on a host with the remote-builder
-  role, and `nix-remote.sh check` builds every check there.
+  role, and `nix-remote.sh check` builds every check there. session-start says so when that host doesn't answer.
 
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub flakes
   (`--override-input <input> path:<stub>`) that have the attributes the org reads. Kompismoln/org's `tests/stubs` holds
-  them, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `nix-remote.sh` command. Fetch the
-  org's `github:` inputs over git first, as above.
+  them, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `nix-remote.sh` command.
 - Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools` and exports `O11N_ORG_ROOT=$PWD`, which the
   wrapper only defaults to `/etc/nix/inputs/self`. To try changes to the tools on the org,
   `O11N_TOOLS=<o11n clone>/tools` puts the clone's `bin/` first on its PATH.
-- Nix runs in single-user mode on this session's `/nix`. Point any other daemon, such as Lix's, at its own store with
-  `NIX_REMOTE="local?root=<dir>"` (Lix's `nix-daemon` ignored `--store`).
-- Lix gives fixed-output fetches their network through pasta, which can't start in this sandbox; set `pasta-path =`
-  (empty) for a test daemon here.
+- Nix runs in single-user mode on this session's `/nix`. For a Lix daemon, as the remote builder runs, use
+  `dev/lix-daemon.sh` (`docs/dev.md`, "Lix daemon").
 - A fixed-output fetch from a GitHub archive URL fails here too. Fetch the same revision over git into a directory named
   `source`, remove `.git`, and add it with `nix-store --add-fixed --recursive sha256 <dir>/source`; it lands at the path
   the fetch would have produced.
@@ -67,15 +51,12 @@ this one starts above both, and runs them only from the settings its environment
 
 ## Workflow
 
-Hooks run `./dev/agent.sh` with `session-start`, `turn-start` and `turn-end`.
-
 When asked to hand over:
 
 1. Remove all comments that don't pass "Comments" in the files the change touches, pre-existing included.
 2. Run `./dev/agent.sh hand-over`.
 
-All `./dev/agent.sh` commands are silent on success or print instructions for you to act on. All `./dev/agent.sh` exits
-are 0 except `turn-end`, which exits 2 on failure.
+All `./dev/agent.sh` commands are silent on success or print instructions for you to act on.
 
 ## Handling errors and warnings
 
@@ -106,7 +87,7 @@ These are for developers and ops, so:
 
 ## Tests and checks
 
-`./check.sh` checks everythin and takes ~60s and ~240s when bats runs, as after a change to `tools/` or `dev/`.
+`dev/check.sh` checks everything, ~60s and ~240s when bats runs (`docs/dev.md`, "Check").
 
 ### Bats
 
@@ -117,7 +98,7 @@ These are for developers and ops, so:
 ### VM
 
 VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks: they need KVM. Run them with
-`tools/bin/nix-remote.sh build .#vmTests.<name>`, or all of them with `./check.sh vm`.
+`tools/bin/nix-remote.sh build .#vmTests.<name>`, or all of them with `dev/check.sh vm`.
 
 ### Inventories
 
@@ -159,9 +140,8 @@ Use `generate-keys.sh` with the org tooling in `tools/bin`.
 
 ## Documentation
 
-Stamps are git conflict markers around each change to a doc since the commit a turn started at, against what the
-operator had signed of it there. `./write.sh <commit>` writes them, as turn-end and hand-over run it, and the operator
-stamps them before work proceeds.
+turn-end and hand-over stamp each change to a doc since what the operator last stamped (`docs/dev.md`, "Stamps"), and
+the operator stamps them before work proceeds.
 
 - The primary document is `docs/o11n.md`: If a contradiction to it is discovered, stop, describe the landscape and
   provide options.
@@ -176,6 +156,6 @@ stamps them before work proceeds.
 - ∟ When B is considerable enough to offset A, a comment is justified.
 
 1. Prefix with the comment's nature
-2. Tell what's non-evident and only what the code doesn't already tell <<<<<<< signed =======
+2. Tell what's non-evident and only what the code doesn't already tell
 
 Before a hand-over, remove the comments that don't pass this from the files the change touches, pre-existing included.

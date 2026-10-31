@@ -1,9 +1,12 @@
 {
   age,
   curl,
+  gettext,
+  gost,
   jq,
   lib,
   makeWrapper,
+  mkpasswd,
   openssh,
   openssl,
   shellcheck,
@@ -14,6 +17,21 @@
   ...
 }:
 
+let
+  runtimeInputs = [
+    age
+    curl
+    gettext
+    gost
+    jq
+    mkpasswd
+    openssl
+    openssh
+    sops
+    toml2json
+    wireguard-tools
+  ];
+in
 stdenv.mkDerivation {
   pname = "o11n-tools";
   version = "0.1.0";
@@ -26,6 +44,8 @@ stdenv.mkDerivation {
     makeWrapper
     shellcheck
   ];
+
+  passthru = { inherit runtimeInputs; };
 
   doCheck = true;
   checkPhase = ''
@@ -44,18 +64,7 @@ stdenv.mkDerivation {
     for script in $out/bin/*; do
       wrapProgram "$script" \
         --set-default O11N_ORG_ROOT /etc/nix/inputs/self \
-        --prefix PATH : ${
-          lib.makeBinPath [
-            age
-            curl
-            jq
-            openssl
-            openssh
-            sops
-            toml2json
-            wireguard-tools
-          ]
-        }
+        --prefix PATH : ${lib.makeBinPath runtimeInputs}
     done
     runHook postInstall
   '';

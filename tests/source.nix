@@ -1,4 +1,3 @@
-# tests/source.nix
 { pkgs }:
 let
   inherit (pkgs) lib;
@@ -22,7 +21,7 @@ let
   md = fileset.fileFilter (f: f.hasExt "md") root;
   nix = fileset.fileFilter (f: f.hasExt "nix") root;
 
-  # Optimization: a stage of check.sh sees only the files it reads, so that nix runs it again only
+  # Optimization: a stage of dev/check.sh sees only the files it reads, so that nix runs it again only
   # when one of them changes.
   stage =
     name: files: inputs:
@@ -31,7 +30,7 @@ let
         src = source (
           fileset.unions (
             [
-              ../check.sh
+              ../dev/check.sh
               ../dev/files.bash
             ]
             ++ files
@@ -44,7 +43,7 @@ let
         chmod -R u+w src
         patchShebangs src
         cd src
-        bash check.sh ${name}
+        bash dev/check.sh ${name}
         touch $out
       '';
 in
@@ -88,11 +87,9 @@ in
         src = source (
           fileset.unions [
             ../.prettierrc.yaml
-            ../check.sh
             ../dev
             ../nixos/org/locksmith.sh
             ../tools
-            ../write.sh
           ]
         );
         nativeBuildInputs = [

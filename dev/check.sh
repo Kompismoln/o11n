@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Usage: ./check.sh [stage]..., from the clone's root in the dev shell. Each stage checks one thing
+# Usage: dev/check.sh [stage]..., from the clone's root in the dev shell. Each stage checks one thing
 # and writes nothing git tracks; the stages named, or all of them, run side by side, and it fails,
 # saying which did, if any does. It reads a directory without git as well, as nix's checks do.
 set -euo pipefail
 . dev/files.bash
 
-STAGES=(stamps pending format lint docs eval leaks bats vm)
+STAGES=(stamps pending format lint docs parts index eval leaks bats vm)
 
 stage-stamps() {
     dev/stamps.sh check
@@ -15,11 +15,15 @@ stage-pending() {
     dev/stamps.sh pending
 }
 
+# Accommodating for prettier, which says to fix its findings with --write: on a doc that holds
+# stamps that reflows their markers, which write.sh leaves as they are.
 stage-format() {
-    files '*.nix' | xargs -0 nixfmt --check
     local docs=()
     mapfile -d '' docs < <(unheld)
-    ((${#docs[@]} == 0)) || prettier --check --log-level warn -- "${docs[@]}"
+    files '*.nix' | xargs -0 nixfmt --check &&
+        { ((${#docs[@]} == 0)) || prettier --check --log-level warn -- "${docs[@]}"; } && return
+    echo "dev/write.sh writes the format; run it, not nixfmt or prettier." >&2
+    return 1
 }
 
 stage-lint() {
@@ -32,6 +36,17 @@ stage-lint() {
 
 stage-docs() {
     python3 dev/refcheck.py
+}
+
+stage-parts() {
+    python3 dev/parts.py
+}
+
+stage-index() {
+    python3 dev/index.py --check || {
+        echo "python3 dev/index.py writes it." >&2
+        return 1
+    }
 }
 
 stage-eval() {
@@ -75,6 +90,17 @@ for stage in "${stages[@]}"; do
     [[ " ${STAGES[*]} " == *" $stage "* ]] || fail "no stage $stage: ${STAGES[*]}"
 done
 if ((${#stages[@]} == 1)); then
+    if git rev-parse --git-dir >/dev/null 2>&1; then
+        log=dev/state/logs/${stages[0]}.log
+        mkdir -p "$(dirname "$log")"
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $(git rev-parse --short HEAD) dev/check.sh ${stages[0]}" >"$log"
+        teed=()
+        exec > >(tee -a "$log")
+        teed+=("$!")
+        exec 2> >(tee -a "$log" >&2)
+        teed+=("$!")
+        trap 'rc=$?; exec >&- 2>&-; wait "${teed[@]}"; exit "$rc"' EXIT
+    fi
     echo "• ${stages[0]}" >&2
     "stage-${stages[0]}"
     exit

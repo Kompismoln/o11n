@@ -1,0 +1,22 @@
+stages = [
+  "felt",
+  "implied",
+  "mentioned",
+  "named",
+  "itemized",
+  "planned",
+  "drafted",
+  "solidified",
+  "cemented",
+  "protected",
+]
+
+layers = [
+  "domain",
+]
+
+[parts.org]
+stage = "solidified"
+layer = "domain"
+doc = "docs/parts/org.md"
+code = ["org"]

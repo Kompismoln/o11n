@@ -44,6 +44,7 @@ in
       type = lib.types.path;
     };
     luksKeyFile = lib.mkOption {
+      description = "path in the initrd to the key that unlocks the host's luks devices";
       type = lib.types.str;
       default = "/luks-key";
     };

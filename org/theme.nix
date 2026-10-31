@@ -91,6 +91,7 @@
         );
     };
     fonts = lib.mkOption {
+      description = "fonts by their use";
       type = lib.types.attrsOf (
         lib.types.submodule {
           options = {

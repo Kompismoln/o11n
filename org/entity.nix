@@ -1,4 +1,3 @@
-# org/entity.nix
 {
   name,
   lib,
@@ -28,6 +27,7 @@
       type = lib.types.str;
     };
     grants = lib.mkOption {
+      description = "entity groups whose members get to decrypt the entity's secrets";
       type = with lib.types; listOf str;
     };
     ids = lib.mkOption {
@@ -49,6 +49,7 @@
       default = if config.id == null || config.class == "host" then null else { };
     };
     publicKeys = lib.mkOption {
+      description = "paths to the entity's public keys, one for each key its class has";
       type = lib.types.submoduleWith {
         modules = [ ./public-keys.nix ];
         specialArgs = {
@@ -58,6 +59,7 @@
       };
     };
     secrets = lib.mkOption {
+      description = "where the entity's secrets are, and the key that decrypts them";
       type = lib.types.submoduleWith {
         modules = [ ./secrets.nix ];
         specialArgs = {

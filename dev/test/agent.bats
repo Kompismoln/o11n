@@ -4,7 +4,7 @@
 setup() {
   opening="<<<<<<< signed"
   cd "$BATS_TEST_TMPDIR" || exit
-  unset CLAUDE_CODE_REMOTE CLAUDE_ENV_FILE CHECK_FAILS WRITE_FAILS O11N AGENT_SEVERAL
+  unset CLAUDE_CODE_REMOTE CLAUDE_ENV_FILE CHECK_FAILS WRITE_FAILS O11N_REMOTE_BUILDER
   mkdir bin remote clones
   stub bin/nix 'echo "nix $*" >>"$BATS_TEST_TMPDIR/nix.log"
 echo "{\"variables\":{\"PATH\":{\"value\":\"/dev-shell/bin\"}}}"'
@@ -26,8 +26,6 @@ configure() {
   git config commit.gpgsign false
 }
 
-# Makes clones/$1, the agent's clone of what remote/$1-operator pushes to remote/$1.git, its work
-# branch, with dev/agent.sh and stubs of check.sh and write.sh, and, given a flake.lock, that too.
 project() {
   git init -q --bare -b main "$BATS_TEST_TMPDIR/remote/$1.git"
   git init -q -b main "$BATS_TEST_TMPDIR/remote/$1-operator"
@@ -36,8 +34,8 @@ project() {
     configure operator
     git remote add origin "../$1.git"
     mkdir dev
-    cp "$BATS_TEST_DIRNAME"/../{agent.sh,agent.bash,stamps.sh,.gitignore} dev/
-    stub check.sh 'echo "${PWD##*/}: $*" >>"$BATS_TEST_TMPDIR/checks.log"
+    cp "$BATS_TEST_DIRNAME"/../{agent.sh,stamps.sh,.gitignore} dev/
+    stub dev/check.sh 'echo "${PWD##*/}: $*" >>"$BATS_TEST_TMPDIR/checks.log"
 echo "$PATH" >"$BATS_TEST_TMPDIR/checked-path"
 failed=()
 for stage in "$@"; do
@@ -48,13 +46,9 @@ for stage in "$@"; do
   fi
 done
 ((${#failed[@]} == 0)) || { echo "• failed: ${failed[*]}" >&2; exit 1; }'
-    stub write.sh '[[ " ${WRITE_FAILS:-} " != *" ${PWD##*/} "* ]] || { echo "nixfmt: broken"; exit 1; }
-[[ -z ${O11N:-} ]] || git -C "$O11N" rev-parse HEAD >pin
-[[ -z ${1:-} ]] || dev/stamps.sh write "$1" >/dev/null'
-    stub dev/fetch-github-inputs.sh ':'
-    if [[ -n ${2:-} ]]; then
-      echo "$2" >flake.lock
-    fi
+    stub dev/write.sh '[[ " ${WRITE_FAILS:-} " != *" ${PWD##*/} "* ]] || { echo "nixfmt: broken"; exit 1; }
+[[ -z ${1:-} ]] || { echo "$1" >"$BATS_TEST_TMPDIR/against"; dev/stamps.sh write "$1" >/dev/null; }'
+    stub dev/fetch-inputs.sh ':'
     echo one >file
     echo one >doc.md
     git add -A
@@ -65,14 +59,8 @@ done
   (cd "$BATS_TEST_TMPDIR/clones/$1" && configure agent)
 }
 
-org() {
-  project org '{"nodes":{"o11n":{"locked":{"type":"github","rev":"0000000"}}}}'
-}
-
-# Commits $1 on a line of its own to file as the operator of ${2:-o11n}, pushes it to work, and
-# prints its revision.
 pushed() {
-  cd "$BATS_TEST_TMPDIR/remote/${2:-o11n}-operator" || exit
+  cd "$BATS_TEST_TMPDIR/remote/o11n-operator" || exit
   echo "$1" >>file
   git commit -qam "$1"
   git push -q origin HEAD:work
@@ -85,15 +73,16 @@ commit() {
 }
 
 started() {
-  echo "$1" >"${2:-.}/dev/session-start"
+  mkdir -p dev/state
+  echo "$1" >dev/state/session-start
 }
 
 @test "session-start checks a fresh session's commit, and says nothing when it holds" {
   run "$agent" session-start <<<'{"source":"startup"}'
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
-  [ "$(cat dev/session-start)" = fresh ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs eval" ]
+  [ "$(cat dev/state/session-start)" = fresh ]
+  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs parts index eval" ]
   [ -z "$(git status --porcelain)" ]
 }
 
@@ -105,16 +94,16 @@ started() {
   [ "${lines[2]}" = "pending: broken" ]
   [ "${lines[3]}" = "• eval" ]
   [ "${lines[4]}" = "eval: broken" ]
-  [ "$(cat dev/session-start)" = "fresh refused" ]
+  [ "$(cat dev/state/session-start)" = "fresh refused" ]
 }
 
 @test "session-start provisions a cloud session from the dev shell, rooted in the clone" {
   CLAUDE_CODE_REMOTE=true CLAUDE_ENV_FILE=$BATS_TEST_TMPDIR/env run "$agent" session-start <<<'{"source":"resume"}'
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
-  grep -qxF "nix print-dev-env --quiet --no-warn-dirty --profile dev/roots/dev-shell --json" "$BATS_TEST_TMPDIR/nix.log"
-  [ "$(cat dev/env)" = "export PATH='/dev-shell/bin':\"\$PATH\"" ]
-  [ "$(cat "$BATS_TEST_TMPDIR/env")" = "$(cat dev/env)" ]
+  grep -qxF "nix print-dev-env --quiet --no-warn-dirty --profile dev/state/roots/dev-shell --json" "$BATS_TEST_TMPDIR/nix.log"
+  [ "$(cat dev/state/env)" = "export PATH='/dev-shell/bin':\"\$PATH\"" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/env")" = "$(cat dev/state/env)" ]
   [ -z "$(git status --porcelain)" ]
 }
 
@@ -123,6 +112,30 @@ started() {
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
   [[ $(cat "$BATS_TEST_TMPDIR/checked-path") == /dev-shell/bin:* ]]
+}
+
+@test "session-start probes the remote builder in the cloud, and tells of it only when it doesn't answer" {
+  mkdir -p tools/bin
+  stub tools/bin/nix-remote.sh 'echo "nix-remote $*" >>"$BATS_TEST_TMPDIR/nix-remote.log"
+[[ -z ${BUILDER_FAILS:-} ]] || { echo "error: no answer" >&2; exit 1; }'
+  export O11N_REMOTE_BUILDER=builder.example
+
+  CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/nix-remote.log")" = "nix-remote info" ]
+
+  BUILDER_FAILS=yes CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "Tell the user that the remote builder, builder.example, doesn't answer, as below, so nothing can be built on it this session, and go on." ]
+  [ "${lines[1]}" = "error: no answer" ]
+  [ "$(cat dev/state/session-start)" = fresh ]
+
+  rm "$BATS_TEST_TMPDIR/nix-remote.log"
+  run "$agent" session-start <<<'{"source":"startup"}'
+  unset O11N_REMOTE_BUILDER
+  CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
+  [ ! -e "$BATS_TEST_TMPDIR/nix-remote.log" ]
 }
 
 @test "session-start checks nothing as a session resumes" {
@@ -141,10 +154,10 @@ started() {
   [ "$output" = "" ]
   [ "$(git rev-parse HEAD)" = "$rev" ]
   [ "$(git branch --show-current)" = work ]
-  [ "$(cat dev/turn-start)" = "$rev" ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs eval" ]
-  [ ! -e dev/session-start ]
-  [ ! -e dev/refused ]
+  [ "$(cat dev/state/turn-start)" = "$rev" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs parts index eval" ]
+  [ ! -e dev/state/session-start ]
+  [ ! -e dev/state/refused ]
 }
 
 @test "turn-start lifts a refusal off a commit that holds, and refuses a commit that isn't there" {
@@ -152,13 +165,13 @@ started() {
   started "fresh refused"
   CLAUDE_CODE_REMOTE=true run "$agent" turn-start <<<"{\"prompt\":\"At $rev\"}"
   [ "$output" = "Work isn't refused after all: $rev, the commit the prompt starts at, passes what session-start refused work for." ]
-  [ ! -e dev/refused ]
+  [ ! -e dev/state/refused ]
 
   started fresh
   CLAUDE_CODE_REMOTE=true run "$agent" turn-start <<<'{"prompt":"At 0123abc"}'
   [ "$status" -eq 0 ]
   [ "$output" = "Work is refused, for 0123abc, the commit the prompt starts at, which isn't to be found: tell the user so and commit no changes this turn." ]
-  [ -e dev/refused ]
+  [ -e dev/state/refused ]
 }
 
 @test "turn-start fast-forwards to what the operator pushed, refuses on stamps and tells of the rest" {
@@ -169,8 +182,8 @@ started() {
   [ "$(git rev-parse HEAD)" = "$rev" ]
   [ "${lines[0]}" = "Work is refused, for conflict markers that aren't stamps: tell the user so, with what follows, and commit no changes this turn." ]
   [ "${lines[1]}" = "Tell the user about lint errors, with what follows, and go on." ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs eval" ]
-  [ -e dev/refused ]
+  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs parts index eval" ]
+  [ -e dev/state/refused ]
 }
 
 @test "turn-start says to merge what the operator pushed onto the branch's own, and leaves it outside the cloud" {
@@ -184,7 +197,46 @@ started() {
 
   run "$agent" turn-start </dev/null
   [ "$output" = "" ]
-  [ "$(cat dev/turn-start)" = "$was" ]
+  [ "$(cat dev/state/turn-start)" = "$was" ]
+}
+
+@test "tool-end does what turn-end does as soon as the agent commits, so the turn ends with all pushed" {
+  "$agent" turn-start </dev/null
+  echo two >>doc.md
+  run "$agent" tool-end <<<'{"tool_name":"Bash"}'
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+  [ "$(git log -1 --format=%s)" = one ]
+  [ -n "$(git status --porcelain)" ]
+
+  git commit -qam two
+  run "$agent" tool-end <<<'{"tool_name":"Bash"}'
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+  [ "$(git log -1 --format=%s)" = turn-end ]
+  grep -qxF "$opening" doc.md
+  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
+
+  run "$agent" turn-end <<<'{"stop_hook_active":false}'
+  [ "$status" -eq 0 ]
+  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
+  [ "$(git log -1 --format=%s)" = turn-end ]
+  [ "$(git log -2 --format=%s | tail -1)" = two ]
+}
+
+@test "tool-end tells the agent when the push fails, and does nothing while work is refused" {
+  "$agent" turn-start </dev/null
+  commit two
+  git remote set-url origin "$BATS_TEST_TMPDIR/nowhere.git"
+  : >dev/state/refused
+  run "$agent" tool-end </dev/null
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+
+  rm dev/state/refused
+  run "$agent" tool-end </dev/null
+  [ "$status" -eq 2 ]
+  [[ ${lines[0]} == "git push fails, as below: see to it, and push the branch." ]]
 }
 
 @test "turn-end writes what the turn changed, stamped against its start, commits it as turn-end and pushes" {
@@ -211,24 +263,50 @@ started() {
 
   WRITE_FAILS=o11n run "$agent" turn-end <<<'{"stop_hook_active":false}'
   [ "$status" -eq 2 ]
-  [ "${lines[0]}" = "./write.sh $(cat dev/turn-start) fails, as below: fix it before you end the turn, or tell the user why you can't." ]
+  [ "${lines[0]}" = "dev/write.sh $(cat dev/state/turn-start) fails, as below: fix it before you end the turn, or tell the user why you can't." ]
   [ "${lines[1]}" = "nixfmt: broken" ]
 
   WRITE_FAILS=o11n run "$agent" turn-end <<<'{"stop_hook_active":true}'
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
 
-  touch dev/refused
+  touch dev/state/refused
   WRITE_FAILS=o11n run "$agent" turn-end </dev/null
   [ "$status" -eq 0 ]
   [ "$(git rev-parse origin/work)" != "$(git rev-parse HEAD)" ]
 }
 
-@test "turn-end needs the commit the turn started at" {
+@test "turn-end stamps against refs/stamped/<branch>, else the turn's start, else where the branch left main" {
+  one=$(git rev-parse HEAD)
   commit two
   run "$agent" turn-end </dev/null
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/against")" = "$one" ]
+
+  "$agent" turn-start </dev/null
+  turn=$(git rev-parse HEAD)
+  commit three
+  "$agent" turn-end </dev/null
+  [ "$(cat "$BATS_TEST_TMPDIR/against")" = "$turn" ]
+
+  git update-ref refs/stamped/work "$one"
+  commit four
+  "$agent" turn-end </dev/null
+  [ "$(cat "$BATS_TEST_TMPDIR/against")" = "$one" ]
+}
+
+@test "turn-start fetches what the operator stamped, and turn-end says when there's nothing to stamp against" {
+  rev=$(pushed two)
+  git -C "$BATS_TEST_TMPDIR/remote/o11n-operator" push -q origin "$rev:refs/stamped/work"
+  CLAUDE_CODE_REMOTE=true "$agent" turn-start </dev/null
+  [ "$(git rev-parse refs/stamped/work)" = "$rev" ]
+
+  git checkout -q --orphan alone
+  rm dev/state/turn-start
+  commit three
+  run "$agent" turn-end </dev/null
   [ "$status" -eq 2 ]
-  [ "$output" = "turn-end has no commit the turn started at to stamp against: run ./dev/agent.sh turn-start first." ]
+  [ "$output" = "turn-end finds no commit to stamp against: no refs/stamped/<branch> HEAD is on, no dev/state/turn-start, and no main HEAD shares history with." ]
 }
 
 @test "hand-over writes, commits all as hand-over, pushes, and then checks" {
@@ -241,7 +319,7 @@ started() {
   [ "$(git log -1 --format=%s)" = hand-over ]
   grep -qxF "$opening" doc.md
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: format lint docs eval leaks bats" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: format lint docs parts index eval leaks bats" ]
 }
 
 @test "hand-over says what fails once it has handed over, and hands nothing over while work is refused" {
@@ -255,89 +333,11 @@ started() {
   [ "${lines[2]}" = "bats: broken" ]
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
 
-  touch dev/refused
+  touch dev/state/refused
   commit three
   run "$agent" hand-over
   [ "$output" = "Work is refused this turn, so nothing is handed over: tell the user so." ]
   [ "$(git rev-parse origin/work)" != "$(git rev-parse HEAD)" ]
-}
-
-@test "with a clone beside it that pins o11n, each command sees to o11n and then to it, under their names" {
-  org
-
-  CHECK_FAILS=pending run "$agent" session-start <<<'{"source":"startup"}'
-  [ "$status" -eq 0 ]
-  [ "${lines[0]}" = "In o11n:" ]
-  [ "${lines[1]}" = "Work is refused, for pending stamps: tell the user so, with what follows, and commit no changes this turn." ]
-  [ "${lines[4]}" = "In org:" ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs eval
-org: stamps pending format lint docs eval" ]
-  [ -e ../org/dev/session-start ]
-}
-
-@test "turn-start moves each clone to its revision in the prompt, and sets aside one the prompt names none of" {
-  org
-  rev=$(pushed two)
-  orgrev=$(pushed two org)
-  started fresh
-  started fresh ../org
-
-  CLAUDE_CODE_REMOTE=true run "$agent" turn-start <<<"{\"prompt\":\"At ${rev:0:7} ${orgrev:0:7}\"}"
-  [ "$output" = "" ]
-  [ "$(git rev-parse HEAD)" = "$rev" ]
-  [ "$(git -C ../org rev-parse HEAD)" = "$orgrev" ]
-
-  started fresh
-  started fresh ../org
-  CLAUDE_CODE_REMOTE=true run "$agent" turn-start <<<"{\"prompt\":\"At $rev\"}"
-  [ "$output" = "In org:
-Leave org as it is this session: the prompt names no commit of it." ]
-  [ -e ../org/dev/aside ]
-  [ ! -e dev/aside ]
-}
-
-@test "turn-end pins the clone beside o11n to what o11n just pushed, even when the turn changed nothing there" {
-  org
-  "$agent" turn-start </dev/null
-  commit two
-
-  run "$agent" turn-end </dev/null
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-  [ "$(git -C ../org show origin/work:pin)" = "$(git rev-parse HEAD)" ]
-  [ "$(git -C ../org log -1 --format=%s)" = turn-end ]
-}
-
-@test "turn-end that holds the turn in o11n doesn't reach the clone beside it" {
-  org
-  "$agent" turn-start </dev/null
-  commit two
-
-  WRITE_FAILS=o11n run "$agent" turn-end </dev/null
-  [ "$status" -eq 2 ]
-  [ "${lines[0]}" = "In o11n:" ]
-  [ "${lines[1]}" = "./write.sh $(cat dev/turn-start) fails, as below: fix it before you end the turn, or tell the user why you can't." ]
-  [ ! -e ../org/pin ]
-}
-
-@test "a clone set aside is left as it is, and nothing pins o11n while o11n is set aside" {
-  org
-  "$agent" turn-start </dev/null
-  commit two
-  touch ../org/dev/aside
-  run "$agent" turn-end </dev/null
-  [ "$status" -eq 0 ]
-  [ ! -e ../org/pin ]
-  [ "$(git -C ../org log -1 --format=%s)" = one ]
-
-  rm ../org/dev/aside
-  touch dev/aside
-  (cd ../org && commit three)
-  run "$agent" turn-end </dev/null
-  [ "$status" -eq 0 ]
-  [ ! -e ../org/pin ]
-  [ "$(git -C ../org rev-parse origin/work)" = "$(git -C ../org rev-parse HEAD)" ]
 }
 
 @test "agent.sh needs a command" {

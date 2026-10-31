@@ -21,7 +21,7 @@ setup() {
   git remote add origin ../origin.git
   mkdir dev
   cp "$BATS_TEST_DIRNAME/../.gitignore" dev/
-  stub check.sh 'echo "$*" >>"$BATS_TEST_TMPDIR/checks.log"
+  stub dev/check.sh 'echo "$*" >>"$BATS_TEST_TMPDIR/checks.log"
 for stage in "$@"; do
   if [[ " ${CHECK_FAILS:-} " == *" $stage "* ]]; then
     echo "flag: $stage" >&2
@@ -41,7 +41,6 @@ stub() {
   chmod +x "$1"
 }
 
-# Commits $1 on a line of its own to file, as the agent, and pushes it.
 push() {
   local agent=$BATS_TEST_TMPDIR/agent
   [[ -d $agent ]] || git clone -q -c commit.gpgsign=false -b work "$BATS_TEST_TMPDIR/origin.git" "$agent"
@@ -55,13 +54,6 @@ push() {
 commit() {
   echo "$1" >>file
   git commit -qam "$1"
-}
-
-pin() {
-  printf '{"nodes":{"o11n":{"locked":{"type":"git","url":"file://%s","rev":"%s"}}}}\n' \
-    "$BATS_TEST_TMPDIR/o11n" "$1" >flake.lock
-  git add flake.lock
-  git commit -qm "pin o11n"
 }
 
 @test "fetch switches to the branch, brings it up to its tip on origin, and says what is pending" {
@@ -96,7 +88,8 @@ pin() {
   [ "$(git log -1 --format=%s)" = stamp ]
   [ "$(git show HEAD:new)" = new ]
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-  [ "$(cat dev/stamped)" = "$(git rev-parse HEAD)" ]
+  [ "$(git rev-parse refs/stamped/work)" = "$(git rev-parse HEAD)" ]
+  [ "$(git ls-remote ../origin.git refs/stamped/work | cut -f1)" = "$(git rev-parse HEAD)" ]
 }
 
 @test "stamp commits nothing while something is pending, and takes a message" {
@@ -150,6 +143,22 @@ three" ]
   [ "$status" -ne 0 ]
 }
 
+@test "fetch brings what was stamped, and merge deletes the branch's refs/stamped with it" {
+  "$operator" stamp
+  stamped=$(git rev-parse refs/stamped/work)
+  git update-ref -d refs/stamped/work
+  "$operator" fetch
+  [ "$(git rev-parse refs/stamped/work)" = "$stamped" ]
+
+  commit two
+  git push -q
+  "$operator" merge
+  run git rev-parse --verify -q refs/stamped/work
+  [ "$status" -ne 0 ]
+  run git ls-remote --exit-code ../origin.git refs/stamped/work
+  [ "$status" -ne 0 ]
+}
+
 @test "merge commits what's left on the branch, and changes nothing on an empty message or when it doesn't hold" {
   commit two
   echo three >>file
@@ -177,27 +186,6 @@ three" ]
   run "$operator" merge
   [ "$status" -eq 1 ]
   [[ $output == *"'work' is not based on the tip of 'main'"* ]]
-}
-
-@test "merge refuses a pin of o11n that isn't on o11n's main, and takes one that is" {
-  git init -q -b main "$BATS_TEST_TMPDIR/o11n"
-  git -C "$BATS_TEST_TMPDIR/o11n" commit -q --allow-empty -m one
-  on_main=$(git -C "$BATS_TEST_TMPDIR/o11n" rev-parse HEAD)
-  git -C "$BATS_TEST_TMPDIR/o11n" checkout -q -b branch
-  git -C "$BATS_TEST_TMPDIR/o11n" commit -q --allow-empty -m two
-  on_branch=$(git -C "$BATS_TEST_TMPDIR/o11n" rev-parse HEAD)
-  git -C "$BATS_TEST_TMPDIR/o11n" checkout -q main
-
-  pin "$on_branch"
-  run "$operator" merge
-  [ "$status" -eq 1 ]
-  [[ $output == *"'work' pins o11n at $on_branch, which isn't on o11n's main"* ]]
-  [ "$(git rev-list --count main)" = 1 ]
-
-  pin "$on_main"
-  run "$operator" merge
-  [ "$status" -eq 0 ]
-  [ "$(git show main:flake.lock | jq -r .nodes.o11n.locked.rev)" = "$on_main" ]
 }
 
 @test "check-org builds the org's eval stage with this tree as its o11n, ORG relative to the clone's root" {

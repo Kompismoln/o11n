@@ -1,4 +1,3 @@
-# org/principal.nix
 {
   config,
   context,
@@ -11,11 +10,13 @@
     uid = lib.mkOption {
       description = "posix user id";
       default = context.classes.${entity.class}.block + entity.id;
+      defaultText = lib.literalMD "the block `org/classes.nix` gives the entity's class, plus the entity's `id`";
       type = lib.types.int;
     };
     gid = lib.mkOption {
       description = "posix group id";
       default = config.uid;
+      defaultText = lib.literalExpression "uid";
       type = lib.types.int;
     };
     groups = lib.mkOption {
@@ -43,6 +44,7 @@
           "/var/empty";
     };
     homeMode = lib.mkOption {
+      description = "permissions of the principal's home";
       type = lib.types.str;
       default = "0750";
     };
@@ -81,6 +83,7 @@
     bindAddress = lib.mkOption {
       description = "unique ipv6 loopback address for entity to bind to";
       default = "${context.org.loPrefix}::${toString config.uid}:${entity.ids.hex4}";
+      defaultText = lib.literalExpression ''"''${org.loPrefix}::''${toString uid}:''${ids.hex4}"'';
       type = context.types.host6;
     };
   };

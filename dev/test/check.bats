@@ -11,8 +11,9 @@ setup() {
   git config user.email operator@example.org
   git config commit.gpgsign false
   mkdir dev
-  cp "$BATS_TEST_DIRNAME/../../check.sh" "$BATS_TEST_DIRNAME/../../write.sh" "$BATS_TEST_DIRNAME/../../.prettierrc.yaml" .
-  cp "$BATS_TEST_DIRNAME/../files.bash" "$BATS_TEST_DIRNAME/../stamps.sh" "$BATS_TEST_DIRNAME/../refcheck.py" dev/
+  cp "$BATS_TEST_DIRNAME/../../.prettierrc.yaml" .
+  cp "$BATS_TEST_DIRNAME"/../{check.sh,write.sh,files.bash,stamps.sh,refcheck.py,parts.py} dev/
+  : >dev/index.py
   echo '# Doc' >doc.md
   echo '{ }' >default.nix
   git add -A
@@ -22,7 +23,7 @@ setup() {
 @test "check.sh runs the stages named side by side, says what each said in order, and which failed" {
   printf '%s\n%s\nnew\n%s\n' "$opening" "$divider" "$closing" >>doc.md
 
-  run ./check.sh stamps pending docs
+  run dev/check.sh stamps pending docs
   [ "$status" -eq 1 ]
   [ "${lines[0]}" = "• stamps" ]
   [ "${lines[1]}" = "• pending" ]
@@ -30,40 +31,41 @@ setup() {
   [ "${lines[3]}" = "• docs" ]
   [ "${lines[4]}" = "• failed: pending" ]
 
-  run ./check.sh stamps
+  run dev/check.sh stamps
   [ "$status" -eq 0 ]
   [ "$output" = "• stamps" ]
 
-  run ./check.sh nowhere
+  run dev/check.sh nowhere
   [ "$status" -eq 1 ]
-  [ "$output" = "no stage nowhere: stamps pending format lint docs eval leaks bats vm" ]
+  [ "$output" = "no stage nowhere: stamps pending format lint docs parts index eval leaks bats vm" ]
 }
 
 @test "format checks the Nix and the docs but those with stamps pending, which write.sh formats" {
   echo '{a=1;}' >default.nix
   printf '* one\n' >doc.md
   printf '%s\n%s\n* held\n%s\n' "$opening" "$divider" "$closing" >held.md
-  run ./check.sh format
+  run dev/check.sh format
   [ "$status" -ne 0 ]
   [[ $output == *"default.nix"* ]]
   nixfmt default.nix
-  run ./check.sh format
+  run dev/check.sh format
   [ "$status" -ne 0 ]
   [[ $output == *"doc.md"* ]]
   [[ $output != *"held.md"* ]]
+  [[ $output == *"dev/write.sh writes the format; run it, not nixfmt or prettier."* ]]
 
-  run ./write.sh
+  run dev/write.sh
   [ "$status" -eq 0 ]
   [ "$(cat default.nix)" = "{ a = 1; }" ]
   [ "$(cat doc.md)" = "- one" ]
   [ "$(sed -n 3p held.md)" = "* held" ]
-  run ./check.sh format
+  run dev/check.sh format
   [ "$status" -eq 0 ]
 }
 
 @test "write.sh, given a commit, stamps each change to a doc since it" {
   echo 'More.' >>doc.md
-  run ./write.sh HEAD
+  run dev/write.sh HEAD
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = "against $(git log -1 --format='%h %s')" ]
   [ "${lines[1]}" = "doc.md: 1 stamps" ]
@@ -91,9 +93,46 @@ tools/fenced.sh $branch
 \`\`\`
 DOC
 
-  run ./check.sh docs
+  run dev/check.sh docs
   [ "$status" -eq 1 ]
   [ "${lines[1]}" = "flag: doc.md:1: \`tools/gone.sh\` isn't there" ]
   [ "${lines[2]}" = "flag: doc.md:3: $branch isn't a commit on main" ]
   [ "${#lines[@]}" -eq 3 ]
+}
+
+@test "each stage logs what it said to dev/state/logs/<stage>.log, under what ran it, and still fails as it did" {
+  printf '%s\n' "$opening" >>doc.md
+
+  run dev/check.sh stamps docs
+  [ "$status" -eq 1 ]
+  [[ $(head -n 1 dev/state/logs/stamps.log) == *" $(git rev-parse --short HEAD) dev/check.sh stamps" ]]
+  [ "$(sed -n 2p dev/state/logs/stamps.log)" = "• stamps" ]
+  grep -q "a stamp isn't closed" dev/state/logs/stamps.log
+  [ "$(tail -n +2 dev/state/logs/docs.log)" = "• docs" ]
+}
+
+@test "parts flags a stage or layer not declared, code or a doc that isn't there, a file two parts hold, and an index of no part" {
+  mkdir -p docs/index
+  echo '# Index' >docs/index/gone.md
+  cat >dev/parts.toml <<'TOML'
+stages = ["drafted"]
+layers = ["domain"]
+[parts.one]
+stage = "drafted"
+layer = "domain"
+code = ["dev", "gone.nix"]
+[parts.two]
+stage = "felt"
+layer = "domin"
+doc = "doc.md"
+code = ["dev/check.sh"]
+TOML
+  run dev/check.sh parts
+  [ "$status" -eq 1 ]
+  [[ $output == *"[parts.one]: \`gone.nix\` isn't there"* ]]
+  [[ $output == *"[parts.two]: stage 'felt' isn't one of stages"* ]]
+  [[ $output == *"[parts.two]: layer 'domin' isn't one of layers"* ]]
+  [[ $output == *"\`dev/check.sh\` is held by 2 parts, one, two, not one"* ]]
+  [[ $output == *"\`docs/index/gone.md\` indexes no part"* ]]
+  [[ $output != *"default.nix"* ]]
 }

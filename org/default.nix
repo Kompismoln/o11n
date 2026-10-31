@@ -1,4 +1,3 @@
-# org/default.nix
 {
   lib,
   config,
@@ -23,6 +22,7 @@
     contact = lib.mkOption {
       description = "contact";
       default = "info@${config.endpoint}";
+      defaultText = lib.literalExpression ''"info@''${endpoint}"'';
       type = lib.types.str;
     };
     timezone = lib.mkOption {
@@ -64,11 +64,13 @@
       description = "ULA reserved for host-local service addresses on lo";
       type = context.types.subnetPrefix6;
       default = "${config.prefix}:ffff";
+      defaultText = lib.literalExpression ''"''${prefix}:ffff"'';
     };
     loCidr = lib.mkOption {
       description = "CIDR route of loPrefix";
       type = context.types.subnetCidr6;
       default = "${config.loPrefix}::/${toString config.prefixLength}";
+      defaultText = lib.literalExpression ''"''${loPrefix}::/''${toString prefixLength}"'';
     };
     build-hosts = lib.mkOption {
       description = "list of designated build hosts";
@@ -78,6 +80,7 @@
     namespaces = lib.mkOption {
       description = "namespaces for hosts in the organisation";
       default = [ config.endpoint ];
+      defaultText = lib.literalExpression "[ endpoint ]";
       type = with lib.types; listOf str;
     };
     vpn = lib.mkOption {
@@ -124,6 +127,7 @@
         lib.types.submodule {
           options = {
             keys = lib.mkOption {
+              description = "keys an entity of the class has";
               type = with lib.types; listOf str;
             };
           };

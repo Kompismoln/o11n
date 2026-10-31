@@ -21,6 +21,7 @@
     url = lib.mkOption {
       description = "public url including scheme";
       default = "${config.scheme}://${config.endpoint}";
+      defaultText = lib.literalExpression ''"''${scheme}://''${endpoint}"'';
       type = lib.types.str;
     };
     location = lib.mkOption {
