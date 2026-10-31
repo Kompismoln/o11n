@@ -69,11 +69,10 @@ let
       lib.nameValuePair name (
         pkgs.runCommand name
           {
-            nativeBuildInputs = [ pkgs.python3 ];
             drv = builtins.unsafeDiscardOutputDependency nixos.config.system.build.toplevel.drvPath;
           }
           ''
-            python3 ${./leaks.py} ${builtins.storeDir} "$drv" ${lib.escapeShellArgs leakPatterns} > $out
+            bash ${./leaks.sh} ${builtins.storeDir} "$drv" ${lib.escapeShellArgs leakPatterns} > $out
           ''
       )
     ) outputs.nixosConfigurations
@@ -92,11 +91,10 @@ let
   rescueUsbChecks.leaks-sample-rescue-usb =
     pkgs.runCommand "leaks-sample-rescue-usb"
       {
-        nativeBuildInputs = [ pkgs.python3 ];
         drv = builtins.unsafeDiscardOutputDependency rescueUsb.system.build.images.iso-installer.drvPath;
       }
       ''
-        python3 ${./leaks.py} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
+        bash ${./leaks.sh} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
       '';
 in
 {

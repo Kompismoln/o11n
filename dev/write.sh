@@ -6,7 +6,7 @@ set -euo pipefail
 . dev/files.bash
 
 files '*.nix' | xargs -0 nixfmt
-python3 dev/index.py
+dev/index.sh
 mapfile -d '' docs < <(unheld)
 ((${#docs[@]} == 0)) || prettier --write --log-level warn -- "${docs[@]}"
 [[ -z ${1:-} ]] || dev/stamps.sh write "$1"

@@ -4,7 +4,7 @@
 setup() {
   cd "$BATS_TEST_TMPDIR" || exit
   mkdir -p bin dev docs/index
-  cp "$BATS_TEST_DIRNAME/../index.py" dev/
+  cp "$BATS_TEST_DIRNAME"/../{index.sh,stamps.sh} dev/
   cp "$BATS_TEST_DIRNAME/../../.prettierrc.yaml" .
   printf '#!%s\ncat "%s/index.json"\n' "$BASH" "$BATS_TEST_TMPDIR" >bin/nix
   chmod +x bin/nix
@@ -23,7 +23,7 @@ JSON
 @test "writes a doc for each part with entries, checks it, its stamps pending read as written now, and removes the rest" {
   echo stale >docs/index/gone.md
 
-  run python3 dev/index.py
+  run dev/index.sh
   [ "$status" -eq 0 ]
   [ "$output" = "docs/index/org.md: written
 docs/index/gone.md: removed" ]
@@ -35,17 +35,17 @@ docs/index/gone.md: removed" ]
   grep -qxF '```nix' docs/index/org.md
   grep -qxF '  wg0 = { };' docs/index/org.md
 
-  run python3 dev/index.py --check
+  run dev/index.sh --check
   [ "$status" -eq 0 ]
 
   sed -i 's/^the roles it has$/<<<<<<< signed\nWhether it was.\n=======\nthe roles it has\n>>>>>>> @''stamp/' docs/index/org.md
-  run python3 dev/index.py --check
+  run dev/index.sh --check
   [ "$status" -eq 0 ]
 
   sed -i 's/"list of string"/"string"/' index.json
   echo stale >docs/index/gone.md
-  run python3 dev/index.py --check
+  run dev/index.sh --check
   [ "$status" -eq 1 ]
-  [ "$output" = "flag: docs/index/org.md: isn't what dev/index.py writes
+  [ "$output" = "flag: docs/index/org.md: isn't what dev/index.sh writes
 flag: docs/index/gone.md: indexes a part with nothing to index" ]
 }

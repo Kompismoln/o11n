@@ -1,6 +1,10 @@
 # `org`
 
+<<<<<<< signed
 Written by `dev/index.py` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
+=======
+Written by `dev/index.sh` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
+>>>>>>> @stamp
 them, each by its place in `org.toml`.
 
 ## Options

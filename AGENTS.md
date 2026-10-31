@@ -37,7 +37,11 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
 
 - `builtins.pathExists drv.outPath` builds the derivation during evaluation.
 - `exportReferencesGraph` on a `.drv` also requires every output it refers to, so it can't read a build plan without
+<<<<<<< signed
   building it; read the `.drv` files instead, as `tests/leaks.py` does.
+=======
+  building it; read the `.drv` files instead, as `tests/leaks.sh` does.
+>>>>>>> @stamp
 - When searching store contents for short names, match whole words: store hashes can contain them (`ahbk` is valid
   base32).
 - `nix flake check` stops at the first error; `--keep-going` shows them all.

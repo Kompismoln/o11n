@@ -35,15 +35,15 @@ stage-lint() {
 }
 
 stage-docs() {
-    python3 dev/refcheck.py
+    dev/refcheck.sh
 }
 
 stage-parts() {
-    python3 dev/parts.py
+    dev/parts.sh
 }
 
 stage-index() {
-    python3 dev/index.py --check || {
+    dev/index.sh --check || {
         echo "dev/write.sh writes it." >&2
         return 1
     }

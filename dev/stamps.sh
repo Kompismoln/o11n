@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Usage: stamps write <commit> | stamps check [dir] | stamps pending [dir]
+# Usage: stamps write <commit> | stamps check [dir] | stamps pending [dir] | stamps applied <doc>
 #
 # A stamp pending is a git conflict in a Markdown file, from `<<<<<<< signed` to `=======` as the
 # operator last signed it and on to the `>>>>>>>` closing it as written now: the operator stamps it.
 # `stamps write`, in a clone, writes one around each change to a doc since the commit, against what
 # the operator had signed of it there. `stamps check` flags a conflict marker that isn't a stamp's
 # and a stamp that isn't closed, and `stamps pending` the stamps pending as well; each fails if it
-# flags any, and reads a clone or a directory without git.
+# flags any, and reads a clone or a directory without git. `stamps applied` prints a doc as written
+# now, its stamps pending applied.
 set -euo pipefail
 
 opening="<<<<<<< signed"
@@ -124,5 +125,6 @@ case ${1:-} in
 write) write "${2:-}" ;;
 check) scan 0 "${2:-}" ;;
 pending) scan 1 "${2:-}" ;;
-*) die "usage: stamps write <commit> | stamps check [dir] | stamps pending [dir]" ;;
+applied) side applied "${2:-}" "${2:-}" ;;
+*) die "usage: stamps write <commit> | stamps check [dir] | stamps pending [dir] | stamps applied <doc>" ;;
 esac

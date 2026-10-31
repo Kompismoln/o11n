@@ -104,7 +104,7 @@ in
           pkgs.openssh
           pkgs.openssl
           pkgs.prettier
-          pkgs.python3
+          pkgs.socat
           pkgs.sops
           pkgs.toml2json
           pkgs.tree

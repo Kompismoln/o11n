@@ -106,7 +106,7 @@
               legacyPackages.vmTests.containers = import ./tests/vm/containers.nix { inherit pkgs; };
 
               # Policy: the dev shell runs each package's source as it is, with what the package runs,
-              # and bats for their tests.
+              # and bats and socat for their tests.
               devShells.default = pkgs.mkShell {
                 packages = lib.unique (
                   lib.concatMap (package: package.runtimeInputs or [ ]) (lib.attrValues config.packages)
@@ -114,6 +114,7 @@
                     config.packages.gost
                     config.packages.o11n-tools
                     pkgs.bats
+                    pkgs.socat
                   ]
                 );
                 shellHook = ''

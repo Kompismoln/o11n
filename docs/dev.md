@@ -20,9 +20,15 @@ failed, and in a git checkout logs each to `dev/state/logs/<stage>.log`:
 - `pending`, what is left to stamp
 - `format`, the Nix and the docs that hold no stamps pending, as `dev/write.sh` writes them
 - `lint`, statix, deadnix and shellcheck
+<<<<<<< signed
 - `docs`, the references of the docs (`dev/refcheck.py`)
 - `parts`, that `dev/parts.toml` holds what it declares (`dev/parts.py`)
 - `index`, that `docs/index/` is as `python3 dev/index.py` writes it
+=======
+- `docs`, the references of the docs (`dev/refcheck.sh`)
+- `parts`, that `dev/parts.toml` holds what it declares (`dev/parts.sh`)
+- `index`, that `docs/index/` is as `dev/index.sh` writes it
+>>>>>>> @stamp
 - `eval`, `leaks` and `bats`, which build `.#stages.<stage>`
 - `vm`, which builds `.#stages.vm` on the remote builder (`tools/bin/nix-remote.sh`).
 
@@ -45,11 +51,12 @@ other part's code holds.
 type, its default and its description, under the part whose code declares it. The flake's `index` (`dev/index.nix`)
 reads them from `org/context.nix`, evaluated for `tests/inventories/base`, which holds nothing: a default computed from
 an entity's own config has a `defaultText`, as `lib.literalExpression` over the entity's options, the org's as
-`org.<option>`, or as `lib.literalMD` where it draws on more, or the index fails to evaluate. `python3 dev/index.py`
 <<<<<<< signed
+`org.<option>`, or as `lib.literalMD` where it draws on more, or the index fails to evaluate. `python3 dev/index.py`
 writes a doc for each part that has any, and removes the rest; turn-end leaves it to be run. Each is a doc of the part
 it indexes, and stamped like any other, so that a change to a part's interface is stamped.
 =======
+`org.<option>`, or as `lib.literalMD` where it draws on more, or the index fails to evaluate. `dev/index.sh`
 writes a doc for each part that has any, and removes the rest, as `dev/write.sh` does. Each is a doc of the part it
 indexes, and stamped like any other, so that a change to a part's interface is stamped.
 >>>>>>> @stamp
@@ -62,7 +69,7 @@ indexes, and stamped like any other, so that a change to a part's interface is s
 - the format of the Nix and of the docs that hold no stamps pending
 =======
 - the format of the Nix
-- the index (`python3 dev/index.py`)
+- the index (`dev/index.sh`)
 - the format of the docs that hold no stamps pending
 >>>>>>> @stamp
 - given a commit, each change to a doc since it as stamps pending, against what the operator had signed of it there.

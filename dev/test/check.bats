@@ -12,8 +12,9 @@ setup() {
   git config commit.gpgsign false
   mkdir dev
   cp "$BATS_TEST_DIRNAME/../../.prettierrc.yaml" .
-  cp "$BATS_TEST_DIRNAME"/../{check.sh,write.sh,files.bash,stamps.sh,refcheck.py,parts.py} dev/
-  : >dev/index.py
+  cp "$BATS_TEST_DIRNAME"/../{check.sh,write.sh,files.bash,stamps.sh,refcheck.sh,parts.sh} dev/
+  printf '#!%s\n' "$BASH" >dev/index.sh
+  chmod +x dev/index.sh
   echo '# Doc' >doc.md
   echo '{ }' >default.nix
   git add -A
@@ -73,7 +74,7 @@ setup() {
 }
 
 @test "write.sh writes the index, and, given a commit, stamps it" {
-  printf '%s\n' 'from pathlib import Path' 'Path("index.md").write_text("# Index\n\nWritten.\n")' >dev/index.py
+  printf '#!%s\nprintf "# Index\\n\\nWritten.\\n" >index.md\n' "$BASH" >dev/index.sh
   run dev/write.sh HEAD
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = "index.md: 1 stamps" ]
