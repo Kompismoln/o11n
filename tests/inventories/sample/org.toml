@@ -31,61 +31,6 @@ host = "gw"
 int = "gw.sample"
 ext = "mail.example.com"
 
-[public-artifacts]
-default = "public-keys/$class-$entity-$key.pub"
-tls-cert = "public-keys/$class-$entity-$key.pem"
-
-[secrets]
-default = "enc/$class-$entity.yaml"
-root = "keys/$class-$entity"
-
-[class.root]
-keys = ["age-key"]
-
-[class.host]
-keys = [
-  "age-key",
-  "ssh-key",
-  "wg0-key",
-  "wg1-key",
-  "wg2-key",
-  "luks-key",
-]
-
-[class.service]
-keys = [
-  "age-key",
-  "ssh-key",
-  "mail",
-  "passwd",
-  "secret-key",
-  "tls-cert",
-  "nix-sign",
-]
-
-[class.user]
-keys = [
-  "age-key",
-  "ssh-key",
-  "mail",
-  "passwd",
-  "restic-key",
-]
-
-[class.app]
-keys = [
-  "age-key",
-  "ssh-key",
-  "secret-key",
-  "restic-key",
-]
-
-[class.store]
-keys = [
-  "age-key",
-  "ssh-key",
-]
-
 [root.1]
 
 [host.gw]

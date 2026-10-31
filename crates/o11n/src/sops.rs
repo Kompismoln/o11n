@@ -6,7 +6,7 @@ use crate::export::Export;
 
 impl Export {
     /// sops' creation rules for the members of `group`: each entity's sops file, encrypted to its recipients' age keys,
-    /// read from their public keys under `root`. A recipient without one is left out, and each such is said in `missing`.
+    /// read from their public keys under `root`. A recipient without one is left out, and said in `missing`.
     pub fn sops_yaml(&self, root: &Path, group: &str, missing: &mut Vec<String>) -> Result<String, Error> {
         let mut yaml = String::from("creation_rules:\n");
         for id in self.members(group)? {

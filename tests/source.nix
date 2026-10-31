@@ -1,4 +1,8 @@
-{ pkgs }:
+{
+  pkgs,
+  o11n,
+  toolsExport,
+}:
 let
   inherit (pkgs) lib;
   inherit (lib) fileset;
@@ -98,12 +102,12 @@ in
         nativeBuildInputs = [
           pkgs.age
           pkgs.bats
-          pkgs.gettext
           pkgs.git
           pkgs.jq
           pkgs.mkpasswd
           pkgs.nix
           pkgs.nixfmt
+          o11n
           pkgs.openssh
           pkgs.openssl
           pkgs.prettier
@@ -120,7 +124,7 @@ in
         cp -r $src src
         chmod -R u+w src
         patchShebangs src
-        export HOME=$TMPDIR
+        export HOME=$TMPDIR O11N_TEST_EXPORT=${toolsExport}
         export NIX_CONFIG='experimental-features = nix-command'
         bats src/tools/test src/dev/test
         touch $out

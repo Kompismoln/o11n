@@ -56,6 +56,8 @@ let
     ''} $out/flake.nix
   '';
 
+  orgExport = pkgs.writeText "org-export.json" (builtins.toJSON outputs.org.export);
+
   # Without their context, so that the test doesn't build them itself.
   standIn = lib.genAttrs standIns (
     name:
@@ -133,7 +135,9 @@ pkgs.testers.runNixOSTest {
         "flakes"
       ];
       environment.systemPackages = [
-        (pkgs.callPackage ../../packages/o11n-tools.nix { })
+        (pkgs.callPackage ../../packages/o11n-tools.nix {
+          o11n = pkgs.callPackage ../../packages/o11n.nix { };
+        })
         pkgs.gettext
         pkgs.git
       ];
@@ -220,7 +224,7 @@ pkgs.testers.runNixOSTest {
           out = operator.fail(f"ssh -n nix-build@gw build-system {absent} web 2>&1")
           assert "is not valid" in out, out
 
-      tools = "cd /root/org && SOPS_AGE_KEY_FILE=/etc/nix/inputs/self/keys/root-1 TARGET_ADDRESS=web"
+      tools = "cd /root/org && O11N_EXPORT=${orgExport} SOPS_AGE_KEY_FILE=/etc/nix/inputs/self/keys/root-1 TARGET_ADDRESS=web"
       operator.succeed(
           "rm /root/.ssh/id_ed25519",
           "cp -rL /etc/org /root/org && chmod -R u+w /root/org",

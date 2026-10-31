@@ -13,7 +13,8 @@ ssh_through=()
 anywhere_through=()
 
 main() {
-    domain=$(org-toml.sh endpoint)
+    org-exported
+    domain=$(o11n get endpoint)
 
     case $1 in
     rebuild | login)

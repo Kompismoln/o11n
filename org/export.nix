@@ -20,7 +20,12 @@ let
   exported =
     entity:
     {
-      inherit (entity) class name grants;
+      inherit (entity)
+        class
+        name
+        grants
+        settings
+        ;
       publicKeys = lib.mapAttrs (_: relative) entity.publicKeys;
       secrets = {
         sopsFile = relative entity.secrets.sopsFile;
@@ -62,7 +67,9 @@ in
         ;
       inherit (context) classes;
       entities =
-        lib.mapAttrs' (name: _: lib.nameValuePair "root-${name}" (root name)) config.root
+        lib.genAttrs' (lib.unique (
+          map (lib.removePrefix "root-") config.root-identities ++ lib.attrNames config.root
+        )) (name: lib.nameValuePair "root-${name}" (root name))
         // lib.listToAttrs (
           map (entity: lib.nameValuePair "${entity.class}-${entity.name}" (exported entity)) entities
         );

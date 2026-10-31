@@ -4,13 +4,20 @@
 # a throwaway root identity that protects nothing but this inventory's secrets.
 #
 # Run from an empty sample (no enc/, keys/ or public-keys/) with age, jq, mkpasswd,
-# nix, openssl, sops, ssh-keygen, toml2json, wg and envsubst on PATH.
+# nix, o11n, openssl, sops, ssh-keygen and wg on PATH.
 
 set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 PATH="$(cd ../../../tools/bin && pwd):$PATH"
 export SOPS_AGE_KEY_FILE=$PWD/keys/root-1
+
+# Accommodating for an inventory, which is no flake: the tools read its export from a file.
+export O11N_EXPORT
+O11N_EXPORT=$(mktemp)
+trap 'rm -f "$O11N_EXPORT"' EXIT
+nix eval --json --impure --expr "(builtins.getFlake \"git+file://$(cd ../../.. && pwd)\").fromInventory { path = $PWD; }" \
+    --apply 'outputs: outputs.org.export' >"$O11N_EXPORT"
 
 mkdir -p enc keys public-keys
 

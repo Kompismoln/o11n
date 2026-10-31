@@ -64,7 +64,8 @@ setup() {
         exit 0
         ;;
     *)
-        if IFS='-' read -r class entity < <(org-toml.sh autocomplete-identity "$1"); then
+        org-exported
+        if IFS='-' read -r class entity < <(o11n resolve "$1"); then
             shift
             set -- "$entity" "$@"
             set -- "$class" "$@"
@@ -79,8 +80,9 @@ setup() {
     key=${4-"age-key"}
     slot=${5:-0}
 
+    org-exported
     preflight-input
-    preflight-org-toml
+    preflight-org
     preflight-backend
     preflight-act-as
 }
@@ -93,8 +95,8 @@ preflight-input() {
         die 1 "$key not allowed for $class, allowed keys: $(allowed_keys)"
 }
 
-preflight-org-toml() {
-    log info "org name: $(org-toml.sh "name")"
+preflight-org() {
+    log info "org name: $(o11n get name)"
 }
 
 preflight-backend() {
@@ -629,16 +631,17 @@ declare -g \
     tmp_path
 
 allowed_keys() {
-    org-toml.sh "class" "$class" "keys"
+    o11n keys "$class"
 }
 
 artifact_path() {
-    # secrets that have public keys and other artifacts can store them at a
-    # permanent location specified in org.toml
-    with repo_root
-    echo -n "$repo_root/"
-    CONTEXT="$class:$entity:$key" org-toml.sh "public-artifacts" ||
+    local path
+    with id repo_root
+    if path=$(o11n public-key "$id" "$key" 2>/dev/null); then
+        echo "$repo_root/$path"
+    else
         echo "$tmpdir/$class.$entity.$exact_key.artifact"
+    fi
 }
 
 backend_component() {
@@ -672,9 +675,11 @@ backend_file() {
 }
 
 backend_path() {
-    with repo_root
-    echo -n "$repo_root/"
-    CONTEXT="$class:$entity:$key" org-toml.sh "secrets"
+    local path
+    with id repo_root
+    path=$(o11n secrets "$id" 2>/dev/null) ||
+        die 1 "$id isn't in the org, did you spell '$entity' correctly?"
+    echo "$repo_root/$path"
 }
 
 domain() {
@@ -736,7 +741,7 @@ sops_yaml() {
     with id
     local f="$tmpdir/$id/.sops.yaml"
     mkdir -p "$(dirname "$f")"
-    org-toml.sh "sops-yaml" "$id" >"$f"
+    o11n sops-yaml "$id" >"$f"
     echo "$f"
 }
 

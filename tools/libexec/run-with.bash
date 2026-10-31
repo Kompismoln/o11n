@@ -137,6 +137,15 @@ try() {
     fi
 }
 
+# Optimization: o11n evaluates the org once for a command, and hands the export to what the command runs.
+org-exported() {
+    [[ -z ${O11N_EXPORT:-} ]] || return 0
+    with repo_root
+    O11N_EXPORT=$tmpdir/org-export.json
+    O11N_ORG_ROOT=$repo_root try o11n export >"$O11N_EXPORT"
+    export O11N_EXPORT
+}
+
 links-by-prefix() {
     declare -F | awk '{print $3}' | grep -E "$1"
 }

@@ -19,9 +19,7 @@ setup() {
 
 @test "setup works" {
   artifact=$(age-keygen -y <"keys/root-1")
-  root_identity=$(
-    CONTEXT="root:1:age-key" org-toml.sh "public-artifacts"
-  )
+  root_identity=$(o11n public-key root-1 age-key)
 
   echo "$artifact" | diff - "$root_identity"
 }
@@ -109,7 +107,7 @@ setup() {
 }
 
 @test "rotate root" {
-  LOG_LEVEL=off run org-toml.sh recipients "user-testuser"
+  run bash -c 'o11n sops-yaml user-testuser 2>/dev/null'
   expect 0 "age163e67e8t5wrt4ndy9e92z9gxh6nan06793vmasn8tr2vxxm56qlsvm23at"
 
   run "$test_cmd" -u testuser init age-key
@@ -316,7 +314,7 @@ setup() {
   expect 0 "main"
 
   run "$test_cmd" -h testhost verify ssh-key
-  expect 1 "artifacts/host-testhost-ssh-key.pub"
+  expect 1 "public-keys/host-testhost-ssh-key.pub"
 }
 
 @test "host new wg-key" {
@@ -343,13 +341,13 @@ setup() {
   run "$test_cmd" -h testhost verify wg2-key
   expect 0 "main"
 
-  run test -f "$TESTROOT/artifacts/host-testhost-wg0-key.pub"
+  run test -f "$TESTROOT/public-keys/host-testhost-wg0-key.pub"
   expect 0
 
-  run test -f "$TESTROOT/artifacts/host-testhost-wg1-key.pub"
+  run test -f "$TESTROOT/public-keys/host-testhost-wg1-key.pub"
   expect 0
 
-  run test -f "$TESTROOT/artifacts/host-testhost-wg2-key.pub"
+  run test -f "$TESTROOT/public-keys/host-testhost-wg2-key.pub"
   expect 0
 }
 
@@ -379,7 +377,7 @@ setup() {
   run "$test_cmd" -s testservice verify nix-sign
   expect 0 "main"
 
-  run test -s "$TESTROOT/artifacts/service-testservice-nix-sign.pub"
+  run test -s "$TESTROOT/public-keys/service-testservice-nix-sign.pub"
   expect 0
 }
 
@@ -391,7 +389,7 @@ setup() {
   expect 0 "main"
 
   run "$test_cmd" -s testservice verify nix-sign
-  expect 1 "artifacts/service-testservice-nix-sign.pub"
+  expect 1 "public-keys/service-testservice-nix-sign.pub"
 
   run "$test_cmd" -s testservice align nix-sign
   expect 0 "main"
@@ -451,7 +449,7 @@ setup() {
   run "$test_cmd" -u testuser verify ssh-key
   expect 0 "main"
 
-  run test -f "$TESTROOT/artifacts/user-testuser-ssh-key.pub"
+  run test -f "$TESTROOT/public-keys/user-testuser-ssh-key.pub"
   expect 0
 }
 
@@ -477,7 +475,7 @@ setup() {
   expect 0 "main"
 
   run "$test_cmd" -u testuser verify ssh-key
-  expect 1 "artifacts/user-testuser-ssh-key.pub"
+  expect 1 "public-keys/user-testuser-ssh-key.pub"
 }
 
 @test "user new passwd" {
@@ -521,7 +519,7 @@ setup() {
   run "$test_cmd" -s domain-local verify tls-cert
   expect 0 "main"
 
-  run test -f "$TESTROOT/artifacts/service-domain-local-tls-cert.pem"
+  run test -f "$TESTROOT/public-keys/service-domain-local-tls-cert.pem"
   expect 0
 }
 
@@ -546,7 +544,7 @@ setup() {
   run "$test_cmd" sysctl-user-portal new ssh-key
   expect 0 "main"
 
-  run test -f "$TESTROOT/artifacts/service-sysctl-user-portal-ssh-key.pub"
+  run test -f "$TESTROOT/public-keys/service-sysctl-user-portal-ssh-key.pub"
   expect 0
 
   run "$test_cmd" sysctl-user-portal new secret-key

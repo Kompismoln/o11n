@@ -37,7 +37,7 @@ find-route() {
             echo "$fqdn"
             return 0
         fi
-    done < <(org-toml.sh "namespaces")
+    done < <(org-exported && o11n get namespaces)
     die 1 "no contact with $host:$port"
 }
 

@@ -11,13 +11,14 @@ agent=
 
 cleanup() {
     rm -rf "$tmpdir"
-    [[ -z $agent ]] || SSH_AGENT_PID=$agent ssh-agent -k > >(log info)
+    [[ -z $agent ]] || SSH_AGENT_PID=$agent ssh-agent -k >/dev/null
 }
 trap cleanup EXIT
 
 as() {
     local identity
-    identity=$(org-toml.sh "autocomplete-identity" "$1")
+    org-exported
+    identity=$(try o11n resolve "$1")
     mkdir -p "$tmpdir/keys"
     local key_file=$tmpdir/keys/$identity
     shift

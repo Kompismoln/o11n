@@ -366,6 +366,7 @@ Default: `[ ]`
 
 list of designated build hosts
 
+<<<<<<< signed
 ### `class`
 
 `org/default.nix` · attribute set of (submodule)
@@ -380,6 +381,8 @@ Default: `[ ]`
 
 keys an entity of the class has
 
+=======
+>>>>>>> @stamp
 ### `contact`
 
 `org/default.nix` · string
@@ -1199,6 +1202,7 @@ Default: `24`
 
 ipv4 private prefix length
 
+<<<<<<< signed
 ### `public-artifacts`
 
 `org/default.nix` · attribute set of string
@@ -1207,6 +1211,8 @@ Default: `{ }`
 
 path templates for public artifacts
 
+=======
+>>>>>>> @stamp
 ### `repository`
 
 `org/default.nix` · attribute set of string
@@ -1269,6 +1275,7 @@ Default:
 ```
 
 list of root identities
+<<<<<<< signed
 
 ### `secrets`
 
@@ -1277,6 +1284,8 @@ list of root identities
 Default: `{ }`
 
 path templates for secrets
+=======
+>>>>>>> @stamp
 
 ### `service`
 

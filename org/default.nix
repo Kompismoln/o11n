@@ -115,27 +115,6 @@
       default = { };
       type = lib.types.attrsOf context.types.domain.module;
     };
-    public-artifacts = lib.mkOption {
-      description = "path templates for public artifacts";
-      type = with lib.types; attrsOf str;
-    };
-    secrets = lib.mkOption {
-      description = "path templates for secrets";
-      type = with lib.types; attrsOf str;
-    };
-    class = lib.mkOption {
-      description = "metadata for classes";
-      type = lib.types.attrsOf (
-        lib.types.submodule {
-          options = {
-            keys = lib.mkOption {
-              description = "keys an entity of the class has";
-              type = with lib.types; listOf str;
-            };
-          };
-        }
-      );
-    };
     ops = lib.mkOption {
       description = "operations per entity groups";
       default = { };

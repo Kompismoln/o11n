@@ -134,4 +134,11 @@ in
   eval = nixosChecks // inventoryChecks // homeChecks // o11nChecks;
   leaks = hostChecks // rescueUsbChecks;
 }
-// lib.mapAttrs (name: check: { ${name} = check; }) (import ./source.nix { inherit pkgs; })
+// lib.mapAttrs (name: check: { ${name} = check; }) (
+  import ./source.nix {
+    inherit pkgs o11n;
+    toolsExport = builtins.toFile "org-export.json" (
+      builtins.toJSON (o11nLib.fromInventory { path = ../tools/test; }).org.export
+    );
+  }
+)

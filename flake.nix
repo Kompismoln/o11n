@@ -85,7 +85,7 @@
               packages = {
                 gost = pkgs.callPackage ./packages/gost.nix { };
                 o11n = pkgs.callPackage ./packages/o11n.nix { };
-                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { inherit (config.packages) gost; };
+                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { inherit (config.packages) gost o11n; };
               }
               // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n-tools; };
 

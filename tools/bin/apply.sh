@@ -6,10 +6,11 @@ set -euo pipefail
 tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
 . "$tools_root/libexec/run-with.bash"
+org-exported
 
 declare -x target=${1:?target required}
 declare -x \
-    BUILD_HOST=${BUILD_HOST:-$(org-toml.sh build-hosts | head -n 1)} \
+    BUILD_HOST=${BUILD_HOST:-$(o11n get build-hosts | head -n 1)} \
     TARGET_ADDRESS=${TARGET_ADDRESS:-$(find-route.sh "$target")}
 
 apply() {

@@ -1,7 +1,6 @@
 {
   age,
   curl,
-  gettext,
   gost,
   jq,
   lib,
@@ -12,7 +11,7 @@
   shellcheck,
   sops,
   stdenv,
-  toml2json,
+  o11n,
   wireguard-tools,
   ...
 }:
@@ -21,14 +20,13 @@ let
   runtimeInputs = [
     age
     curl
-    gettext
     gost
     jq
     mkpasswd
     openssl
+    o11n
     openssh
     sops
-    toml2json
     wireguard-tools
   ];
 in

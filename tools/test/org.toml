@@ -1,6 +1,6 @@
 # tools/test/org.toml
 name = "Testorg"
-domain = "example.com"
+endpoint = "example.com"
 timezone = "Europe/Stockholm"
 locale = "en_US.UTF-8"
 namespaces = [
@@ -12,48 +12,6 @@ build-hosts = [
 root-identities = [
   "root-1",
   "root-2",
-]
-
-[public-artifacts]
-default = "artifacts/$class-$entity-$key.pub"
-tls-cert = "artifacts/$class-$entity-$key.pem"
-
-[secrets]
-default = "enc/$class-$entity.yaml"
-root = "keys/$class-$entity"
-
-[class.root]
-keys = [
-  "age-key",
-]
-
-[class.host]
-keys = [
-  "age-key",
-  "ssh-key",
-  "wg0-key",
-  "wg1-key",
-  "wg2-key",
-  "luks-key",
-]
-
-[class.service]
-keys = [
-  "age-key",
-  "ssh-key",
-  "mail",
-  "passwd",
-  "secret-key",
-  "tls-cert",
-  "nix-sign",
-]
-
-[class.user]
-keys = [
-  "age-key",
-  "ssh-key",
-  "mail",
-  "passwd",
 ]
 
 [ops.rebuild]
@@ -69,7 +27,7 @@ keys = [
   "check:age-key",
   "check:ssh-key",
 ]
-"host-lenovo" = [
+"host-lorem" = [
   "check:age-key",
   "check:ssh-key",
 ]
@@ -125,14 +83,21 @@ grants = [
 
 [root.1]
 
+[role.testrole]
+
+[role.lorem]
+
+[app]
+
+[store]
+
 [host.testhost]
 id = 1
 roles = ["testrole"]
 endpoint = "stationary.kompismoln.se"
-vpns = [
-  "wg0",
-  "wg1",
-]
+users = []
+vpns = []
+system = "x86_64-linux"
 
 [host.lorem]
 id = 2
@@ -140,20 +105,7 @@ roles = [
   "testrole",
   "lorem",
 ]
-vpns = [
-  "wg0",
-]
+users = []
+vpns = []
 system = "x86_64-linux"
 stateVersion = "20.03"
-
-[vpn.test0]
-enable = true
-address = "10.0.0.0/24"
-port = 51820
-keepalive = 25
-gateway = "helsinki"
-namespace = "km"
-dns = ["helsinki"]
-resetOnRebuild = true
-peerAddress = "10.0.0.x"
-allowedTCPPortRanges = [{ from = 0, to = 65535 }]

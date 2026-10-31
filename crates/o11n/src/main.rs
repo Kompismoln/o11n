@@ -49,7 +49,7 @@ enum Command {
     Secrets { id: String },
     /// Each entity an op of the name applies to, and the op.
     Ops { name: String },
-    /// sops' creation rules for the members of the group.
+    /// sops' creation rules for the members of the group, a recipient without an age key left out with a warning.
     SopsYaml { group: String },
 }
 
@@ -155,8 +155,8 @@ fn run(cli: Cli) -> Result<(), Error> {
         Command::SopsYaml { group } => {
             let mut missing = Vec::new();
             print!("{}", org.sops_yaml(&cli.org, &group, &mut missing)?);
-            if !missing.is_empty() {
-                return Err(Error::new(missing.join("\n")));
+            for line in missing {
+                eprintln!("o11n: warning: {line}");
             }
         }
     }

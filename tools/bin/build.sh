@@ -6,8 +6,9 @@ set -euo pipefail
 tools_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=../libexec/run-with.bash
 . "$tools_root/libexec/run-with.bash"
+org-exported
 
-declare -x BUILD_HOST=${BUILD_HOST:-$(org-toml.sh build-hosts | head -n 1)}
+declare -x BUILD_HOST=${BUILD_HOST:-$(o11n get build-hosts | head -n 1)}
 
 build() {
     local target=$1
@@ -19,7 +20,7 @@ build() {
         return
     fi
 
-    org-toml.sh build-hosts | grep -x "$BUILD_HOST" >/dev/null ||
+    o11n get build-hosts | grep -x "$BUILD_HOST" >/dev/null ||
         die 1 "$BUILD_HOST is not in build-hosts"
 
     [[ $# -eq 0 ]] || die 1 "nix options apply only with BUILD_HOST=localhost: $*"
