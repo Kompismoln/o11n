@@ -43,11 +43,7 @@ other part's code holds.
 
 `docs/index/<part>.md` indexes a part's interface: for now the options of an org, each by its place in `org.toml`, its
 type, its default and its description, under the part whose code declares it. The flake's `index` (`dev/index.nix`)
-<<<<<<< signed
-reads them from `lib/context.nix`, evaluated for `tests/inventories/base`, which holds nothing: a default computed from
-=======
 reads them from `org/context.nix`, evaluated for `tests/inventories/base`, which holds nothing: a default computed from
->>>>>>> @stamp
 an entity's own config has a `defaultText`, as `lib.literalExpression` over the entity's options, the org's as
 `org.<option>`, or as `lib.literalMD` where it draws on more, or the index fails to evaluate. `python3 dev/index.py`
 writes a doc for each part that has any, and removes the rest; turn-end leaves it to be run. Each is a doc of the part
