@@ -183,6 +183,10 @@ id = 10
 principal.hasPublicKey = false
 grants = ["host:remote-builder"]
 
+[ops.check]
+"host:server+substituter" = ["check:age-key"]
+"service-rescue" = ["verify:ssh-key", "verify:passwd"]
+
 # Every class needs a table, even when empty.
 [app]
 

@@ -491,4 +491,68 @@ in
       };
     };
   };
+
+  test_export_is_plain_data = {
+    expr = lib.hasInfix builtins.storeDir (builtins.toJSON outputs.org.export);
+    expected = false;
+  };
+
+  test_export_entity = {
+    expr = {
+      inherit (outputs.org.export.entities.service-reverse-tunnel) recipients secrets;
+      publicKeys = lib.mapAttrs (_: path: builtins.pathExists (./. + "/${path}")) (
+        lib.getAttrs [ "age-key" "ssh-key" ] outputs.org.export.entities.service-reverse-tunnel.publicKeys
+      );
+    };
+    expected = {
+      recipients = [
+        "host-gw"
+        "host-web"
+        "root-1"
+        "service-reverse-tunnel"
+      ];
+      secrets = {
+        sopsFile = "enc/service-reverse-tunnel.yaml";
+        decryptionKey = "/keys/service-reverse-tunnel";
+      };
+      publicKeys = {
+        age-key = true;
+        ssh-key = true;
+      };
+    };
+  };
+
+  test_export_root = {
+    expr = lib.mapAttrs (_: path: builtins.pathExists (./. + "/${path}")) {
+      inherit (outputs.org.export.entities.root-1.publicKeys) age-key;
+      inherit (outputs.org.export.entities.root-1.secrets) ageKeyFile;
+    };
+    expected = {
+      age-key = true;
+      ageKeyFile = true;
+    };
+  };
+
+  test_export_classes = {
+    expr = outputs.org.export.classes == import ../../../org/classes.nix;
+    expected = true;
+  };
+
+  test_export_ops = {
+    expr = outputs.org.export.ops;
+    expected.check = [
+      {
+        entity = "host-gw";
+        op = "check:age-key";
+      }
+      {
+        entity = "service-rescue";
+        op = "verify:ssh-key";
+      }
+      {
+        entity = "service-rescue";
+        op = "verify:passwd";
+      }
+    ];
+  };
 }

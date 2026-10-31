@@ -28,6 +28,7 @@
     };
     grants = lib.mkOption {
       description = "entity groups whose members get to decrypt the entity's secrets";
+      default = [ ];
       type = with lib.types; listOf str;
     };
     ids = lib.mkOption {

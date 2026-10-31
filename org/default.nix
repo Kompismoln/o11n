@@ -5,6 +5,8 @@
   ...
 }:
 {
+  imports = [ ./export.nix ];
+
   options = {
     endpoint = lib.mkOption {
       description = "canonical name on internet";
@@ -136,6 +138,7 @@
     };
     ops = lib.mkOption {
       description = "operations per entity groups";
+      default = { };
       type = with lib.types; attrsOf (attrsOf (listOf str));
     };
     root-identities = lib.mkOption {
