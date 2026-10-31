@@ -1,5 +1,5 @@
 # Usage: import ./dev/index.nix { lib; src; parts; }, as flake.nix's index does: what dev/index.py
-# writes docs/index/<part>.md from: the options of an org, as lib/context.nix
+# writes docs/index/<part>.md from: the options of an org, as org/context.nix
 # declares it, evaluated for an inventory that holds nothing, each under the part whose code
 # declares it.
 # Policy: a default computed from an entity's own config, which a <name> placeholder has none of,
@@ -22,7 +22,7 @@ let
           };
         };
       }
-      "${src}/lib/context.nix"
+      "${src}/org/context.nix"
     ];
   };
 
