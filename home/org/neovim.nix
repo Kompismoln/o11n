@@ -12,10 +12,6 @@
 
   home.packages = with pkgs; [
     nixfmt
-    shellcheck
-    shellharden
-    shfmt
-    bash-language-server
   ];
 
   programs.nixvim = {
@@ -265,15 +261,7 @@
       lsp = {
         enable = true;
         servers = {
-          tinymist.enable = true;
-          ts_ls.enable = true;
-          svelte.enable = true;
-          tailwindcss.enable = true;
           nixd.enable = true;
-          eslint.enable = true;
-          bashls.enable = true;
-          tombi.enable = true;
-          jsonls.enable = true;
         };
         keymaps = {
           lspBuf = {

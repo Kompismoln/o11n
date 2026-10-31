@@ -57,7 +57,6 @@ let
       ++ [
         imagick
         memcached
-        opcache
       ];
     extraConfig = ''
       memory_limit = 256M

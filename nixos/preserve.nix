@@ -53,8 +53,6 @@ in
 
     environment.etc."machine-id".text = host.ids.hex32 + "\n";
 
-    boot.initrd.systemd.enable = true;
-
     services.journald.settings.Journal = {
       SystemMaxUse = "100M";
       SystemKeepFree = "200M";

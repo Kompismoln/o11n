@@ -18,9 +18,7 @@
     zfs.devNodes = "/dev/disk/by-uuid";
     zfs.forceImportRoot = false;
     initrd.systemd = {
-      enable = true;
       services."format-root" = {
-        enable = true;
         description = "Format the root LV partition at boot";
         unitConfig = {
           DefaultDependencies = "no";
