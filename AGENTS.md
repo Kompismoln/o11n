@@ -11,7 +11,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
 
 - The archives `github:` and `gitlab:` inputs download are refused (HTTP 403) or rate-limited (HTTP 429); git over https
   works. session-start fetches the inputs over git, so plain `nix` finds them in the store. For another lock, run
-  `dev/fetch-inputs.sh <flake.lock>`.
+  `./dev/agent.sh fetch-inputs <flake.lock>`.
 
 - Instead of `/dev/kvm`, NixOS VM tests can run on the `O11N_REMOTE_BUILDER` when set, and its host allowed by the
   session's network policy, `o11n remote build <installable>` builds them on a host with the remote-builder role, and
@@ -24,7 +24,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
   wrapper only defaults to `/etc/nix/inputs/self`. To try changes to o11n on the org, put the clone's
   `nix build .#o11n-tools` first on its PATH: `O11N_TOOLS` named the clone's `tools/`, which has no `bin/` any more.
 - Nix runs in single-user mode on this session's `/nix`. For a Lix daemon, as the remote builder runs, use
-  `dev/lix-daemon.sh` (`docs/dev.md`, "Lix daemon").
+  `./dev/agent.sh lix-daemon <dir>` (`docs/dev.md`, "Lix daemon").
 - A fixed-output fetch from a GitHub archive URL fails here too. Fetch the same revision over git into a directory named
   `source`, remove `.git`, and add it with `nix-store --add-fixed --recursive sha256 <dir>/source`; it lands at the path
   the fetch would have produced.

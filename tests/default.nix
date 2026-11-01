@@ -2,6 +2,7 @@
   pkgs,
   o11nLib,
   o11n,
+  o11n-dev,
 }:
 let
   inherit (pkgs) lib;
@@ -137,7 +138,7 @@ in
 }
 // lib.mapAttrs (name: check: { ${name} = check; }) (
   import ./source.nix {
-    inherit pkgs o11n;
+    inherit pkgs o11n o11n-dev;
     testExport = builtins.toFile "org-export.json" (
       builtins.toJSON (o11nLib.fromInventory { path = ../crates/o11n/test; }).org.export
     );

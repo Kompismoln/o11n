@@ -1,6 +1,7 @@
 {
   pkgs,
   o11n,
+  o11n-dev,
   testExport,
 }:
 let
@@ -35,12 +36,11 @@ let
           fileset.unions (
             [
               ../dev/check.sh
-              ../dev/files.bash
             ]
             ++ files
           )
         );
-        nativeBuildInputs = inputs;
+        nativeBuildInputs = [ o11n-dev ] ++ inputs;
       }
       ''
         cp -r $src src
@@ -56,7 +56,6 @@ in
     stage "stamps"
       [
         md
-        ../dev/stamps.sh
       ]
       [ ];
 
@@ -97,6 +96,7 @@ in
             ../dev
             ../nixos/org/locksmith.sh
             ../crates/o11n/test
+            ../settings.toml
           ]
         );
         nativeBuildInputs = [
@@ -107,12 +107,12 @@ in
           pkgs.nix
           pkgs.nixfmt
           o11n
+          o11n-dev
           pkgs.openssh
           pkgs.prettier
           pkgs.rustfmt
           pkgs.socat
           pkgs.sops
-          pkgs.toml2json
           pkgs.tree
           pkgs.util-linux
         ];

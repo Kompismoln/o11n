@@ -3,8 +3,7 @@
 # shellcheck disable=SC2016 # Accommodating for Markdown, whose backticks are literal here
 setup() {
   cd "$BATS_TEST_TMPDIR" || exit
-  mkdir -p bin dev docs/index
-  cp "$BATS_TEST_DIRNAME"/../{index.sh,stamps.sh} dev/
+  mkdir -p bin docs/index
   cp "$BATS_TEST_DIRNAME/../../.prettierrc.yaml" .
   printf '#!%s\ncat "%s/index.json"\n' "$BASH" "$BATS_TEST_TMPDIR" >bin/nix
   chmod +x bin/nix
@@ -23,7 +22,7 @@ JSON
 @test "writes a doc for each part with entries, checks it, its stamps pending read as written now, and removes the rest" {
   echo stale >docs/index/gone.md
 
-  run dev/index.sh
+  run o11n-dev index write
   [ "$status" -eq 0 ]
   [ "$output" = "docs/index/org.md: written
 docs/index/gone.md: removed" ]
@@ -35,17 +34,17 @@ docs/index/gone.md: removed" ]
   grep -qxF '```nix' docs/index/org.md
   grep -qxF '  wg0 = { };' docs/index/org.md
 
-  run dev/index.sh --check
+  run o11n-dev index check
   [ "$status" -eq 0 ]
 
   sed -i 's/^the roles it has$/<<<<<<< signed\nWhether it was.\n=======\nthe roles it has\n>>>>>>> @''stamp/' docs/index/org.md
-  run dev/index.sh --check
+  run o11n-dev index check
   [ "$status" -eq 0 ]
 
   sed -i 's/"list of string"/"string"/' index.json
   echo stale >docs/index/gone.md
-  run dev/index.sh --check
+  run o11n-dev index check
   [ "$status" -eq 1 ]
-  [ "$output" = "flag: docs/index/org.md: isn't what dev/index.sh writes
+  [ "$output" = "flag: docs/index/org.md: isn't what \`dev/write.sh index\` writes
 flag: docs/index/gone.md: indexes a part with nothing to index" ]
 }

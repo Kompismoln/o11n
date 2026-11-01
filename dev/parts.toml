@@ -13,6 +13,8 @@ stages = [
 
 layers = [
   "domain",
+  "ux",
+  "dx",
 ]
 
 [parts.org]
@@ -20,3 +22,15 @@ stage = "solidified"
 layer = "domain"
 doc = "docs/parts/org.md"
 code = ["org"]
+
+[parts.dev]
+stage = "drafted"
+layer = "dx"
+doc = "docs/dev.md"
+code = [".claude/settings.json", "dev", "packages/dev.nix", "settings.toml"]
+
+[parts.o11n-dev]
+stage = "drafted"
+layer = "dx"
+doc = "docs/parts/o11n-dev.md"
+code = ["crates/o11n-dev", "packages/o11n-dev.nix"]

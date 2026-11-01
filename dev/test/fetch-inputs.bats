@@ -2,7 +2,7 @@
 
 # shellcheck disable=SC2016 # Accommodating for the stub, whose variables expand when it runs
 setup() {
-  fetch=$BATS_TEST_DIRNAME/../fetch-inputs.sh
+  agent=$BATS_TEST_DIRNAME/../agent.sh
   cd "$BATS_TEST_TMPDIR" || exit
   mkdir bin
   printf '#!%s\n%s\n' "$BASH" '
@@ -30,7 +30,7 @@ gitlab() {
   printf '{"nodes":{%s,%s,%s,"other":{"locked":{"type":"path"}},"root":{}}}' \
     "$(github a owner one 1)" "$(github b owner two 2)" "$(github c owner one 1)" >flake.lock
 
-  run "$fetch"
+  run "$agent" fetch-inputs
   [ "$status" -eq 0 ]
   [ "$output" = "/nix/store/one-source
 /nix/store/two-source" ]
@@ -42,7 +42,7 @@ git+https://github.com/owner/two?rev=2&shallow=1" ]
   printf '{"nodes":{%s,"b":{"locked":{"type":"gitlab","host":"git.example.org","owner":"owner","repo":"two","rev":"2"}}}}' \
     "$(gitlab a owner one 1)" >flake.lock
 
-  run "$fetch"
+  run "$agent" fetch-inputs
   [ "$status" -eq 0 ]
   [ "$output" = "/nix/store/two-source
 /nix/store/one-source" ]
@@ -54,7 +54,7 @@ git+https://gitlab.com/owner/one?rev=1&shallow=1" ]
   mkdir org
   printf '{"nodes":{%s,%s}}' "$(github a owner private 1)" "$(github b owner public 2)" >org/flake.lock
 
-  run "$fetch" org/flake.lock
+  run "$agent" fetch-inputs org/flake.lock
   [ "$status" -eq 1 ]
   [[ $output == *"could not fetch git+https://github.com/owner/private?rev=1&shallow=1:"*"error: no access"* ]]
   [[ $output == *"/nix/store/public-source"* ]]

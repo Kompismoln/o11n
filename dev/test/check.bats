@@ -5,6 +5,11 @@ setup() {
   divider="======="
   closing=">>>>>>> @""stamp"
   cd "$BATS_TEST_TMPDIR" || exit
+  mkdir bin
+  printf '#!%s\ncat "%s/index.json"\n' "$BASH" "$BATS_TEST_TMPDIR" >bin/nix
+  chmod +x bin/nix
+  echo '{}' >index.json
+  export PATH=$BATS_TEST_TMPDIR/bin:$PATH
   git init -q -b main repo
   cd repo || exit
   git config user.name operator
@@ -12,9 +17,7 @@ setup() {
   git config commit.gpgsign false
   mkdir dev
   cp "$BATS_TEST_DIRNAME/../../.prettierrc.yaml" .
-  cp "$BATS_TEST_DIRNAME"/../{check.sh,write.sh,files.bash,stamps.sh,refcheck.sh,parts.sh} dev/
-  printf '#!%s\n' "$BASH" >dev/index.sh
-  chmod +x dev/index.sh
+  cp "$BATS_TEST_DIRNAME"/../{check.sh,write.sh} dev/
   echo '# Doc' >doc.md
   echo '{ }' >default.nix
   git add -A
@@ -38,7 +41,7 @@ setup() {
 
   run dev/check.sh nowhere
   [ "$status" -eq 1 ]
-  [ "$output" = "no stage nowhere: stamps pending format lint docs parts index eval leaks bats vm" ]
+  [ "$output" = "no stage nowhere: stamps pending stamped format lint docs parts index eval leaks bats vm" ]
 }
 
 @test "format checks the Nix, the Rust and the docs but those with stamps pending, which write.sh formats" {
@@ -70,21 +73,50 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
-@test "write.sh, given a commit, stamps each change to a doc since it" {
+@test "write.sh, given STAMPED, stamps each change to a doc since it" {
   echo 'More.' >>doc.md
-  run dev/write.sh HEAD
+  STAMPED=HEAD run dev/write.sh
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = "against $(git log -1 --format='%h %s')" ]
   [ "${lines[1]}" = "doc.md: 1 stamps" ]
   grep -qxF "$opening" doc.md
 }
 
-@test "write.sh writes the index, and, given a commit, stamps it" {
-  printf '#!%s\nprintf "# Index\\n\\nWritten.\\n" >index.md\n' "$BASH" >dev/index.sh
-  run dev/write.sh HEAD
+indexed() {
+  echo '{"x": [{"name": "o", "type": "int", "default": "1", "prose": false, "description": "Written.", "files": ["x.nix"]}]}' \
+    >"$BATS_TEST_TMPDIR/index.json"
+}
+
+@test "write.sh writes the index, and, given STAMPED, stamps it" {
+  indexed
+  STAMPED=HEAD run dev/write.sh
   [ "$status" -eq 0 ]
-  [ "${lines[1]}" = "index.md: 1 stamps" ]
-  grep -qxF 'Written.' index.md
+  [ "${lines[0]}" = "docs/index/x.md: written" ]
+  [ "${lines[2]}" = "docs/index/x.md: 1 stamps" ]
+  grep -qxF 'Written.' docs/index/x.md
+}
+
+@test "each stage write.sh writes has its stage of check.sh, which passes once it has written" {
+  indexed
+  echo '{a=1;}' >default.nix
+  echo 'More.' >>doc.md
+  export STAMPED=HEAD
+  for pair in format:format index:index stamps:stamped; do
+    run dev/check.sh "${pair#*:}"
+    [ "$status" -ne 0 ]
+    run dev/write.sh "${pair%%:*}"
+    [ "$status" -eq 0 ]
+    run dev/check.sh "${pair#*:}"
+    [ "$status" -eq 0 ]
+  done
+
+  unset STAMPED
+  run dev/write.sh stamps
+  [ "$status" -eq 1 ]
+  [ "$output" = "write.sh: stamps writes against STAMPED, which is unset" ]
+  run dev/write.sh nowhere
+  [ "$status" -eq 1 ]
+  [ "$output" = "no stage nowhere: format index stamps" ]
 }
 
 @test "docs flags paths that aren't there and commits off main, but not what's elsewhere or ignored" {
@@ -93,10 +125,10 @@ setup() {
   echo /tools/written.sh >.gitignore
   git add -A
   git commit -q -m tools
-  main=$(git rev-parse --short HEAD)
+  main=$(git rev-parse HEAD)
   git checkout -q -b work
   git commit -q --allow-empty -m branch
-  branch=$(git rev-parse --short HEAD)
+  branch=$(git rev-parse HEAD)
   cat >doc.md <<DOC
 See \`tools/there.sh\`, \`tools/*.sh\` and \`tools/gone.sh\`, then \`elsewhere/x.sh\`.
 The former \`tools/old.sh\`, Owner/repo's \`tools/theirs.sh\` and \`tools/mine.sh\` in Owner/repo.
@@ -150,4 +182,10 @@ TOML
   [[ $output == *"\`dev/check.sh\` is held by 2 parts, one, two, not one"* ]]
   [[ $output == *"\`docs/index/gone.md\` indexes no part"* ]]
   [[ $output != *"default.nix"* ]]
+}
+
+@test "o11n-dev fails for an O11N_ROOT that holds no o11n-dev to build" {
+  O11N_ROOT=$PWD run o11n-dev main
+  [ "$status" -eq 1 ]
+  [ "$output" = "o11n-dev: O11N_ROOT, $PWD, holds no crates/o11n-dev to build" ]
 }

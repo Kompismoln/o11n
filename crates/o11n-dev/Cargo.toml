@@ -1,0 +1,17 @@
+[package]
+name = "o11n-dev"
+version = "0.1.0"
+description = "Reads o11n's clone and decides for the scripts of dev/"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+serde_json = "1"
+toml = { version = "1", features = ["preserve_order"] }
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+[workspace]

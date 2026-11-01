@@ -1,6 +1,6 @@
 # `org`
 
-Written by `dev/index.sh` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
+Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
 them, each by its place in `org.toml`.
 
 ## Options

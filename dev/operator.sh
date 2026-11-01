@@ -43,8 +43,9 @@ stamp() {
 }
 
 merge() {
-    local main=${MAIN:-main} branch=${1:-$(git branch --show-current)}
+    local main branch=${1:-$(git branch --show-current)}
     local main_sha branch_sha here wt ref orig msgfile new
+    main=$(o11n-dev main)
     [[ $branch != "$main" ]] || die "branch must differ from $main"
     [[ ! -d "$(git rev-parse --git-path rebase-merge)" && ! -d "$(git rev-parse --git-path rebase-apply)" ]] ||
         die "a rebase is in progress"

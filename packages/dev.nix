@@ -12,12 +12,12 @@
   jq,
   lib,
   nixfmt,
+  o11n-dev,
   o11n-tools,
   prettier,
   rustfmt,
   shellcheck,
   statix,
-  toml2json,
   util-linux,
   writeShellApplication,
 }:
@@ -39,10 +39,11 @@ let
     gnugrep
     gnused
   ];
-  stamps = shell ++ [ diffutils ];
-  write = stamps ++ [
+  write = shell ++ [
+    diffutils
     jq
     nixfmt
+    o11n-dev
     prettier
     rustfmt
   ];
@@ -52,19 +53,11 @@ let
       deadnix
       shellcheck
       statix
-      toml2json
     ]
     ++ o11n-tools.runtimeInputs;
-  fetch-inputs = shell ++ [ jq ];
 in
 lib.mapAttrs script {
-  inherit
-    stamps
-    write
-    check
-    fetch-inputs
-    ;
-  agent = lib.unique (check ++ fetch-inputs ++ [ jq ]);
+  inherit write check;
+  agent = lib.unique (check ++ [ util-linux ]);
   operator = check;
-  lix-daemon = shell ++ [ util-linux ];
 }

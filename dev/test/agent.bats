@@ -4,7 +4,7 @@
 setup() {
   opening="<<<<<<< signed"
   cd "$BATS_TEST_TMPDIR" || exit
-  unset CLAUDE_CODE_REMOTE CLAUDE_ENV_FILE CHECK_FAILS WRITE_FAILS O11N_REMOTE_BUILDER
+  unset CLAUDE_CODE_REMOTE CLAUDE_ENV_FILE CHECK_FAILS CHECK_DIES WRITE_FAILS O11N_REMOTE_BUILDER
   mkdir bin remote clones
   stub bin/nix 'echo "nix $*" >>"$BATS_TEST_TMPDIR/nix.log"
 echo "{\"variables\":{\"PATH\":{\"value\":\"/dev-shell/bin\"}}}"'
@@ -34,23 +34,30 @@ project() {
     configure operator
     git remote add origin "../$1.git"
     mkdir dev
-    cp "$BATS_TEST_DIRNAME"/../{agent.sh,stamps.sh,.gitignore} dev/
+    cp "$BATS_TEST_DIRNAME"/../{agent.sh,.gitignore} dev/
+    cp "$BATS_TEST_DIRNAME/../../settings.toml" .
     stub dev/check.sh 'echo "${PWD##*/}: $*" >>"$BATS_TEST_TMPDIR/checks.log"
 echo "$PATH" >"$BATS_TEST_TMPDIR/checked-path"
+[[ -z ${CHECK_DIES:-} ]] || { echo "check.sh: died"; exit 1; }
+mkdir -p dev/state/logs
 failed=()
 for stage in "$@"; do
+  status=0
+  { echo "at $stage"; echo "• $stage"; } >"dev/state/logs/$stage.log"
   echo "• $stage" >&2
   if [[ " ${CHECK_FAILS:-} " == *" $stage "* ]]; then
-    echo "$stage: broken"
+    echo "$stage: broken" | tee -a "dev/state/logs/$stage.log"
     failed+=("$stage")
+    status=1
   fi
+  printf "{\"stage\":\"%s\",\"status\":%d}\n" "$stage" "$status" >"dev/state/logs/$stage.json"
 done
 ((${#failed[@]} == 0)) || { echo "• failed: ${failed[*]}" >&2; exit 1; }'
     stub dev/write.sh '[[ " ${WRITE_FAILS:-} " != *" ${PWD##*/} "* ]] || { echo "nixfmt: broken"; exit 1; }
-[[ -z ${1:-} ]] || { echo "$1" >"$BATS_TEST_TMPDIR/against"; dev/stamps.sh write "$1" >/dev/null; }'
-    stub dev/fetch-inputs.sh ':'
+[[ -z ${STAMPED:-} ]] || { echo "$STAMPED" >"$BATS_TEST_TMPDIR/against"; o11n-dev stamps write "$STAMPED" >/dev/null; }'
     echo one >file
     echo one >doc.md
+    echo '{"nodes": {}}' >flake.lock
     git add -A
     git commit -q -m one
     git push -q origin HEAD:main HEAD:work
@@ -98,11 +105,13 @@ started() {
 }
 
 @test "session-start provisions a cloud session from the dev shell, rooted in the clone" {
+  expected="export PATH='/dev-shell/bin':\"\$PATH\""
+  [[ -z ${O11N_ROOT:-} ]] || expected+=$'\n'"export O11N_ROOT=$(printf %q "$O11N_ROOT")"
   CLAUDE_CODE_REMOTE=true CLAUDE_ENV_FILE=$BATS_TEST_TMPDIR/env run "$agent" session-start <<<'{"source":"resume"}'
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
   grep -qxF "nix print-dev-env --quiet --no-warn-dirty --profile dev/state/roots/dev-shell --json" "$BATS_TEST_TMPDIR/nix.log"
-  [ "$(cat dev/state/env)" = "export PATH='/dev-shell/bin':\"\$PATH\"" ]
+  [ "$(cat dev/state/env)" = "$expected" ]
   [ "$(cat "$BATS_TEST_TMPDIR/env")" = "$(cat dev/state/env)" ]
   [ -z "$(git status --porcelain)" ]
 }
@@ -262,7 +271,7 @@ started() {
 
   WRITE_FAILS=o11n run "$agent" turn-end <<<'{"stop_hook_active":false}'
   [ "$status" -eq 2 ]
-  [ "${lines[0]}" = "dev/write.sh $(cat dev/state/turn-start) fails, as below: fix it before you end the turn, or tell the user why you can't." ]
+  [ "${lines[0]}" = "env STAMPED=$(cat dev/state/turn-start) dev/write.sh fails, as below: fix it before you end the turn, or tell the user why you can't." ]
   [ "${lines[1]}" = "nixfmt: broken" ]
 
   WRITE_FAILS=o11n run "$agent" turn-end <<<'{"stop_hook_active":true}'
@@ -337,6 +346,29 @@ started() {
   run "$agent" hand-over
   [ "$output" = "Work is refused this turn, so nothing is handed over: tell the user so." ]
   [ "$(git rev-parse origin/work)" != "$(git rev-parse HEAD)" ]
+}
+
+@test "a hook reads what it refuses and tells of from settings.toml, and stops, or turn-end tells, where it's amiss" {
+  printf '[hooks.turn-end]\ntell = ["lint"]\n' >>settings.toml
+
+  run "$agent" session-start <<<'{"source":"startup"}'
+  [ "$status" -eq 1 ]
+  [[ $output == *"settings.toml: [hooks.turn-end] isn't a hook that checks: session-start, turn-start, hand-over"* ]]
+  [ ! -e "$BATS_TEST_TMPDIR/checks.log" ]
+
+  run "$agent" turn-end </dev/null
+  [ "$status" -eq 2 ]
+  [ "$output" = "turn-end finds settings.toml: [hooks.turn-end] isn't a hook that checks: session-start, turn-start, hand-over." ]
+}
+
+@test "a stage that check.sh leaves no JSON of failed, though one of a former check said it passed" {
+  "$agent" session-start <<<'{"source":"startup"}'
+  [ "$(jq -r .status dev/state/logs/eval.json)" = 0 ]
+
+  CHECK_DIES=yes run "$agent" session-start <<<'{"source":"startup"}'
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "Work is refused, for conflict markers that aren't stamps, pending stamps, formatting errors, lint errors, broken references, files the parts hold amiss, an index that isn't written, failing evaluation tests: tell the user so, with what follows, and commit no changes this turn." ]
+  [ "${lines[1]}" = "check.sh: died" ]
 }
 
 @test "agent.sh needs a command" {

@@ -13,7 +13,7 @@ setup() {
   ' >lix/bin/nix-daemon
   chmod +x bin/nix lix/bin/nix-daemon
   export PATH=$BATS_TEST_TMPDIR/bin:$PATH
-  lix=$BATS_TEST_DIRNAME/../lix-daemon.sh
+  agent=$BATS_TEST_DIRNAME/../agent.sh
 }
 
 teardown() {
@@ -21,7 +21,7 @@ teardown() {
 }
 
 @test "starts Lix's daemon on a store and socket of its own, untrusted and without pasta, and prints its URL" {
-  NIX_CONFIG="sandbox = false" run "$lix" test
+  NIX_CONFIG="sandbox = false" run "$agent" lix-daemon test
   [ "$status" -eq 0 ]
   [ "$output" = "unix://$BATS_TEST_TMPDIR/test/socket" ]
   [ "$(cat daemon.env)" = "args: --force-untrusted
@@ -32,13 +32,13 @@ extra-experimental-features = daemon-trust-override
 sandbox = false" ]
   kill -0 "$(cat test/pid)"
 
-  run "$lix" test
+  run "$agent" lix-daemon test
   [ "$status" -eq 1 ]
   [[ $output == *"socket is there already"* ]]
 }
 
 @test "says what the daemon said when it doesn't start" {
-  DAEMON_FAILS=yes run "$lix" test
+  DAEMON_FAILS=yes run "$agent" lix-daemon test
   [ "$status" -eq 1 ]
   [[ $output == *"the daemon didn't start:"*"error: broken"* ]]
 }

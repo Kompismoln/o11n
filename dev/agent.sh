@@ -1,15 +1,95 @@
 #!/usr/bin/env bash
-# Usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over. The hooks of
-# .claude/settings.json run all but hand-over, with a hook's JSON on stdin. Each says nothing unless
-# the agent has something to do, and exits 0, but tool-end and turn-end, which exit 2 to tell the
-# agent.
+# Usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over
+#        | fetch-inputs [flake.lock] | lix-daemon <dir>.
+# The hooks of .claude/settings.json run session-start to turn-end, with a hook's JSON on stdin.
+# Each says nothing unless the agent has something to do, and exits 0, but tool-end and turn-end,
+# which exit 2 to tell the agent. hand-over runs at request "hand over"; fetch-inputs and lix-daemon
+# are the agent's tools, for a session's network and for a store of its own.
 set -euo pipefail
+
+USAGE="usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over | fetch-inputs [flake.lock] | lix-daemon <dir>"
+
+# Fetches each github: and gitlab: input the lock locks over git, at the locked revision, and prints
+# its store path. That is the path nix's github: or gitlab: fetcher would make, so nix finds the
+# input there instead of downloading the forge's archive, which a session's network refuses or
+# rate-limits. An input it can't fetch, a private one say, it reports with nix's error and fails
+# for, once it has tried the rest.
+fetch-inputs() {
+    local refs ref json log failed=0
+    refs=$(
+        jq -r '
+            {github: "github.com", gitlab: "gitlab.com"} as $hosts
+            | [.nodes[].locked // empty | select(.type // "" | in($hosts)) | [.host // $hosts[.type], .owner, .repo, .rev]]
+            | unique[]
+            | "git+https://\(.[0])/\(.[1])/\(.[2])?rev=\(.[3])&shallow=1"
+        ' "$1"
+    )
+    log=$(mktemp)
+    for ref in $refs; do
+        if json=$(nix flake prefetch --json "$ref" 2>"$log"); then
+            jq -r .storePath <<<"$json"
+        else
+            echo "fetch-inputs: could not fetch $ref:" >&2
+            cat "$log" >&2
+            failed=1
+        fi
+    done
+    rm -f "$log"
+    return "$failed"
+}
+
+# Starts o11n's Lix daemon in the background as the remote builder runs it, on a store of its own in
+# <dir>/root and for untrusted clients, prints its store URL, unix://<dir>/socket, and leaves its PID
+# in <dir>/pid and its log in <dir>/log. NIX_CONFIG adds to its settings.
+#
+# Accommodating for the session: Lix's daemon listens on /nix/var/nix/daemon-socket/socket unless
+# told otherwise, where the session's own nix, with store = auto, would take it for its daemon; and
+# Lix gives fixed-output fetches their network through pasta, which can't start here.
+lix-daemon() {
+    local dir=${1:?usage: ./dev/agent.sh lix-daemon <dir>} lix
+    mkdir -p "$dir"
+    dir=$(cd "$dir" && pwd)
+    [[ ! -S $dir/socket ]] || {
+        echo "lix-daemon: $dir/socket is there already: kill \"\$(cat $dir/pid)\" first" >&2
+        return 1
+    }
+
+    lix=$(nix build --no-link --print-out-paths "$(git rev-parse --show-toplevel)#nixpkgs.legacyPackages.x86_64-linux.lix" | grep -v -- '-man$')
+
+    NIX_REMOTE="local?root=$dir/root" \
+        NIX_DAEMON_SOCKET_PATH=$dir/socket \
+        NIX_CONFIG="pasta-path =
+extra-experimental-features = daemon-trust-override
+${NIX_CONFIG:-}" \
+        setsid "$lix/bin/nix-daemon" --force-untrusted >"$dir/log" 2>&1 </dev/null &
+    echo $! >"$dir/pid"
+
+    for _ in {1..100}; do
+        if [[ -S $dir/socket ]]; then
+            echo "unix://$dir/socket"
+            return 0
+        fi
+        kill -0 "$(cat "$dir/pid")" 2>/dev/null || break
+        timeout 0.1 tail -f /dev/null || true
+    done
+    echo "lix-daemon: the daemon didn't start:" >&2
+    cat "$dir/log" >&2
+    return 1
+}
 
 command=${1:-}
 case $command in
 session-start | turn-start | tool-end | turn-end | hand-over | provision) ;;
+fetch-inputs)
+    fetch-inputs "${2:-flake.lock}"
+    exit
+    ;;
+lix-daemon)
+    lix-daemon "${2:-}"
+    exit
+    ;;
 *)
-    echo "usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over" >&2
+    echo "$USAGE" >&2
     exit 1
     ;;
 esac
@@ -21,14 +101,10 @@ esac
 
 cd "$(git rev-parse --show-toplevel)"
 
-CHECKED_AT_SESSION_START=(stamps pending format lint docs parts index eval)
-REFUSED_AT_TURN_START=(stamps)
-TOLD_AT_TURN_START=(pending format lint docs parts index eval)
-HANDED_OVER=(format lint docs parts index eval leaks bats)
-
 STATE=dev/state
 ENV=$STATE/env
 ROOTS=$STATE/roots
+LOGS=$STATE/logs
 STARTED=$STATE/session-start
 TURN=$STATE/turn-start
 REFUSED=$STATE/refused
@@ -44,6 +120,22 @@ if [[ -f $ENV ]]; then
     # shellcheck source=/dev/null
     . "$ENV"
 fi
+if [[ -z ${O11N_ROOT:-} && -f crates/o11n-dev/Cargo.toml ]]; then
+    export O11N_ROOT=$PWD
+fi
+
+# Policy: what settings.toml has each hook refuse work for and tell of is read where errexit holds,
+# so that a settings.toml or an o11n-dev amiss stops the hook rather than have it check nothing.
+declare -A REFUSES TELLS
+case $command in
+session-start | turn-start | hand-over)
+    for hook in session-start turn-start; do
+        REFUSES[$hook]="$(o11n-dev hook "$hook" refuse)"
+        TELLS[$hook]="$(o11n-dev hook "$hook" tell)"
+    done
+    TELLS[hand-over]="$(o11n-dev hook hand-over tell)"
+    ;;
+esac
 
 field() {
     [[ -n $event ]] || return 0
@@ -77,11 +169,7 @@ builder-probed() {
 }
 
 session-checked() {
-    checked "${CHECKED_AT_SESSION_START[@]}"
-    ((${#failed[@]})) || return 0
-    refuse "$(named "${failed[@]}")" details
-    sections
-    return 1
+    hook-checked session-start
 }
 
 # Accommodating for bash, which ignores errexit wherever a status is tested: provisioning runs as a
@@ -106,12 +194,13 @@ provision() {
     fi
     rm -rf "$ROOTS"
     mkdir -p "$ROOTS"
-    inputs="$(dev/fetch-inputs.sh)"
+    inputs="$(fetch-inputs flake.lock)"
     for path in $inputs; do
         nix-store --quiet --add-root "$ROOTS/input-$((i++))" --realise "$path" >/dev/null
     done
     nix print-dev-env --quiet --no-warn-dirty --profile "$ROOTS/dev-shell" --json |
         jq -r '"export PATH=\(.variables.PATH.value | @sh):\"$PATH\""' >"$ENV"
+    [[ -z ${O11N_ROOT:-} ]] || printf 'export O11N_ROOT=%q\n' "$O11N_ROOT" >>"$ENV"
     [[ -z ${CLAUDE_ENV_FILE:-} ]] || cat "$ENV" >>"$CLAUDE_ENV_FILE"
 }
 
@@ -201,11 +290,17 @@ synced() {
 }
 
 turn-checked() {
-    local refusing=() telling=() stage
-    checked "${REFUSED_AT_TURN_START[@]}" "${TOLD_AT_TURN_START[@]}"
+    hook-checked turn-start
+}
+
+hook-checked() {
+    local refuses=() tells=() refusing=() telling=() stage
+    read -ra refuses <<<"${REFUSES[$1]}"
+    read -ra tells <<<"${TELLS[$1]}"
+    checked "${refuses[@]}" "${tells[@]}"
     ((${#failed[@]})) || return 0
     for stage in "${failed[@]}"; do
-        if [[ " ${REFUSED_AT_TURN_START[*]} " == *" $stage "* ]]; then
+        if [[ " ${refuses[*]} " == *" $stage "* ]]; then
             refusing+=("$stage")
         else
             telling+=("$stage")
@@ -221,20 +316,31 @@ refuse() {
     echo "Work is refused, for $1: tell the user so${2:+, with what follows,} and commit no changes this turn."
 }
 
+# Policy: a stage failed unless dev/check.sh's JSON beside its log, which this removes beforehand, says
+# it passed, and all failed if it failed and none says so.
 checked() {
-    local line
+    local stage
     failed=()
+    (($#)) || return 0
+    for stage in "$@"; do
+        rm -f "$LOGS/$stage.json"
+    done
     said="$(dev/check.sh "$@" 2>&1)" && return
-    line="$(grep '^• failed: ' <<<"$said" | tail -n 1)" || true
-    if [[ -n $line ]]; then
-        read -ra failed <<<"${line#• failed: }"
-    else
-        failed=("$@")
-    fi
+    for stage in "$@"; do
+        [[ $(jq -r .status "$LOGS/$stage.json" 2>/dev/null) == 0 ]] || failed+=("$stage")
+    done
+    ((${#failed[@]})) || failed=("$@")
 }
 
+# Says what each stage that failed said, from its log, or all check.sh said where none has one.
 sections() {
-    awk -v kept=" ${failed[*]} " '/^• / { name = $0; sub(/^• /, "", name); on = index(kept, " " name " ") > 0 } on' <<<"$said"
+    local stage logged=0
+    for stage in "${failed[@]}"; do
+        [[ -f $LOGS/$stage.json ]] || continue
+        tail -n +2 "$LOGS/$stage.log"
+        logged=1
+    done
+    ((logged)) || echo "$said"
 }
 
 named() {
@@ -261,24 +367,6 @@ fetched() {
     git fetch --quiet origin '+refs/heads/*:refs/remotes/origin/*' '+refs/stamped/*:refs/stamped/*' 2>/dev/null
 }
 
-# Policy: stamps are written against what the operator last stamped on the branch, or, while the
-# branch has no refs/stamped, against the commit the turn started at, or else where the branch left
-# main, so that what wasn't stamped is stamped again rather than left out.
-base() {
-    local branch ref
-    if branch="$(git symbolic-ref --quiet --short HEAD)" &&
-        ref="$(git rev-parse --verify --quiet "refs/stamped/$branch^{commit}")" &&
-        git merge-base --is-ancestor "$ref" HEAD; then
-        echo "$ref"
-    elif [[ -f $TURN ]]; then
-        cat "$TURN"
-    else
-        git merge-base HEAD "origin/${MAIN:-main}" 2>/dev/null || git merge-base HEAD "${MAIN:-main}" 2>/dev/null
-    fi
-}
-
-UNBASED="no commit to stamp against: no refs/stamped/<branch> HEAD is on, no $TURN, and no main HEAD shares history with"
-
 # Policy: turn-end has the turn go on to set right what it found, but only once a turn, lest the
 # turn never end.
 turn-end() {
@@ -288,9 +376,9 @@ turn-end() {
     if [[ -f $TURN && $(git rev-parse HEAD) == "$(cat "$TURN")" && -z $(git status --porcelain) ]]; then
         return 0
     fi
-    start="$(base)" || ended "turn-end finds $UNBASED."
+    start="$(o11n-dev base 2>&1)" || ended "turn-end finds ${start#o11n-dev: }."
     before="$(tree)"
-    step dev/write.sh "$start" ||
+    step env STAMPED="$start" dev/write.sh ||
         ended "$stepped fails, as below: fix it before you end the turn, or tell the user why you can't." "$said"
     if [[ $(tree) != "$before" ]]; then
         { step git add --all && step git commit --quiet -m turn-end; } ||
@@ -326,15 +414,15 @@ tree() {
 }
 
 hand-over() {
-    local start again="fix it and run ./dev/agent.sh hand-over again."
+    local start tells=() again="fix it and run ./dev/agent.sh hand-over again."
     if [[ -e $REFUSED ]]; then
         echo "Work is refused this turn, so nothing is handed over: tell the user so."
         return
-    elif ! start="$(base)"; then
-        echo "hand-over finds $UNBASED."
+    elif ! start="$(o11n-dev base 2>&1)"; then
+        echo "hand-over finds ${start#o11n-dev: }."
         return
     fi
-    if ! step dev/write.sh "$start"; then
+    if ! step env STAMPED="$start" dev/write.sh; then
         printf '%s\n' "$stepped fails, as below: $again" "$said"
         return
     fi
@@ -343,7 +431,8 @@ hand-over() {
         printf '%s\n' "$stepped fails, as below: see to it, and commit and push the branch." "$said"
         return
     fi
-    checked "${HANDED_OVER[@]}"
+    read -ra tells <<<"${TELLS[hand-over]}"
+    checked "${tells[@]}"
     if ((${#failed[@]})); then
         echo "Handed over with $(named "${failed[@]}"), as below: $again"
         sections

@@ -58,7 +58,7 @@
             let
               categories = import ./tests {
                 inherit pkgs o11nLib;
-                inherit (config.packages) o11n;
+                inherit (config.packages) o11n o11n-dev;
               };
               stage =
                 name: checks:
@@ -85,9 +85,10 @@
               packages = {
                 gost = pkgs.callPackage ./packages/gost.nix { };
                 o11n = pkgs.callPackage ./packages/o11n.nix { };
+                o11n-dev = pkgs.callPackage ./packages/o11n-dev.nix { };
                 o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { inherit (config.packages) gost o11n; };
               }
-              // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n-tools; };
+              // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n-dev o11n-tools; };
 
               legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
                 inherit pkgs;
@@ -125,6 +126,7 @@
                   ]
                 );
                 shellHook = ''
+                  export O11N_ROOT=$PWD
                   if [[ -f .env ]]; then
                     set -a && source .env && set +a
                   fi

@@ -1,0 +1,11 @@
+main = "main"
+
+[hooks.session-start]
+refuse = ["stamps", "pending", "format", "lint", "docs", "parts", "index", "eval"]
+
+[hooks.turn-start]
+refuse = ["stamps"]
+tell = ["pending", "format", "lint", "docs", "parts", "index", "eval"]
+
+[hooks.hand-over]
+tell = ["format", "lint", "docs", "parts", "index", "eval", "leaks", "bats"]

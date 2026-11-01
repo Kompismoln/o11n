@@ -1,7 +1,6 @@
 #!/usr/bin/env bats
 
 setup() {
-  stamps=$BATS_TEST_DIRNAME/../stamps.sh
   opening="<<<<<<< signed"
   divider="======="
   closing=">>>>>>> @""stamp"
@@ -22,11 +21,11 @@ commit() {
   echo one >doc.md
   commit
 
-  run "$stamps" write
+  run o11n-dev stamps write
   [ "$status" -eq 1 ]
   [ "$output" = "stamps: write: '' isn't a commit" ]
 
-  run "$stamps" write nowhere
+  run o11n-dev stamps write nowhere
   [ "$status" -eq 1 ]
   [ "$output" = "stamps: write: 'nowhere' isn't a commit" ]
 }
@@ -38,7 +37,7 @@ commit() {
   commit
   printf 'one\nTWO\nthree\nfour\nfive\n' >doc.md
 
-  run "$stamps" write HEAD~1
+  run o11n-dev stamps write HEAD~1
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = "against $(git log -1 --format='%h %s' HEAD~1)" ]
   [ "${lines[1]}" = "doc.md: 2 stamps" ]
@@ -60,11 +59,11 @@ $closing" ]
   printf 'one\ntwo\n' >doc.md
   commit signed
   printf 'one\nTWO\n' >doc.md
-  "$stamps" write HEAD
+  o11n-dev stamps write HEAD
   commit turn
 
   printf 'ONE\nTWO\n' >doc.md
-  run "$stamps" write HEAD
+  run o11n-dev stamps write HEAD
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = "doc.md: 1 stamps" ]
   [ "$(cat doc.md)" = "$opening
@@ -80,9 +79,9 @@ $closing" ]
   printf 'one\ntwo\n' >doc.md
   commit signed
   printf 'one\nTWO\n' >doc.md
-  "$stamps" write HEAD
+  o11n-dev stamps write HEAD
 
-  run "$stamps" write HEAD
+  run o11n-dev stamps write HEAD
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = "nothing to write" ]
 }
@@ -94,7 +93,7 @@ $closing" ]
   seq 1 10 | sed 's/^5$/five/' >new.md
   echo fresh >fresh.md
 
-  run "$stamps" write HEAD
+  run o11n-dev stamps write HEAD
   [ "$status" -eq 0 ]
   [[ $output == *"new.md: 1 stamps"* ]]
   [[ $output == *"fresh.md: 1 stamps"* ]]
@@ -116,7 +115,7 @@ $closing" ]
   git rm -q doc.md
   echo two >notes.txt
 
-  run "$stamps" write HEAD
+  run o11n-dev stamps write HEAD
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = "nothing to write" ]
   [ "$(cat notes.txt)" = two ]
@@ -126,12 +125,12 @@ $closing" ]
   printf 'one\n<<<<<<< HEAD\n' >merge.md
   printf 'one\n%s\ntwo\n%s\n' "$opening" "$divider" >open.md
 
-  run "$stamps" check
+  run o11n-dev stamps check
   [ "$status" -eq 1 ]
   [[ $output == *"flag: merge.md: line 2: a conflict marker that isn't a stamp's"* ]]
   [[ $output == *"flag: open.md: line 2: a stamp isn't closed"* ]]
 
-  run "$stamps" pending
+  run o11n-dev stamps pending
   [ "$status" -eq 1 ]
   [[ $output == *"flag: merge.md: line 2: a conflict marker that isn't a stamp's"* ]]
 }
@@ -140,18 +139,18 @@ $closing" ]
   printf 'one\ntwo\n' >doc.md
   commit signed
   printf 'one\nTWO\n' >doc.md
-  "$stamps" write HEAD
+  o11n-dev stamps write HEAD
 
-  run "$stamps" check
+  run o11n-dev stamps check
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
 
-  run "$stamps" pending
+  run o11n-dev stamps pending
   [ "$status" -eq 1 ]
   [ "$output" = "flag: doc.md: 1 stamps pending: the operator stamps them before work proceeds" ]
 
   printf 'one\nTWO\n' >doc.md
-  run "$stamps" pending
+  run o11n-dev stamps pending
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
 }
@@ -160,10 +159,10 @@ $closing" ]
   mkdir -p "$BATS_TEST_TMPDIR/plain/docs"
   printf '%s\n%s\none\n%s\n' "$opening" "$divider" "$closing" >"$BATS_TEST_TMPDIR/plain/docs/doc.md"
 
-  run "$stamps" check "$BATS_TEST_TMPDIR/plain"
+  run o11n-dev stamps check "$BATS_TEST_TMPDIR/plain"
   [ "$status" -eq 0 ]
 
-  run "$stamps" pending "$BATS_TEST_TMPDIR/plain"
+  run o11n-dev stamps pending "$BATS_TEST_TMPDIR/plain"
   [ "$status" -eq 1 ]
   [ "$output" = "flag: docs/doc.md: 1 stamps pending: the operator stamps them before work proceeds" ]
 }
