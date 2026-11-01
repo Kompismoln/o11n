@@ -1105,6 +1105,7 @@ dependencies = [
  "base64 0.23.1",
  "clap",
  "ed25519-dalek 3.0.0",
+ "libc",
  "rand",
  "rcgen",
  "serde",

@@ -124,6 +124,10 @@ impl Org {
     }
 
     fn decrypted(&self, id: &str) -> Result<Value, Error> {
+        self.decrypted_with(id, None)
+    }
+
+    fn decrypted_with(&self, id: &str, identity: Option<&Path>) -> Result<Value, Error> {
         let file = self.sops_file(id)?;
         if !file.exists() {
             return Err(Error::new(format!(
@@ -131,12 +135,12 @@ impl Org {
                 file.display()
             )));
         }
-        let json = run(
-            Command::new("sops")
-                .args(["decrypt", "--output-type", "json"])
-                .arg(&file),
-            None,
-        )?;
+        let mut sops = Command::new("sops");
+        sops.args(["decrypt", "--output-type", "json"]).arg(&file);
+        if let Some(identity) = identity {
+            sops.env("SOPS_AGE_KEY_FILE", identity);
+        }
+        let json = run(&mut sops, None)?;
         let value: Value = serde_json::from_str(&json).map_err(|e| Error::new(format!("{}: {e}", file.display())))?;
         match value.get("identity").and_then(Value::as_str) {
             Some(identity) if identity == id => Ok(value),
@@ -149,7 +153,11 @@ impl Org {
     }
 
     pub fn secret(&self, secret: Secret) -> Result<Option<String>, Error> {
-        let value = self.decrypted(secret.id)?;
+        self.secret_with(secret, None)
+    }
+
+    fn secret_with(&self, secret: Secret, identity: Option<&Path>) -> Result<Option<String>, Error> {
+        let value = self.decrypted_with(secret.id, identity)?;
         let component = self.component(secret.id, &secret.stored_key())?;
         Ok(component
             .iter()
@@ -160,6 +168,11 @@ impl Org {
 
     pub fn required(&self, secret: Secret) -> Result<String, Error> {
         self.secret(secret)?
+            .ok_or_else(|| Error::new(format!("there's no {}", secret.describe())))
+    }
+
+    pub fn required_as(&self, secret: Secret, identity: &Path) -> Result<String, Error> {
+        self.secret_with(secret, Some(identity))?
             .ok_or_else(|| Error::new(format!("there's no {}", secret.describe())))
     }
 
@@ -222,6 +235,22 @@ impl Org {
         for line in missing {
             log(format!("warning: {line}"));
         }
+    }
+
+    pub fn edit_secrets(&self, id: &str) -> Result<(), Error> {
+        let file = self.sops_file(id)?;
+        let temp = TempDir::new()?;
+        let (config, missing) = self.sops_config(&temp, id)?;
+        Self::warn(missing);
+        log(format!("editing {}", file.display()));
+        let status = Command::new("sops")
+            .arg("--config")
+            .arg(&config)
+            .arg("edit")
+            .arg(&file)
+            .status()
+            .map_err(|e| Error::new(format!("sops: {e}")))?;
+        util::exited(status)
     }
 
     pub fn create_sops_file(&self, id: &str) -> Result<(), Error> {

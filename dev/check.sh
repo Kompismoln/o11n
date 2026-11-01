@@ -30,9 +30,7 @@ stage-format() {
 stage-lint() {
     files '*.nix' | xargs -0 -n 1 statix check
     files '*.nix' | xargs -0 deadnix --fail
-    files '*.sh' '*.bash' '*.bats' | { grep -zv '^tools/' || :; } | xargs -0 -r shellcheck -s bash
-    # Accommodating for tools/.shellcheckrc, whose source path is relative to tools/.
-    (cd tools && files '*.sh' '*.bash' '*.bats' 'test/bin/*' | xargs -0 shellcheck -s bash)
+    files '*.sh' '*.bash' '*.bats' 'crates/o11n/test/bin/*' | xargs -0 -r shellcheck -s bash
 }
 
 stage-docs() {
@@ -63,7 +61,7 @@ stage-bats() {
 }
 
 stage-vm() {
-    tools/bin/nix-remote.sh build .#stages.vm
+    nix run --quiet --no-warn-dirty .#o11n-tools -- remote build .#stages.vm
 }
 
 built() {

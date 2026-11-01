@@ -2,4 +2,4 @@
 .env
 *.pyc
 result
-/target
+target/

@@ -1,4 +1,3 @@
-# tools/test/org.toml
 name = "Testorg"
 endpoint = "example.com"
 timezone = "Europe/Stockholm"
@@ -56,6 +55,8 @@ grants = [
   "host-testhost",
 ]
 
+[user.admin]
+
 [user.testadmin]
 grants = [
   "host-*",
@@ -68,6 +69,11 @@ grants = [
 actors = ["user-testadmin"]
 
 [service.sysctl-user-portal]
+grants = [
+  "host-*",
+]
+
+[service.rescue]
 grants = [
   "host-*",
 ]

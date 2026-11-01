@@ -24,7 +24,7 @@ failed, and in a git checkout logs each to `dev/state/logs/<stage>.log`:
 - `parts`, that `dev/parts.toml` holds what it declares (`dev/parts.sh`)
 - `index`, that `docs/index/` is as `dev/index.sh` writes it
 - `eval`, `leaks` and `bats`, which build `.#stages.<stage>`
-- `vm`, which builds `.#stages.vm` on the remote builder (`tools/bin/nix-remote.sh`).
+- `vm`, which builds `.#stages.vm` on the remote builder with the tree's own `o11n remote`.
 
 All of them take ~60s, and ~240s when bats runs, as after a change to `tools/` or `dev/`. The flake's `stages.stamps`,
 `stages.format` and `stages.lint` run the same stage in the sandbox (`tests/source.nix`). `dev/files.bash` gives
@@ -73,7 +73,7 @@ stamped is stamped again rather than left out.
 
 ## Operator
 
-In the dev shell, pulling and pushing through `as.sh` as `$O11N_DEV`, an entity's id such as `user-alice`:
+In the dev shell, pulling and pushing through `o11n as` as `user-$O11N_DEV`, `$O11N_DEV` a user's name such as `alice`:
 
 ```sh
 ./dev/operator.sh fetch [branch]    # switch to the branch, bring it and refs/stamped/* up to origin, say what is pending
@@ -116,7 +116,7 @@ In a cloud session, `session-start`:
   archives are refused or rate-limited there; nix then finds them in the store under the same content hash
 - writes the dev shell's PATH to `dev/state/env`, for the hooks, and to `$CLAUDE_ENV_FILE`, for the session's commands
 - roots the inputs and the dev shell in `dev/state/roots`, so that `nix store gc` keeps them
-- with `O11N_REMOTE_BUILDER` set, says when the remote builder doesn't answer `nix-remote.sh info`.
+- with `O11N_REMOTE_BUILDER` set, says when the remote builder doesn't answer `o11n remote info`.
 
 ## Lix daemon
 

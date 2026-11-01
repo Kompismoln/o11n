@@ -1,7 +1,3 @@
-# A deploy on the sample org: the operator builds on gw over ssh-ng as the untrusted
-# nix-build, web substitutes from gw's nix-serve and switches with switch-system, and
-# o11n-tools' apply.sh does the same with the sample's keys. It needs KVM, so it isn't
-# among the checks: nix-remote.sh build .#vmTests.deploy
 {
   pkgs,
   o11nInputs,
@@ -33,7 +29,6 @@ let
     openssh.authorizedKeys.keyFiles = [ org.service.${name}.publicKeys.ssh-key ];
   };
 
-  # Stands in for the org's flake, for the tooling.
   standIns = [
     "web"
     "other"
@@ -41,6 +36,7 @@ let
   ];
   orgFlake = pkgs.runCommand "org" { } ''
     mkdir $out
+    cp -r ${outputs.context.path}/{enc,keys,public-keys} $out/
     cp ${./stand-in.nix} $out/stand-in.nix
     cp ${pkgs.writeText "flake.nix" ''
       {
@@ -56,7 +52,7 @@ let
 
   orgExport = pkgs.writeText "org-export.json" (builtins.toJSON outputs.org.export);
 
-  # Without their context, so that the test doesn't build them itself.
+  # Policy: without their context, so that the test doesn't build them itself.
   standIn = lib.genAttrs standIns (
     name:
     lib.mapAttrs (_: builtins.unsafeDiscardStringContext) {
@@ -94,8 +90,8 @@ pkgs.testers.runNixOSTest {
           o11nInputs.sops-nix.nixosModules.sops
           ../../nixos/org/nix-serve.nix
         ];
-        # The sample's committed root identity can read every secret, nix-serve's key too.
-        # sops-nix refuses a key file in the store.
+        # Accommodating for sops-nix, which refuses a key file in the store: the sample's committed
+        # root identity, which reads every secret, nix-serve's key too, is installed outside it.
         system.activationScripts = {
           sample-age-key = lib.stringAfter [ "specialfs" ] ''
             install -m 400 ${outputs.context.path}/keys/root-1 /run/sample-age-key
@@ -107,7 +103,7 @@ pkgs.testers.runNixOSTest {
           sshKeyPaths = [ ];
         };
         networking.firewall.allowedTCPPorts = [ 5000 ];
-        # Only gw has web's next system, so web has to substitute it.
+        # Policy: only gw has web's next system, so web has to substitute it.
         virtualisation.additionalPaths = [ nodes.web.system.build.next ];
       };
 
@@ -115,8 +111,8 @@ pkgs.testers.runNixOSTest {
       { extendModules, ... }:
       {
         imports = [ (peer "web") ];
-        # Test VMs leave out switch-to-configuration unless asked, and boot without a
-        # bootloader, so there is none to install when switching.
+        # Accommodating for test VMs, which leave out switch-to-configuration unless asked, and boot
+        # without a bootloader, so there is none to install when switching.
         system.switch.enable = true;
         boot.loader.grub.enable = false;
         system.build.next =
@@ -126,7 +122,7 @@ pkgs.testers.runNixOSTest {
       };
 
     operator = {
-      # As on the org's hosts, where operators run the tools.
+      # Duplication: as on the org's hosts, where operators run o11n.
       nix.package = pkgs.lix;
       nix.settings.experimental-features = [
         "nix-command"
@@ -168,7 +164,7 @@ pkgs.testers.runNixOSTest {
 
       store = "ssh-ng://nix-build@gw"
 
-      # A test VM boots its system without a profile; give it a first generation.
+      # Accommodating for a test VM, which boots its system without a profile: it gets a first generation.
       web.succeed("nix-env -p /nix/var/nix/profiles/system --set $(readlink -f /run/current-system)")
       first = web.succeed("readlink /nix/var/nix/profiles/system").strip().split("-")[1]
 
@@ -198,7 +194,7 @@ pkgs.testers.runNixOSTest {
           operator.execute("ssh -n nix-build@gw touch /tmp/ran")
           gw.fail("test -e /tmp/ran")
 
-      # switch-to-configuration reloads every user manager, and fails on one that is stopping.
+      # Accommodating for switch-to-configuration, which reloads every user manager, and fails on one that is stopping.
       web.wait_until_fails("systemctl is-active --quiet user@$(id -u nix-switch).service")
 
       with subtest("switch-system switches web to a system only gw has"):
@@ -222,38 +218,38 @@ pkgs.testers.runNixOSTest {
           out = operator.fail(f"ssh -n nix-build@gw build-system {absent} web 2>&1")
           assert "is not valid" in out, out
 
-      tools = "cd /root/org && O11N_EXPORT=${orgExport} SOPS_AGE_KEY_FILE=/etc/nix/inputs/self/keys/root-1 TARGET_ADDRESS=web"
+      tools = "cd /root/org && O11N_ORG_ROOT=/root/org O11N_EXPORT=${orgExport} SOPS_AGE_KEY_FILE=/etc/nix/inputs/self/keys/root-1 "
       operator.succeed(
           "rm /root/.ssh/id_ed25519",
           "cp -rL /etc/org /root/org && chmod -R u+w /root/org",
           "cd /root/org && git init -q && git add -A && git -c user.name=o -c user.email=o@o commit -qm org",
       )
 
-      with subtest("apply.sh has the first build host evaluate and build, and the target substitutes"):
-          out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=gw apply.sh web < /dev/null 2>&1")
+      with subtest("o11n apply has the first build host evaluate and build, and the target substitutes"):
+          out = operator.fail(f"{tools} O11N_ROUTES='gw=gw web=web' o11n apply web < /dev/null 2>&1")
           assert "is not a NixOS system" in out, out
           gw.succeed("nix-store --check-validity ${standIn.web.drvPath} ${standIn.web.outPath}")
           web.succeed("nix-store --check-validity ${standIn.web.outPath}")
           operator.fail("nix-store --check-validity ${standIn.web.drvPath}")
           operator.fail("nix-store --check-validity ${standIn.web.outPath}")
 
-      with subtest("apply.sh says so when the target can't fetch the build"):
+      with subtest("o11n apply says so when the target can't fetch the build"):
           gw.systemctl("stop nix-serve.service")
-          out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=gw apply.sh stranded < /dev/null 2>&1")
+          out = operator.fail(f"{tools} O11N_ROUTES='gw=gw stranded=web' o11n apply stranded < /dev/null 2>&1")
           assert "stranded couldn't fetch the build from gw" in out, out
           gw.systemctl("start nix-serve.service")
           gw.wait_for_open_port(5000)
 
-      with subtest("build.sh says so when the build host has no build-system"):
-          out = operator.fail(f"{tools} BUILD_HOST_ADDRESS=web build.sh web < /dev/null 2>&1")
+      with subtest("o11n build says so when the build host has no build-system"):
+          out = operator.fail(f"{tools} O11N_ROUTES=gw=web o11n build web < /dev/null 2>&1")
           assert "gw has no build-system" in out, out
 
-      with subtest("build.sh builds only on the org's build hosts"):
-          out = operator.fail(f"{tools} BUILD_HOST=web build.sh web < /dev/null 2>&1")
+      with subtest("o11n build builds only on the org's build hosts"):
+          out = operator.fail(f"{tools} BUILD_HOST=web o11n build web < /dev/null 2>&1")
           assert "web is not in build-hosts" in out, out
 
-      with subtest("apply.sh with BUILD_HOST=localhost builds here and copies as nix-push"):
-          out = operator.fail(f"{tools} BUILD_HOST=localhost apply.sh other < /dev/null 2>&1")
+      with subtest("o11n apply with BUILD_HOST=localhost builds here and copies as nix-push"):
+          out = operator.fail(f"{tools} BUILD_HOST=localhost O11N_ROUTES=other=web o11n apply other < /dev/null 2>&1")
           assert "is not a NixOS system" in out, out
           operator.succeed("nix-store --check-validity ${standIn.other.outPath}")
           web.succeed("nix-store --check-validity ${standIn.other.outPath}")

@@ -9,24 +9,24 @@ setup-testenv() {
     here="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     root=$TESTROOT
     # Dependency: the ssh stub runs the other end of o11n's locksmith.
-    export LOCKSMITH=$here/../../nixos/org/locksmith.sh
+    export LOCKSMITH=$here/../../../nixos/org/locksmith.sh
     mkdir -p "$root"
-    cp -a "$here/../." "$root"
-    mv "$root/test/org.toml" "$root/org.toml"
+    cp -a "$here/bin" "$here/org.toml" "$root"
     mkdir "$root/enc" "$root/keys" "$root/public-keys"
     export O11N_EXPORT
     O11N_EXPORT=$(test-export "$here")
 
     cd "$root" || exit 1
 
-    export PATH="$root/test/bin:$root/bin:$PATH"
+    export PATH="$root/bin:$PATH"
+    export O11N_ROUTES="testhost=testhost.local"
 }
 
 # Optimization: the test org is evaluated once a run, unless the check that runs the tests has evaluated it.
 test-export() {
     local export=${O11N_TEST_EXPORT:-$BATS_RUN_TMPDIR/org-export.json}
     [[ -s $export ]] || nix eval --json --no-warn-dirty --impure --expr "
-        (builtins.getFlake \"git+file://$(cd "$1/../.." && pwd)\").fromInventory { path = $1; }
+        (builtins.getFlake \"git+file://$(cd "$1/../../.." && pwd)\").fromInventory { path = $1; }
     " --apply 'outputs: outputs.org.export' >"$export"
     echo "$export"
 }

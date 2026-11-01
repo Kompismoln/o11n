@@ -1,7 +1,8 @@
 use std::io::Write;
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 
 use crate::Error;
 
@@ -33,6 +34,21 @@ pub fn run(command: &mut Command, input: Option<&str>) -> Result<String, Error> 
     String::from_utf8(output.stdout).map_err(|e| Error::new(format!("{program}: {e}")))
 }
 
+// Policy: o11n exits as a command it ran did, which has said why itself.
+pub fn exited(status: ExitStatus) -> Result<(), Error> {
+    match (status.code(), status.signal()) {
+        (Some(0), _) => Ok(()),
+        (Some(code), _) => Err(Error::status(code)),
+        (None, signal) => Err(Error::status(128 + signal.unwrap_or(0))),
+    }
+}
+
+// Policy: a path, but for one that starts with `/` or `.`, would read as a flake of the registry.
+pub fn flake(root: &Path) -> Result<String, Error> {
+    let root = std::fs::canonicalize(root).map_err(|e| Error::new(format!("{}: {e}", root.display())))?;
+    Ok(root.display().to_string())
+}
+
 pub fn write(path: &Path, contents: &str, private: bool) -> Result<(), Error> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| Error::new(format!("{}: {e}", parent.display())))?;
@@ -56,10 +72,23 @@ pub fn read(path: &Path) -> Result<Option<String>, Error> {
     }
 }
 
+extern "C" fn interrupted(_: libc::c_int) {}
+
+// Policy: o11n outlives an interrupt to remove the keys it wrote, while the commands it runs, which the interrupt
+// reaches too, take it as ever: a handler, unlike an ignored signal, isn't passed on to them.
+fn outlive_interrupts() {
+    // SAFETY: the handler does nothing, and o11n has none of its own for these signals to replace.
+    unsafe {
+        libc::signal(libc::SIGINT, interrupted as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGQUIT, interrupted as *const () as libc::sighandler_t);
+    }
+}
+
 pub struct TempDir(PathBuf);
 
 impl TempDir {
     pub fn new() -> Result<Self, Error> {
+        outlive_interrupts();
         let mut name = [0u8; 8];
         rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut name);
         let name = name
@@ -71,6 +100,10 @@ impl TempDir {
             .create(&path)
             .map_err(|e| Error::new(format!("{}: {e}", path.display())))?;
         Ok(Self(path))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.0
     }
 
     pub fn file(&self, name: &str, contents: &str) -> Result<PathBuf, Error> {

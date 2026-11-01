@@ -18,8 +18,7 @@ impl Org {
     }
 
     fn address(&self, id: &str) -> Result<String, Error> {
-        let name = self.host_name(id)?;
-        Ok(run(Command::new("find-route.sh").arg(name), None)?.trim().to_owned())
+        self.export.route(self.host_name(id)?, 22)
     }
 
     // Dependency: nixos/org/locksmith.sh takes one line as a secret to confirm, two as one to change it with.

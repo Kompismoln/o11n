@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
 while [[ $1 == -* ]]; do
-	shift 2
+	case $1 in
+	-t | -n) shift ;;
+	*) shift 2 ;;
+	esac
 done
-IFS='@' read -r user fqdn <<<"$1"
+IFS='@' read -r name fqdn <<<"$1"
 IFS='.' read -r host _ <<<"$fqdn"
 
-case "$user" in
+case "$name" in
 locksmith)
 	export LUKS_DEVICE="/dev/null"
 	export KEY_FILE=$BATS_TEST_TMPDIR/host-$fqdn/keys/host-$host
 	shift
 	"$LOCKSMITH" "$@"
 	;;
+testadmin | admin)
+	shift
+	ssh-add -l >/dev/null && echo "$name@$fqdn $*"
+	;;
 *)
-	echo "invalid user '$user'" >&2
+	echo "invalid user '$name'" >&2
 	exit 1
 	;;
 esac

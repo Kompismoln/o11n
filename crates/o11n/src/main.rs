@@ -1,7 +1,13 @@
+mod acting;
+mod builder;
+mod deploy;
 mod export;
 mod groups;
 mod host;
 mod keys;
+mod ops;
+mod remote;
+mod route;
 mod secrets;
 mod sops;
 mod store;
@@ -50,7 +56,19 @@ enum Command {
     /// The entities that decrypt the entity's sops file.
     Recipients { id: String },
     /// Each entity an op of the name applies to, and the op.
-    Ops { name: String },
+    Ops {
+        name: String,
+        /// Runs each op, all of them though some fail: verify and check as `public-key verify` and `host check` do,
+        /// and rebuild as `reencrypt`, once.
+        #[arg(long)]
+        run: bool,
+    },
+    /// The address the name answers at: as it is, if dotted, or in each of the org's namespaces in turn.
+    Route {
+        name: String,
+        #[arg(long, default_value_t = 22)]
+        port: u16,
+    },
     /// sops' creation rules for the members of the group, a recipient without an age key left out with a warning.
     SopsYaml { group: String },
     /// Where, in the org, a file of the entity's is.
@@ -68,6 +86,64 @@ enum Command {
     /// A host's keys, on the host.
     #[command(subcommand)]
     Host(HostCommand),
+    /// Runs the command as the entity: its identity as sops', its ssh-key in an ssh-agent of its own.
+    As {
+        id: String,
+        #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
+    /// Logs in to the host as the entity, or runs the command there.
+    Ssh {
+        id: String,
+        host: String,
+        /// The user on the host, rather than the entity's name.
+        #[arg(long)]
+        user: Option<String>,
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
+    /// Installs the host's system with nixos-anywhere on the machine at <host>.<endpoint>, booted into an installer
+    /// that lets root in with service-rescue's ssh-key.
+    Reset { host: String },
+    /// The text of a systemd unit of the host's configuration, or of another's.
+    Unit {
+        unit: String,
+        host: String,
+        /// The configuration whose unit it is, rather than the host's.
+        #[arg(long)]
+        from: Option<String>,
+        /// Copies it to the host's /run/systemd/system as root, with service-rescue's ssh-key, rather than print it.
+        #[arg(long)]
+        inject: bool,
+    },
+    /// A server's reverse tunnel, which a machine booted from the rescue stick calls in through.
+    Tunnel {
+        server: String,
+        #[command(subcommand)]
+        action: remote::TunnelAction,
+    },
+    /// Builds the image of the org's rescue-usb.
+    Image {
+        #[arg(default_value = "iso-installer")]
+        variant: String,
+    },
+    #[command(subcommand)]
+    Remote(builder::RemoteCommand),
+    /// Builds the host's system and prints it.
+    Build {
+        host: String,
+        #[command(flatten)]
+        build_host: BuildHost,
+        /// nix's options, when localhost builds.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        nix_options: Vec<String>,
+    },
+    /// Builds the host's system and switches the host to it, which substitutes it from the build host.
+    Apply {
+        host: String,
+        #[command(flatten)]
+        build_host: BuildHost,
+    },
     /// Encrypts every sops file to its recipients, and every identity to itself, its actors and the root identities, as
     /// the org declares them.
     Reencrypt,
@@ -97,6 +173,13 @@ impl From {
             .map(|path| std::fs::read_to_string(path).map_err(|e| Error::new(format!("{}: {e}", path.display()))))
             .transpose()
     }
+}
+
+#[derive(Args)]
+struct BuildHost {
+    /// The host that builds: one of the org's build-hosts, its first by default, or localhost.
+    #[arg(long, env = "BUILD_HOST")]
+    build_host: Option<String>,
 }
 
 #[derive(Args)]
@@ -157,6 +240,8 @@ enum SecretCommand {
         #[command(flatten)]
         key: KeyArgs,
     },
+    /// Edits the entity's sops file in sops' editor.
+    Edit { id: String },
     /// The sha512-crypt hash of a password.
     Hash { id: String, key: String },
 }
@@ -267,7 +352,7 @@ fn query(org: &Export, json: &str, command: Command) -> Result<(), Error> {
         }
         Command::Grants { id } => lines(org.expand(org.entity(&id)?.grants.iter().map(String::as_str))?),
         Command::Recipients { id } => lines(org.recipients(&id)?),
-        Command::Ops { name } => {
+        Command::Ops { name, .. } => {
             let groups = org.ops.get(&name).ok_or_else(|| Error::new(format!("no ops {name}")))?;
             for (group, ops) in groups {
                 for id in org.members(group)? {
@@ -275,6 +360,7 @@ fn query(org: &Export, json: &str, command: Command) -> Result<(), Error> {
                 }
             }
         }
+        Command::Route { name, port } => println!("{}", org.route(&name, port)?),
         _ => unreachable!(),
     }
     Ok(())
@@ -327,6 +413,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             SecretCommand::Generate { key, from } => org.generate_secret(key.secret(), from.read()?)?,
             SecretCommand::Show { key } => print!("{}", org.show_secret(key.secret())?),
             SecretCommand::Remove { key } => org.remove_secret(key.secret())?,
+            SecretCommand::Edit { id } => org.edit_secrets(&id)?,
             SecretCommand::Hash { id, key } => println!("{}", org.hash_password(&id, &key)?),
         },
         Command::PublicKey(command) => match command {
@@ -339,13 +426,43 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             HostCommand::Revoke { id, key, slot } => org.revoke_on_host(&id, &key, slot)?,
             HostCommand::PullSshKey { id } => org.pull_ssh_key(&id)?,
         },
+        Command::As { id, command } => org.run_as(&id, &command)?,
+        Command::Ssh {
+            id,
+            host,
+            user,
+            command,
+        } => org.ssh(&id, &host, user, &command)?,
+        Command::Build {
+            host,
+            build_host,
+            nix_options,
+        } => println!(
+            "{}",
+            org.build(&host, &org.build_host(build_host.build_host)?, &nix_options)?
+        ),
+        Command::Apply { host, build_host } => org.apply(&host, &org.build_host(build_host.build_host)?)?,
         Command::Reencrypt => org.reencrypt(true)?,
+        Command::Reset { host } => org.reset(&host)?,
+        Command::Unit {
+            unit,
+            host,
+            from,
+            inject,
+        } => org.unit(&unit, &host, from.as_deref(), inject)?,
+        Command::Tunnel { server, action } => org.tunnel(&server, action)?,
+        Command::Image { variant } => org.image(&variant)?,
+        Command::Ops { name, run: true } => org.run_ops(&name)?,
         command => return query(&org.export, "", command),
     }
     Ok(())
 }
 
 fn run(cli: Cli) -> Result<(), Error> {
+    // Policy: the remote builder serves o11n's own tree as well as an org's, so it reads no export.
+    if let Command::Remote(command) = cli.command {
+        return builder::remote(&cli.org, command);
+    }
     let json = match &cli.export {
         Some(path) => Export::read(path)?,
         None => Export::evaluate(&cli.org)?,
@@ -359,7 +476,8 @@ fn run(cli: Cli) -> Result<(), Error> {
         | Command::Keys { .. }
         | Command::Grants { .. }
         | Command::Recipients { .. }
-        | Command::Ops { .. }) => query(&export, &json, command),
+        | Command::Ops { run: false, .. }
+        | Command::Route { .. }) => query(&export, &json, command),
         command => act(&Org { export, root: cli.org }, command),
     }
 }

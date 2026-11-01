@@ -1,10 +1,5 @@
-# tests/vm/containers.nix
-#
-# Ephemeral containers on storage, btrfs and zfs: NixOS makes /var/empty immutable inside a
-# container, so nspawn can't remove the snapshot it ran in, and nixos/containers.nix does. And a
-# container that uses the host's postgresql through a bind of /run/postgresql comes back with it
-# whichever way postgresql goes down, a move of its WAL included. It needs KVM, so it isn't
-# among the checks: nix-remote.sh build .#vmTests.containers
+# Dependency: NixOS makes /var/empty immutable inside a container, so nspawn can't remove the
+# snapshot an ephemeral container ran in, and nixos/containers.nix does.
 { pkgs }:
 let
   inherit (pkgs) lib;

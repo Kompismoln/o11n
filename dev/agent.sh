@@ -70,8 +70,8 @@ session-start() {
 # Policy: a builder that doesn't answer is told of, not refused for, as only VM tests and remote
 # evaluation need it.
 builder-probed() {
-    remote && [[ -n ${O11N_REMOTE_BUILDER:-} && -x tools/bin/nix-remote.sh ]] || return 0
-    said="$(timeout 120 tools/bin/nix-remote.sh info 2>&1)" && return
+    remote && [[ -n ${O11N_REMOTE_BUILDER:-} ]] && command -v o11n >/dev/null || return 0
+    said="$(timeout 120 o11n remote info 2>&1)" && return
     echo "Tell the user that the remote builder, $O11N_REMOTE_BUILDER, doesn't answer, as below, so nothing can be built on it this session, and go on."
     echo "$said"
 }

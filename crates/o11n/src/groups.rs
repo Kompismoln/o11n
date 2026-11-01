@@ -85,6 +85,7 @@ mod tests {
         Export::parse(
             &serde_json::json!({
                 "root-identities": ["root-1"],
+                "endpoint": "example.com",
                 "ops": {},
                 "classes": {},
                 "entities": {

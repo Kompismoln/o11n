@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: ./dev/operator.sh fetch [branch] | stamp [message] | merge [branch] | check-org, in the dev
-# shell, pulling and pushing through as.sh as $O11N_DEV, an entity's id.
+# shell, pulling and pushing through `o11n as` as user-$O11N_DEV.
 set -euo pipefail
 
 die() {
@@ -12,7 +12,7 @@ git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
 cd "$(git rev-parse --show-toplevel)"
 
 as-dev() {
-    as.sh "user-$O11N_DEV" "$@"
+    o11n as "user-$O11N_DEV" "$@"
 }
 
 # Optimization: stamp needn't look again while what it last stamped is all there is.
@@ -123,8 +123,8 @@ check-org() {
 
 case "${1:-}" in
 fetch | stamp | merge)
-    [[ -n ${O11N_DEV:-} ]] || die "O11N_DEV is unset, so as.sh has no one to pull and push as"
-    command -v as.sh >/dev/null || die "no as.sh on PATH to pull and push with"
+    [[ -n ${O11N_DEV:-} ]] || die "O11N_DEV is unset, so o11n has no one to pull and push as"
+    command -v o11n >/dev/null || die "no o11n on PATH to pull and push with"
     "$1" "${2:-}"
     ;;
 check-org) check-org ;;

@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# Creates the sample's identities and secrets from scratch with o11n,
-# the same way an org creates its own. keys/root-1 is committed on purpose: it is
-# a throwaway root identity that protects nothing but this inventory's secrets.
-#
-# Run from an empty sample (no enc/, keys/ or public-keys/) with nix, o11n and sops on PATH.
+# Usage: from an empty sample (no enc/, keys/ or public-keys/), with nix, o11n and sops on PATH,
+# creates its identities and secrets as an org creates its own. keys/root-1 is committed on
+# purpose: a throwaway root identity that protects nothing but this inventory's secrets.
 
 set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
-PATH="$(cd ../../../tools/bin && pwd):$PATH"
 export SOPS_AGE_KEY_FILE=$PWD/keys/root-1
 
 # Accommodating for an inventory, which is no flake: the tools read its export from a file.

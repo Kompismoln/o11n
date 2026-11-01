@@ -1,7 +1,7 @@
 {
   pkgs,
   o11n,
-  toolsExport,
+  testExport,
 }:
 let
   inherit (pkgs) lib;
@@ -80,7 +80,7 @@ in
       [
         (fileset.fileFilter (f: f.hasExt "nix" || shell f) root)
         ../statix.toml
-        ../tools
+        ../crates/o11n/test
       ]
       [
         pkgs.deadnix
@@ -96,7 +96,7 @@ in
             ../.prettierrc.yaml
             ../dev
             ../nixos/org/locksmith.sh
-            ../tools
+            ../crates/o11n/test
           ]
         );
         nativeBuildInputs = [
@@ -121,9 +121,9 @@ in
         cp -r $src src
         chmod -R u+w src
         patchShebangs src
-        export HOME=$TMPDIR O11N_TEST_EXPORT=${toolsExport}
+        export HOME=$TMPDIR O11N_TEST_EXPORT=${testExport}
         export NIX_CONFIG='experimental-features = nix-command'
-        bats src/tools/test src/dev/test
+        bats src/crates/o11n/test src/dev/test
         touch $out
       '';
 }

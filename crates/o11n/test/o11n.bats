@@ -344,6 +344,144 @@ setup() {
   fails "not found"
 }
 
+@test "as runs the command with the entity's identity as sops', and its ssh-key in an agent" {
+  o11n identity create user-testadmin
+  o11n secret generate user-testadmin ssh-key
+
+  run o11n as user-testadmin bash -c 'ssh-add -L; sops decrypt --extract "[\"identity\"]" enc/user-testadmin.yaml'
+  succeeds
+  [[ $output == *"$(cut -d' ' -f1,2 public-keys/user-testadmin-ssh-key.pub)"* ]]
+  [[ $output == *$'\n'user-testadmin ]]
+}
+
+@test "as exits as the command did, and leaves no agent or keys behind" {
+  o11n identity create user-testadmin
+  o11n secret generate user-testadmin ssh-key
+
+  # shellcheck disable=SC2016 # Accommodating for the command, whose variables expand as the entity's
+  run o11n as user-testadmin bash -c 'echo "$SSH_AUTH_SOCK $SOPS_AGE_KEY_FILE $SSH_AGENT_PID"; exit 3'
+  [ "$status" -eq 3 ]
+  read -r socket identity agent <<<"${lines[-1]}"
+  [ ! -e "$socket" ]
+  [ ! -e "$identity" ]
+  run kill -0 "$agent"
+  [ "$status" -ne 0 ]
+}
+
+@test "as leaves an agent it didn't start alone" {
+  o11n identity create user-testadmin
+  o11n secret generate user-testadmin ssh-key
+  eval "$(ssh-agent -s)" >/dev/null
+
+  run o11n as user-testadmin true
+  succeeds
+  kill -0 "$SSH_AGENT_PID"
+  run ssh-add -l
+  [ "$status" -eq 1 ]
+  ssh-agent -k >/dev/null
+}
+
+@test "as runs nothing as an entity it can't act as" {
+  o11n identity create user-testadmin
+
+  run o11n as user-testadmin touch "$BATS_TEST_TMPDIR/ran"
+  fails "there's no user-testadmin's ssh-key"
+  [ ! -e "$BATS_TEST_TMPDIR/ran" ]
+}
+
+@test "ssh logs in to the host as the entity, with its ssh-key, or runs the command there" {
+  o11n identity create user-testadmin
+  o11n secret generate user-testadmin ssh-key
+
+  run o11n ssh user-testadmin testhost
+  succeeds
+  [ "${lines[-1]}" = "testadmin@testhost.local " ]
+
+  run o11n ssh user-testadmin testhost journalctl -ef
+  succeeds
+  [ "${lines[-1]}" = "testadmin@testhost.local journalctl -ef" ]
+
+  run o11n ssh user-testadmin testhost --user root
+  fails "invalid user 'root'"
+}
+
+@test "edit opens the entity's secrets in sops' editor, and keeps what was written" {
+  o11n identity create user-testuser
+  # shellcheck disable=SC2016 # Accommodating for the editor, whose $1 expands as sops runs it
+  printf '#!/bin/sh\necho "edited: yes" >>"$1"\n' >"$BATS_TEST_TMPDIR/editor"
+  chmod +x "$BATS_TEST_TMPDIR/editor"
+
+  EDITOR=$BATS_TEST_TMPDIR/editor run o11n secret edit user-testuser
+  succeeds
+  run sops decrypt --extract '["edited"]' enc/user-testuser.yaml
+  [ "$output" = yes ]
+}
+
+@test "ops run each op of the name, and say which failed" {
+  o11n identity create host-testhost
+  o11n identity create user-testuser
+  o11n secret generate user-testuser ssh-key
+
+  run o11n ops verify --run
+  fails "ops of verify failed"
+  [[ $output == *"user-testuser verify:passwd: there's no user-testuser's passwd"* ]]
+  [[ $output != *"user-testuser verify:ssh-key"* ]]
+
+  run o11n ops rebuild --run
+  succeeds
+}
+
+@test "tunnel opens, closes and tells of a server's reverse tunnel as admin, the code as one word, on the endpoint" {
+  o11n identity create user-admin
+  o11n secret generate user-admin ssh-key
+
+  run o11n tunnel testhost open "it's 1234"
+  succeeds
+  [ "${lines[-1]}" = "admin@testhost.local sudo reverse-tunnel open 'it'\\''s 1234'" ]
+
+  run o11n tunnel testhost close
+  [ "${lines[-1]}" = "admin@testhost.local sudo reverse-tunnel close" ]
+
+  O11N_ROUTES='' run o11n tunnel testhost status
+  [ "${lines[-1]}" = "admin@testhost.example.com sudo reverse-tunnel status" ]
+}
+
+@test "unit prints a unit of the host's configuration or another's, and injects it as service-rescue" {
+  o11n identity create service-rescue
+  o11n secret generate service-rescue ssh-key
+  mkdir "$BATS_TEST_TMPDIR/bin"
+  # shellcheck disable=SC2016 # Accommodating for the stubs, whose variables expand as o11n runs them
+  printf '#!/bin/sh\necho "nix $*" >>"%s/calls"\necho "[Unit]"\n' "$BATS_TEST_TMPDIR" >"$BATS_TEST_TMPDIR/bin/nix"
+  # shellcheck disable=SC2016
+  printf '#!/bin/sh\nssh-add -l >/dev/null && echo "scp $(cat "$1") $2" >>"%s/calls"\n' "$BATS_TEST_TMPDIR" >"$BATS_TEST_TMPDIR/bin/scp"
+  chmod +x "$BATS_TEST_TMPDIR"/bin/*
+  PATH=$BATS_TEST_TMPDIR/bin:$PATH
+
+  run o11n unit hello.service testhost
+  succeeds
+  [ "${lines[-1]}" = "[Unit]" ]
+  [[ $(cat "$BATS_TEST_TMPDIR/calls") == *'#nixosConfigurations.testhost.config.systemd.units."hello.service".text' ]]
+
+  run o11n unit hello.service testhost --from lorem --inject
+  succeeds
+  [[ $(sed -n 2p "$BATS_TEST_TMPDIR/calls") == *'#nixosConfigurations.lorem.config'* ]]
+  [ "$(sed -n 3p "$BATS_TEST_TMPDIR/calls")" = "scp [Unit] root@testhost.local:/run/systemd/system/hello.service" ]
+}
+
+@test "a route is pinned, an address or tried in the namespaces" {
+  run o11n route testhost
+  succeeds
+  [ "${lines[-1]}" = testhost.local ]
+
+  run o11n route localhost
+  [ "$output" = localhost ]
+  run o11n route 192.0.2.1
+  [ "$output" = 192.0.2.1 ]
+
+  run o11n route lorem --port 1
+  fails "no contact with lorem:1"
+}
+
 test_identity_root_1=AGE-SECRET-KEY-1DJDMVRRC7UNF8HSKVSGQCWFNMJ5HTRT6HT2MDML9JZ54GCW8TYNSSWWL8D
 
 test_age_key_1=AGE-SECRET-KEY-1L0EJY3FLSYHDE46Y80F0KLUKUWP6V3J340UR7G2GWNFGXJQ0P6ZQ6X37TN

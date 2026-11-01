@@ -14,15 +14,15 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
   `dev/fetch-inputs.sh <flake.lock>`.
 
 - Instead of `/dev/kvm`, NixOS VM tests can run on the `O11N_REMOTE_BUILDER` when set, and its host allowed by the
-  session's network policy, `tools/bin/nix-remote.sh build <installable>` builds them on a host with the remote-builder
-  role, and `nix-remote.sh check` builds every check there. session-start says so when that host doesn't answer.
+  session's network policy, `o11n remote build <installable>` builds them on a host with the remote-builder role, and
+  `o11n remote check` builds every check there. session-start says so when that host doesn't answer.
 
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub flakes
   (`--override-input <input> path:<stub>`) that have the attributes the org reads. Kompismoln/org's `tests/stubs` holds
-  them, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `nix-remote.sh` command.
+  them, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `o11n remote` command.
 - Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools` and exports `O11N_ORG_ROOT=$PWD`, which the
-  wrapper only defaults to `/etc/nix/inputs/self`. To try changes to the tools on the org,
-  `O11N_TOOLS=<o11n clone>/tools` puts the clone's `bin/` first on its PATH.
+  wrapper only defaults to `/etc/nix/inputs/self`. To try changes to o11n on the org, put the clone's
+  `nix build .#o11n-tools` first on its PATH: `O11N_TOOLS` named the clone's `tools/`, which has no `bin/` any more.
 - Nix runs in single-user mode on this session's `/nix`. For a Lix daemon, as the remote builder runs, use
   `dev/lix-daemon.sh` (`docs/dev.md`, "Lix daemon").
 - A fixed-output fetch from a GitHub archive URL fails here too. Fetch the same revision over git into a directory named
@@ -30,7 +30,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
   the fetch would have produced.
 - `pkill -f <pattern>` can match the command line of the shell running it. Kill by PID.
 - Don't evaluate every host of an org here, as Kompismoln/org's `stages.systems` does: ~11 GB and minutes, and more with
-  its homes. That belongs on the remote builder: `nix-remote.sh eval systems [o11n revision]` from the org's clone, once
+  its homes. That belongs on the remote builder: `o11n remote eval systems [o11n revision]` from the org's clone, once
   it runs there (`agents/wip-remote-evaluation.md`).
 
 ### Pitfalls
@@ -46,7 +46,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
 
 - `types.anything` merges a function by wrapping it in one without formal arguments, so a module that passes through it
   no longer gets `pkgs` or anything else from `_module.args`. Keep flake outputs in `types.raw`.
-- `nix-remote.sh build --dry-run` answers "don't know how to build these paths": nothing has copied the `.drv` files to
+- `o11n remote build --dry-run` answers "don't know how to build these paths": nothing has copied the `.drv` files to
   the builder yet.
 
 ## Workflow
@@ -83,7 +83,7 @@ These are for developers and ops, so:
 - minimize tampering with the message
 - maximize simplicity in handling
 
-`try` in `tools/libexec/run-with.bash` does both: it dies with the command's own stderr.
+`run` in `crates/o11n/src/util.rs` does both: it fails with the command's own stderr.
 
 ## Tests and checks
 
@@ -91,14 +91,14 @@ These are for developers and ops, so:
 
 ### Bats
 
-- `bats tools/test dev/test` runs them outside the sandbox, with the dev shell's tools, ~3 minutes.
-- `tools/test` copies `tools/` for each test and stubs `ssh`, `ssh-keyscan`, `cryptsetup` and `find-route.sh`; the `ssh`
-  stub runs `nixos/org/locksmith.sh` for the locksmith.
+- `bats crates/o11n/test dev/test` runs them outside the sandbox, with the dev shell's tools, ~3 minutes.
+- `crates/o11n/test` copies its `org.toml` for each test and stubs `ssh`, `ssh-keyscan` and `cryptsetup`, and pins
+  `testhost` to `testhost.local` with `O11N_ROUTES`; the `ssh` stub runs `nixos/org/locksmith.sh` for the locksmith.
 
 ### VM
 
 VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks: they need KVM. Run them with
-`tools/bin/nix-remote.sh build .#vmTests.<name>`, or all of them with `dev/check.sh vm`.
+`o11n remote build .#vmTests.<name>`, or all of them with `dev/check.sh vm`.
 
 ### Inventories
 
@@ -126,7 +126,7 @@ systems. Keep the org's tree as it is meanwhile: hosts with the peer role carry 
 
 ### Keys and secrets
 
-Use `generate-keys.sh` with the org tooling in `tools/bin`.
+Use `generate-keys.sh`, with o11n on PATH.
 
 - `keys/root-1` is a committed throwaway root identity. With `SOPS_AGE_KEY_FILE=keys/root-1`, `sops decrypt enc/<file>`
   shows any secret.
@@ -134,7 +134,7 @@ Use `generate-keys.sh` with the org tooling in `tools/bin`.
   inventory's export as `generate-keys.sh` writes it, run `o11n identity create <id>` and
   `o11n secret generate <id> <key>` for each key the configuration reads, as `generate-keys.sh` does. Create hosts
   before what is granted to them: they have to exist to be recipients.
-- o11n needs nix and sops on PATH, and the tools jq, ssh and o11n. `nix build .#o11n` gives o11n, and
+- o11n needs nix, sops and ssh on PATH, and curl and gost for `o11n remote`. `nix build .#o11n` gives o11n, and
   `nix build .#nixpkgs.legacyPackages.x86_64-linux.<package>` each of the others from o11n's own nixpkgs.
 - In tests, compare with the files on disk (`builtins.readFile ./public-keys/...`) rather than with values computed by
   the same o11n code that is under test.

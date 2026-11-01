@@ -1,8 +1,3 @@
-# gw evaluates and builds a stage of the org's flake at a revision, with its o11n input at
-# another, for a client that names them with the bearer, and streams nix's output back with
-# the exit status last. The org and a private input come over ssh with nix-remote's key, a
-# revision on a branch included, one evaluation runs at a time, and one whose client leaves
-# stops. It needs KVM, so it isn't among the checks: nix-remote.sh build .#vmTests.remote-eval
 {
   pkgs,
   o11nInputs,
@@ -11,8 +6,8 @@
 let
   inherit (pkgs) lib;
 
-  # The org's flake is a private repository on gw here, which it fetches over ssh as it would
-  # the real one.
+  # Policy: the org's flake is a private repository on gw here, which it fetches over ssh as it
+  # would the real one.
   org = outputs.org // {
     repository = {
       type = "git";
@@ -43,8 +38,8 @@ pkgs.testers.runNixOSTest {
     ];
     _module.args.host = org.host.gw;
 
-    # The sample's committed root identity reads every secret. sops-nix refuses a key file in
-    # the store.
+    # Accommodating for sops-nix, which refuses a key file in the store: the sample's committed
+    # root identity, which reads every secret, is installed outside it.
     system.activationScripts = {
       sample-age-key = lib.stringAfter [ "specialfs" ] ''
         install -m 400 ${outputs.context.path}/keys/root-1 /run/sample-age-key
@@ -56,11 +51,11 @@ pkgs.testers.runNixOSTest {
       sshKeyPaths = [ ];
     };
 
-    # As nixos/org/networking.nix routes the services' addresses.
+    # Duplication: as nixos/org/networking.nix routes the services' addresses.
     boot.kernel.sysctl."net.ipv6.ip_nonlocal_bind" = 1;
     networking.localCommands = "ip -6 route replace local ${org.loCidr} dev lo";
 
-    # As nixos/org/principals.nix makes it.
+    # Duplication: as nixos/org/principals.nix makes it.
     users.users.nix-remote = {
       isSystemUser = true;
       group = "nix-remote";
@@ -68,7 +63,7 @@ pkgs.testers.runNixOSTest {
     };
     users.groups.nix-remote = { };
 
-    # Where the org and its private input are, readable with nix-remote's key alone.
+    # Policy: the org and its private input are readable with nix-remote's key alone.
     services.openssh.enable = true;
     users.users.git = {
       isSystemUser = true;
@@ -78,7 +73,7 @@ pkgs.testers.runNixOSTest {
     };
     users.groups.git = { };
 
-    # Without ACME, a certificate the client trusts.
+    # Accommodating for a VM without ACME: a certificate the client trusts.
     services.nginx.virtualHosts.${endpoint} = {
       enableACME = lib.mkForce false;
       sslCertificate = "${certificate}/cert.pem";
@@ -105,7 +100,7 @@ pkgs.testers.runNixOSTest {
     import json
 
     bearer = "-H \"Authorization: Bearer $(cat /run/secrets/nix-remote/secret-key)\""
-    client = "cd /root/org && O11N_REMOTE_BUILDER=https://${endpoint} O11N_REMOTE_BUILDER_TOKEN=$(cat /run/secrets/nix-remote/secret-key)"
+    client = "cd /root/org && O11N_ORG_ROOT=/root/org O11N_REMOTE_BUILDER=https://${endpoint} O11N_REMOTE_BUILDER_TOKEN=$(cat /run/secrets/nix-remote/secret-key)"
 
     def run(user, path, command):
         return gw.succeed(f"cd {path} && runuser -u {user} -- env HOME=/tmp {command}").strip()
@@ -136,8 +131,8 @@ pkgs.testers.runNixOSTest {
     commit("nix-remote", "/srv/o11n", "two")
     gw.succeed("cp ${flake "private"} /srv/private/flake.nix")
     commit("git", "/srv/private", "private")
-    # Locked as an org's flake is, with nix-remote's key. The private input then leaves the store,
-    # for the evaluation to fetch it over ssh itself.
+    # Policy: locked as an org's flake is, with nix-remote's key; the private input then leaves the
+    # store, for the evaluation to fetch it over ssh itself.
     gw.succeed("git config --global --add safe.directory '*'")
     gw.succeed("cp ${./remote-eval-org.nix} /srv/org/flake.nix")
     run("git", "/srv/org", "git add flake.nix")
@@ -167,12 +162,12 @@ pkgs.testers.runNixOSTest {
         out = evaluate(f"ok/{work}")
         assert out.splitlines()[-1] == "nix-remote-eval: exit 0", out
 
-    with subtest("nix-remote.sh has o11n at another revision, and exits as nix did"):
+    with subtest("o11n remote eval has o11n at another revision, and exits as nix did"):
         gw.succeed("git clone -q /srv/org /root/org")
-        out = gw.succeed(f"{client} nix-remote.sh eval ok {one} 2>&1")
+        out = gw.succeed(f"{client} o11n remote eval ok {one} 2>&1")
         assert "o11n one, private" in out, out
         assert "nix-remote-eval: exit" not in out, out
-        out = gw.fail(f"{client} nix-remote.sh eval fails 2>&1")
+        out = gw.fail(f"{client} o11n remote eval fails 2>&1")
         assert "failing" in out, out
 
     with subtest("a stage's output that is a file comes back, built before or not"):

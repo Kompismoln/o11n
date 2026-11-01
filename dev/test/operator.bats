@@ -5,7 +5,7 @@ setup() {
   operator=$BATS_TEST_DIRNAME/../operator.sh
   cd "$BATS_TEST_TMPDIR" || exit
   mkdir bin
-  stub bin/as.sh 'shift; exec "$@"'
+  stub bin/o11n 'shift 2; exec "$@"'
   stub bin/nix 'echo "$PWD: nix $*" >>"$BATS_TEST_TMPDIR/nix.log"; [[ $PWD != "${NIX_FAILS_IN:-}" ]]'
   stub bin/empty-editor ': >"$1"'
   export PATH=$BATS_TEST_TMPDIR/bin:$PATH O11N_DEV=alice GIT_EDITOR=true

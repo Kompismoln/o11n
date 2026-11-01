@@ -1,10 +1,3 @@
-# tests/vm/phone-home.nix
-#
-# The rescue stick calls gw's reverse tunnel: it is refused while closed, a wrong code doesn't
-# get through or keep the right one from it, and with the right one gw reaches the stick's sshd
-# with the rescue key, as does an operator through gw. When the line expires the call stays up;
-# when gw closes it, it ends. A gw with a new host key is called anyway, with a warning. It
-# needs KVM, so it isn't among the checks: nix-remote.sh build .#vmTests.phone-home
 {
   pkgs,
   o11nInputs,
@@ -16,8 +9,8 @@ let
   enc = "${outputs.context.path}/enc";
   sshKeys = import "${pkgs.path}/nixos/tests/ssh-keys.nix" pkgs;
 
-  # The sample's committed root identity reads every secret. sops-nix refuses a key file in
-  # the store.
+  # Accommodating for sops-nix, which refuses a key file in the store: the sample's committed
+  # root identity, which reads every secret, is installed outside it.
   sampleSecrets = {
     imports = [ o11nInputs.sops-nix.nixosModules.sops ];
     system.activationScripts = {
@@ -53,7 +46,7 @@ pkgs.testers.runNixOSTest {
       ];
       _module.args.host = org.host.gw;
 
-      # As nixos/org/principals.nix makes it.
+      # Duplication: as nixos/org/principals.nix makes it.
       users.mutableUsers = false;
       users.users.reverse-tunnel = {
         isSystemUser = true;
@@ -72,7 +65,7 @@ pkgs.testers.runNixOSTest {
       };
     };
 
-    # Reaches the stick through gw as the operator's tools do.
+    # Duplication: reaches the stick through gw as `o11n tunnel` does.
     operator = {
       imports = [ sampleSecrets ];
       system.activationScripts.admin-key = ''
@@ -90,7 +83,7 @@ pkgs.testers.runNixOSTest {
       {
         imports = [ ../../nixos/org/rescue-usb.nix ];
         o11n.rescue-usb.via = "gw";
-        # It's on the wire already, so phonehome skips the wifi.
+        # Policy: it's on the wire already, so phonehome skips the wifi.
         networking.networkmanager.enable = lib.mkForce false;
         networking.hosts.${nodes.gw.networking.primaryIPAddress} = [ org.host.gw.endpoint ];
       };
@@ -139,7 +132,7 @@ pkgs.testers.runNixOSTest {
           assert hostname == "rescue-usb", hostname
           hostname = operator.succeed(f"{ssh_stick_through_gw} hostname").strip()
           assert hostname == "rescue-usb", hostname
-          # fail2ban took the wrong code for an attack on sshd, which is all it guards.
+          # Accommodating for fail2ban, which took the wrong code for an attack on sshd, all it guards.
           banned = gw.succeed("fail2ban-client get sshd banned")
           assert "${nodes.stick.networking.primaryIPAddress}" in banned, banned
 

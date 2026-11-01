@@ -10,6 +10,11 @@ use crate::Error;
 #[serde(rename_all = "kebab-case")]
 pub struct Export {
     pub root_identities: Vec<String>,
+    pub endpoint: String,
+    #[serde(default)]
+    pub namespaces: Vec<String>,
+    #[serde(default)]
+    pub build_hosts: Vec<String>,
     pub ops: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     pub classes: BTreeMap<String, Class>,
     pub entities: BTreeMap<String, Entity>,
@@ -52,7 +57,7 @@ impl Export {
     pub fn evaluate(root: &Path) -> Result<String, Error> {
         let output = Command::new("nix")
             .args(["eval", "--json", "--no-warn-dirty"])
-            .arg(format!("{}#org.export", root.display()))
+            .arg(format!("{}#org.export", crate::util::flake(root)?))
             .stderr(Stdio::inherit())
             .output()
             .map_err(|e| Error::new(format!("nix: {e}")))?;

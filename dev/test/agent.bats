@@ -115,15 +115,14 @@ started() {
 }
 
 @test "session-start probes the remote builder in the cloud, and tells of it only when it doesn't answer" {
-  mkdir -p tools/bin
-  stub tools/bin/nix-remote.sh 'echo "nix-remote $*" >>"$BATS_TEST_TMPDIR/nix-remote.log"
+  stub "$BATS_TEST_TMPDIR/bin/o11n" 'echo "o11n $*" >>"$BATS_TEST_TMPDIR/nix-remote.log"
 [[ -z ${BUILDER_FAILS:-} ]] || { echo "error: no answer" >&2; exit 1; }'
   export O11N_REMOTE_BUILDER=builder.example
 
   CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
-  [ "$(cat "$BATS_TEST_TMPDIR/nix-remote.log")" = "nix-remote info" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/nix-remote.log")" = "o11n remote info" ]
 
   BUILDER_FAILS=yes CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
   [ "$status" -eq 0 ]

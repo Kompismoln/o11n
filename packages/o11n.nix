@@ -11,7 +11,7 @@ rustPlatform.buildRustPackage {
     fileset = lib.fileset.unions [
       ../Cargo.toml
       ../Cargo.lock
-      ../crates
+      (lib.fileset.difference ../crates ../crates/o11n/test)
     ];
   };
   cargoLock.lockFile = ../Cargo.lock;
