@@ -401,8 +401,8 @@ setup() {
   succeeds
   [ "${lines[-1]}" = "testadmin@testhost.local journalctl -ef" ]
 
-  run o11n ssh user-testadmin testhost --user root
-  fails "invalid user 'root'"
+  run o11n ssh user-testadmin testhost --user nobody
+  fails "invalid user 'nobody'"
 }
 
 @test "edit opens the entity's secrets in sops' editor, and keeps what was written" {
@@ -466,6 +466,26 @@ setup() {
   succeeds
   [[ $(sed -n 2p "$BATS_TEST_TMPDIR/calls") == *'#nixosConfigurations.lorem.config'* ]]
   [ "$(sed -n 3p "$BATS_TEST_TMPDIR/calls")" = "scp [Unit] root@testhost.local:/run/systemd/system/hello.service" ]
+}
+
+@test "state fetch downloads a principal's home from each host it's on, as service-rescue, once it has said how much" {
+  o11n identity create service-rescue
+  o11n secret generate service-rescue ssh-key
+  export O11N_ROUTES="testhost=testhost.local lorem=lorem.local"
+  mkdir "$BATS_TEST_TMPDIR/state"
+
+  run o11n state fetch user-testuser --dir "$BATS_TEST_TMPDIR/state"
+  succeeds
+  [[ $output == *"3.0 KiB to download, before compression, from lorem (1.5 KiB), testhost (1.5 KiB)"* ]]
+
+  local files=("$BATS_TEST_TMPDIR"/state/*)
+  [ "${#files[@]}" = 2 ]
+  [[ ${files[0]##*/} =~ ^user-testuser@lorem-[0-9]{4}(-[0-9]{2}){5}\.tar\.zst$ ]]
+  [[ ${files[1]##*/} == user-testuser@testhost-*.tar.zst ]]
+  [ "$(cat "${files[1]}")" = "the tar of tar --zstd -cf - -C '/home' -- 'testuser' on testhost.local" ]
+
+  run o11n state fetch service-testservice
+  fails "service-testservice has no home to fetch"
 }
 
 @test "a route is pinned, an address or tried in the namespaces" {

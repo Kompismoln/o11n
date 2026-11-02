@@ -80,6 +80,21 @@
         "store"
       ];
     };
+    archives = lib.mkOption {
+      description = "the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive with a schedule has a timer";
+      default = { };
+      type =
+        with lib.types;
+        coercedTo (listOf context.types.host.ref) (hosts: lib.genAttrs hosts (_: { })) (
+          attrsOf (submodule {
+            options.schedule = lib.mkOption {
+              description = "when to archive, as a systemd calendar event, or null to archive only when asked";
+              default = null;
+              type = nullOr str;
+            };
+          })
+        );
+    };
     bindAddress = lib.mkOption {
       description = "unique ipv6 loopback address for entity to bind to";
       default = "${context.org.loPrefix}::${toString config.uid}:${entity.ids.hex4}";

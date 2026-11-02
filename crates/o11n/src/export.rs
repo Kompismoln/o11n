@@ -36,6 +36,13 @@ pub struct Entity {
     pub secrets: Secrets,
     #[serde(default)]
     pub roles: Vec<String>,
+    pub state: Option<State>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct State {
+    pub home: String,
+    pub hosts: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

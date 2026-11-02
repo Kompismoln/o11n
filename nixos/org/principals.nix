@@ -8,28 +8,35 @@
   ...
 }:
 let
-  users = lib.genAttrs host.users (user: org.user.${user});
-
-  apps = lib.filterAttrs (_: app: (lib.elem host.name app.run-on-hosts)) org.app;
-
-  services = lib.genAttrs (builtins.concatMap (role: org.role.${role}.services) host.roles) (
-    service: org.service.${service}
-  );
-
-  stores = lib.genAttrs (builtins.concatMap (role: org.role.${role}.stores) host.roles) (
-    store: org.store.${store}
-  );
-
-  entities = builtins.filter (entity: entity.principal != null && entity.id != null) (
-    (lib.attrValues users)
-    ++ (lib.attrValues apps)
-    ++ (lib.attrValues services)
-    ++ (lib.attrValues stores)
-  );
+  # Policy: by class, then name, so that the order of a host's users and roles changes nothing.
+  entities =
+    lib.concatMap
+      (
+        class:
+        lib.sortOn (entity: entity.name) (
+          lib.filter (entity: entity.class == class) (
+            map (
+              id:
+              let
+                entityClass = lib.head (lib.splitString "-" id);
+              in
+              org.${entityClass}.${lib.removePrefix "${entityClass}-" id}
+            ) host.principals
+          )
+        )
+      )
+      [
+        "user"
+        "app"
+        "service"
+        "store"
+      ];
 in
 {
   imports = [
     ../preserve.nix
+    ./snapshot.nix
+    ./state-archive.nix
   ];
 
   sops.secrets = lib.genAttrs' (lib.filter (entity: entity.principal.hasPasswd) entities) (
@@ -83,6 +90,15 @@ in
     user = entity.name;
     group = entity.name;
   }) (builtins.filter (entity: entity.principal.home != "/var/empty") entities);
+
+  o11n.snapshots = lib.listToAttrs (
+    map (
+      entity:
+      lib.nameValuePair "${entity.class}-${entity.name}" (
+        config.o11n.preserve.onStorage entity.principal.home
+      )
+    ) (builtins.filter (entity: entity.principal.home != "/var/empty") entities)
+  );
 
   services.openssh.extraConfig = lib.concatStringsSep "\n" (
     map (entity: ''

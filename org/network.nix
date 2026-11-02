@@ -91,6 +91,29 @@
       type = with lib.types; nullOr str;
       default = null;
     };
+    principalCidr = lib.mkOption {
+      description = "the block of the network's addresses that the host's principals have, which it routes to itself";
+      type = with lib.types; nullOr str;
+      default = null;
+    };
+    principals = lib.mkOption {
+      description = "each principal's address and name in the network, on this host, by its id";
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            address = lib.mkOption {
+              description = "the principal's ipv6 address on this host in the network";
+              type = lib.types.str;
+            };
+            fqdn = lib.mkOption {
+              description = "the principal's name on this host in the network";
+              type = lib.types.str;
+            };
+          };
+        }
+      );
+      default = { };
+    };
     gatewayOnLink = lib.mkEnableOption "onlink for gateway" // {
       type = with lib.types; nullOr bool;
       default = null;

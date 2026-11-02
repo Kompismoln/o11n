@@ -17,6 +17,9 @@ let
     config.store
   ];
 
+  stateful =
+    entity: entity.principal != null && entity.id != null && entity.principal.home != "/var/empty";
+
   exported =
     entity:
     {
@@ -32,6 +35,16 @@ let
         sopsFile = relative entity.secrets.sopsFile;
         identityFile = relative entity.secrets.identityFile;
         inherit (entity.secrets) decryptionKey;
+      };
+    }
+    // lib.optionalAttrs (stateful entity) {
+      state = {
+        inherit (entity.principal) home;
+        hosts = map (host: host.name) (
+          lib.filter (host: lib.elem "${entity.class}-${entity.name}" host.principals) (
+            lib.attrValues config.host
+          )
+        );
       };
     }
     // lib.optionalAttrs (entity.class == "host") {

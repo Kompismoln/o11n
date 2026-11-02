@@ -3,13 +3,19 @@
   config,
   host,
   lib,
-  org,
   ...
 }:
 
 let
   cfg = config.o11n.dumps;
   hostConfig = config;
+
+  # Policy: a dump is part of its owner's snapshot, which the owner's archive takes.
+  snapshotOf =
+    user:
+    map (id: "state-snapshot@${id}.service") (
+      lib.filter (id: lib.removePrefix "${lib.head (lib.splitString "-" id)}-" id == user) host.principals
+    );
 
   dumpOpts =
     { config, ... }:
@@ -36,14 +42,6 @@ let
           type = lib.types.str;
           default = "${hostConfig.users.users.${config.user}.home}/dbdump.sql";
         };
-        startAt = lib.mkOption {
-          description = "when to dump, as a systemd calendar event, or null for no timer";
-          type = with lib.types; nullOr str;
-          default =
-            (lib.findFirst (app: app.database == config.database && lib.elem host.name app.run-on-hosts) {
-              dump = null;
-            } (lib.attrValues org.app)).dump;
-        };
       };
     };
 in
@@ -68,6 +66,8 @@ in
         description = "dump ${dump.database}";
         requires = dump.after;
         inherit (dump) after;
+        before = snapshotOf dump.user;
+        requiredBy = snapshotOf dump.user;
         script = ''
           umask 0077
           ${dump.command} > ${dump.path}.tmp
@@ -79,16 +79,5 @@ in
         };
       }
     ) cfg;
-
-    systemd.timers = lib.mapAttrs' (
-      name: dump:
-      lib.nameValuePair "${name}-dump" {
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = dump.startAt;
-          Persistent = true;
-        };
-      }
-    ) (lib.filterAttrs (_: dump: dump.startAt != null) cfg);
   };
 }

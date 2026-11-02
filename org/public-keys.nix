@@ -12,6 +12,7 @@ let
         tls-cert = "pem";
         default = "pub";
         passwd = "sha512";
+        archive-passwd = "htpasswd";
       };
       ext = exts.${key} or exts.default;
     in

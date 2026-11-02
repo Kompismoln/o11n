@@ -3,6 +3,7 @@ use base64::engine::general_purpose::STANDARD;
 use rand::RngCore;
 use rand::rngs::OsRng;
 use sha_crypt::{PasswordHasher, PasswordVerifier, ShaCrypt};
+use sha1::{Digest, Sha1};
 
 use crate::Error;
 
@@ -14,6 +15,7 @@ pub enum Kind {
     NixSign,
     TlsCert,
     Password,
+    Htpasswd,
     Passphrase { bytes: usize, slots: bool },
 }
 
@@ -26,6 +28,7 @@ impl Kind {
             "nix-sign" => Self::NixSign,
             "tls-cert" => Self::TlsCert,
             "passwd" | "mail" => Self::Password,
+            "archive-passwd" => Self::Htpasswd,
             "luks-key" => Self::Passphrase { bytes: 12, slots: true },
             "secret-key" | "restic-key" => Self::Passphrase {
                 bytes: 40,
@@ -92,6 +95,9 @@ pub fn generate(kind: Kind, id: &str, domain: Option<&str>) -> Result<String, Er
                 .serialize_pem()
         }
         Kind::Password => passphrase(8),
+        // Policy: random enough that its unsalted {SHA} hash, the one hash rest-server reads that o11n can write,
+        // is safe to publish.
+        Kind::Htpasswd => passphrase(32),
         Kind::Passphrase { bytes, .. } => passphrase(bytes),
     })
 }
@@ -145,6 +151,7 @@ pub fn public(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Resu
             .hash_password_with_salt(secret.as_bytes(), &random::<12>())
             .map_err(|e| invalid(key, e))?
             .to_string()),
+        Kind::Htpasswd => Ok(format!("{{SHA}}{}\n", STANDARD.encode(Sha1::digest(secret.as_bytes())))),
         Kind::Passphrase { .. } => Err(Error::new(format!("a {key} has no public key"))),
     }
 }
@@ -196,7 +203,7 @@ fn tls_matches(key: &str, secret: &str, certificate: &str, domain: &str) -> Resu
 
 pub fn validate(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Result<(), Error> {
     match kind {
-        Kind::Password | Kind::Passphrase { .. } => {
+        Kind::Password | Kind::Htpasswd | Kind::Passphrase { .. } => {
             if secret.ends_with('\n') {
                 return Err(Error::new(format!("the {key} has a trailing newline")));
             }
@@ -233,6 +240,9 @@ mod tests {
         let hash = "$6$abcdefgh12345678$rgVBh3dKBJ/VoOexgpHN02JF9FwwnEkyAQzqGLNlhexq64yEDKzsj2Z50xYaxbDIvKprcBvplv9z/srlOk.29/";
         assert!(matches(Kind::Password, "passwd", "hunter22", hash, None).unwrap());
         assert!(!matches(Kind::Password, "passwd", "hunter23", hash, None).unwrap());
+        // Fact: as `printf hunter22 | openssl sha1 -binary | base64` gives it.
+        let sha = "{SHA}YLOvi/43NWI8fUpe90m7asGkQTo=\n";
+        assert_eq!(public(Kind::Htpasswd, "archive-passwd", "hunter22", None).unwrap(), sha);
     }
 
     #[test]

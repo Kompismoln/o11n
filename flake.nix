@@ -108,7 +108,15 @@
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };
               };
 
+              legacyPackages.vmTests.archive = import ./tests/vm/archive.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/sample; };
+              };
+
               legacyPackages.vmTests.containers = import ./tests/vm/containers.nix { inherit pkgs; };
+
+              legacyPackages.vmTests.snapshot = import ./tests/vm/snapshot.nix { inherit pkgs; };
 
               # Policy: the dev shell runs each package's source as it is, with what the package runs,
               # bats and socat for their tests, and cargo, rustc and clippy for o11n's crate.

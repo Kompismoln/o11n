@@ -6,21 +6,13 @@ let
   org = {
     postgres = "17";
     app = {
-      # Sorts before chat and dumps the same database, but on another host.
-      beta = {
-        database = "chat";
-        run-on-hosts = [ "dev" ];
-        dump = "hourly";
-      };
       blog = {
         database = "blog";
         run-on-hosts = [ "web" ];
-        dump = null;
       };
       chat = {
         database = "chat";
         run-on-hosts = [ "web" ];
-        dump = "daily";
       };
     };
   };
@@ -42,7 +34,13 @@ let
       {
         _module.args = {
           inherit org;
-          host.name = "web";
+          host = {
+            name = "web";
+            principals = [
+              "app-blog"
+              "app-chat"
+            ];
+          };
         };
         users = lib.mkMerge [
           (appUser "blog")
@@ -93,10 +91,13 @@ in
     ];
   };
 
-  test_dump_timers_from_org = {
-    expr = lib.mapAttrs (_: timer: timer.timerConfig.OnCalendar) (dumps cfg.systemd.timers);
+  test_dump_before_owner_snapshot = {
+    expr = {
+      inherit (cfg.systemd.services.chat-pgsql-dump) before requiredBy;
+    };
     expected = {
-      chat-pgsql-dump = "daily";
+      before = [ "state-snapshot@app-chat.service" ];
+      requiredBy = [ "state-snapshot@app-chat.service" ];
     };
   };
 

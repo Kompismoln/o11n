@@ -21,6 +21,7 @@
       "mail"
       "passwd"
       "restic-key"
+      "archive-passwd"
     ];
   };
   service = {
@@ -42,6 +43,7 @@
       "ssh-key"
       "secret-key"
       "restic-key"
+      "archive-passwd"
     ];
   };
   store = {

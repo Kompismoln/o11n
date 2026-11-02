@@ -10,6 +10,7 @@ mod remote;
 mod route;
 mod secrets;
 mod sops;
+mod state;
 mod store;
 mod util;
 
@@ -122,6 +123,9 @@ enum Command {
         #[command(subcommand)]
         action: remote::TunnelAction,
     },
+    /// A stateful principal's state, on the hosts it's on.
+    #[command(subcommand)]
+    State(StateCommand),
     /// Builds the image of the org's rescue-usb.
     Image {
         #[arg(default_value = "iso-installer")]
@@ -147,6 +151,18 @@ enum Command {
     /// Encrypts every sops file to its recipients, and every identity to itself, its actors and the root identities, as
     /// the org declares them.
     Reencrypt,
+}
+
+#[derive(Subcommand)]
+enum StateCommand {
+    /// Downloads the principal's home from each host it's on, as root with service-rescue's ssh-key, compressed there,
+    /// to <id>@<host>-<local time>.tar.zst, once it has said how much there is.
+    Fetch {
+        id: String,
+        /// The directory to download to.
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -452,6 +468,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
         } => org.unit(&unit, &host, from.as_deref(), inject)?,
         Command::Tunnel { server, action } => org.tunnel(&server, action)?,
         Command::Image { variant } => org.image(&variant)?,
+        Command::State(StateCommand::Fetch { id, dir }) => org.fetch_state(&id, &dir)?,
         Command::Ops { name, run: true } => org.run_ops(&name)?,
         command => return query(&org.export, "", command),
     }

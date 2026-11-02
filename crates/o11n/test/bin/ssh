@@ -15,6 +15,14 @@ locksmith)
 	shift
 	"$LOCKSMITH" "$@"
 	;;
+root)
+	shift
+	ssh-add -l >/dev/null || exit 255
+	case $1 in
+	du) echo "1536	$4" ;;
+	tar) echo "the tar of $* on $fqdn" ;;
+	esac
+	;;
 testadmin | admin)
 	shift
 	ssh-add -l >/dev/null && echo "$name@$fqdn $*"

@@ -43,7 +43,11 @@ in
           map (peer: ''
             hints['${peer.network.${vpn.name}.fqdn}'] = '${peer.network.${vpn.name}.address}'
             hints['${peer.network.${vpn.name}.fqdn}'] = '${peer.network.${vpn.name}.address4}'
-          '') (peers vpn)
+            ${lib.concatStrings (
+              lib.mapAttrsToList (
+                _: principal: "hints['${principal.fqdn}'] = '${principal.address}'\n"
+              ) peer.network.${vpn.name}.principals
+            )}'') (peers vpn)
         ) dnsFor
       )}
     '';
@@ -136,6 +140,7 @@ in
                   [
                     "${peer.network.${vpn.name}.address}/128"
                     "${peer.network.${vpn.name}.address4}/32"
+                    peer.network.${vpn.name}.principalCidr
                   ];
             };
             serverConfig = {

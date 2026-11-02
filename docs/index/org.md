@@ -165,6 +165,23 @@ Default: `null`
 
 optional attached principal
 
+### `app.<name>.principal.archives`
+
+`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
+
+Default: `{ }`
+
+the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+with a schedule has a timer
+
+### `app.<name>.principal.archives.<name>.schedule`
+
+`org/principal.nix` · null or string
+
+Default: `null`
+
+when to archive, as a systemd calendar event, or null to archive only when asked
+
 ### `app.<name>.principal.bindAddress`
 
 `org/principal.nix` · string matching the pattern
@@ -275,6 +292,14 @@ paths to the entity's public keys, one for each key its class has
 Default: `"<org>/public-keys/app-‹name›-age-key.pub"`
 
 age-key path for app ‹name›
+
+### `app.<name>.publicKeys.archive-passwd`
+
+`org/public-keys.nix` · absolute path
+
+Default: `"<org>/public-keys/app-‹name›-archive-passwd.htpasswd"`
+
+archive-passwd path for app ‹name›
 
 ### `app.<name>.publicKeys.restic-key`
 
@@ -828,6 +853,34 @@ Default: `null`
 
 ipv4 prefix length
 
+### `host.<name>.network.<name>.principalCidr`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+the block of the network's addresses that the host's principals have, which it routes to itself
+
+### `host.<name>.network.<name>.principals`
+
+`org/network.nix` · attribute set of (submodule)
+
+Default: `{ }`
+
+each principal's address and name in the network, on this host, by its id
+
+### `host.<name>.network.<name>.principals.<name>.address`
+
+`org/network.nix` · string
+
+the principal's ipv6 address on this host in the network
+
+### `host.<name>.network.<name>.principals.<name>.fqdn`
+
+`org/network.nix` · string
+
+the principal's name on this host in the network
+
 ### `host.<name>.network.<name>.privacy`
 
 `org/network.nix` · null or boolean
@@ -851,6 +904,23 @@ network type
 Default: `null`
 
 optional attached principal
+
+### `host.<name>.principal.archives`
+
+`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
+
+Default: `{ }`
+
+the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+with a schedule has a timer
+
+### `host.<name>.principal.archives.<name>.schedule`
+
+`org/principal.nix` · null or string
+
+Default: `null`
+
+when to archive, as a systemd calendar event, or null to archive only when asked
 
 ### `host.<name>.principal.bindAddress`
 
@@ -948,6 +1018,15 @@ members of the principal's groups
 Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
 
 posix user id
+
+### `host.<name>.principals`
+
+`org/host.nix` · list of string
+
+Default: the host's `users`, the apps whose `run-on-hosts` has it, and the `services` and `stores` of its `roles`, as
+`<class>-<name>`, but for those without a principal
+
+the ids of the principals on the host: its users, the apps that run on it, and its roles' services and stores
 
 ### `host.<name>.publicKeys`
 
@@ -1406,6 +1485,23 @@ Default: `null`
 
 optional attached principal
 
+### `service.<name>.principal.archives`
+
+`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
+
+Default: `{ }`
+
+the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+with a schedule has a timer
+
+### `service.<name>.principal.archives.<name>.schedule`
+
+`org/principal.nix` · null or string
+
+Default: `null`
+
+when to archive, as a systemd calendar event, or null to archive only when asked
+
 ### `service.<name>.principal.bindAddress`
 
 `org/principal.nix` · string matching the pattern
@@ -1603,6 +1699,14 @@ Default: `{ }`
 
 entity-specific options, passed through as-is to the entity's configuration
 
+### `service.<name>.vpn`
+
+`org/service.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the vpn the service serves on, at its address on each host it's on, or null
+
 ### `store`
 
 `org/default.nix` · attribute set of (submodule)
@@ -1716,6 +1820,23 @@ name
 Default: `null`
 
 optional attached principal
+
+### `store.<name>.principal.archives`
+
+`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
+
+Default: `{ }`
+
+the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+with a schedule has a timer
+
+### `store.<name>.principal.archives.<name>.schedule`
+
+`org/principal.nix` · null or string
+
+Default: `null`
+
+when to archive, as a systemd calendar event, or null to archive only when asked
 
 ### `store.<name>.principal.bindAddress`
 
@@ -2074,6 +2195,23 @@ Default: `null`
 
 optional attached principal
 
+### `user.<name>.principal.archives`
+
+`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
+
+Default: `{ }`
+
+the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+with a schedule has a timer
+
+### `user.<name>.principal.archives.<name>.schedule`
+
+`org/principal.nix` · null or string
+
+Default: `null`
+
+when to archive, as a systemd calendar event, or null to archive only when asked
+
 ### `user.<name>.principal.bindAddress`
 
 `org/principal.nix` · string matching the pattern
@@ -2184,6 +2322,14 @@ paths to the entity's public keys, one for each key its class has
 Default: `"<org>/public-keys/user-‹name›-age-key.pub"`
 
 age-key path for user ‹name›
+
+### `user.<name>.publicKeys.archive-passwd`
+
+`org/public-keys.nix` · absolute path
+
+Default: `"<org>/public-keys/user-‹name›-archive-passwd.htpasswd"`
+
+archive-passwd path for user ‹name›
 
 ### `user.<name>.publicKeys.mail`
 

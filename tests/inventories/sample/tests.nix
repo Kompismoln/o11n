@@ -49,6 +49,7 @@ in
           AllowedIPs = [
             "fd12:3456:7890:0000::0002/128"
             "10.0.0.2/32"
+            "fd12:3456:7890:0000:ffff:0002::/96"
           ];
           PersistentKeepalive = 25;
         }
@@ -104,15 +105,18 @@ in
     };
   };
 
+  # Each host, and each principal on each host, by its name.
   test_wg0_dns_hints = {
-    expr = lib.filter (lib.hasPrefix "hints[") (
-      lib.splitString "\n" gw.config.services.kresd.extraConfig
-    );
+    expr = lib.filter (
+      line: builtins.match "hints\\['(gw|web|archive-web|admin-gw)\\.sample'].*" line != null
+    ) (lib.splitString "\n" gw.config.services.kresd.extraConfig);
     expected = [
       "hints['gw.sample'] = 'fd12:3456:7890:0000::0001'"
       "hints['gw.sample'] = '10.0.0.1'"
+      "hints['admin-gw.sample'] = 'fd12:3456:7890:0000:ffff:0001:1000:0000'"
       "hints['web.sample'] = 'fd12:3456:7890:0000::0002'"
       "hints['web.sample'] = '10.0.0.2'"
+      "hints['archive-web.sample'] = 'fd12:3456:7890:0000:ffff:0002:2011:000b'"
     ];
   };
 
@@ -150,7 +154,10 @@ in
         gw = uids // {
           nix-remote = 2010;
         };
-        web = uids;
+        web = uids // {
+          archive = 2011;
+          archives = 4000;
+        };
       };
   };
 
@@ -159,16 +166,21 @@ in
     expr = onHosts (config: lib.mapAttrs (_: secret: baseNameOf secret.sopsFile) config.sops.secrets);
     expected = {
       gw = {
+        "admin/archive-passwd" = "user-admin.yaml";
         "admin/mail" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
+        "admin/restic-key" = "user-admin.yaml";
         "nix-remote/secret-key" = "service-nix-remote.yaml";
         "nix-remote/ssh-key" = "service-nix-remote.yaml";
         "nix-serve/nix-sign" = "service-nix-serve.yaml";
         "wg0-key" = "host-gw.yaml";
       };
       web = {
+        "admin/archive-passwd" = "user-admin.yaml";
         "admin/mail" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
+        "admin/restic-key" = "user-admin.yaml";
+        "domain-sample/tls-cert" = "service-domain-sample.yaml";
         "wg0-key" = "host-web.yaml";
       };
     };
@@ -434,6 +446,87 @@ in
         web = closed;
       };
   };
+
+  # Each stateful principal of a host's has state-snapshot@<id>, of its home where the host keeps it.
+  test_snapshots = {
+    expr = onHosts (config: {
+      snapshots = config.o11n.snapshots;
+      template = config.systemd.services ? "state-snapshot@";
+    });
+    expected = {
+      gw = {
+        snapshots.user-admin = "/home/admin";
+        template = true;
+      };
+      web = {
+        snapshots = {
+          user-admin = "/home/admin";
+          store-archives = "/var/lib/archives";
+        };
+        template = true;
+      };
+    };
+  };
+
+  # admin archives to web from each host it's on, on its schedule, with the secrets of its own sops file.
+  test_state_archive = {
+    expr = onHosts (config: {
+      timer = config.systemd.timers."state-archive@user-admin:web".timerConfig.OnCalendar;
+      inherit (config.systemd.services."state-archive@user-admin:web".environment)
+        RESTIC_REPOSITORY
+        STATE_HOME
+        ;
+      secrets = lib.mapAttrs (_: secret: baseNameOf secret.sopsFile) (
+        lib.filterAttrs (
+          name: _: lib.hasSuffix "archive-passwd" name || lib.hasSuffix "restic-key" name
+        ) config.sops.secrets
+      );
+    });
+    expected =
+      let
+        admin = {
+          timer = "daily";
+          RESTIC_REPOSITORY = "rest:https://archive-web.sample:8000/user-admin/";
+          STATE_HOME = "/home/admin";
+          secrets = {
+            "admin/archive-passwd" = "user-admin.yaml";
+            "admin/restic-key" = "user-admin.yaml";
+          };
+        };
+      in
+      {
+        gw = admin;
+        web = admin;
+      };
+  };
+
+  # rest-server, as the archive service, keeps each entity's repo in the archives store, at its address on wg0, and lets in
+  # each entity with an archive-passwd as its htpasswd entry.
+  test_archive =
+    let
+      inherit (web.config.systemd) services sockets;
+      flags = lib.drop 1 (lib.splitString " " services.archive.serviceConfig.ExecStart);
+      after = flag: lib.elemAt flags (lib.lists.findFirstIndex (f: f == flag) null flags + 1);
+    in
+    {
+      expr = {
+        inherit (services.archive.serviceConfig) User Group;
+        path = after "--path";
+        htpasswd = builtins.readFile (after "--htpasswd-file");
+        inherit (sockets.archive) listenStreams;
+        ports = web.config.networking.firewall.interfaces.wg0.allowedTCPPorts;
+        onGw = gw.config.systemd.services ? archive;
+      };
+      expected = {
+        User = "archive";
+        Group = "archives";
+        path = "/var/lib/archives/repos";
+        htpasswd = "user-admin:${builtins.readFile ./public-keys/user-admin-archive-passwd.htpasswd}";
+        listenStreams = [ "[fd12:3456:7890:0000:ffff:0002:2011:000b]:8000" ];
+        ports = [ 8000 ];
+        onGw = false;
+      };
+    };
 
   # The stick calls gw on its endpoint, trusts gw's host key and lets in the rescue key.
   test_rescue_usb =

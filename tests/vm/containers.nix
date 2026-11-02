@@ -27,7 +27,10 @@ pkgs.testers.runNixOSTest {
       postgres = "17";
       app = { };
     };
-    host.name = "btrfs";
+    host = {
+      name = "btrfs";
+      principals = [ ];
+    };
   };
 
   nodes = {

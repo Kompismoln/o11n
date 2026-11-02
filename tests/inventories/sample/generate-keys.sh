@@ -27,7 +27,7 @@ for host in gw web; do
 done
 
 o11n identity create user-admin
-for key in ssh-key passwd mail; do
+for key in ssh-key passwd mail archive-passwd restic-key; do
     o11n secret generate user-admin "$key"
 done
 
@@ -41,6 +41,9 @@ o11n secret hash service-rescue passwd >public-keys/service-rescue-passwd.sha512
 
 o11n identity create service-nix-serve
 o11n secret generate service-nix-serve nix-sign
+
+o11n identity create service-domain-sample
+o11n secret generate service-domain-sample tls-cert
 
 o11n identity create service-nix-remote
 o11n secret generate service-nix-remote secret-key

@@ -48,7 +48,7 @@ stateVersion = "26.05"
 id = 2
 endpoint = "web.example.com"
 users = ["admin"]
-roles = ["nixos", "peer", "server", "remote-builder-relay"]
+roles = ["nixos", "peer", "server", "remote-builder-relay", "archive"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -59,6 +59,7 @@ id = 0
 description = "Administrator"
 mail = true
 principal.groups = ["wheel"]
+principal.archives.web.schedule = "daily"
 email = "admin@example.com"
 grants = ["host-*"]
 
@@ -88,6 +89,10 @@ services = ["nix-remote"]
 
 [role.remote-builder-relay]
 services = []
+
+[role.archive]
+services = ["archive"]
+stores = ["archives"]
 
 [service.rescue]
 grants = ["host-*"]
@@ -128,11 +133,22 @@ id = 10
 principal.hasPublicKey = false
 grants = ["host:remote-builder"]
 
+[service.archive]
+id = 11
+vpn = "wg0"
+principal.hasPublicKey = false
+
+[service.domain-sample]
+grants = ["host:archive"]
+
 [ops.check]
 "host:server+substituter" = ["check:age-key"]
 "service-rescue" = ["verify:ssh-key", "verify:passwd"]
 
+[store.archives]
+id = 0
+principal.hasPublicKey = false
+principal.hasSFTP = false
+
 # Every class needs a table, even when empty.
 [app]
-
-[store]

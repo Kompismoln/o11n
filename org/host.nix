@@ -6,6 +6,13 @@
 }:
 let
   inherit (context) org;
+
+  entityOf =
+    id:
+    let
+      class = lib.head (lib.splitString "-" id);
+    in
+    org.${class}.${lib.removePrefix "${class}-" id};
 in
 {
   imports = [
@@ -64,6 +71,25 @@ in
     vpns = lib.mkOption {
       description = "list of interface names for vpns";
       type = lib.types.listOf context.types.vpn.ref;
+    };
+    principals = lib.mkOption {
+      description = "the ids of the principals on the host: its users, the apps that run on it, and its roles' services and stores";
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      default = lib.filter (id: (entityOf id).principal != null) (
+        lib.unique (
+          map (user: "user-${user}") config.users
+          ++ map (app: "app-${app.name}") (
+            lib.filter (app: lib.elem config.name app.run-on-hosts) (lib.attrValues org.app)
+          )
+          ++ lib.concatMap (
+            role:
+            map (service: "service-${service}") org.role.${role}.services
+            ++ map (store: "store-${store}") org.role.${role}.stores
+          ) config.roles
+        )
+      );
+      defaultText = lib.literalMD "the host's `users`, the apps whose `run-on-hosts` has it, and the `services` and `stores` of its `roles`, as `<class>-<name>`, but for those without a principal";
     };
     reach = lib.mkOption {
       description = "each host's network on the first vpn it shares with this host, in the order of this host's vpns, or null";
@@ -138,6 +164,17 @@ in
           address4 = mkAddress4 config vpn;
           destination4 = vpn.address4;
           fqdn = "${config.name}.${vpn.namespace}";
+          principalCidr = "${vpn.prefix}:ffff:${config.ids.hex4}::/96";
+          principals = lib.genAttrs config.principals (
+            id:
+            let
+              entity = entityOf id;
+            in
+            {
+              address = "${vpn.prefix}:ffff:${config.ids.hex4}:${toString entity.principal.uid}:${entity.ids.hex4}";
+              fqdn = "${entity.name}-${config.name}.${vpn.namespace}";
+            }
+          );
         }
       ) org.vpn;
   };
