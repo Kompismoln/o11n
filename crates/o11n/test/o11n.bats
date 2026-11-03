@@ -312,7 +312,7 @@ setup() {
   fails "isn't the tls-cert's public key"
 
   run o11n secret generate service-testservice tls-cert
-  fails "a tls-cert is a domain's"
+  fails "tls-cert isn't one of service-testservice's keys"
 }
 
 @test "entities with hyphens in their name" {

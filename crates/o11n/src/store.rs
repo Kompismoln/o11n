@@ -48,10 +48,7 @@ impl Org {
     }
 
     pub fn domain(&self, id: &str) -> Result<Option<&str>, Error> {
-        let entity = self.entity(id)?;
-        Ok((entity.class == "service")
-            .then(|| entity.name.strip_prefix("domain-"))
-            .flatten())
+        Ok(self.entity(id)?.namespace.as_deref())
     }
 
     pub fn kind(&self, secret: Secret) -> Result<Kind, Error> {

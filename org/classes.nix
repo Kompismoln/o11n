@@ -30,7 +30,6 @@
       mail = "password";
       passwd = "password";
       secret-key = "passphrase";
-      tls-cert = "tls-cert";
       nix-sign = "nix-sign";
     };
   };

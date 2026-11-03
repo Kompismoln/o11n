@@ -31,7 +31,8 @@ let
 
   inherit (service) vpn;
   inherit (host.network.${vpn}.principals.service-archive) address fqdn;
-  domain = "domain-${org.vpn.${vpn}.namespace}";
+  inherit (org.vpn.${vpn}) namespace;
+  cert = org.certs.${namespace};
 in
 {
   assertions = [
@@ -64,14 +65,14 @@ in
       message = "The archive serves on ${toString (service.vpn or null)}, which ${host.name} isn't on: add it to ${host.name}'s vpns.";
     }
     {
-      assertion = service == null || service.vpn == null || org.service ? ${domain};
-      message = "The archive serves on ${fqdn} with the tls-cert of [service.${domain}], which the org doesn't declare.";
+      assertion = service == null || service.vpn == null || org.certs ? ${namespace};
+      message = "The archive serves on ${fqdn} with ${namespace}'s tls-cert, which no service holds: declare [service.domain-${namespace}].";
     }
   ];
 
-  # Duplication: as nixos/org/tls-certs.nix declares a domain's tls-cert.
-  sops.secrets."${domain}/tls-cert" = {
-    inherit (org.service.${domain}.secrets) sopsFile;
+  # Duplication: as nixos/org/tls-certs.nix declares a namespace's tls-cert.
+  sops.secrets."${cert.name}/tls-cert" = {
+    inherit (cert.secrets) sopsFile;
     owner = "root";
     group = "tls-cert";
     mode = "0440";
@@ -109,9 +110,9 @@ in
         "--group-accessible-repos"
         "--tls"
         "--tls-cert"
-        org.service.${domain}.publicKeys.tls-cert
+        cert.publicKeys.tls-cert
         "--tls-key"
-        config.sops.secrets."${domain}/tls-cert".path
+        config.sops.secrets."${cert.name}/tls-cert".path
       ];
       User = service.name;
       Group = store.name;

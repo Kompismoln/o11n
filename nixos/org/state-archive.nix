@@ -22,7 +22,7 @@ let
     {
       inherit vpn;
       inherit (org.host.${name}.network.${vpn}.principals.service-archive) fqdn;
-      cert = org.service."domain-${org.vpn.${vpn}.namespace}".publicKeys.tls-cert;
+      cert = org.certs.${org.vpn.${vpn}.namespace}.publicKeys.tls-cert;
     };
 
   archive = pkgs.writeShellApplication {
