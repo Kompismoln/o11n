@@ -196,6 +196,8 @@ record of disk layouts that applies to host
 
 unix path to device(s)
 
+<<<<<<< signed
+=======
 ### `host.<name>.disk-layouts.<name>.encrypted`
 
 `org/disk.nix` · boolean
@@ -204,6 +206,7 @@ Default: `true` but for the `single-xfs` and `raid1-xfs` layouts
 
 whether the layout encrypts the disk with the host's luks-key
 
+>>>>>>> @stamp
 ### `host.<name>.disk-layouts.<name>.layout`
 
 `org/disk.nix` · string
@@ -1166,8 +1169,12 @@ entity id in various formats
 `org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
 "luks", "passphrase")
 
+<<<<<<< signed
+Default: the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`
+=======
 Default: the `keys` `org/classes.nix` gives the entity's class, a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`
+>>>>>>> @stamp
 
 the entity's keys, each with its type: its class's, and those its configuration adds
 
