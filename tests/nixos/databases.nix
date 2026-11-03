@@ -36,10 +36,16 @@ let
           inherit org;
           host = {
             name = "web";
-            principals = [
-              "app-blog"
-              "app-chat"
-            ];
+            principals =
+              map
+                (name: {
+                  inherit name;
+                  handle = "app-${name}";
+                })
+                [
+                  "blog"
+                  "chat"
+                ];
           };
         };
         users = lib.mkMerge [

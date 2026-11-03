@@ -6,13 +6,6 @@
 }:
 let
   inherit (context) org;
-
-  entityOf =
-    id:
-    let
-      class = lib.head (lib.splitString "-" id);
-    in
-    org.${class}.${lib.removePrefix "${class}-" id};
 in
 {
   imports = [
@@ -73,23 +66,25 @@ in
       type = lib.types.listOf context.types.vpn.ref;
     };
     principals = lib.mkOption {
-      description = "the ids of the principals on the host: its users, the apps that run on it, and its roles' services and stores";
-      type = lib.types.listOf lib.types.str;
+      description = "the principals on the host: its users, the apps that run on it, and its roles' services and stores";
+      type = lib.types.listOf lib.types.raw;
       readOnly = true;
-      default = lib.filter (id: (entityOf id).principal != null) (
-        lib.unique (
-          map (user: "user-${user}") config.users
-          ++ map (app: "app-${app.name}") (
-            lib.filter (app: lib.elem config.name app.run-on-hosts) (lib.attrValues org.app)
+      default = lib.attrValues (
+        lib.filterAttrs (_: entity: entity.principal != null) (
+          lib.listToAttrs (
+            map (entity: lib.nameValuePair entity.handle entity) (
+              map (user: org.user.${user}) config.users
+              ++ lib.filter (app: lib.elem config.name app.run-on-hosts) (lib.attrValues org.app)
+              ++ lib.concatMap (
+                role:
+                map (service: org.service.${service}) org.role.${role}.services
+                ++ map (store: org.store.${store}) org.role.${role}.stores
+              ) config.roles
+            )
           )
-          ++ lib.concatMap (
-            role:
-            map (service: "service-${service}") org.role.${role}.services
-            ++ map (store: "store-${store}") org.role.${role}.stores
-          ) config.roles
         )
       );
-      defaultText = lib.literalMD "the host's `users`, the apps whose `run-on-hosts` has it, and the `services` and `stores` of its `roles`, as `<class>-<name>`, but for those without a principal";
+      defaultText = lib.literalMD "the host's `users`, the apps whose `run-on-hosts` has it, and the `services` and `stores` of its `roles`, but for those without a principal, in the order of their `handle`";
     };
     reach = lib.mkOption {
       description = "each host's network on the first vpn it shares with this host, in the order of this host's vpns, or null";
@@ -145,37 +140,27 @@ in
     rescueMode = lib.mkEnableOption "insecure rescue mode.";
   };
   config = {
-    network =
+    keys = lib.genAttrs' config.vpns (vpn: lib.nameValuePair org.vpn.${vpn}.key "wireguard");
+    network = lib.genAttrs config.vpns (
+      name:
       let
-        mkAddress = host: vpn: "${vpn.prefix}::${host.ids.hex4}";
-        mkAddress4 = host: vpn: "${vpn.prefix4}.${host.ids.str}";
+        vpn = org.vpn.${name};
+        member = vpn.members.${config.name};
       in
-      lib.mapAttrs (
-        _: vpn:
-        lib.mkDefault {
-          inherit (vpn) interface prefixLength prefixLength4;
-          mode = null;
-          dns = lib.concatMap (dnsHost: [
-            (mkAddress org.host.${dnsHost} vpn)
-            (mkAddress4 org.host.${dnsHost} vpn)
-          ]) vpn.dns;
-          address = mkAddress config vpn;
-          destination = vpn.address;
-          address4 = mkAddress4 config vpn;
-          destination4 = vpn.address4;
-          fqdn = "${config.name}.${vpn.namespace}";
-          principalCidr = "${vpn.prefix}:ffff:${config.ids.hex4}::/96";
-          principals = lib.genAttrs config.principals (
-            id:
-            let
-              entity = entityOf id;
-            in
-            {
-              address = "${vpn.prefix}:ffff:${config.ids.hex4}:${toString entity.principal.uid}:${entity.ids.hex4}";
-              fqdn = "${entity.name}-${config.name}.${vpn.namespace}";
-            }
-          );
-        }
-      ) org.vpn;
+      lib.mapAttrs (_: lib.mkDefault) {
+        inherit (vpn) interface prefixLength prefixLength4;
+        inherit (member) address address4 fqdn;
+        mode = null;
+        dns = lib.concatMap (dnsHost: [
+          vpn.members.${dnsHost}.address
+          vpn.members.${dnsHost}.address4
+        ]) vpn.dns;
+        destination = vpn.address;
+        destination4 = vpn.address4;
+        principals = lib.mapAttrs' (
+          _: principal: lib.nameValuePair principal.id { inherit (principal) address fqdn; }
+        ) (lib.filterAttrs (_: other: other.host == config.name && other.id != member.id) vpn.members);
+      }
+    );
   };
 }

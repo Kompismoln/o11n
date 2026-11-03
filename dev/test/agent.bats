@@ -123,6 +123,37 @@ started() {
   [[ $(cat "$BATS_TEST_TMPDIR/checked-path") == /dev-shell/bin:* ]]
 }
 
+unprovisioned() {
+  local dev
+  dev=$(command -v o11n-dev)
+  mkdir "$BATS_TEST_TMPDIR/dev-shell"
+  ln -s "$dev" "$BATS_TEST_TMPDIR/dev-shell/o11n-dev"
+  PATH=${PATH//"$(dirname "$dev"):"/}
+  stub "$BATS_TEST_TMPDIR/bin/nix" "echo '{\"variables\":{\"PATH\":{\"value\":\"$BATS_TEST_TMPDIR/dev-shell\"}}}'"
+  ! command -v o11n-dev
+}
+
+@test "session-start provisions a cloud session before it reads settings.toml with the o11n-dev that came with it" {
+  unprovisioned
+  CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+  [ "$(cat dev/state/session-start)" = fresh ]
+}
+
+@test "turn-end provisions a cloud session that isn't, then writes, commits and pushes" {
+  "$agent" turn-start </dev/null
+  unprovisioned
+  commit two doc.md
+
+  CLAUDE_CODE_REMOTE=true run "$agent" turn-end </dev/null
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+  [ -f dev/state/env ]
+  [ "$(git log -1 --format=%s)" = turn-end ]
+  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
+}
+
 @test "session-start probes the remote builder in the cloud, and tells of it only when it doesn't answer" {
   stub "$BATS_TEST_TMPDIR/bin/o11n" 'echo "o11n $*" >>"$BATS_TEST_TMPDIR/nix-remote.log"
 [[ -z ${BUILDER_FAILS:-} ]] || { echo "error: no answer" >&2; exit 1; }'

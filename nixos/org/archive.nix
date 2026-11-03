@@ -19,21 +19,13 @@ let
 
   # Policy: an entity archives once it has an archive-passwd, whose public key is its htpasswd entry, so that the
   # archive holds no secret of the entities it serves.
-  archiving =
-    lib.filter (entity: builtins.pathExists (entity.publicKeys.archive-passwd or "/nonexistent"))
-      (
-        lib.concatMap lib.attrValues [
-          org.host
-          org.user
-          org.service
-          org.app
-          org.store
-        ]
-      );
+  archiving = lib.filter (
+    entity: builtins.pathExists (entity.publicKeys.archive-passwd or "/nonexistent")
+  ) (lib.attrValues org.entities);
 
   htpasswd = pkgs.writeText "archive-htpasswd" (
     lib.concatMapStrings (
-      entity: "${entity.class}-${entity.name}:${builtins.readFile entity.publicKeys.archive-passwd}"
+      entity: "${entity.handle}:${builtins.readFile entity.publicKeys.archive-passwd}"
     ) archiving
   );
 

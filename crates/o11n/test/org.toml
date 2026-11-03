@@ -1,6 +1,7 @@
 name = "Testorg"
 endpoint = "example.com"
 prefix = "fd12:3456:7890"
+prefix4 = "10.0"
 timezone = "Europe/Stockholm"
 locale = "en_US.UTF-8"
 namespaces = [
@@ -42,7 +43,7 @@ root-identities = [
   "verify:mail",
 ]
 "host-*" = [
-  "verify:wg-key",
+  "verify:wg0-key",
 ]
 "service-*" = [
   "verify:ssh-key",
@@ -100,12 +101,33 @@ grants = [
 
 [store]
 
+[vpn.wg0]
+id = 0
+trusted = true
+gateway = "testhost"
+namespace = "local"
+dns = ["testhost"]
+
+[vpn.wg1]
+id = 1
+trusted = true
+gateway = "testhost"
+namespace = "local"
+dns = ["testhost"]
+
+[vpn.wg2]
+id = 2
+trusted = true
+gateway = "testhost"
+namespace = "local"
+dns = ["testhost"]
+
 [host.testhost]
 id = 1
 roles = ["testrole"]
 endpoint = "stationary.kompismoln.se"
 users = ["testuser"]
-vpns = []
+vpns = ["wg0", "wg1", "wg2"]
 system = "x86_64-linux"
 
 [host.lorem]
@@ -115,6 +137,6 @@ roles = [
   "lorem",
 ]
 users = ["testuser"]
-vpns = []
+vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "20.03"

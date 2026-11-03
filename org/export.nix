@@ -9,14 +9,6 @@ let
     path:
     builtins.unsafeDiscardStringContext (lib.removePrefix "${toString context.path}/" (toString path));
 
-  entities = lib.concatMap lib.attrValues [
-    config.host
-    config.user
-    config.service
-    config.app
-    config.store
-  ];
-
   stateful =
     entity: entity.principal != null && entity.id != null && entity.principal.home != "/var/empty";
 
@@ -29,6 +21,7 @@ let
         grants
         actors
         settings
+        keys
         ;
       publicKeys = lib.mapAttrs (_: relative) entity.publicKeys;
       secrets = {
@@ -41,7 +34,7 @@ let
       state = {
         inherit (entity.principal) home;
         hosts = map (host: host.name) (
-          lib.filter (host: lib.elem "${entity.class}-${entity.name}" host.principals) (
+          lib.filter (host: lib.any (principal: principal.handle == entity.handle) host.principals) (
             lib.attrValues config.host
           )
         );
@@ -63,6 +56,7 @@ let
     grants = [ ];
     actors = [ ];
     settings = { };
+    inherit (context.classes.root) keys;
     publicKeys.age-key = "public-keys/root-${name}-age-key.pub";
     secrets.identityFile = "keys/root-${name}";
   };
@@ -87,9 +81,7 @@ in
         lib.genAttrs' (lib.unique (
           map (lib.removePrefix "root-") config.root-identities ++ lib.attrNames config.root
         )) (name: lib.nameValuePair "root-${name}" (root name))
-        // lib.listToAttrs (
-          map (entity: lib.nameValuePair "${entity.class}-${entity.name}" (exported entity)) entities
-        );
+        // lib.mapAttrs (_: exported) config.entities;
     };
   };
 }

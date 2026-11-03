@@ -55,21 +55,15 @@ impl Org {
     }
 
     pub fn kind(&self, secret: Secret) -> Result<Kind, Error> {
-        let class = &self.entity(secret.id)?.class;
-        let keys = &self
-            .export
-            .classes
-            .get(class)
-            .ok_or_else(|| Error::new(format!("no class {class}")))?
-            .keys;
-        if !keys.iter().any(|key| key == secret.key) {
-            return Err(Error::new(format!(
-                "{} isn't one of {class}'s keys: {}",
+        let keys = &self.entity(secret.id)?.keys;
+        let kind = Kind::named(keys.get(secret.key).ok_or_else(|| {
+            Error::new(format!(
+                "{} isn't one of {}'s keys: {}",
                 secret.key,
-                keys.join(", ")
-            )));
-        }
-        let kind = Kind::of(secret.key)?;
+                secret.id,
+                keys.keys().map(String::as_str).collect::<Vec<_>>().join(", ")
+            ))
+        })?)?;
         if secret.slot != 0 && !kind.has_slots() {
             return Err(Error::new(format!("a {} has no slots", secret.key)));
         }

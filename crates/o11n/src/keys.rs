@@ -20,21 +20,22 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub fn of(key: &str) -> Result<Self, Error> {
-        Ok(match key {
-            "age-key" => Self::Age,
-            "ssh-key" => Self::Ssh,
-            "wg0-key" | "wg1-key" | "wg2-key" => Self::Wireguard,
+    // Dependency: org/entity.nix gives each key one of these types.
+    pub fn named(kind: &str) -> Result<Self, Error> {
+        Ok(match kind {
+            "age" => Self::Age,
+            "ssh" => Self::Ssh,
+            "wireguard" => Self::Wireguard,
             "nix-sign" => Self::NixSign,
             "tls-cert" => Self::TlsCert,
-            "passwd" | "mail" => Self::Password,
-            "archive-passwd" => Self::Htpasswd,
-            "luks-key" => Self::Passphrase { bytes: 12, slots: true },
-            "secret-key" | "restic-key" => Self::Passphrase {
+            "password" => Self::Password,
+            "htpasswd" => Self::Htpasswd,
+            "luks" => Self::Passphrase { bytes: 12, slots: true },
+            "passphrase" => Self::Passphrase {
                 bytes: 40,
                 slots: false,
             },
-            _ => return Err(Error::new(format!("{key} is no key o11n knows"))),
+            _ => return Err(Error::new(format!("{kind} is no type of key o11n knows"))),
         })
     }
 
@@ -222,8 +223,15 @@ mod tests {
 
     #[test]
     fn generated_secrets_have_public_keys_that_match() {
-        for key in ["age-key", "ssh-key", "wg0-key", "nix-sign", "tls-cert", "passwd"] {
-            let kind = Kind::of(key).unwrap();
+        for (key, kind) in [
+            ("age-key", "age"),
+            ("ssh-key", "ssh"),
+            ("wg0-key", "wireguard"),
+            ("nix-sign", "nix-sign"),
+            ("tls-cert", "tls-cert"),
+            ("passwd", "password"),
+        ] {
+            let kind = Kind::named(kind).unwrap();
             let secret = generate(kind, "service-domain-alice", Some("alice")).unwrap();
             validate(kind, key, &secret, Some("alice")).unwrap();
             let public = public(kind, key, &secret, Some("alice")).unwrap();
@@ -247,7 +255,7 @@ mod tests {
 
     #[test]
     fn passphrases_are_checked() {
-        let kind = Kind::of("luks-key").unwrap();
+        let kind = Kind::named("luks").unwrap();
         assert!(validate(kind, "luks-key", "abcdef\n", None).is_err());
         assert!(validate(kind, "luks-key", "abc", None).is_err());
         assert!(validate(kind, "luks-key", &generate(kind, "host-alice", None).unwrap(), None).is_ok());

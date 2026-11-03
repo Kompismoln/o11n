@@ -42,6 +42,7 @@
           )
         else
           "/var/empty";
+      defaultText = lib.literalMD "`/home/<name>` for a user and `/var/lib/<name>` for the rest, if it `hasHome`, or else `/var/empty`";
     };
     homeMode = lib.mkOption {
       description = "permissions of the principal's home";
@@ -51,6 +52,7 @@
     hasPasswd = lib.mkEnableOption "endow entity with a password" // {
       type = lib.types.bool;
       default = entity.class == "user";
+      defaultText = lib.literalMD "true for a user";
     };
     hasPublicKey = lib.mkEnableOption "endow entity with a cryptographic identity" // {
       type = lib.types.bool;
@@ -60,25 +62,29 @@
         "store"
         "app"
       ];
+      defaultText = lib.literalMD "true for a user, service, store or app";
     };
-    hasHome = lib.mkEnableOption "force bash shell for non-normal users" // {
+    hasHome = lib.mkEnableOption "endow entity with a home" // {
       type = lib.types.bool;
       default = builtins.elem entity.class [
         "user"
         "store"
         "app"
       ];
+      defaultText = lib.literalMD "true for a user, store or app";
     };
     hasBash = lib.mkEnableOption "force bash shell for non-normal users" // {
       type = lib.types.bool;
       default = entity.class == "user";
+      defaultText = lib.literalMD "true for a user";
     };
-    hasSFTP = lib.mkEnableOption "force bash shell for non-normal users" // {
+    hasSFTP = lib.mkEnableOption "restrict the entity's ssh logins to sftp" // {
       type = lib.types.bool;
       default = builtins.elem entity.class [
         "app"
         "store"
       ];
+      defaultText = lib.literalMD "true for an app or store";
     };
     archives = lib.mkOption {
       description = "the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive with a schedule has a timer";

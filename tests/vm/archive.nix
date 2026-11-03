@@ -40,6 +40,9 @@ in
 pkgs.testers.runNixOSTest {
   name = "o11n-archive";
 
+  imports = [ ./timeout.nix ];
+  globalTimeout = 180;
+
   node.specialArgs = { inherit org; };
 
   nodes = {
@@ -51,15 +54,15 @@ pkgs.testers.runNixOSTest {
         (principal org.store.archives)
       ];
       _module.args.host = org.host.web;
-      # Accommodating for the test's network, which has no wg0: eth1 takes web's addresses on it, and web its
-      # principals' block, as nixos/org/networking.nix has it.
+      # Accommodating for the test's network, which has no wg0: eth1 takes web's address on it, and web the
+      # archive's, as nixos/org/networking.nix has it.
       networking.interfaces.eth1.ipv6.addresses = [
         {
           inherit (web) address;
           prefixLength = 64;
         }
       ];
-      networking.localCommands = "ip -6 route replace local ${web.principalCidr} dev lo";
+      networking.localCommands = "ip -6 route replace local ${archive.address}/128 dev lo";
       networking.firewall.interfaces.eth1.allowedTCPPorts = [ 8000 ];
     };
 
@@ -78,7 +81,7 @@ pkgs.testers.runNixOSTest {
         fsType = "btrfs";
         autoFormat = true;
       };
-      # Accommodating for the test's network, which has no wg0: gw routes web's principals' block to web, as
+      # Accommodating for the test's network, which has no wg0: gw routes the archive's address to web, as
       # nixos/org/wireguard.nix has it, and resolves the archive as its DNS does.
       networking.interfaces.eth1.ipv6 = {
         addresses = [
@@ -89,8 +92,8 @@ pkgs.testers.runNixOSTest {
         ];
         routes = [
           {
-            address = lib.head (lib.splitString "/" web.principalCidr);
-            prefixLength = 96;
+            inherit (archive) address;
+            prefixLength = 128;
             via = web.address;
           }
         ];

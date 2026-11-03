@@ -22,7 +22,7 @@ pub struct Export {
 
 #[derive(Debug, Deserialize)]
 pub struct Class {
-    pub keys: Vec<String>,
+    pub keys: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +32,7 @@ pub struct Entity {
     pub name: String,
     pub grants: Vec<String>,
     pub actors: Vec<String>,
+    pub keys: BTreeMap<String, String>,
     pub public_keys: BTreeMap<String, String>,
     pub secrets: Secrets,
     #[serde(default)]

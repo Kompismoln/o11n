@@ -258,6 +258,17 @@ setup() {
   succeeds
 }
 
+@test "a host has a wireguard key for each of its vpns, and none for another" {
+  o11n identity create host-lorem
+
+  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key luks-key ssh-key wg0-key)" ]
+  [ "$(o11n keys host)" = "$(printf '%s\n' age-key luks-key ssh-key)" ]
+  run o11n secret generate host-lorem wg0-key
+  succeeds
+  run o11n secret generate host-lorem wg1-key
+  fails "wg1-key isn't one of host-lorem's keys: age-key, luks-key, ssh-key, wg0-key"
+}
+
 @test "a password's public key is its hash beside it" {
   o11n identity create user-testuser
 
@@ -322,13 +333,13 @@ setup() {
   run o11n secret generate service-domain-loca ssh-key
   fails "no entity service-domain-loca"
   run o11n secret generate root-1 ssh-key
-  fails "ssh-key isn't one of root's keys: age-key"
+  fails "ssh-key isn't one of root-1's keys: age-key"
   run o11n secret show user-testuser passwd
   fails "there's no user-testuser's passwd"
   run o11n secret show user-testuser age-key
   fails "an age-key is an identity"
   run o11n secret generate user-testuser foo-key
-  fails "foo-key isn't one of user's keys"
+  fails "foo-key isn't one of user-testuser's keys"
 }
 
 @test "migrate moves each age-key from its sops file to its identity file" {

@@ -133,6 +133,23 @@
       type = lib.types.attrsOf lib.types.anything;
       default = { };
     };
+    entities = lib.mkOption {
+      description = "every host, user, service, app and store, by its handle";
+      type = lib.types.lazyAttrsOf lib.types.raw;
+      readOnly = true;
+      default = lib.listToAttrs (
+        map (entity: lib.nameValuePair entity.handle entity) (
+          lib.concatMap lib.attrValues [
+            config.host
+            config.user
+            config.service
+            config.app
+            config.store
+          ]
+        )
+      );
+      defaultText = lib.literalMD "each of `host`, `user`, `service`, `app` and `store` by its `handle`";
+    };
     host = lib.mkOption {
       description = "record of all hosts";
       type = lib.types.attrsOf context.types.host.module;

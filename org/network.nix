@@ -91,13 +91,8 @@
       type = with lib.types; nullOr str;
       default = null;
     };
-    principalCidr = lib.mkOption {
-      description = "the block of the network's addresses that the host's principals have, which it routes to itself";
-      type = with lib.types; nullOr str;
-      default = null;
-    };
     principals = lib.mkOption {
-      description = "each principal's address and name in the network, on this host, by its id";
+      description = "the address and name of each principal that has one in the network on this host, by its id";
       type = lib.types.attrsOf (
         lib.types.submodule {
           options = {

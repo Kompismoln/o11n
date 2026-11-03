@@ -28,6 +28,9 @@ in
 pkgs.testers.runNixOSTest {
   name = "o11n-remote-eval";
 
+  imports = [ ./timeout.nix ];
+  globalTimeout = 180;
+
   node.specialArgs = { inherit org o11nInputs; };
 
   nodes.gw = {

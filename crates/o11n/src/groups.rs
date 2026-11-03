@@ -78,6 +78,7 @@ mod tests {
                 "grants": grants,
                 "actors": [],
                 "roles": roles,
+                "keys": {},
                 "publicKeys": {},
                 "secrets": {},
             })

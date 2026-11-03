@@ -26,19 +26,23 @@ fn default(entry: &Value, default: &str) -> Vec<String> {
     }
 }
 
-/// The part's index, as prettier formats it.
 fn rendered(part: &str, entries: &[Value]) -> Result<String, String> {
     let mut lines = vec![
         format!("# `{part}`"),
         String::new(),
         "Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` \
-         reads them, each by its place in `org.toml`."
+         reads them, each by its place in `org.toml`, or, for a module that is in several places, once as a type, \
+         `<file>`, by its place in that."
             .to_owned(),
-        String::new(),
-        "## Options".to_owned(),
     ];
+    let mut section = None;
     for entry in entries {
         let name = text(entry, "name").ok_or_else(|| format!("index: an entry of {part} without a name"))?;
+        let heading = text(entry, "section").unwrap_or("Options");
+        if section != Some(heading) {
+            lines.extend([String::new(), format!("## {heading}")]);
+            section = Some(heading);
+        }
         lines.extend([String::new(), format!("### `{name}`"), String::new()]);
         let files = entry
             .get("files")
@@ -82,9 +86,7 @@ fn rendered(part: &str, entries: &[Value]) -> Result<String, String> {
     Ok(formatted.trim_end_matches('\n').to_owned())
 }
 
-/// Writes `docs/index/<part>.md` for each part the index has entries for, and removes those of parts it has none
-/// for; with `check`, writes nothing and flags each that differs from what it would write, its stamps pending read as
-/// written now.
+// Policy: a doc's pending stamps read as written now, so that a stamp alone doesn't make it differ.
 pub fn index(check: bool) -> Result<Vec<String>, String> {
     let evaluated = Command::new("nix")
         .args(["eval", "--json", "--no-warn-dirty", ".#index"])

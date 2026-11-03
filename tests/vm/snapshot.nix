@@ -2,6 +2,9 @@
 pkgs.testers.runNixOSTest {
   name = "o11n-snapshot";
 
+  imports = [ ./timeout.nix ];
+  globalTimeout = 180;
+
   nodes.machine = {
     imports = [ ../../nixos/org/snapshot.nix ];
     virtualisation.emptyDiskImages = [

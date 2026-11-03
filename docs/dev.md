@@ -116,8 +116,8 @@ a key it doesn't know. `hand-over` checks once it has pushed, so it only tells.
   what the operator pushed, and checks what that moved it to as `[hooks.turn-start]` says.
 - `tool-end`, after each Bash command: once the agent has commits no remote has, does what `turn-end` does, so that the
   turn ends with all pushed, as the environment's own Stop hook, which runs beside `turn-end`, expects.
-- `turn-end`, as a turn ends: unless work was refused or the turn changed nothing, runs `dev/write.sh` with `STAMPED`
-  set to `o11n-dev base`, commits what that changed as `turn-end` and pushes.
+- `turn-end`, as a turn ends: unless work was refused or the turn changed nothing, provisions a cloud container that
+  isn't, runs `dev/write.sh` with `STAMPED` set to `o11n-dev base`, commits what that changed as `turn-end` and pushes.
 
 Run at request "hand over":
 

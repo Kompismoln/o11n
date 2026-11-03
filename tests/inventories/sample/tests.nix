@@ -39,7 +39,7 @@ in
     ];
   };
 
-  # Each side of wg0 holds the other's public key, as o11n wrote it.
+  # Policy: each side of wg0 holds the other's public key, as o11n wrote it.
   test_wg0_peers = {
     expr = onHosts (config: (wg0 config).wireguardPeers);
     expected = {
@@ -49,7 +49,7 @@ in
           AllowedIPs = [
             "fd12:3456:7890:0000::0002/128"
             "10.0.0.2/32"
-            "fd12:3456:7890:0000:ffff:0002::/96"
+            "fd12:3456:7890:0000:ffff:0002:2011:000b/128"
           ];
           PersistentKeepalive = 25;
         }
@@ -81,7 +81,7 @@ in
     };
   };
 
-  # Only the gateway listens, forwards and answers DNS for the vpn.
+  # Policy: only the gateway listens, forwards and answers DNS for the vpn.
   test_wg0_gateway = {
     expr = onHosts (config: {
       listenPort = (wg0 config).wireguardConfig.ListenPort or null;
@@ -105,15 +105,14 @@ in
     };
   };
 
-  # Each host, and each principal on each host, by its name.
+  # Policy: each host, and each service that serves on wg0 on each host it's on, by its name.
   test_wg0_dns_hints = {
-    expr = lib.filter (
-      line: builtins.match "hints\\['(gw|web|archive-web|admin-gw)\\.sample'].*" line != null
-    ) (lib.splitString "\n" gw.config.services.kresd.extraConfig);
+    expr = lib.filter (line: builtins.match "hints\\[.*" line != null) (
+      lib.splitString "\n" gw.config.services.kresd.extraConfig
+    );
     expected = [
       "hints['gw.sample'] = 'fd12:3456:7890:0000::0001'"
       "hints['gw.sample'] = '10.0.0.1'"
-      "hints['admin-gw.sample'] = 'fd12:3456:7890:0000:ffff:0001:1000:0000'"
       "hints['web.sample'] = 'fd12:3456:7890:0000::0002'"
       "hints['web.sample'] = '10.0.0.2'"
       "hints['archive-web.sample'] = 'fd12:3456:7890:0000:ffff:0002:2011:000b'"
@@ -128,7 +127,7 @@ in
     };
   };
 
-  # The host's users and its roles' services, with uids from their class and id.
+  # Policy: the host's users and its roles' services, with uids from their class and id.
   test_principal_uids = {
     expr = onHosts (
       config:
@@ -161,7 +160,7 @@ in
       };
   };
 
-  # Every secret a host needs, and the file in enc/ it is read from.
+  # Policy: every secret a host needs, and the file in enc/ it is read from.
   test_secrets = {
     expr = onHosts (config: lib.mapAttrs (_: secret: baseNameOf secret.sopsFile) config.sops.secrets);
     expected = {
@@ -186,7 +185,7 @@ in
     };
   };
 
-  # Only gw is in rescue mode.
+  # Policy: only gw is in rescue mode.
   test_rescue = {
     expr = onHosts (config: {
       passwordFile = lib.mapNullable baseNameOf config.users.users.root.hashedPasswordFile;
@@ -204,7 +203,7 @@ in
     };
   };
 
-  # gw is the mailserver host, so only web relays mail through msmtp.
+  # Policy: gw is the mailserver host, so only web relays mail through msmtp.
   test_sendmail = {
     expr = onHosts (config: config.programs.msmtp.enable);
     expected = {
@@ -224,7 +223,7 @@ in
     };
   };
 
-  # nix-build reaches the host's own daemon, and on gw, the build host, also build-system;
+  # Policy: nix-build reaches the host's own daemon, and on gw, the build host, also build-system;
   # nix-switch runs switch-system as root. Hosts substitute from gw, the substituter.
   test_deploy = {
     expr = onHosts (config: {
@@ -293,7 +292,7 @@ in
     };
   };
 
-  # Only gw has the remote-builder role: an untrusted relay to its nix-daemon, reached
+  # Policy: only gw has the remote-builder role: an untrusted relay to its nix-daemon, reached
   # through the tunnel, behind its nginx and the bearer from nix-remote's secret-key.
   test_remote_builder = {
     expr = onHosts (
@@ -357,7 +356,7 @@ in
     };
   };
 
-  # Without [repository], gw evaluates nothing, and one it can't fetch at a revision fails evaluation.
+  # Policy: without [repository], gw evaluates nothing, and one it can't fetch at a revision fails evaluation.
   test_remote_builder_repository = {
     expr =
       let
@@ -390,7 +389,7 @@ in
     };
   };
 
-  # web relays the daemon and evaluations to gw over wg0, with gw's endpoint as Host and as the
+  # Policy: web relays the daemon and evaluations to gw over wg0, with gw's endpoint as Host and as the
   # name its certificate is checked against.
   test_remote_builder_relay = {
     expr = onHosts (
@@ -421,7 +420,7 @@ in
     };
   };
 
-  # Nothing answers on the reverse tunnel's port, and its account is locked, until it's opened.
+  # Policy: nothing answers on the reverse tunnel's port, and its account is locked, until it's opened.
   test_reverse_tunnel = {
     expr = onHosts (config: {
       inherit (config.users.users.reverse-tunnel) hashedPassword hashedPasswordFile;
@@ -447,7 +446,7 @@ in
       };
   };
 
-  # Each stateful principal of a host's has state-snapshot@<id>, of its home where the host keeps it.
+  # Policy: each stateful principal of a host's has state-snapshot@<id>, of its home where the host keeps it.
   test_snapshots = {
     expr = onHosts (config: {
       snapshots = config.o11n.snapshots;
@@ -468,7 +467,7 @@ in
     };
   };
 
-  # admin archives to web from each host it's on, on its schedule, with the secrets of its own sops file.
+  # Policy: admin archives to web from each host it's on, on its schedule, with the secrets of its own sops file.
   test_state_archive = {
     expr = onHosts (config: {
       timer = config.systemd.timers."state-archive@user-admin:web".timerConfig.OnCalendar;
@@ -500,7 +499,7 @@ in
       };
   };
 
-  # rest-server, as the archive service, keeps each entity's repo in the archives store, at its address on wg0, and lets in
+  # Policy: rest-server, as the archive service, keeps each entity's repo in the archives store, at its address on wg0, and lets in
   # each entity with an archive-passwd as its htpasswd entry.
   test_archive =
     let
@@ -528,7 +527,7 @@ in
       };
     };
 
-  # The stick calls gw on its endpoint, trusts gw's host key and lets in the rescue key.
+  # Policy: the stick calls gw on its endpoint, trusts gw's host key and lets in the rescue key.
   test_rescue_usb =
     let
       config = evalNixosModule [

@@ -14,7 +14,11 @@ setup() {
          {"name": "host.<name>.uid", "type": "int", "default": "the block of its class", "prose": true,
           "description": null, "files": ["org/principal.nix"]},
          {"name": "vpn", "type": null, "default": "{\n  wg0 = { };\n}", "prose": false,
-          "description": null, "files": ["org/default.nix"]}],
+          "description": null, "files": ["org/default.nix"]},
+         {"name": "<entity>", "section": "Types", "type": null, "default": null, "prose": false,
+          "description": "had by `host.<name>`", "files": ["org/entity.nix"]},
+         {"name": "<entity>.grants", "section": "Types", "type": "list of string", "default": "[ ]", "prose": false,
+          "description": null, "files": ["org/entity.nix"]}],
  "tools": []}
 JSON
 }
@@ -33,6 +37,9 @@ docs/index/gone.md: removed" ]
   grep -qxF 'Default: the block of its class' docs/index/org.md
   grep -qxF '```nix' docs/index/org.md
   grep -qxF '  wg0 = { };' docs/index/org.md
+  [ "$(grep '^## ' docs/index/org.md)" = "## Options
+## Types" ]
+  grep -qxF '### `<entity>.grants`' docs/index/org.md
 
   run o11n-dev index check
   [ "$status" -eq 0 ]

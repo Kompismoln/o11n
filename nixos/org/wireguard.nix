@@ -21,6 +21,14 @@ let
       && (peer.name == vpn.gateway || host.name == vpn.gateway)
     ) (lib.attrValues org.host);
 
+  # Policy: the host first, then its principals by name.
+  onHost =
+    vpn: peer:
+    [ vpn.members.${peer.name} ]
+    ++ lib.attrValues (
+      lib.filterAttrs (name: member: member.host == peer.name && name != peer.name) vpn.members
+    );
+
   isGateway = lib.any (vpn: host.name == vpn.gateway) vpns;
   dnsFor = lib.filter (vpn: lib.elem host.name vpn.dns) vpns;
   proxyFor = lib.filter (vpn: host.name == vpn.gateway && vpn.proxy) vpns;
@@ -40,14 +48,20 @@ in
       ${lib.concatStringsSep "\n" (
         builtins.concatMap (
           vpn:
-          map (peer: ''
-            hints['${peer.network.${vpn.name}.fqdn}'] = '${peer.network.${vpn.name}.address}'
-            hints['${peer.network.${vpn.name}.fqdn}'] = '${peer.network.${vpn.name}.address4}'
-            ${lib.concatStrings (
-              lib.mapAttrsToList (
-                _: principal: "hints['${principal.fqdn}'] = '${principal.address}'\n"
-              ) peer.network.${vpn.name}.principals
-            )}'') (peers vpn)
+          map (
+            peer:
+            lib.concatStrings (
+              map (
+                member:
+                lib.concatMapStrings (address: "hints['${member.fqdn}'] = '${address}'\n") (
+                  lib.filter (address: address != null) [
+                    member.address
+                    member.address4
+                  ]
+                )
+              ) (onHost vpn peer)
+            )
+          ) (peers vpn)
         ) dnsFor
       )}
     '';
@@ -95,14 +109,25 @@ in
     };
   };
 
+  assertions = lib.concatMap (vpn: [
+    {
+      assertion = lib.all (other: lib.elem vpn.name org.host.${other}.vpns) ([ vpn.gateway ] ++ vpn.dns);
+      message = "vpn.${vpn.name}'s gateway and dns are hosts on it: add ${vpn.name} to the vpns of ${
+        lib.concatStringsSep ", " (
+          lib.filter (other: !lib.elem vpn.name org.host.${other}.vpns) ([ vpn.gateway ] ++ vpn.dns)
+        )
+      }.";
+    }
+  ]) vpns;
+
   sops.secrets = lib.listToAttrs (
     map (
-      interface:
-      lib.nameValuePair "${interface}-key" {
+      vpn:
+      lib.nameValuePair vpn.key {
         owner = "systemd-network";
         group = "systemd-network";
       }
-    ) host.vpns
+    ) vpns
   );
 
   boot.kernel.sysctl = lib.mkIf isGateway {
@@ -121,14 +146,14 @@ in
           Name = vpn.interface;
         };
         wireguardConfig = {
-          PrivateKeyFile = config.sops.secrets."${vpn.interface}-key".path;
+          PrivateKeyFile = config.sops.secrets.${vpn.key}.path;
           ListenPort = lib.mkIf (host.name == vpn.gateway) vpn.port;
         };
         wireguardPeers = map (
           peer:
           let
             base = {
-              PublicKey = builtins.readFile peer.publicKeys.${"${vpn.interface}-key"};
+              PublicKey = builtins.readFile peer.publicKeys.${vpn.key};
               AllowedIPs =
                 if peer.name == vpn.gateway then
                   [
@@ -137,11 +162,12 @@ in
                   ]
                   ++ (lib.optionals vpn.proxy [ "::/0" ])
                 else
-                  [
-                    "${peer.network.${vpn.name}.address}/128"
-                    "${peer.network.${vpn.name}.address4}/32"
-                    peer.network.${vpn.name}.principalCidr
-                  ];
+                  lib.concatLists (
+                    map (
+                      member:
+                      [ "${member.address}/128" ] ++ lib.optional (member.address4 != null) "${member.address4}/32"
+                    ) (onHost vpn peer)
+                  );
             };
             serverConfig = {
               Endpoint = "${peer.endpoint}:${toString vpn.port}";

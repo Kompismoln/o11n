@@ -13,8 +13,8 @@ let
   # Policy: a dump is part of its owner's snapshot, which the owner's archive takes.
   snapshotOf =
     user:
-    map (id: "state-snapshot@${id}.service") (
-      lib.filter (id: lib.removePrefix "${lib.head (lib.splitString "-" id)}-" id == user) host.principals
+    map (entity: "state-snapshot@${entity.handle}.service") (
+      lib.filter (entity: entity.name == user) host.principals
     );
 
   dumpOpts =

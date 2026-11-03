@@ -22,6 +22,9 @@ in
 pkgs.testers.runNixOSTest {
   name = "o11n-containers";
 
+  imports = [ ./timeout.nix ];
+  globalTimeout = 450;
+
   node.specialArgs = {
     org = {
       postgres = "17";

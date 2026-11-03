@@ -50,8 +50,8 @@ enum Command {
         #[arg(default_value = "*")]
         groups: Vec<String>,
     },
-    /// The keys an entity of the class has.
-    Keys { class: String },
+    /// The keys of the entity, or those every entity of the class has.
+    Keys { of: String },
     /// The members of the entity's grants.
     Grants { id: String },
     /// The entities that decrypt the entity's sops file.
@@ -359,12 +359,17 @@ fn query(org: &Export, json: &str, command: Command) -> Result<(), Error> {
         Command::Get { path } => get(json, &path)?,
         Command::Search { text } => lines(org.entities.keys().filter(|id| id.contains(&text))),
         Command::Entities { groups } => lines(org.expand(groups.iter().map(String::as_str))?),
-        Command::Keys { class } => {
-            let class = org
-                .classes
-                .get(&class)
-                .ok_or_else(|| Error::new(format!("no class {class}")))?;
-            lines(&class.keys);
+        Command::Keys { of } => {
+            let keys = match org.entities.get(&of) {
+                Some(entity) => &entity.keys,
+                None => {
+                    &org.classes
+                        .get(&of)
+                        .ok_or_else(|| Error::new(format!("no entity or class {of}")))?
+                        .keys
+                }
+            };
+            lines(keys.keys());
         }
         Command::Grants { id } => lines(org.expand(org.entity(&id)?.grants.iter().map(String::as_str))?),
         Command::Recipients { id } => lines(org.recipients(&id)?),

@@ -1,56 +1,55 @@
 {
   root = {
-    keys = [ "age-key" ];
+    keys = {
+      age-key = "age";
+    };
   };
   host = {
     block = 0;
-    keys = [
-      "age-key"
-      "ssh-key"
-      "wg0-key"
-      "wg1-key"
-      "wg2-key"
-      "luks-key"
-    ];
+    keys = {
+      age-key = "age";
+      ssh-key = "ssh";
+      luks-key = "luks";
+    };
   };
   user = {
     block = 1000;
-    keys = [
-      "age-key"
-      "ssh-key"
-      "mail"
-      "passwd"
-      "restic-key"
-      "archive-passwd"
-    ];
+    keys = {
+      age-key = "age";
+      ssh-key = "ssh";
+      mail = "password";
+      passwd = "password";
+      restic-key = "passphrase";
+      archive-passwd = "htpasswd";
+    };
   };
   service = {
     block = 2000;
-    keys = [
-      "age-key"
-      "ssh-key"
-      "mail"
-      "passwd"
-      "secret-key"
-      "tls-cert"
-      "nix-sign"
-    ];
+    keys = {
+      age-key = "age";
+      ssh-key = "ssh";
+      mail = "password";
+      passwd = "password";
+      secret-key = "passphrase";
+      tls-cert = "tls-cert";
+      nix-sign = "nix-sign";
+    };
   };
   app = {
     block = 3000;
-    keys = [
-      "age-key"
-      "ssh-key"
-      "secret-key"
-      "restic-key"
-      "archive-passwd"
-    ];
+    keys = {
+      age-key = "age";
+      ssh-key = "ssh";
+      secret-key = "passphrase";
+      restic-key = "passphrase";
+      archive-passwd = "htpasswd";
+    };
   };
   store = {
     block = 4000;
-    keys = [
-      "age-key"
-      "ssh-key"
-    ];
+    keys = {
+      age-key = "age";
+      ssh-key = "ssh";
+    };
   };
 }

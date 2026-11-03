@@ -76,6 +76,9 @@ in
 pkgs.testers.runNixOSTest {
   name = "o11n-deploy";
 
+  imports = [ ./timeout.nix ];
+  globalTimeout = 450;
+
   node.specialArgs = {
     inherit org o11nInputs;
     inherit (outputs.context) inputs;

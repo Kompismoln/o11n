@@ -4,7 +4,6 @@
   lib,
   pkgs,
   host,
-  org,
   ...
 }:
 let
@@ -12,18 +11,7 @@ let
   entities =
     lib.concatMap
       (
-        class:
-        lib.sortOn (entity: entity.name) (
-          lib.filter (entity: entity.class == class) (
-            map (
-              id:
-              let
-                entityClass = lib.head (lib.splitString "-" id);
-              in
-              org.${entityClass}.${lib.removePrefix "${entityClass}-" id}
-            ) host.principals
-          )
-        )
+        class: lib.sortOn (entity: entity.name) (lib.filter (entity: entity.class == class) host.principals)
       )
       [
         "user"
@@ -93,10 +81,7 @@ in
 
   o11n.snapshots = lib.listToAttrs (
     map (
-      entity:
-      lib.nameValuePair "${entity.class}-${entity.name}" (
-        config.o11n.preserve.onStorage entity.principal.home
-      )
+      entity: lib.nameValuePair entity.handle (config.o11n.preserve.onStorage entity.principal.home)
     ) (builtins.filter (entity: entity.principal.home != "/var/empty") entities)
   );
 

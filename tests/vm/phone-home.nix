@@ -34,6 +34,9 @@ in
 pkgs.testers.runNixOSTest {
   name = "o11n-phone-home";
 
+  imports = [ ./timeout.nix ];
+  globalTimeout = 180;
+
   node.specialArgs = { inherit org; };
 
   nodes = {

@@ -9,11 +9,9 @@ set -euo pipefail
 
 USAGE="usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over | fetch-inputs [flake.lock] | lix-daemon <dir>"
 
-# Fetches each github: and gitlab: input the lock locks over git, at the locked revision, and prints
-# its store path. That is the path nix's github: or gitlab: fetcher would make, so nix finds the
-# input there instead of downloading the forge's archive, which a session's network refuses or
-# rate-limits. An input it can't fetch, a private one say, it reports with nix's error and fails
-# for, once it has tried the rest.
+# Accommodating for a session's network, which refuses or rate-limits the forges' archives: an input
+# fetched over git at its locked revision lands at the path nix's github: or gitlab: fetcher would
+# make, so nix finds it there.
 fetch-inputs() {
     local refs ref json log failed=0
     refs=$(
@@ -38,10 +36,6 @@ fetch-inputs() {
     return "$failed"
 }
 
-# Starts o11n's Lix daemon in the background as the remote builder runs it, on a store of its own in
-# <dir>/root and for untrusted clients, prints its store URL, unix://<dir>/socket, and leaves its PID
-# in <dir>/pid and its log in <dir>/log. NIX_CONFIG adds to its settings.
-#
 # Accommodating for the session: Lix's daemon listens on /nix/var/nix/daemon-socket/socket unless
 # told otherwise, where the session's own nix, with store = auto, would take it for its daemon; and
 # Lix gives fixed-output fetches their network through pasta, which can't start here.
@@ -125,17 +119,17 @@ if [[ -z ${O11N_ROOT:-} && -f crates/o11n-dev/Cargo.toml ]]; then
 fi
 
 # Policy: what settings.toml has each hook refuse work for and tell of is read where errexit holds,
-# so that a settings.toml or an o11n-dev amiss stops the hook rather than have it check nothing.
+# so that a settings.toml or an o11n-dev amiss stops the hook rather than have it check nothing, and
+# once the session is provisioned, as o11n-dev comes with that.
 declare -A REFUSES TELLS
-case $command in
-session-start | turn-start | hand-over)
+configure() {
+    local hook
     for hook in session-start turn-start; do
         REFUSES[$hook]="$(o11n-dev hook "$hook" refuse)"
         TELLS[$hook]="$(o11n-dev hook "$hook" tell)"
     done
     TELLS[hand-over]="$(o11n-dev hook hand-over tell)"
-    ;;
-esac
+}
 
 field() {
     [[ -n $event ]] || return 0
@@ -151,6 +145,7 @@ session-start() {
     if remote && ! provisioned; then
         state+=(unprovisioned refused)
     else
+        configure
         builder-probed
         if [[ ${state[*]} == fresh ]] && ! session-checked; then
             state+=(refused)
@@ -175,14 +170,16 @@ session-checked() {
 # Accommodating for bash, which ignores errexit wherever a status is tested: provisioning runs as a
 # process of its own, so that it still stops at its first failure.
 provisioned() {
-    if said="$(bash "${BASH_SOURCE[0]}" provision 2>&1)"; then
-        # shellcheck source=/dev/null
-        . "$ENV"
-        return
-    fi
+    provisions && return
     refuse "a container that fails to provision" details
     echo "$said"
     return 1
+}
+
+provisions() {
+    said="$(bash "${BASH_SOURCE[0]}" provision 2>&1)" || return
+    # shellcheck source=/dev/null
+    . "$ENV"
 }
 
 # Accommodating for a session's network, which refuses GitHub's archives: the github: inputs are
@@ -211,6 +208,7 @@ turn-start() {
         rm -f "$STARTED"
     fi
     [[ " ${state[*]} " != *" refused "* ]] || refused=refused
+    [[ " ${state[*]} " == *" unprovisioned "* ]] || configure
     was="$(git rev-parse HEAD)"
     if ! remote || [[ " ${state[*]} " == *" unprovisioned "* ]]; then
         :
@@ -332,7 +330,6 @@ checked() {
     ((${#failed[@]})) || failed=("$@")
 }
 
-# Says what each stage that failed said, from its log, or all check.sh said where none has one.
 sections() {
     local stage logged=0
     for stage in "${failed[@]}"; do
@@ -375,6 +372,9 @@ turn-end() {
     [[ ! -e $REFUSED ]] || return 0
     if [[ -f $TURN && $(git rev-parse HEAD) == "$(cat "$TURN")" && -z $(git status --porcelain) ]]; then
         return 0
+    fi
+    if remote && [[ ! -f $ENV ]]; then
+        provisions || ended "turn-end provisions the session, which fails, as below: see to it, and commit and push the branch." "$said"
     fi
     start="$(o11n-dev base 2>&1)" || ended "turn-end finds ${start#o11n-dev: }."
     before="$(tree)"
@@ -422,6 +422,7 @@ hand-over() {
         echo "hand-over finds ${start#o11n-dev: }."
         return
     fi
+    configure
     if ! step env STAMPED="$start" dev/write.sh; then
         printf '%s\n' "$stepped fails, as below: $again" "$said"
         return

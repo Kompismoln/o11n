@@ -106,6 +106,84 @@
       type = lib.types.bool;
       default = true;
     };
+    key = lib.mkOption {
+      description = "the key each host on the vpn has for it, its wireguard key";
+      type = lib.types.str;
+      readOnly = true;
+      default = "${config.name}-key";
+      defaultText = lib.literalExpression ''"''${name}-key"'';
+    };
+    members = lib.mkOption {
+      description = "what has an address in the vpn, by its name there: each host on it, and each service that serves on it, on each of those hosts it's on";
+      readOnly = true;
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            id = lib.mkOption {
+              description = "the member's entity";
+              type = lib.types.str;
+            };
+            host = lib.mkOption {
+              description = "the host the member is on, whose wireguard key carries its traffic";
+              type = lib.types.str;
+            };
+            address = lib.mkOption {
+              description = "the member's ipv6 address";
+              type = lib.types.str;
+            };
+            address4 = lib.mkOption {
+              description = "the member's ipv4 address, which only a host has";
+              type = lib.types.nullOr lib.types.str;
+            };
+            fqdn = lib.mkOption {
+              description = "the member's name";
+              type = lib.types.str;
+            };
+            key = lib.mkOption {
+              description = "the member's own wireguard key, which only a host has";
+              type = lib.types.nullOr lib.types.str;
+            };
+          };
+        }
+      );
+      default =
+        let
+          hosts = lib.filter (host: lib.elem config.name host.vpns) (lib.attrValues context.org.host);
+          services = lib.filter (service: service.vpn == config.name && service.principal != null) (
+            lib.attrValues context.org.service
+          );
+        in
+        lib.listToAttrs (
+          map (host: {
+            inherit (host) name;
+            value = {
+              id = host.handle;
+              host = host.name;
+              address = "${config.prefix}::${host.ids.hex4}";
+              address4 = "${config.prefix4}.${host.ids.str}";
+              fqdn = "${host.name}.${config.namespace}";
+              inherit (config) key;
+            };
+          }) hosts
+          ++ lib.concatMap (
+            service:
+            map
+              (host: {
+                name = "${service.name}-${host.name}";
+                value = {
+                  id = service.handle;
+                  host = host.name;
+                  address = "${config.prefix}:ffff:${host.ids.hex4}:${toString service.principal.uid}:${service.ids.hex4}";
+                  address4 = null;
+                  fqdn = "${service.name}-${host.name}.${config.namespace}";
+                  key = null;
+                };
+              })
+              (lib.filter (host: lib.any (principal: principal.handle == service.handle) host.principals) hosts)
+          ) services
+        );
+      defaultText = lib.literalMD "each host whose `vpns` has the vpn, at `<prefix>::<host id>` and `<prefix4>.<host id>` as `<host>.<namespace>`, and each service whose `vpn` it is, on each of those hosts it's on, at `<prefix>:ffff:<host id>:<uid>:<id>` as `<service>-<host>.<namespace>`";
+    };
     allowedTCPPorts = lib.mkOption {
       description = "force all peers to allow these tcp ports in the vpn";
       default = [ ];

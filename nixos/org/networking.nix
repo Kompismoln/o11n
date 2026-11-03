@@ -65,8 +65,10 @@ in
     localCommands = ''
       ip -6 route replace local ${org.loCidr} dev lo
       ${lib.concatMapStrings (
-        vpn: "ip -6 route replace local ${host.network.${vpn}.principalCidr} dev lo
-"
+        vpn:
+        lib.concatMapStrings (principal: "ip -6 route replace local ${principal.address}/128 dev lo\n") (
+          lib.attrValues host.network.${vpn}.principals
+        )
       ) host.vpns}'';
     useNetworkd = true;
     useDHCP = false;

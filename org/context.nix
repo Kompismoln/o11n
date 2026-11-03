@@ -25,13 +25,19 @@
     };
     types = lib.mkOption {
       description = "org types";
-      type = lib.types.attrsOf lib.types.anything;
+      type = lib.types.lazyAttrsOf lib.types.raw;
       default = import ./types.nix lib config;
     };
     classes = lib.mkOption {
       description = "entity classes";
-      type = lib.types.attrsOf lib.types.anything;
+      type = lib.types.lazyAttrsOf lib.types.raw;
       default = import ./classes.nix;
+      # Policy: an entity's handle, <class>-<name>, names one entity only while no class has a hyphen.
+      apply =
+        classes:
+        lib.throwIf (lib.any (lib.hasInfix "-") (lib.attrNames classes))
+          "org/classes.nix: a class's name has a hyphen, which makes <class>-<name> handles ambiguous: ${lib.concatStringsSep ", " (lib.filter (lib.hasInfix "-") (lib.attrNames classes))}"
+          classes;
     };
     org = lib.mkOption {
       description = "org";

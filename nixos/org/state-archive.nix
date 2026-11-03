@@ -11,16 +11,7 @@ let
   # Dependency: nixos/org/archive.nix serves at this port.
   port = 8000;
 
-  entityOf =
-    id:
-    let
-      class = lib.head (lib.splitString "-" id);
-    in
-    org.${class}.${lib.removePrefix "${class}-" id};
-
-  archiving = lib.filter (entity: entity.principal.archives != { }) (map entityOf host.principals);
-
-  idOf = entity: "${entity.class}-${entity.name}";
+  archiving = lib.filter (entity: entity.principal.archives != { }) host.principals;
 
   # Dependency: nixos/org/archive.nix serves at the archive service's address on its vpn.
   server =
@@ -81,14 +72,14 @@ let
     '';
   };
 
-  unitName = entity: archiveHost: "state-archive@${idOf entity}:${archiveHost}";
+  unitName = entity: archiveHost: "state-archive@${entity.handle}:${archiveHost}";
 in
 {
   config = lib.mkIf (archiving != [ ]) {
     assertions = lib.concatMap (
       entity:
       let
-        id = idOf entity;
+        id = entity.handle;
       in
       [
         {
@@ -147,14 +138,14 @@ in
         lib.mapAttrsToList (
           name: _:
           lib.nameValuePair (unitName entity name) {
-            description = "archive ${idOf entity}'s state to ${name}";
+            description = "archive ${entity.handle}'s state to ${name}";
             environment = {
-              ID = idOf entity;
+              ID = entity.handle;
               STATE_HOME = entity.principal.home;
               ARCHIVE_PASSWD_FILE = config.sops.secrets."${entity.name}/archive-passwd".path;
               RESTIC_PASSWORD_FILE = config.sops.secrets."${entity.name}/restic-key".path;
-              RESTIC_REPOSITORY = "rest:https://${(server name).fqdn}:${toString port}/${idOf entity}/";
-              RESTIC_REST_USERNAME = idOf entity;
+              RESTIC_REPOSITORY = "rest:https://${(server name).fqdn}:${toString port}/${entity.handle}/";
+              RESTIC_REST_USERNAME = entity.handle;
               RESTIC_CACERT = toString (server name).cert;
               RESTIC_CACHE_DIR = "/var/cache/restic";
             };

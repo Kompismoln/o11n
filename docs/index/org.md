@@ -1,23 +1,16 @@
 # `org`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
-them, each by its place in `org.toml`.
+them, each by its place in `org.toml`, or, for a module that is in several places, once as a type, `<file>`, by its
+place in that.
 
 ## Options
 
 ### `app`
 
-`org/default.nix` · attribute set of (submodule)
+`org/default.nix` · attribute set of (`<entity>` and its own options)
 
 record of all apps
-
-### `app.<name>.actors`
-
-`org/entity.nix` · list of (one of "root-0", "root-1")
-
-Default: `[ ]`
-
-the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
 
 ### `app.<name>.altpoints`
 
@@ -26,12 +19,6 @@ the users and root identities that may act as the entity: its identity is encryp
 Default: `[ ]`
 
 alternative access points that should be redirected to endpoint
-
-### `app.<name>.class`
-
-`org/entity.nix` · one of "app", "host", "root", "service", "store", "user"
-
-entity class
 
 ### `app.<name>.configurationFile`
 
@@ -49,97 +36,11 @@ Default: `"‹name›"`
 
 app's database
 
-### `app.<name>.description`
-
-`org/entity.nix` · string
-
-Default: `"[app] ‹name›"`
-
-full name or short purpose description
-
-### `app.<name>.dump`
-
-`org/app.nix` · null or string
-
-Default: `null`
-
-when to dump the app's database, as a systemd calendar event
-
 ### `app.<name>.endpoint`
 
 `org/app.nix` · string
 
 canonical name on internet
-
-### `app.<name>.grants`
-
-`org/entity.nix` · list of string
-
-Default: `[ ]`
-
-entity groups whose members get to decrypt the entity's secrets
-
-### `app.<name>.id`
-
-`org/entity.nix` · null or signed integer
-
-Default: `null`
-
-numeric internal id used to seed other id's
-
-### `app.<name>.ids`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-entity id in various formats
-
-### `app.<name>.ids.hex`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{1,4}$
-
-Default: `lib.toLower (lib.toHexString int)`
-
-id as hex
-
-### `app.<name>.ids.hex32`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{32}$
-
-Default: `lib.fixedWidthString 32 "0" hex`
-
-id as hex with fixed length 32
-
-### `app.<name>.ids.hex4`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{4}$
-
-Default: `lib.fixedWidthString 4 "0" hex`
-
-id as hex with fixed length 4
-
-### `app.<name>.ids.hex8`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{8}$
-
-Default: `lib.fixedWidthString 8 "0" hex`
-
-id as hex with fixed length 8
-
-### `app.<name>.ids.int`
-
-`org/ids.nix` · signed integer
-
-id
-
-### `app.<name>.ids.str`
-
-`org/ids.nix` · string
-
-Default: `toString int`
-
-id as string
 
 ### `app.<name>.location`
 
@@ -148,182 +49,6 @@ id as string
 Default: `"/"`
 
 canonical path
-
-### `app.<name>.name`
-
-`org/entity.nix` · string
-
-Default: `"‹name›"`
-
-name
-
-### `app.<name>.principal`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-optional attached principal
-
-### `app.<name>.principal.archives`
-
-`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
-
-Default: `{ }`
-
-the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
-with a schedule has a timer
-
-### `app.<name>.principal.archives.<name>.schedule`
-
-`org/principal.nix` · null or string
-
-Default: `null`
-
-when to archive, as a systemd calendar event, or null to archive only when asked
-
-### `app.<name>.principal.bindAddress`
-
-`org/principal.nix` · string matching the pattern
-^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:(:[0-9a-f]{1,4}){1,3}$
-
-Default: `"${org.loPrefix}::${toString uid}:${ids.hex4}"`
-
-unique ipv6 loopback address for entity to bind to
-
-### `app.<name>.principal.gid`
-
-`org/principal.nix` · signed integer
-
-Default: `uid`
-
-posix group id
-
-### `app.<name>.principal.groups`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-principal's extra groups
-
-### `app.<name>.principal.hasBash`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `app.<name>.principal.hasHome`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable force bash shell for non-normal users.
-
-### `app.<name>.principal.hasPasswd`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable endow entity with a password.
-
-### `app.<name>.principal.hasPublicKey`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable endow entity with a cryptographic identity.
-
-### `app.<name>.principal.hasSFTP`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable force bash shell for non-normal users.
-
-### `app.<name>.principal.home`
-
-`org/principal.nix` · string
-
-Default: `"/var/lib/‹name›"`
-
-endow entity with /home (for users) or /var/lib (for non-users)
-
-### `app.<name>.principal.homeMode`
-
-`org/principal.nix` · string
-
-Default: `"0750"`
-
-permissions of the principal's home
-
-### `app.<name>.principal.members`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-members of the principal's groups
-
-### `app.<name>.principal.uid`
-
-`org/principal.nix` · signed integer
-
-Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
-
-posix user id
-
-### `app.<name>.publicKeys`
-
-`org/entity.nix` · submodule
-
-paths to the entity's public keys, one for each key its class has
-
-### `app.<name>.publicKeys.age-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/app-‹name›-age-key.pub"`
-
-age-key path for app ‹name›
-
-### `app.<name>.publicKeys.archive-passwd`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/app-‹name›-archive-passwd.htpasswd"`
-
-archive-passwd path for app ‹name›
-
-### `app.<name>.publicKeys.restic-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/app-‹name›-restic-key.pub"`
-
-restic-key path for app ‹name›
-
-### `app.<name>.publicKeys.secret-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/app-‹name›-secret-key.pub"`
-
-secret-key path for app ‹name›
-
-### `app.<name>.publicKeys.ssh-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/app-‹name›-ssh-key.pub"`
-
-ssh-key path for app ‹name›
 
 ### `app.<name>.run-on-hosts`
 
@@ -340,44 +65,6 @@ hosts that this app should run on
 Default: `"https"`
 
 http or https
-
-### `app.<name>.secrets`
-
-`org/entity.nix` · submodule
-
-where the entity's secrets are, and the key that decrypts them
-
-### `app.<name>.secrets.decryptionKey`
-
-`org/secrets.nix` · string
-
-Default: `"/keys/app-‹name›"`
-
-path on the host to the age key that decrypts the entity's secrets
-
-### `app.<name>.secrets.identityFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/app-‹name›.age"`
-
-the entity's age key, encrypted to itself, its actors and the root identities
-
-### `app.<name>.secrets.sopsFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/app-‹name›.yaml"`
-
-sops file holding the entity's secrets
-
-### `app.<name>.settings`
-
-`org/entity.nix` · attribute set of anything
-
-Default: `{ }`
-
-entity-specific options, passed through as-is to the entity's configuration
 
 ### `app.<name>.ssl`
 
@@ -441,6 +128,14 @@ domain name
 
 canonical name on internet
 
+### `entities`
+
+`org/default.nix` · lazy attribute set of raw value
+
+Default: each of `host`, `user`, `service`, `app` and `store` by its `handle`
+
+every host, user, service, app and store, by its handle
+
 ### `flake`
 
 `org/default.nix` · attribute set of string
@@ -451,17 +146,9 @@ flake that the hosts' nix registry calls o11n
 
 ### `host`
 
-`org/default.nix` · attribute set of (submodule)
+`org/default.nix` · attribute set of (`<entity>` and its own options)
 
 record of all hosts
-
-### `host.<name>.actors`
-
-`org/entity.nix` · list of (one of "root-0", "root-1")
-
-Default: `[ ]`
-
-the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
 
 ### `host.<name>.boot`
 
@@ -471,12 +158,6 @@ Default: `"systemd"`
 
 boot method
 
-### `host.<name>.class`
-
-`org/entity.nix` · one of "app", "host", "root", "service", "store", "user"
-
-entity class
-
 ### `host.<name>.configurationFile`
 
 `org/host.nix` · absolute path
@@ -484,14 +165,6 @@ entity class
 Default: `"<org>/hosts/‹name›/configuration.nix"`
 
 path to specific configuration
-
-### `host.<name>.description`
-
-`org/entity.nix` · string
-
-Default: `"[host] ‹name›"`
-
-full name or short purpose description
 
 ### `host.<name>.desktop`
 
@@ -561,14 +234,6 @@ Default: `"<org>/hosts/‹name›/facter.json"`
 
 facter report path
 
-### `host.<name>.grants`
-
-`org/entity.nix` · list of string
-
-Default: `[ ]`
-
-entity groups whose members get to decrypt the entity's secrets
-
 ### `host.<name>.hardwareReport`
 
 `org/host.nix` · one of "standard", "facter"
@@ -633,68 +298,6 @@ Default: `"‹name›"`
 
 user the home belongs to
 
-### `host.<name>.id`
-
-`org/entity.nix` · null or signed integer
-
-Default: `null`
-
-numeric internal id used to seed other id's
-
-### `host.<name>.ids`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-entity id in various formats
-
-### `host.<name>.ids.hex`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{1,4}$
-
-Default: `lib.toLower (lib.toHexString int)`
-
-id as hex
-
-### `host.<name>.ids.hex32`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{32}$
-
-Default: `lib.fixedWidthString 32 "0" hex`
-
-id as hex with fixed length 32
-
-### `host.<name>.ids.hex4`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{4}$
-
-Default: `lib.fixedWidthString 4 "0" hex`
-
-id as hex with fixed length 4
-
-### `host.<name>.ids.hex8`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{8}$
-
-Default: `lib.fixedWidthString 8 "0" hex`
-
-id as hex with fixed length 8
-
-### `host.<name>.ids.int`
-
-`org/ids.nix` · signed integer
-
-id
-
-### `host.<name>.ids.str`
-
-`org/ids.nix` · string
-
-Default: `toString int`
-
-id as string
-
 ### `host.<name>.luksKeyFile`
 
 `org/host.nix` · string
@@ -710,14 +313,6 @@ path in the initrd to the key that unlocks the host's luks devices
 Default: `[ ]`
 
 list of monitors possibly connected to the host
-
-### `host.<name>.name`
-
-`org/entity.nix` · string
-
-Default: `"‹name›"`
-
-name
 
 ### `host.<name>.network`
 
@@ -853,21 +448,13 @@ Default: `null`
 
 ipv4 prefix length
 
-### `host.<name>.network.<name>.principalCidr`
-
-`org/network.nix` · null or string
-
-Default: `null`
-
-the block of the network's addresses that the host's principals have, which it routes to itself
-
 ### `host.<name>.network.<name>.principals`
 
 `org/network.nix` · attribute set of (submodule)
 
 Default: `{ }`
 
-each principal's address and name in the network, on this host, by its id
+the address and name of each principal that has one in the network on this host, by its id
 
 ### `host.<name>.network.<name>.principals.<name>.address`
 
@@ -897,190 +484,14 @@ Default: `"‹name›"`
 
 network type
 
-### `host.<name>.principal`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-optional attached principal
-
-### `host.<name>.principal.archives`
-
-`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
-
-Default: `{ }`
-
-the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
-with a schedule has a timer
-
-### `host.<name>.principal.archives.<name>.schedule`
-
-`org/principal.nix` · null or string
-
-Default: `null`
-
-when to archive, as a systemd calendar event, or null to archive only when asked
-
-### `host.<name>.principal.bindAddress`
-
-`org/principal.nix` · string matching the pattern
-^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:(:[0-9a-f]{1,4}){1,3}$
-
-Default: `"${org.loPrefix}::${toString uid}:${ids.hex4}"`
-
-unique ipv6 loopback address for entity to bind to
-
-### `host.<name>.principal.gid`
-
-`org/principal.nix` · signed integer
-
-Default: `uid`
-
-posix group id
-
-### `host.<name>.principal.groups`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-principal's extra groups
-
-### `host.<name>.principal.hasBash`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `host.<name>.principal.hasHome`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `host.<name>.principal.hasPasswd`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable endow entity with a password.
-
-### `host.<name>.principal.hasPublicKey`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable endow entity with a cryptographic identity.
-
-### `host.<name>.principal.hasSFTP`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `host.<name>.principal.home`
-
-`org/principal.nix` · string
-
-Default: `"/var/empty"`
-
-endow entity with /home (for users) or /var/lib (for non-users)
-
-### `host.<name>.principal.homeMode`
-
-`org/principal.nix` · string
-
-Default: `"0750"`
-
-permissions of the principal's home
-
-### `host.<name>.principal.members`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-members of the principal's groups
-
-### `host.<name>.principal.uid`
-
-`org/principal.nix` · signed integer
-
-Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
-
-posix user id
-
 ### `host.<name>.principals`
 
-`org/host.nix` · list of string
+`org/host.nix` · list of raw value
 
-Default: the host's `users`, the apps whose `run-on-hosts` has it, and the `services` and `stores` of its `roles`, as
-`<class>-<name>`, but for those without a principal
+Default: the host's `users`, the apps whose `run-on-hosts` has it, and the `services` and `stores` of its `roles`, but
+for those without a principal, in the order of their `handle`
 
-the ids of the principals on the host: its users, the apps that run on it, and its roles' services and stores
-
-### `host.<name>.publicKeys`
-
-`org/entity.nix` · submodule
-
-paths to the entity's public keys, one for each key its class has
-
-### `host.<name>.publicKeys.age-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/host-‹name›-age-key.pub"`
-
-age-key path for host ‹name›
-
-### `host.<name>.publicKeys.luks-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/host-‹name›-luks-key.pub"`
-
-luks-key path for host ‹name›
-
-### `host.<name>.publicKeys.ssh-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/host-‹name›-ssh-key.pub"`
-
-ssh-key path for host ‹name›
-
-### `host.<name>.publicKeys.wg0-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/host-‹name›-wg0-key.pub"`
-
-wg0-key path for host ‹name›
-
-### `host.<name>.publicKeys.wg1-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/host-‹name›-wg1-key.pub"`
-
-wg1-key path for host ‹name›
-
-### `host.<name>.publicKeys.wg2-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/host-‹name›-wg2-key.pub"`
-
-wg2-key path for host ‹name›
+the principals on the host: its users, the apps that run on it, and its roles' services and stores
 
 ### `host.<name>.reach`
 
@@ -1105,44 +516,6 @@ Whether to enable insecure rescue mode..
 Default: `[ ]`
 
 roles that this host has
-
-### `host.<name>.secrets`
-
-`org/entity.nix` · submodule
-
-where the entity's secrets are, and the key that decrypts them
-
-### `host.<name>.secrets.decryptionKey`
-
-`org/secrets.nix` · string
-
-Default: `"/keys/host-‹name›"`
-
-path on the host to the age key that decrypts the entity's secrets
-
-### `host.<name>.secrets.identityFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/host-‹name›.age"`
-
-the entity's age key, encrypted to itself, its actors and the root identities
-
-### `host.<name>.secrets.sopsFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/host-‹name›.yaml"`
-
-sops file holding the entity's secrets
-
-### `host.<name>.settings`
-
-`org/entity.nix` · attribute set of anything
-
-Default: `{ }`
-
-entity-specific options, passed through as-is to the entity's configuration
 
 ### `host.<name>.stateVersion`
 
@@ -1357,23 +730,9 @@ list of root identities
 
 ### `service`
 
-`org/default.nix` · attribute set of (submodule)
+`org/default.nix` · attribute set of (`<entity>` and its own options)
 
 record of all services
-
-### `service.<name>.actors`
-
-`org/entity.nix` · list of (one of "root-0", "root-1")
-
-Default: `[ ]`
-
-the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
-
-### `service.<name>.class`
-
-`org/entity.nix` · one of "app", "host", "root", "service", "store", "user"
-
-entity class
 
 ### `service.<name>.data`
 
@@ -1383,14 +742,6 @@ Default: `{ }`
 
 arbitrary data to service
 
-### `service.<name>.description`
-
-`org/entity.nix` · string
-
-Default: `"[service] ‹name›"`
-
-full name or short purpose description
-
 ### `service.<name>.endpoint`
 
 `org/service.nix` · null or string
@@ -1398,306 +749,6 @@ full name or short purpose description
 Default: `null`
 
 maybe canonical name on internet
-
-### `service.<name>.grants`
-
-`org/entity.nix` · list of string
-
-Default: `[ ]`
-
-entity groups whose members get to decrypt the entity's secrets
-
-### `service.<name>.id`
-
-`org/entity.nix` · null or signed integer
-
-Default: `null`
-
-numeric internal id used to seed other id's
-
-### `service.<name>.ids`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-entity id in various formats
-
-### `service.<name>.ids.hex`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{1,4}$
-
-Default: `lib.toLower (lib.toHexString int)`
-
-id as hex
-
-### `service.<name>.ids.hex32`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{32}$
-
-Default: `lib.fixedWidthString 32 "0" hex`
-
-id as hex with fixed length 32
-
-### `service.<name>.ids.hex4`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{4}$
-
-Default: `lib.fixedWidthString 4 "0" hex`
-
-id as hex with fixed length 4
-
-### `service.<name>.ids.hex8`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{8}$
-
-Default: `lib.fixedWidthString 8 "0" hex`
-
-id as hex with fixed length 8
-
-### `service.<name>.ids.int`
-
-`org/ids.nix` · signed integer
-
-id
-
-### `service.<name>.ids.str`
-
-`org/ids.nix` · string
-
-Default: `toString int`
-
-id as string
-
-### `service.<name>.name`
-
-`org/entity.nix` · string
-
-Default: `"‹name›"`
-
-name
-
-### `service.<name>.principal`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-optional attached principal
-
-### `service.<name>.principal.archives`
-
-`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
-
-Default: `{ }`
-
-the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
-with a schedule has a timer
-
-### `service.<name>.principal.archives.<name>.schedule`
-
-`org/principal.nix` · null or string
-
-Default: `null`
-
-when to archive, as a systemd calendar event, or null to archive only when asked
-
-### `service.<name>.principal.bindAddress`
-
-`org/principal.nix` · string matching the pattern
-^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:(:[0-9a-f]{1,4}){1,3}$
-
-Default: `"${org.loPrefix}::${toString uid}:${ids.hex4}"`
-
-unique ipv6 loopback address for entity to bind to
-
-### `service.<name>.principal.gid`
-
-`org/principal.nix` · signed integer
-
-Default: `uid`
-
-posix group id
-
-### `service.<name>.principal.groups`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-principal's extra groups
-
-### `service.<name>.principal.hasBash`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `service.<name>.principal.hasHome`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `service.<name>.principal.hasPasswd`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable endow entity with a password.
-
-### `service.<name>.principal.hasPublicKey`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable endow entity with a cryptographic identity.
-
-### `service.<name>.principal.hasSFTP`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `service.<name>.principal.home`
-
-`org/principal.nix` · string
-
-Default: `"/var/empty"`
-
-endow entity with /home (for users) or /var/lib (for non-users)
-
-### `service.<name>.principal.homeMode`
-
-`org/principal.nix` · string
-
-Default: `"0750"`
-
-permissions of the principal's home
-
-### `service.<name>.principal.members`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-members of the principal's groups
-
-### `service.<name>.principal.uid`
-
-`org/principal.nix` · signed integer
-
-Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
-
-posix user id
-
-### `service.<name>.publicKeys`
-
-`org/entity.nix` · submodule
-
-paths to the entity's public keys, one for each key its class has
-
-### `service.<name>.publicKeys.age-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/service-‹name›-age-key.pub"`
-
-age-key path for service ‹name›
-
-### `service.<name>.publicKeys.mail`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/service-‹name›-mail.pub"`
-
-mail path for service ‹name›
-
-### `service.<name>.publicKeys.nix-sign`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/service-‹name›-nix-sign.pub"`
-
-nix-sign path for service ‹name›
-
-### `service.<name>.publicKeys.passwd`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/service-‹name›-passwd.sha512"`
-
-passwd path for service ‹name›
-
-### `service.<name>.publicKeys.secret-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/service-‹name›-secret-key.pub"`
-
-secret-key path for service ‹name›
-
-### `service.<name>.publicKeys.ssh-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/service-‹name›-ssh-key.pub"`
-
-ssh-key path for service ‹name›
-
-### `service.<name>.publicKeys.tls-cert`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/service-‹name›-tls-cert.pem"`
-
-tls-cert path for service ‹name›
-
-### `service.<name>.secrets`
-
-`org/entity.nix` · submodule
-
-where the entity's secrets are, and the key that decrypts them
-
-### `service.<name>.secrets.decryptionKey`
-
-`org/secrets.nix` · string
-
-Default: `"/keys/service-‹name›"`
-
-path on the host to the age key that decrypts the entity's secrets
-
-### `service.<name>.secrets.identityFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/service-‹name›.age"`
-
-the entity's age key, encrypted to itself, its actors and the root identities
-
-### `service.<name>.secrets.sopsFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/service-‹name›.yaml"`
-
-sops file holding the entity's secrets
-
-### `service.<name>.settings`
-
-`org/entity.nix` · attribute set of anything
-
-Default: `{ }`
-
-entity-specific options, passed through as-is to the entity's configuration
 
 ### `service.<name>.vpn`
 
@@ -1709,291 +760,9 @@ the vpn the service serves on, at its address on each host it's on, or null
 
 ### `store`
 
-`org/default.nix` · attribute set of (submodule)
+`org/default.nix` · attribute set of (`<entity>`)
 
 record of all stores
-
-### `store.<name>.actors`
-
-`org/entity.nix` · list of (one of "root-0", "root-1")
-
-Default: `[ ]`
-
-the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
-
-### `store.<name>.class`
-
-`org/entity.nix` · one of "app", "host", "root", "service", "store", "user"
-
-entity class
-
-### `store.<name>.description`
-
-`org/entity.nix` · string
-
-Default: `"[store] ‹name›"`
-
-full name or short purpose description
-
-### `store.<name>.grants`
-
-`org/entity.nix` · list of string
-
-Default: `[ ]`
-
-entity groups whose members get to decrypt the entity's secrets
-
-### `store.<name>.id`
-
-`org/entity.nix` · null or signed integer
-
-Default: `null`
-
-numeric internal id used to seed other id's
-
-### `store.<name>.ids`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-entity id in various formats
-
-### `store.<name>.ids.hex`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{1,4}$
-
-Default: `lib.toLower (lib.toHexString int)`
-
-id as hex
-
-### `store.<name>.ids.hex32`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{32}$
-
-Default: `lib.fixedWidthString 32 "0" hex`
-
-id as hex with fixed length 32
-
-### `store.<name>.ids.hex4`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{4}$
-
-Default: `lib.fixedWidthString 4 "0" hex`
-
-id as hex with fixed length 4
-
-### `store.<name>.ids.hex8`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{8}$
-
-Default: `lib.fixedWidthString 8 "0" hex`
-
-id as hex with fixed length 8
-
-### `store.<name>.ids.int`
-
-`org/ids.nix` · signed integer
-
-id
-
-### `store.<name>.ids.str`
-
-`org/ids.nix` · string
-
-Default: `toString int`
-
-id as string
-
-### `store.<name>.name`
-
-`org/entity.nix` · string
-
-Default: `"‹name›"`
-
-name
-
-### `store.<name>.principal`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-optional attached principal
-
-### `store.<name>.principal.archives`
-
-`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
-
-Default: `{ }`
-
-the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
-with a schedule has a timer
-
-### `store.<name>.principal.archives.<name>.schedule`
-
-`org/principal.nix` · null or string
-
-Default: `null`
-
-when to archive, as a systemd calendar event, or null to archive only when asked
-
-### `store.<name>.principal.bindAddress`
-
-`org/principal.nix` · string matching the pattern
-^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:(:[0-9a-f]{1,4}){1,3}$
-
-Default: `"${org.loPrefix}::${toString uid}:${ids.hex4}"`
-
-unique ipv6 loopback address for entity to bind to
-
-### `store.<name>.principal.gid`
-
-`org/principal.nix` · signed integer
-
-Default: `uid`
-
-posix group id
-
-### `store.<name>.principal.groups`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-principal's extra groups
-
-### `store.<name>.principal.hasBash`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `store.<name>.principal.hasHome`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable force bash shell for non-normal users.
-
-### `store.<name>.principal.hasPasswd`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable endow entity with a password.
-
-### `store.<name>.principal.hasPublicKey`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable endow entity with a cryptographic identity.
-
-### `store.<name>.principal.hasSFTP`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable force bash shell for non-normal users.
-
-### `store.<name>.principal.home`
-
-`org/principal.nix` · string
-
-Default: `"/var/lib/‹name›"`
-
-endow entity with /home (for users) or /var/lib (for non-users)
-
-### `store.<name>.principal.homeMode`
-
-`org/principal.nix` · string
-
-Default: `"0750"`
-
-permissions of the principal's home
-
-### `store.<name>.principal.members`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-members of the principal's groups
-
-### `store.<name>.principal.uid`
-
-`org/principal.nix` · signed integer
-
-Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
-
-posix user id
-
-### `store.<name>.publicKeys`
-
-`org/entity.nix` · submodule
-
-paths to the entity's public keys, one for each key its class has
-
-### `store.<name>.publicKeys.age-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/store-‹name›-age-key.pub"`
-
-age-key path for store ‹name›
-
-### `store.<name>.publicKeys.ssh-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/store-‹name›-ssh-key.pub"`
-
-ssh-key path for store ‹name›
-
-### `store.<name>.secrets`
-
-`org/entity.nix` · submodule
-
-where the entity's secrets are, and the key that decrypts them
-
-### `store.<name>.secrets.decryptionKey`
-
-`org/secrets.nix` · string
-
-Default: `"/keys/store-‹name›"`
-
-path on the host to the age key that decrypts the entity's secrets
-
-### `store.<name>.secrets.identityFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/store-‹name›.age"`
-
-the entity's age key, encrypted to itself, its actors and the root identities
-
-### `store.<name>.secrets.sopsFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/store-‹name›.yaml"`
-
-sops file holding the entity's secrets
-
-### `store.<name>.settings`
-
-`org/entity.nix` · attribute set of anything
-
-Default: `{ }`
-
-entity-specific options, passed through as-is to the entity's configuration
 
 ### `storePath`
 
@@ -2059,31 +828,9 @@ timezone
 
 ### `user`
 
-`org/default.nix` · attribute set of (submodule)
+`org/default.nix` · attribute set of (`<entity>` and its own options)
 
 record of all users
-
-### `user.<name>.actors`
-
-`org/entity.nix` · list of (one of "root-0", "root-1")
-
-Default: `[ ]`
-
-the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
-
-### `user.<name>.class`
-
-`org/entity.nix` · one of "app", "host", "root", "service", "store", "user"
-
-entity class
-
-### `user.<name>.description`
-
-`org/entity.nix` · string
-
-Default: `"[user] ‹name›"`
-
-full name or short purpose description
 
 ### `user.<name>.email`
 
@@ -2092,76 +839,6 @@ full name or short purpose description
 Default: `null`
 
 user's email address
-
-### `user.<name>.grants`
-
-`org/entity.nix` · list of string
-
-Default: `[ ]`
-
-entity groups whose members get to decrypt the entity's secrets
-
-### `user.<name>.id`
-
-`org/entity.nix` · null or signed integer
-
-Default: `null`
-
-numeric internal id used to seed other id's
-
-### `user.<name>.ids`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-entity id in various formats
-
-### `user.<name>.ids.hex`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{1,4}$
-
-Default: `lib.toLower (lib.toHexString int)`
-
-id as hex
-
-### `user.<name>.ids.hex32`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{32}$
-
-Default: `lib.fixedWidthString 32 "0" hex`
-
-id as hex with fixed length 32
-
-### `user.<name>.ids.hex4`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{4}$
-
-Default: `lib.fixedWidthString 4 "0" hex`
-
-id as hex with fixed length 4
-
-### `user.<name>.ids.hex8`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{8}$
-
-Default: `lib.fixedWidthString 8 "0" hex`
-
-id as hex with fixed length 8
-
-### `user.<name>.ids.int`
-
-`org/ids.nix` · signed integer
-
-id
-
-### `user.<name>.ids.str`
-
-`org/ids.nix` · string
-
-Default: `toString int`
-
-id as string
 
 ### `user.<name>.inboxes`
 
@@ -2178,228 +855,6 @@ mail addresses delivered to the user's mailbox, as the mail server's aliases
 Default: `false`
 
 Whether to enable internal mail.
-
-### `user.<name>.name`
-
-`org/entity.nix` · string
-
-Default: `"‹name›"`
-
-name
-
-### `user.<name>.principal`
-
-`org/entity.nix` · null or (submodule)
-
-Default: `null`
-
-optional attached principal
-
-### `user.<name>.principal.archives`
-
-`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
-
-Default: `{ }`
-
-the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
-with a schedule has a timer
-
-### `user.<name>.principal.archives.<name>.schedule`
-
-`org/principal.nix` · null or string
-
-Default: `null`
-
-when to archive, as a systemd calendar event, or null to archive only when asked
-
-### `user.<name>.principal.bindAddress`
-
-`org/principal.nix` · string matching the pattern
-^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:(:[0-9a-f]{1,4}){1,3}$
-
-Default: `"${org.loPrefix}::${toString uid}:${ids.hex4}"`
-
-unique ipv6 loopback address for entity to bind to
-
-### `user.<name>.principal.gid`
-
-`org/principal.nix` · signed integer
-
-Default: `uid`
-
-posix group id
-
-### `user.<name>.principal.groups`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-principal's extra groups
-
-### `user.<name>.principal.hasBash`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable force bash shell for non-normal users.
-
-### `user.<name>.principal.hasHome`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable force bash shell for non-normal users.
-
-### `user.<name>.principal.hasPasswd`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable endow entity with a password.
-
-### `user.<name>.principal.hasPublicKey`
-
-`org/principal.nix` · boolean
-
-Default: `true`
-
-Whether to enable endow entity with a cryptographic identity.
-
-### `user.<name>.principal.hasSFTP`
-
-`org/principal.nix` · boolean
-
-Default: `false`
-
-Whether to enable force bash shell for non-normal users.
-
-### `user.<name>.principal.home`
-
-`org/principal.nix` · string
-
-Default: `"/home/‹name›"`
-
-endow entity with /home (for users) or /var/lib (for non-users)
-
-### `user.<name>.principal.homeMode`
-
-`org/principal.nix` · string
-
-Default: `"0750"`
-
-permissions of the principal's home
-
-### `user.<name>.principal.members`
-
-`org/principal.nix` · list of string
-
-Default: `[ ]`
-
-members of the principal's groups
-
-### `user.<name>.principal.uid`
-
-`org/principal.nix` · signed integer
-
-Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
-
-posix user id
-
-### `user.<name>.publicKeys`
-
-`org/entity.nix` · submodule
-
-paths to the entity's public keys, one for each key its class has
-
-### `user.<name>.publicKeys.age-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/user-‹name›-age-key.pub"`
-
-age-key path for user ‹name›
-
-### `user.<name>.publicKeys.archive-passwd`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/user-‹name›-archive-passwd.htpasswd"`
-
-archive-passwd path for user ‹name›
-
-### `user.<name>.publicKeys.mail`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/user-‹name›-mail.pub"`
-
-mail path for user ‹name›
-
-### `user.<name>.publicKeys.passwd`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/user-‹name›-passwd.sha512"`
-
-passwd path for user ‹name›
-
-### `user.<name>.publicKeys.restic-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/user-‹name›-restic-key.pub"`
-
-restic-key path for user ‹name›
-
-### `user.<name>.publicKeys.ssh-key`
-
-`org/public-keys.nix` · absolute path
-
-Default: `"<org>/public-keys/user-‹name›-ssh-key.pub"`
-
-ssh-key path for user ‹name›
-
-### `user.<name>.secrets`
-
-`org/entity.nix` · submodule
-
-where the entity's secrets are, and the key that decrypts them
-
-### `user.<name>.secrets.decryptionKey`
-
-`org/secrets.nix` · string
-
-Default: `"/keys/user-‹name›"`
-
-path on the host to the age key that decrypts the entity's secrets
-
-### `user.<name>.secrets.identityFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/user-‹name›.age"`
-
-the entity's age key, encrypted to itself, its actors and the root identities
-
-### `user.<name>.secrets.sopsFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/user-‹name›.yaml"`
-
-sops file holding the entity's secrets
-
-### `user.<name>.settings`
-
-`org/entity.nix` · attribute set of anything
-
-Default: `{ }`
-
-entity-specific options, passed through as-is to the entity's configuration
 
 ### `vpn`
 
@@ -2479,57 +934,11 @@ unique integer identifier for the vpn
 
 ### `vpn.<name>.ids`
 
-`org/vpn.nix` · submodule
+`org/vpn.nix` · `<ids>`
 
 Default: `{ int = id; }`
 
 entity id in various formats
-
-### `vpn.<name>.ids.hex`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{1,4}$
-
-Default: `lib.toLower (lib.toHexString int)`
-
-id as hex
-
-### `vpn.<name>.ids.hex32`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{32}$
-
-Default: `lib.fixedWidthString 32 "0" hex`
-
-id as hex with fixed length 32
-
-### `vpn.<name>.ids.hex4`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{4}$
-
-Default: `lib.fixedWidthString 4 "0" hex`
-
-id as hex with fixed length 4
-
-### `vpn.<name>.ids.hex8`
-
-`org/ids.nix` · string matching the pattern ^[0-9a-f]{8}$
-
-Default: `lib.fixedWidthString 8 "0" hex`
-
-id as hex with fixed length 8
-
-### `vpn.<name>.ids.int`
-
-`org/ids.nix` · signed integer
-
-id
-
-### `vpn.<name>.ids.str`
-
-`org/ids.nix` · string
-
-Default: `toString int`
-
-id as string
 
 ### `vpn.<name>.interface`
 
@@ -2546,6 +955,65 @@ interface for the vpn
 Default: `25`
 
 port allocated for the vpn
+
+### `vpn.<name>.key`
+
+`org/vpn.nix` · string
+
+Default: `"${name}-key"`
+
+the key each host on the vpn has for it, its wireguard key
+
+### `vpn.<name>.members`
+
+`org/vpn.nix` · attribute set of (submodule)
+
+Default: each host whose `vpns` has the vpn, at `<prefix>::<host id>` and `<prefix4>.<host id>` as `<host>.<namespace>`,
+and each service whose `vpn` it is, on each of those hosts it's on, at `<prefix>:ffff:<host id>:<uid>:<id>` as
+`<service>-<host>.<namespace>`
+
+what has an address in the vpn, by its name there: each host on it, and each service that serves on it, on each of those
+hosts it's on
+
+### `vpn.<name>.members.<name>.address`
+
+`org/vpn.nix` · string
+
+the member's ipv6 address
+
+### `vpn.<name>.members.<name>.address4`
+
+`org/vpn.nix` · null or string
+
+Default: `null`
+
+the member's ipv4 address, which only a host has
+
+### `vpn.<name>.members.<name>.fqdn`
+
+`org/vpn.nix` · string
+
+the member's name
+
+### `vpn.<name>.members.<name>.host`
+
+`org/vpn.nix` · string
+
+the host the member is on, whose wireguard key carries its traffic
+
+### `vpn.<name>.members.<name>.id`
+
+`org/vpn.nix` · string
+
+the member's entity
+
+### `vpn.<name>.members.<name>.key`
+
+`org/vpn.nix` · null or string
+
+Default: `null`
+
+the member's own wireguard key, which only a host has
 
 ### `vpn.<name>.name`
 
@@ -2622,3 +1090,315 @@ destroy and recreate network device post rebuild
 `org/vpn.nix` · boolean
 
 disable firewalls on this vpn
+
+## Types
+
+### `<entity>`
+
+`org/entity.nix`
+
+had by `app.<name>`, `host.<name>`, `service.<name>`, `store.<name>`, `user.<name>`
+
+### `<entity>.actors`
+
+`org/entity.nix` · list of (one of "root-0", "root-1")
+
+Default: `[ ]`
+
+the users and root identities that may act as the entity: its identity is encrypted to them and to the root identities
+
+### `<entity>.class`
+
+`org/entity.nix` · one of "app", "host", "root", "service", "store", "user"
+
+entity class
+
+### `<entity>.description`
+
+`org/entity.nix` · string
+
+Default: `"[${class}] ${name}"`
+
+full name or short purpose description
+
+### `<entity>.grants`
+
+`org/entity.nix` · list of string
+
+Default: `[ ]`
+
+entity groups whose members get to decrypt the entity's secrets
+
+### `<entity>.handle`
+
+`org/entity.nix` · string
+
+Default: `"${class}-${name}"`
+
+the entity's handle, as o11n, the org's files and its other entities name it
+
+### `<entity>.id`
+
+`org/entity.nix` · null or signed integer
+
+Default: `null`
+
+numeric internal id used to seed other id's
+
+### `<entity>.ids`
+
+`org/entity.nix` · null or (`<ids>`)
+
+Default: `{ int = id; }`, or `null` without an `id`
+
+entity id in various formats
+
+### `<entity>.keys`
+
+`org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
+"luks", "passphrase")
+
+Default: the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`
+
+the entity's keys, each with its type: its class's, and those its configuration adds
+
+### `<entity>.name`
+
+`org/entity.nix` · string
+
+Default: `"‹name›"`
+
+name
+
+### `<entity>.principal`
+
+`org/entity.nix` · null or (`<principal>`)
+
+Default: `{ }` for an entity with an `id` but a host, or else `null`
+
+optional attached principal
+
+### `<entity>.publicKeys`
+
+`org/entity.nix` · attribute set of absolute path
+
+Default: `<org>/public-keys/<class>-<name>-<key>.<ext>` for each of its `keys`, `<ext>` being `pem` for a tls-cert,
+`sha512` for a passwd, `htpasswd` for an archive-passwd and `pub` for the rest
+
+paths to the entity's public keys, one for each of its keys
+
+### `<entity>.secrets`
+
+`org/entity.nix` · `<secrets>`
+
+where the entity's secrets are, and the key that decrypts them
+
+### `<entity>.settings`
+
+`org/entity.nix` · attribute set of anything
+
+Default: `{ }`
+
+entity-specific options, passed through as-is to the entity's configuration
+
+### `<ids>`
+
+`org/ids.nix`
+
+had by `<entity>.ids`, `vpn.<name>.ids`
+
+### `<ids>.hex`
+
+`org/ids.nix` · string matching the pattern ^[0-9a-f]{1,4}$
+
+Default: `lib.toLower (lib.toHexString int)`
+
+id as hex
+
+### `<ids>.hex32`
+
+`org/ids.nix` · string matching the pattern ^[0-9a-f]{32}$
+
+Default: `lib.fixedWidthString 32 "0" hex`
+
+id as hex with fixed length 32
+
+### `<ids>.hex4`
+
+`org/ids.nix` · string matching the pattern ^[0-9a-f]{4}$
+
+Default: `lib.fixedWidthString 4 "0" hex`
+
+id as hex with fixed length 4
+
+### `<ids>.hex8`
+
+`org/ids.nix` · string matching the pattern ^[0-9a-f]{8}$
+
+Default: `lib.fixedWidthString 8 "0" hex`
+
+id as hex with fixed length 8
+
+### `<ids>.int`
+
+`org/ids.nix` · signed integer
+
+id
+
+### `<ids>.str`
+
+`org/ids.nix` · string
+
+Default: `toString int`
+
+id as string
+
+### `<principal>`
+
+`org/principal.nix`
+
+had by `<entity>.principal`
+
+### `<principal>.archives`
+
+`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
+
+Default: `{ }`
+
+the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+with a schedule has a timer
+
+### `<principal>.archives.<name>.schedule`
+
+`org/principal.nix` · null or string
+
+Default: `null`
+
+when to archive, as a systemd calendar event, or null to archive only when asked
+
+### `<principal>.bindAddress`
+
+`org/principal.nix` · string matching the pattern
+^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:(:[0-9a-f]{1,4}){1,3}$
+
+Default: `"${org.loPrefix}::${toString uid}:${ids.hex4}"`
+
+unique ipv6 loopback address for entity to bind to
+
+### `<principal>.gid`
+
+`org/principal.nix` · signed integer
+
+Default: `uid`
+
+posix group id
+
+### `<principal>.groups`
+
+`org/principal.nix` · list of string
+
+Default: `[ ]`
+
+principal's extra groups
+
+### `<principal>.hasBash`
+
+`org/principal.nix` · boolean
+
+Default: true for a user
+
+Whether to enable force bash shell for non-normal users.
+
+### `<principal>.hasHome`
+
+`org/principal.nix` · boolean
+
+Default: true for a user, store or app
+
+Whether to enable endow entity with a home.
+
+### `<principal>.hasPasswd`
+
+`org/principal.nix` · boolean
+
+Default: true for a user
+
+Whether to enable endow entity with a password.
+
+### `<principal>.hasPublicKey`
+
+`org/principal.nix` · boolean
+
+Default: true for a user, service, store or app
+
+Whether to enable endow entity with a cryptographic identity.
+
+### `<principal>.hasSFTP`
+
+`org/principal.nix` · boolean
+
+Default: true for an app or store
+
+Whether to enable restrict the entity's ssh logins to sftp.
+
+### `<principal>.home`
+
+`org/principal.nix` · string
+
+Default: `/home/<name>` for a user and `/var/lib/<name>` for the rest, if it `hasHome`, or else `/var/empty`
+
+endow entity with /home (for users) or /var/lib (for non-users)
+
+### `<principal>.homeMode`
+
+`org/principal.nix` · string
+
+Default: `"0750"`
+
+permissions of the principal's home
+
+### `<principal>.members`
+
+`org/principal.nix` · list of string
+
+Default: `[ ]`
+
+members of the principal's groups
+
+### `<principal>.uid`
+
+`org/principal.nix` · signed integer
+
+Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
+
+posix user id
+
+### `<secrets>`
+
+`org/secrets.nix`
+
+had by `<entity>.secrets`
+
+### `<secrets>.decryptionKey`
+
+`org/secrets.nix` · string
+
+Default: `"/keys/${handle}"`
+
+path on the host to the age key that decrypts the entity's secrets
+
+### `<secrets>.identityFile`
+
+`org/secrets.nix` · absolute path
+
+Default: `"<org>/enc/${handle}.age"`
+
+the entity's age key, encrypted to itself, its actors and the root identities
+
+### `<secrets>.sopsFile`
+
+`org/secrets.nix` · absolute path
+
+Default: `"<org>/enc/${handle}.yaml"`
+
+sops file holding the entity's secrets
