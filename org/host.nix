@@ -140,7 +140,11 @@ in
     rescueMode = lib.mkEnableOption "insecure rescue mode.";
   };
   config = {
-    keys = lib.genAttrs' config.vpns (vpn: lib.nameValuePair org.vpn.${vpn}.key "wireguard");
+    keys =
+      lib.genAttrs' config.vpns (vpn: lib.nameValuePair org.vpn.${vpn}.key "wireguard")
+      // lib.optionalAttrs (lib.any (disk: disk.encrypted) (lib.attrValues config.disk-layouts)) {
+        luks-key = "luks";
+      };
     network = lib.genAttrs config.vpns (
       name:
       let

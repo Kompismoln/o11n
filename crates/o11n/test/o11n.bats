@@ -261,12 +261,18 @@ setup() {
 @test "a host has a wireguard key for each of its vpns, and none for another" {
   o11n identity create host-lorem
 
-  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key luks-key ssh-key wg0-key)" ]
-  [ "$(o11n keys host)" = "$(printf '%s\n' age-key luks-key ssh-key)" ]
+  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key ssh-key wg0-key)" ]
+  [ "$(o11n keys host)" = "$(printf '%s\n' age-key ssh-key)" ]
   run o11n secret generate host-lorem wg0-key
   succeeds
   run o11n secret generate host-lorem wg1-key
-  fails "wg1-key isn't one of host-lorem's keys: age-key, luks-key, ssh-key, wg0-key"
+  fails "wg1-key isn't one of host-lorem's keys: age-key, ssh-key, wg0-key"
+}
+
+@test "a host has a luks-key only with an encrypted disk" {
+  [ "$(o11n keys host-testhost)" = "$(printf '%s\n' age-key luks-key ssh-key wg0-key wg1-key wg2-key)" ]
+  run o11n secret generate host-lorem luks-key
+  fails "luks-key isn't one of host-lorem's keys"
 }
 
 @test "a password's public key is its hash beside it" {

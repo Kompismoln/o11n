@@ -130,6 +130,10 @@ users = ["testuser"]
 vpns = ["wg0", "wg1", "wg2"]
 system = "x86_64-linux"
 
+[host.testhost.disk-layouts.main]
+layout = "main-server-btrfs"
+devices = "/dev/sda"
+
 [host.lorem]
 id = 2
 roles = [

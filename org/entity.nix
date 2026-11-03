@@ -88,7 +88,7 @@
     };
     keys = lib.mkOption {
       description = "the entity's keys, each with its type: its class's, and those its configuration adds";
-      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`";
+      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`";
       # Dependency: crates/o11n/src/keys.rs reads each of these types.
       type = lib.types.attrsOf (
         lib.types.enum [

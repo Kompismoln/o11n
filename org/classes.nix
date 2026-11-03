@@ -9,7 +9,6 @@
     keys = {
       age-key = "age";
       ssh-key = "ssh";
-      luks-key = "luks";
     };
   };
   user = {
