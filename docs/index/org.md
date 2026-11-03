@@ -90,8 +90,6 @@ Default: `[ ]`
 
 list of designated build hosts
 
-<<<<<<< signed
-=======
 ### `certs`
 
 `org/default.nix` · attribute set of raw value
@@ -100,7 +98,6 @@ Default: each service whose `namespace` isn't null, by it
 
 the service that holds each namespace's tls-cert, by namespace
 
->>>>>>> @stamp
 ### `contact`
 
 `org/default.nix` · string
@@ -207,8 +204,6 @@ record of disk layouts that applies to host
 
 unix path to device(s)
 
-<<<<<<< signed
-=======
 ### `host.<name>.disk-layouts.<name>.encrypted`
 
 `org/disk.nix` · boolean
@@ -217,7 +212,6 @@ Default: `true` but for the `single-xfs` and `raid1-xfs` layouts
 
 whether the layout encrypts the disk with the host's luks-key
 
->>>>>>> @stamp
 ### `host.<name>.disk-layouts.<name>.layout`
 
 `org/disk.nix` · string
@@ -772,8 +766,6 @@ Default: `null`
 
 maybe canonical name on internet
 
-<<<<<<< signed
-=======
 ### `service.<name>.namespace`
 
 `org/service.nix` · null or string
@@ -783,7 +775,6 @@ Default: `<namespace>` for the service `domain-<namespace>`, of a namespace in t
 
 the namespace whose tls-cert the service holds, for it and its subdomains, or null
 
->>>>>>> @stamp
 ### `service.<name>.vpn`
 
 `org/service.nix` · null or impossible (empty enum)
@@ -1192,14 +1183,11 @@ entity id in various formats
 `org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
 "luks", "passphrase")
 
-<<<<<<< signed
-Default: the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`
-=======
-Default: the `keys` `org/classes.nix` gives the entity's class, a host's vpn `key` for each of its `vpns`, and its
-`luks-key` if one of its `disk-layouts` is `encrypted`
->>>>>>> @stamp
+Default: the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its
+`luks-key` if one of its `disk-layouts` is `encrypted`; a user's `mail` with `mail`; a service's `tls-cert` with a
+`namespace`, and the keys o11n's modules read of the services they name
 
-the entity's keys, each with its type: its class's, and those its configuration adds
+the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 
 ### `<entity>.name`
 

@@ -11,7 +11,17 @@
 
   config = {
     class = "service";
-    keys = lib.optionalAttrs (config.namespace != null) { tls-cert = "tls-cert"; };
+    keys =
+      lib.optionalAttrs (config.namespace != null) { tls-cert = "tls-cert"; }
+      # Dependency: o11n's modules read these keys of the services they name.
+      // {
+        backup.secret-key = "passphrase";
+        dmarc-reports.mail = "password";
+        glesys-api.secret-key = "passphrase";
+        nix-remote.secret-key = "passphrase";
+        nix-serve.nix-sign = "nix-sign";
+      }
+      .${config.name} or { };
   };
 
   options = {

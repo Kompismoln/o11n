@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, ... }:
 {
   imports = [
     ./entity.nix
@@ -6,6 +6,7 @@
 
   config = {
     class = "user";
+    keys = lib.optionalAttrs config.mail { mail = "password"; };
   };
 
   options = {
