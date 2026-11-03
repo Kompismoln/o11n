@@ -9,6 +9,9 @@ locale = "en_US"
 id = 0
 
 [role.inference-server]
+services = [
+  "vllm",
+]
 stores = [
   "huggingface",
 ]
@@ -24,7 +27,9 @@ altpoints = ["example.com"]
 run-on-hosts = ["test-host"]
 grants = ["host:app-scheduler"]
 
-[service]
+[service.vllm]
+id = 0
+principal.groups = ["huggingface"]
 
 [host.test-host]
 id = 0

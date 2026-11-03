@@ -14,7 +14,6 @@ in
   ];
 
   options.o11n.keycloak = {
-    enable = lib.mkEnableOption "keycloak";
 
     package = lib.mkPackageOption pkgs "zitadel" { default = [ "zitadel" ]; };
 

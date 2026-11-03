@@ -13,7 +13,6 @@
           mailboxDomains = builtins.filter (domain: domain.mailbox) domains;
         in
         {
-          enable = true;
           inherit (org.mailserver) endpoint;
           inherit (org.mailserver) dkimSelector;
           relayDomains = map (domain: domain.name) relayDomains;

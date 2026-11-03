@@ -11,7 +11,6 @@ let
 in
 {
   options.o11n.huggingface = {
-    enable = lib.mkEnableOption "the Hugging Face Hub CLI with configured cache directories";
     home = lib.mkOption {
       type = lib.types.str;
       default = config.users.users.huggingface.home;
@@ -29,7 +28,7 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = {
     environment.systemPackages =
       let
         huggingface-cli = pkgs.writeShellScriptBin "huggingface-cli" ''

@@ -238,11 +238,11 @@ let
 in
 {
   imports = [
+    ./huggingface.nix
     ./preserve-paths.nix
   ];
 
   options.o11n.vllm = {
-    enable = lib.mkEnableOption "vLLM inference server environment";
     user = lib.mkOption {
       type = lib.types.str;
       default = "vllm";
@@ -267,15 +267,9 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = config.o11n.huggingface.enable;
-        message = "o11n.vllm requires o11n.huggingface to be enabled";
-      }
-    ]
+  config = {
     # What a server reads must not change under it: no host paths, no moving revisions.
-    ++ lib.concatLists (
+    assertions = lib.concatLists (
       lib.mapAttrsToList (server: serverCfg: [
         {
           assertion = isLocal serverCfg.model -> inStore serverCfg.model;

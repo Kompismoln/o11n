@@ -15,10 +15,6 @@ in
 
     config = {
       o11n.unfree = unfree;
-
-      o11n-hm = {
-        office.enable = true;
-      };
     };
   };
 
@@ -39,8 +35,6 @@ in
 
       o11n = {
         inherit unfree;
-        cinnamon.enable = true;
-        printing.enable = true;
       };
     };
   };

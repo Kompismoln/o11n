@@ -12,7 +12,6 @@ in
 {
 
   options.o11n.glesys.updaterecord = {
-    enable = lib.mkEnableOption "updating DNS-record on glesys";
     recordid = lib.mkOption {
       description = "The glesys id of the record";
       type = lib.types.str;
@@ -23,7 +22,7 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = {
 
     sops.secrets."glesys-api/secret-key" = {
       inherit (org.service.glesys-api.secrets) sopsFile;

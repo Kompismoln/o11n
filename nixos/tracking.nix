@@ -5,7 +5,7 @@
 }:
 
 let
-  inherit (lib) mkEnableOption mkIf types;
+  inherit (lib) types;
   cfg = config.o11n.tracking;
 
   nginxJsonLogFormatContent = ''
@@ -31,7 +31,6 @@ let
 in
 {
   options.o11n.tracking = {
-    enable = mkEnableOption "website visitor tracking";
 
     nginxJsonLogFormatName = lib.mkOption {
       type = types.str;
@@ -46,7 +45,7 @@ in
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     services.nginx.logFormats = {
       "${cfg.nginxJsonLogFormatName}" = nginxJsonLogFormatContent;
     };

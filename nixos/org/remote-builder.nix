@@ -105,8 +105,6 @@ in
     reloadUnits = [ "nginx.service" ];
   };
 
-  o11n.nginx.enable = true;
-
   services.nginx = {
     # The default bucket is too small for a key of "Bearer " and a 40-byte base64 secret.
     mapHashBucketSize = 128;

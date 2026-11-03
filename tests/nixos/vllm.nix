@@ -52,11 +52,9 @@ let
 
     o11n = {
       huggingface = {
-        enable = true;
         repo = "/srv/models/huggingface";
       };
       vllm = {
-        enable = true;
         servers = {
           chat = {
             package = vllm;

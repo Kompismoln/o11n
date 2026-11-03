@@ -5,7 +5,6 @@
 let
   baseConfig = {
     o11n.keycloak = {
-      enable = true;
       endpoint = "auth.example.com";
       home = "/var/lib/keycloak";
       bindAddress = "fd12:3456:7890:1::1";

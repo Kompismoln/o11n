@@ -10,7 +10,6 @@ let
 in
 {
   options.o11n.jitsi = {
-    enable = lib.mkEnableOption "Jitsi Meet with keycloak authentication";
 
     name = lib.mkOption {
       type = lib.types.str;
@@ -42,7 +41,7 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = {
     nixpkgs.config.allowInsecurePredicate =
       pkg:
       builtins.elem (lib.getName pkg) [

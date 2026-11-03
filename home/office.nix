@@ -1,16 +1,11 @@
 # home/office.nix
 {
-  config,
-  lib,
   pkgs,
   ...
 }:
 {
-  options.o11n-hm.office = {
-    enable = lib.mkEnableOption "office";
-  };
 
-  config = lib.mkIf config.o11n-hm.office.enable {
+  config = {
     programs.firefox = {
       enable = true;
       configPath = ".mozilla/firefox";

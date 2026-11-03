@@ -9,21 +9,17 @@
 let
   inherit (lib)
     mkEnableOption
-    mkIf
     optionalString
     ;
-
-  cfg = config.o11n.nginx;
   vpn = org.vpn.wg0;
   hostname = host.network.wg0.fqdn;
 in
 {
   options.o11n.nginx = {
-    enable = mkEnableOption "nginx web server.";
     monitor = mkEnableOption "nginx web server.";
   };
 
-  config = mkIf cfg.enable {
+  config = {
     networking.firewall.allowedTCPPorts = [
       80
       443

@@ -29,8 +29,6 @@ in
     }
   ];
 
-  o11n.nginx.enable = true;
-
   # A tunnel sends a request per write, so connections to the builder are kept open.
   services.nginx.upstreams.nix-remote-builder = {
     servers."[${network.address}]:443" = { };
