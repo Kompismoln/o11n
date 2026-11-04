@@ -500,6 +500,14 @@ Default: `"‹name›"`
 
 network type
 
+### `host.<name>.nixos`
+
+`org/host.nix` · boolean
+
+Default: `true`
+
+whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes
+
 ### `host.<name>.principals`
 
 `org/host.nix` · list of raw value

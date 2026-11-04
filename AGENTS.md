@@ -121,8 +121,8 @@ o11n; nothing else runs it. Here, Kompismoln/org needs its stubs for that:
 
 To see whether a change alters an org's systems, evaluate each host's `config.system.build.toplevel.drvPath` with
 `--override-input o11n "git+file://<clone>?rev=<rev>&shallow=1"` at the old and the new revision: equal paths are equal
-systems. Keep the org's tree as it is meanwhile: hosts with the peer role carry the org's source
-(`/etc/nix/inputs/self`), so a change to any file git tracks there changes them.
+systems. Keep the org's tree as it is meanwhile: NixOS hosts carry the org's source (`/etc/nix/inputs/self`), so a
+change to any file git tracks there changes them.
 
 ### Keys and secrets
 

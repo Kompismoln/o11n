@@ -16,8 +16,6 @@ stores = [
   "huggingface",
 ]
 
-[role.nixos]
-
 [role.app-scheduler]
 
 [app.test-app]
@@ -34,7 +32,6 @@ principal.groups = ["huggingface"]
 [host.test-host]
 id = 0
 roles = [
-  "nixos",
   "inference-server",
   "app-scheduler",
 ]

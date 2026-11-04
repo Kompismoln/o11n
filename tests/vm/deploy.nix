@@ -64,7 +64,12 @@ let
     hostName:
     { nodes, ... }:
     {
-      imports = [ ../../nixos/org/nix.nix ];
+      imports = [
+        ../../nixos/org/nix.nix
+        ../../nixos/services/nix-build.nix
+        ../../nixos/services/nix-push.nix
+        ../../nixos/services/nix-switch.nix
+      ];
       _module.args.host = org.host.${hostName};
       services.openssh.enable = true;
       users.groups = lib.genAttrs [ "nix-build" "nix-switch" "nix-push" ] (_: { });

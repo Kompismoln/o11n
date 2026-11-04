@@ -39,7 +39,7 @@ rescueMode = true
 boot = "grub"
 endpoint = "gw.example.com"
 users = ["admin"]
-roles = ["nixos", "peer", "server", "remote-builder", "substituter"]
+roles = ["peer", "server", "remote-builder", "substituter"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -48,7 +48,7 @@ stateVersion = "26.05"
 id = 2
 endpoint = "web.example.com"
 users = ["admin"]
-roles = ["nixos", "peer", "server", "remote-builder-relay", "archive"]
+roles = ["peer", "server", "remote-builder-relay", "archive"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -62,9 +62,6 @@ principal.groups = ["wheel"]
 principal.archives.web.schedule = "daily"
 email = "admin@example.com"
 grants = ["host-*"]
-
-[role.nixos]
-services = ["rescue"]
 
 [role.peer]
 services = [

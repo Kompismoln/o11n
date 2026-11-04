@@ -48,7 +48,7 @@ rec {
 
   mkNixosConfigurations =
     context:
-    lib.genAttrs' (lib.filter (host: lib.elem "nixos" host.roles) (lib.attrValues context.org.host)) (
+    lib.genAttrs' (lib.filter (host: host.nixos) (lib.attrValues context.org.host)) (
       host:
       lib.nameValuePair host.name (
         o11nInputs.nixpkgs.lib.nixosSystem {
@@ -59,15 +59,25 @@ rec {
               mkDiskoConfigurations context
             );
           };
-          modules =
-            (lib.optionals (host.disk-layouts != { }) [ ../nixos/disko.nix ])
-            ++ map (service: service.configurationFile) (
-              lib.filter (service: service.configurationFile != null) host.services
-            )
-            # Policy: a role is its services and stores; one with more than those has a module of its own.
-            ++ lib.concatMap (
-              role: lib.optional (o11nInputs.self.nixosModules ? ${role}) o11nInputs.self.nixosModules.${role}
-            ) (lib.unique (host.roles ++ (lib.concatMap (home: home.roles) (lib.attrValues host.home))));
+          modules = [
+            host.configurationFile
+            ../nixos/org/boot.nix
+            ../nixos/org/system.nix
+            ../nixos/org/principals.nix
+            ../nixos/org/ssh.nix
+            ../nixos/org/networking.nix
+            ../nixos/org/nix.nix
+            ../nixos/org/sops.nix
+          ]
+          ++ lib.optional (host.vpns != [ ]) ../nixos/org/wireguard.nix
+          ++ lib.optional (host.disk-layouts != { }) ../nixos/disko.nix
+          ++ map (service: service.configurationFile) (
+            lib.filter (service: service.configurationFile != null) host.services
+          )
+          # Policy: a role is its services and stores; one with more than those has a module of its own.
+          ++ lib.concatMap (
+            role: lib.optional (o11nInputs.self.nixosModules ? ${role}) o11nInputs.self.nixosModules.${role}
+          ) (lib.unique (host.roles ++ (lib.concatMap (home: home.roles) (lib.attrValues host.home))));
         }
       )
     );

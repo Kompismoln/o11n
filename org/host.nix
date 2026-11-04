@@ -146,6 +146,11 @@ in
       type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
     };
     rescueMode = lib.mkEnableOption "insecure rescue mode.";
+    nixos = lib.mkOption {
+      description = "whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes";
+      type = lib.types.bool;
+      default = true;
+    };
   };
   config = {
     keys =
