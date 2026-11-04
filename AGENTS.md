@@ -14,11 +14,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
   `./dev/agent.sh fetch-inputs <flake.lock>`.
 
 - Instead of `/dev/kvm`, NixOS VM tests can run on the `O11N_REMOTE_BUILDER` when set, and its host allowed by the
-<<<<<<< signed
-  session's network policy, `o11n remote build <installable>` builds them on a host with the remote-builder role, and
-=======
   session's network policy, `o11n remote build <installable>` builds them on a host with the nix-remote service, and
->>>>>>> @stamp
   `o11n remote check` builds every check there. session-start says so when that host doesn't answer.
 
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub flakes
@@ -125,13 +121,8 @@ o11n; nothing else runs it. Here, Kompismoln/org needs its stubs for that:
 
 To see whether a change alters an org's systems, evaluate each host's `config.system.build.toplevel.drvPath` with
 `--override-input o11n "git+file://<clone>?rev=<rev>&shallow=1"` at the old and the new revision: equal paths are equal
-<<<<<<< signed
-systems. Keep the org's tree as it is meanwhile: hosts with the peer role carry the org's source
-(`/etc/nix/inputs/self`), so a change to any file git tracks there changes them.
-=======
 systems. Keep the org's tree as it is meanwhile: NixOS hosts carry the org's source (`/etc/nix/inputs/self`), so a
 change to any file git tracks there changes them.
->>>>>>> @stamp
 
 ### Keys and secrets
 
