@@ -10,7 +10,7 @@
 let
   daemon = "${config.nix.package}/bin/nix-daemon --stdio";
 
-  # The operator sends the flake first, inputs and all (nix flake archive).
+  # Fact: the operator sends the flake first, inputs and all (nix flake archive).
   buildSystem = pkgs.writeShellApplication {
     name = "build-system";
     runtimeInputs = [
@@ -29,7 +29,7 @@ let
         usage
       nix-store --check-validity "$flake"
 
-      # nix-build has no home of its own for nix's caches.
+      # Accommodating for nix-build, which has no home of its own for nix's caches.
       HOME=$(mktemp -d)
       export HOME
       trap 'rm -rf "$HOME"' EXIT

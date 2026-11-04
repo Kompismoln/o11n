@@ -45,8 +45,8 @@
       hardware = {
         nvidia.open = true;
         nvidia.modesetting.enable = true;
-        # Pinned, so a nixpkgs update doesn't change the driver the vLLM containers run on.
-        # A new version only takes effect after a reboot.
+        # Policy: pinned, so a nixpkgs update doesn't change the driver the vLLM containers run on; a new version only
+        # takes effect after a reboot.
         nvidia.package = config.boot.kernelPackages.nvidiaPackages.mkDriver {
           version = "595.99.02";
           sha256_64bit = "sha256-6HR3lYv3YwcFSTJL1a1slI66btIQ5EAFs+/4SUD24ew=";

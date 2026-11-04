@@ -44,7 +44,8 @@ in
       databases = {
         ${cfg.database} = { inherit (cfg) user; };
       };
-      # Through a bind of /run/postgresql, which postgresql makes anew each time it starts.
+      # Fact: the container reaches it through a bind of /run/postgresql, which postgresql makes anew each time it
+      # starts.
       containers = [ cfg.name ];
     };
 
@@ -148,7 +149,6 @@ in
               package = postgresqlPackage;
             };
 
-            # ...
             services.mobilizon =
               let
                 elixirConf = pkgs.formats.elixirConf { elixir = cfg.package.elixirPackage; };

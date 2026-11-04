@@ -26,7 +26,7 @@ in
   nix = {
     package = lib.mkDefault pkgs.lix;
     registry = {
-      # Without the checkout's rev and lastModified, which a build host can't know when it
+      # Policy: without the checkout's rev and lastModified, which a build host can't know when it
       # evaluates a copy (build-system): a host's system depends on the org's tree alone.
       self.flake = removeAttrs inputs.self [
         "rev"
@@ -56,7 +56,7 @@ in
         "https://cache.nixos.org"
         "https://cache.lix.systems"
       ]
-      # After cache.nixos.org (40), so that public paths don't come over a vpn.
+      # Policy: after cache.nixos.org (40), so that public paths don't come over a vpn.
       ++ map (peer: "http://${host.reach.${peer.name}.fqdn}:5000?priority=50") substituters;
       connect-timeout = 5;
       fallback = true;

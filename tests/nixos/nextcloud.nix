@@ -64,7 +64,7 @@ let
   container = cfg.containers.cloud;
 in
 {
-  # The container reaches the host's postgresql through its socket, with no password.
+  # Policy: the container reaches the host's postgresql through its socket, with no password.
   test_nextcloud_peer = {
     expr = {
       socket = container.bindMounts."/run/postgresql" or null;

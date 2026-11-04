@@ -27,10 +27,8 @@ in
 
     users.users.prosody.extraGroups = [ "jitsi-meet" ];
 
-    # Jitsi Videobridge is a JVM app, and it depends on libjitsi,
-    # which uses JNA (Java Native Access) to call into native code.
-    # SystemD's ExecPaths/NoExecPaths restriction block this call.
-    # So we unblock it.
+    # Accommodating for Jitsi Videobridge, whose libjitsi calls native code through JNA, which systemd's
+    # ExecPaths/NoExecPaths would block.
     systemd.services.jitsi-videobridge2.serviceConfig = {
       StateDirectory = "jitsi-videobridge";
       ExecPaths = "/var/lib/jitsi-videobridge";
@@ -46,8 +44,7 @@ in
       enable = true;
       hostName = cfg.endpoint;
 
-      # Verbatim from jitsi handbook
-      # https://jitsi.github.io/handbook/docs/devops-guide/authentication
+      # Fact: verbatim from the jitsi handbook, https://jitsi.github.io/handbook/docs/devops-guide/authentication.
       config = {
         hosts.anonymousdomain = "guest.${cfg.endpoint}";
 
@@ -87,8 +84,7 @@ in
         ];
       };
 
-      # NixOS's default muc but with muc_wait_for_host as extra module on conference
-      # to trigger auth flow.
+      # Fact: NixOS's default muc, with muc_wait_for_host on conference, which triggers the auth flow.
       muc = lib.mkForce [
         {
           domain = "conference.${cfg.endpoint}";
@@ -140,9 +136,7 @@ in
         }
       ];
 
-      # asap_* is from jitsi handbook
-      # default log includes debug which is chatty af
-      # ssl is needed for prosody to be able to certificate
+      # Fact: asap_* is the jitsi handbook's; the default log includes debug; prosody needs ssl for its certificate.
       extraConfig = ''
         asap_accepted_issuers = { "${issuer}" }
         asap_accepted_audiences = { "account" }

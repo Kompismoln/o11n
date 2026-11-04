@@ -69,7 +69,7 @@ in
       rotate = 0;
     };
 
-    # Request and response bodies too large for memory are buffered here.
+    # Fact: request and response bodies too large for memory are buffered here.
     o11n.preserve.directories = [
       {
         directory = "/var/cache/nginx";
@@ -101,22 +101,6 @@ in
         '';
       };
     };
-
-    #services.alloy = {
-    #  enable = true;
-    #  extraFlags = [
-    #    "--server.http.listen-addr=0.0.0.0:${toString ids.alloy.port}"
-    #  ];
-    #};
-    #users.users.alloy = {
-    #  uid = ids.alloy.uid;
-    #  isSystemUser = true;
-    #  group = "alloy";
-    #  extraGroups = [ "nginx" ];
-    #};
-    #users.groups.alloy = {
-    #  gid = config.users.users.alloy.uid;
-    #};
 
     environment.etc."alloy/config.alloy".text = ''
       local.file_match "nginx_json_access_log" {

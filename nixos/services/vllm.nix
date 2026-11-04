@@ -57,7 +57,7 @@ let
   hostUser = config.users.users.${cfg.user};
   hasHome = hostUser.home != "/var/empty";
 
-  # Each server's home inside the container: its own directory in the user's home on the host,
+  # Policy: each server's home inside the container: its own directory in the user's home on the host,
   # on storage where the host preserves.
   serverHome =
     server: config.o11n.preserve.onStorage "${hostUser.home}/${servers.${server}.container}";
@@ -66,9 +66,8 @@ let
   inStore = lib.hasPrefix "${builtins.storeDir}/";
   isCommit = revision: revision != null && builtins.match "[0-9a-f]{40}" revision != null;
 
-  # A model ID's snapshot in the Hugging Face cache. vLLM is given the directory, not the ID: offline,
-  # it resolves an ID with huggingface_hub, which refuses a snapshot that lacks any file of its commit,
-  # even one vLLM never reads.
+  # Accommodating for huggingface_hub, which refuses a snapshot that lacks any file of its commit, even one vLLM
+  # never reads: offline, vLLM resolves a model ID with it, so it's given the ID's snapshot in the cache instead.
   modelPath =
     serverCfg:
     if isLocal serverCfg.model then
@@ -78,14 +77,14 @@ let
         builtins.replaceStrings [ "/" ] [ "--" ] serverCfg.model
       }/snapshots/${toString serverCfg.revision}";
 
-  # The options a server's extraArgs set, as vLLM reads them: `--a_b=c` sets `--a-b`.
+  # Fact: the options a server's extraArgs set, as vLLM reads them: `--a_b=c` sets `--a-b`.
   extraOptions =
     serverCfg:
     map (
       arg: lib.head (lib.splitString "=" (builtins.replaceStrings [ "_" ] [ "-" ] arg))
     ) serverCfg.extraArgs;
 
-  # The groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
+  # Fact: the groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
   hostGroups = lib.unique (
     [ hostUser.group ]
     ++ hostUser.extraGroups
@@ -119,7 +118,7 @@ let
     }
     // serverCfg.environment;
 
-    # Everything the server runs from the store: its path changes when any of it does,
+    # Policy: everything the server runs from the store: its path changes when any of it does,
     # and `nix-store -qR` on it gives the whole runtime closure. Built from the container's
     # package set under one name, so servers running the same packages share it, and the
     # host's nixpkgs or a server's name don't move it.
@@ -136,7 +135,7 @@ let
     ]
     ++ map (i: "/dev/nvidia${toString i}") serverCfg.allowedGPUs;
 
-    # What the server reads from the host outside the store: the driver's libraries
+    # Fact: what the server reads from the host outside the store: the driver's libraries
     # and the Hugging Face cache.
     readOnlyPaths = [
       "/run/opengl-driver"
@@ -196,7 +195,7 @@ in
   ];
 
   config = {
-    # What a server reads must not change under it: no host paths, no moving revisions.
+    # Policy: what a server reads must not change under it: no host paths, no moving revisions.
     assertions = lib.concatLists (
       lib.mapAttrsToList (server: serverCfg: [
         {
@@ -265,7 +264,7 @@ in
       lib.nameValuePair servers.${server}.container {
         autoStart = true;
         ephemeral = true;
-        # The NixOS modules come from the same nixpkgs as the package set.
+        # Policy: the NixOS modules come from the same nixpkgs as the package set.
         nixpkgs = serverCfg.pkgs.path;
 
         allowedDevices = map (node: {
@@ -280,7 +279,7 @@ in
           // lib.genAttrs servers.${server}.readOnlyPaths (_: {
             isReadOnly = true;
           })
-          # A home of the server's own, for the caches vLLM, Triton, FlashInfer and CUDA keep there.
+          # Policy: a home of the server's own, for the caches vLLM, Triton, FlashInfer and CUDA keep there.
           // lib.optionalAttrs hasHome {
             ${hostUser.home} = {
               hostPath = serverHome server;
@@ -292,7 +291,7 @@ in
           system.stateVersion = config.system.stateVersion;
           nixpkgs.pkgs = serverCfg.pkgs;
 
-          # For diagnostics: the host driver's nvidia-smi, as only that matches the loaded
+          # Policy: for diagnostics, the host driver's nvidia-smi, as only that matches the loaded
           # kernel module, and nix-shell with the container's nixpkgs.
           environment.systemPackages = [ config.hardware.nvidia.package.bin ];
           nix.nixPath = [ "nixpkgs=${toString serverCfg.nixpkgs}" ];

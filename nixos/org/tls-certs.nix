@@ -21,7 +21,6 @@ in
     users.groups.tls-cert = {
       members = [
         "nginx"
-        #"zitadel"
       ];
     };
 

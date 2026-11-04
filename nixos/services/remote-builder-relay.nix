@@ -31,13 +31,13 @@ in
     }
   ];
 
-  # A tunnel sends a request per write, so connections to the builder are kept open.
+  # Policy: a tunnel sends a request per write, so connections to the builder are kept open.
   services.nginx.upstreams.nix-remote-builder = {
     servers."[${network.address}]:443" = { };
     extraConfig = "keepalive 8;";
   };
 
-  # For clients that can't reach the builder themselves, such as an IPv4-only one when the
+  # Policy: for clients that can't reach the builder themselves, such as an IPv4-only one when the
   # builder has only IPv6: its daemon and its evaluations. The builder checks their bearer.
   services.nginx.virtualHosts.${host.endpoint} = {
     forceSSL = true;
@@ -46,7 +46,7 @@ in
       lib.genAttrs ([ "/nix-daemon/" ] ++ lib.optional (org.repository != { }) "/nix-eval/")
         (_: {
           proxyPass = "https://nix-remote-builder";
-          # The builder's nginx picks its vhost by Host, so it gets the builder's endpoint.
+          # Fact: the builder's nginx picks its vhost by Host, so it gets the builder's endpoint.
           recommendedProxySettings = false;
           extraConfig = ''
             proxy_http_version 1.1;

@@ -16,7 +16,7 @@ let
   localModel = pkgs.runCommand "local-model" { } "mkdir $out";
   template = builtins.toFile "local.jinja" "";
 
-  # A nixpkgs pin with an empty vLLM, in place of the host's.
+  # Fact: a nixpkgs pin with an empty vLLM, in place of the host's.
   stub = builtins.toFile "nixpkgs-stub.nix" ''
     args:
     (import ${toString pkgs.path} args).extend (final: _: {
@@ -24,7 +24,7 @@ let
     })
   '';
 
-  # A nixpkgs pin with a vLLM of its own, which the host doesn't have.
+  # Fact: a nixpkgs pin with a vLLM of its own, which the host doesn't have.
   pin = builtins.toFile "nixpkgs-pin.nix" ''
     args:
     (import ${toString pkgs.path} args).extend (final: _: {
@@ -109,7 +109,7 @@ let
     };
   };
 
-  # Servers reading what can change under them.
+  # Fact: servers reading what can change under them.
   unpinnedCfg = eval {
     branch = server {
       port = 8002;

@@ -14,8 +14,8 @@ let
       generation=''${1:-}
 
       if [[ $generation == ${builtins.storeDir}/* ]]; then
-        # A lookup made before the build host had the path would otherwise be remembered as
-        # missing for an hour.
+        # Accommodating for nix, which would otherwise remember a lookup made before the build host had the
+        # path as missing for an hour.
         nix-store --realise "$generation" --option narinfo-cache-negative-ttl 0 >/dev/null
         if [[ ! -x $generation/bin/switch-to-configuration ]]; then
           echo "$generation is not a NixOS system" >&2
