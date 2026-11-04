@@ -2,14 +2,13 @@
 {
   app,
   config,
-  lib,
   pkgs,
   ...
 }:
 
 let
   webserver = config.services.nginx;
-  eachApp.${app.name} = {
+  cfg = {
     inherit (app)
       name
       endpoint
@@ -36,16 +35,14 @@ let
     '';
   };
 
-  wpConfig =
-    app:
-    pkgs.writeText "wp-config-override.php" ''
-      <?php
-      define( 'WP_DEBUG', false );
-      define( 'DB_NAME', '${app.database}' );
-      define( 'DB_USER', '${app.name}' );
-      define( 'WP_CACHE', true );
-      define( 'WP_REDIS_HOST', '${app.bindAddress}' );
-    '';
+  wpConfig = pkgs.writeText "wp-config-override.php" ''
+    <?php
+    define( 'WP_DEBUG', false );
+    define( 'DB_NAME', '${cfg.database}' );
+    define( 'DB_USER', '${cfg.name}' );
+    define( 'WP_CACHE', true );
+    define( 'WP_REDIS_HOST', '${cfg.bindAddress}' );
+  '';
 in
 {
   imports = [
@@ -66,22 +63,21 @@ in
       pkgs.wp-cli
     ];
 
-    o11n.mysql.databases = lib.mapAttrs' (
-      _: app: lib.nameValuePair app.database { inherit (app) user; }
-    ) eachApp;
+    o11n.mysql.databases = {
+      ${cfg.database} = { inherit (cfg) user; };
+    };
 
-    systemd.tmpfiles.rules = lib.concatMap (app: [
-      "d '${app.home}' 0750 ${app.user} ${app.user} - -"
-      "L+ ${app.home}/wp-config-override.php - - - - ${wpConfig app}"
-    ]) (lib.attrValues eachApp);
+    systemd.tmpfiles.rules = [
+      "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
+      "L+ ${cfg.home}/wp-config-override.php - - - - ${wpConfig}"
+    ];
 
-    services.nginx.virtualHosts = lib.mapAttrs' (
-      _: app:
-      lib.nameValuePair app.endpoint {
-        forceSSL = app.ssl;
-        enableACME = app.ssl;
+    services.nginx.virtualHosts = {
+      ${cfg.endpoint} = {
+        forceSSL = cfg.ssl;
+        enableACME = cfg.ssl;
 
-        root = app.home;
+        root = cfg.home;
 
         extraConfig = ''
           index index.php;
@@ -117,7 +113,7 @@ in
             extraConfig = ''
               try_files $uri =404;
               fastcgi_split_path_info ^(.+\.php)(/.+)$;
-              fastcgi_pass unix:${config.services.phpfpm.pools.${app.name}.socket};
+              fastcgi_pass unix:${config.services.phpfpm.pools.${cfg.name}.socket};
               fastcgi_index index.php;
               include ${config.services.nginx.package}/conf/fastcgi.conf;
               fastcgi_intercept_errors on;
@@ -150,33 +146,35 @@ in
             '';
           };
         };
-      }
-    ) eachApp;
-
-    services.phpfpm.pools = lib.mapAttrs (_: app: {
-      inherit (app) user;
-      group = app.user;
-      phpPackage = wpPhp;
-      phpOptions = ''
-        upload_max_filesize = 16M;
-        post_max_size = 16M;
-        error_reporting = E_ALL;
-        display_errors = Off;
-        log_errors = On;
-        error_log = ${app.home}/error.log;
-        extension=${pkgs.phpExtensions.redis}/lib/php/extensions/redis.so
-      '';
-      settings = {
-        "listen.owner" = webserver.user;
-        "listen.group" = webserver.group;
-        "pm" = "dynamic";
-        "pm.max_children" = 32;
-        "pm.start_servers" = 2;
-        "pm.min_spare_servers" = 2;
-        "pm.max_spare_servers" = 4;
-        "pm.max_requests" = 500;
       };
-    }) eachApp;
+    };
+
+    services.phpfpm.pools = {
+      ${cfg.name} = {
+        inherit (cfg) user;
+        group = cfg.user;
+        phpPackage = wpPhp;
+        phpOptions = ''
+          upload_max_filesize = 16M;
+          post_max_size = 16M;
+          error_reporting = E_ALL;
+          display_errors = Off;
+          log_errors = On;
+          error_log = ${cfg.home}/error.log;
+          extension=${pkgs.phpExtensions.redis}/lib/php/extensions/redis.so
+        '';
+        settings = {
+          "listen.owner" = webserver.user;
+          "listen.group" = webserver.group;
+          "pm" = "dynamic";
+          "pm.max_children" = 32;
+          "pm.start_servers" = 2;
+          "pm.min_spare_servers" = 2;
+          "pm.max_spare_servers" = 4;
+          "pm.max_requests" = 500;
+        };
+      };
+    };
 
   };
 }

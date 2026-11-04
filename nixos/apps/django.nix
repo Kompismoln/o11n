@@ -12,7 +12,7 @@
 let
   packages = inputs.${app.django.input}.packages.${host.system};
 
-  eachApp.${app.name} = {
+  cfg = {
     inherit (app)
       name
       endpoint
@@ -38,36 +38,31 @@ let
     workers = 2;
   };
 
-  envs = lib.mapAttrs (
-    _: app:
-    {
-      DB_NAME = app.database;
-      DB_USER = app.user;
-      DB_HOST = "/run/postgresql";
-      DEBUG = "false";
-      DJANGO_SETTINGS_MODULE = "${app.module}.settings";
-      HOST = app.endpoint;
-      DJANGO_MODE = "main";
-      DJANGO_LOG_LEVEL = "WARNING";
-      SCHEME = if app.ssl then "https" else "http";
-      TRUSTED_ORIGINS = builtins.concatStringsSep "," app.trustedOrigins;
-      SECRET_KEY_FILE = app.secretKeyPath;
-      STATIC_URL = app.locationStatic;
-      STATE_DIR = app.home;
-      STATIC_ROOT = statics.${app.name};
-    }
-    // app.env
-  ) eachApp;
+  envVars = {
+    DB_NAME = cfg.database;
+    DB_USER = cfg.user;
+    DB_HOST = "/run/postgresql";
+    DEBUG = "false";
+    DJANGO_SETTINGS_MODULE = "${cfg.module}.settings";
+    HOST = cfg.endpoint;
+    DJANGO_MODE = "main";
+    DJANGO_LOG_LEVEL = "WARNING";
+    SCHEME = if cfg.ssl then "https" else "http";
+    TRUSTED_ORIGINS = builtins.concatStringsSep "," cfg.trustedOrigins;
+    SECRET_KEY_FILE = cfg.secretKeyPath;
+    STATIC_URL = cfg.locationStatic;
+    STATE_DIR = cfg.home;
+    STATIC_ROOT = static;
+  }
+  // cfg.env;
 
-  mkCollectStatic =
-    _: app:
-    pkgs.runCommand "${app.name}-static" { } ''
-      export STATIC_ROOT="$out"
-      export STATIC_URL="${app.locationStatic}"
-      export DJANGO_MODE="collectstatic"
-      export DJANGO_SETTINGS_MODULE=${app.module}.settings
-      ${app.package}/bin/django-admin collectstatic --no-input
-    '';
+  static = pkgs.runCommand "${cfg.name}-static" { } ''
+    export STATIC_ROOT="$out"
+    export STATIC_URL="${cfg.locationStatic}"
+    export DJANGO_MODE="collectstatic"
+    export DJANGO_SETTINGS_MODULE=${cfg.module}.settings
+    ${cfg.package}/bin/django-admin collectstatic --no-input
+  '';
 
   wrapBins =
     pkgs: pkg: env:
@@ -92,11 +87,7 @@ let
       '';
     };
 
-  statics = lib.mapAttrs mkCollectStatic eachApp;
-
-  scripts = lib.mapAttrs (_: app: wrapBins pkgs app.scripts envs.${app.name}) (
-    lib.filterAttrs (_: app: app.scripts != null) eachApp
-  );
+  scripts = lib.optional (cfg.scripts != null) (wrapBins pkgs cfg.scripts envVars);
 in
 {
   imports = [
@@ -110,75 +101,72 @@ in
       group = app.name;
     };
 
-    environment.systemPackages = lib.attrValues scripts;
+    environment.systemPackages = scripts;
 
-    o11n.postgresql.databases = lib.mapAttrs' (
-      _: app: lib.nameValuePair app.database { inherit (app) user; }
-    ) eachApp;
+    o11n.postgresql.databases = {
+      ${cfg.database} = { inherit (cfg) user; };
+    };
 
-    systemd.tmpfiles.rules = lib.concatMap (app: [
-      "d '${app.home}' 0750 ${app.user} ${app.user} - -"
-    ]) (lib.attrValues eachApp);
+    systemd.tmpfiles.rules = [
+      "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
+    ];
 
-    services.nginx.virtualHosts = lib.mapAttrs' (
-      _: app:
-      lib.nameValuePair app.endpoint {
-        forceSSL = app.ssl;
-        enableACME = app.ssl;
+    services.nginx.virtualHosts = {
+      ${cfg.endpoint} = {
+        forceSSL = cfg.ssl;
+        enableACME = cfg.ssl;
         locations =
-          lib.optionalAttrs (app.locationProxy != "") {
-            ${app.locationProxy} = {
+          lib.optionalAttrs (cfg.locationProxy != "") {
+            ${cfg.locationProxy} = {
               recommendedProxySettings = true;
-              proxyPass = "http://[${app.bindAddress}]:${toString app.port}";
+              proxyPass = "http://[${cfg.bindAddress}]:${toString cfg.port}";
               extraConfig = ''
-                proxy_read_timeout ${toString app.timeout}s;
-                proxy_connect_timeout ${toString app.timeout}s;
+                proxy_read_timeout ${toString cfg.timeout}s;
+                proxy_connect_timeout ${toString cfg.timeout}s;
               '';
             };
           }
-          // lib.optionalAttrs (app.locationStatic != "") {
-            ${app.locationStatic} = {
-              alias = "${statics.${app.name}}/";
+          // lib.optionalAttrs (cfg.locationStatic != "") {
+            ${cfg.locationStatic} = {
+              alias = "${static}/";
             };
           };
-      }
-    ) eachApp;
+      };
+    };
 
-    systemd.services = lib.concatMapAttrs (_: app: {
+    systemd.services = {
 
-      "${app.name}-django" = {
+      "${cfg.name}-django" = {
         path = [ config.services.postgresql.package ];
-        description = "serve ${app.name}";
+        description = "serve ${cfg.name}";
         serviceConfig = {
           ExecStart = lib.escapeShellArgs [
-            "${app.package}/bin/gunicorn"
-            "${app.module}.asgi:application"
-            "--bind=[${app.bindAddress}]:${toString app.port}"
-            "--timeout=${toString app.timeout}"
-            "--workers=${toString app.workers}"
+            "${cfg.package}/bin/gunicorn"
+            "${cfg.module}.asgi:application"
+            "--bind=[${cfg.bindAddress}]:${toString cfg.port}"
+            "--timeout=${toString cfg.timeout}"
+            "--workers=${toString cfg.workers}"
             "--worker-class=uvicorn.workers.UvicornWorker"
           ];
-          User = app.user;
-          Group = app.user;
-          Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") envs.${app.name};
+          User = cfg.user;
+          Group = cfg.user;
+          Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") envVars;
         };
         wantedBy = [ "multi-user.target" ];
       };
 
-      "${app.name}-django-worker" = lib.mkIf (app.worker-package != null) {
+      "${cfg.name}-django-worker" = lib.mkIf (cfg.worker-package != null) {
         path = [ config.services.postgresql.package ];
-        description = "serve ${app.name} worker";
+        description = "serve ${cfg.name} worker";
         serviceConfig = {
-          ExecStart = lib.getExe app.worker-package;
-          User = app.user;
-          Group = app.user;
-          Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") envs.${app.name};
+          ExecStart = lib.getExe cfg.worker-package;
+          User = cfg.user;
+          Group = cfg.user;
+          Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") envVars;
         };
         wantedBy = [ "multi-user.target" ];
       };
-    }
-
-    ) eachApp;
+    };
 
   };
 }
