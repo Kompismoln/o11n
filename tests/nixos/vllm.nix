@@ -5,7 +5,6 @@
 }:
 let
 
-  vllm = pkgs.writeShellScriptBin "vllm" "";
   nvidia = pkgs.runCommand "nvidia-x11" {
     outputs = [
       "out"
@@ -17,6 +16,14 @@ let
   localModel = pkgs.runCommand "local-model" { } "mkdir $out";
   template = builtins.toFile "local.jinja" "";
 
+  # A nixpkgs pin with an empty vLLM, in place of the host's.
+  stub = builtins.toFile "nixpkgs-stub.nix" ''
+    args:
+    (import ${toString pkgs.path} args).extend (final: _: {
+      vllm = final.writeShellScriptBin "vllm" "";
+    })
+  '';
+
   # A nixpkgs pin with a vLLM of its own, which the host doesn't have.
   pin = builtins.toFile "nixpkgs-pin.nix" ''
     args:
@@ -25,122 +32,115 @@ let
     })
   '';
 
-  baseConfig = {
-    users = {
-      users = {
-        vllm = {
-          isSystemUser = true;
-          group = "vllm";
-          uid = 3002;
-          home = "/var/lib/vllm";
-        };
-        huggingface = {
-          isSystemUser = true;
-          group = "huggingface";
-          uid = 3001;
-          home = "/var/lib/huggingface";
-        };
-      };
-      groups = {
-        vllm.gid = 3002;
-        huggingface = {
-          gid = 3001;
-          members = [ "vllm" ];
-        };
-      };
-    };
+  server =
+    attrs:
+    {
+      nixpkgs = "stub";
+      revision = null;
+      servedModelNames = [ ];
+      host = "127.0.0.1";
+      extraArgs = [ ];
+      environment = { };
+      allowedGPUs = [ 0 ];
+    }
+    // attrs;
 
-    o11n = {
-      huggingface = {
-        repo = "/srv/models/huggingface";
-      };
-      vllm = {
-        servers = {
-          chat = {
-            package = vllm;
-            port = 8000;
-            model = "Qwen/Qwen3-8B";
-            revision = commit;
-            chatTemplate = template;
-            allowedGPUs = [ 1 ];
-          };
-          local = {
-            nixpkgs = pin;
-            port = 8001;
-            model = "${localModel}";
-            chatTemplate = template;
+  eval =
+    servers:
+    evalNixosModule [
+      ../../nixos/services/vllm.nix
+      {
+        _module.args = {
+          host.name = "testhost";
+          inputs = { inherit pin stub; };
+          org.service.vllm.hosts.testhost = {
+            report = {
+              enable = false;
+              host = "127.0.0.1";
+              port = 12008;
+            };
+            inherit servers;
           };
         };
-      };
+
+        users = {
+          users = {
+            vllm = {
+              isSystemUser = true;
+              group = "vllm";
+              uid = 3002;
+              home = "/var/lib/vllm";
+            };
+            huggingface = {
+              isSystemUser = true;
+              group = "huggingface";
+              uid = 3001;
+              home = "/var/lib/huggingface";
+            };
+          };
+          groups = {
+            vllm.gid = 3002;
+            huggingface = {
+              gid = 3001;
+              members = [ "vllm" ];
+            };
+          };
+        };
+
+        hardware.nvidia.package = nvidia;
+
+        system.stateVersion = lib.trivial.release;
+      }
+    ];
+
+  cfg = eval {
+    chat = server {
+      port = 8000;
+      model = "Qwen/Qwen3-8B";
+      revision = commit;
+      chatTemplate = template;
+      allowedGPUs = [ 1 ];
     };
-
-    hardware.nvidia.package = nvidia;
-
-    system.stateVersion = lib.trivial.release;
+    local = server {
+      nixpkgs = "pin";
+      port = 8001;
+      model = "${localModel}";
+      chatTemplate = template;
+    };
   };
 
-  cfg = evalNixosModule [
-    ../../nixos/huggingface.nix
-    ../../nixos/vllm.nix
-    baseConfig
-  ];
-
-  # Servers reading what can change under them, next to the ones above that don't.
-  unpinnedCfg = evalNixosModule [
-    ../../nixos/huggingface.nix
-    ../../nixos/vllm.nix
-    baseConfig
-    {
-      o11n.vllm.servers = {
-        branch = {
-          package = vllm;
-          port = 8002;
-          model = "Qwen/Qwen3-8B";
-          revision = "main";
-          chatTemplate = template;
-        };
-        default = {
-          package = vllm;
-          port = 8003;
-          model = "Qwen/Qwen3-8B";
-          chatTemplate = template;
-        };
-        host = {
-          package = vllm;
-          port = 8004;
-          model = "/srv/models/local";
-          chatTemplate = "/srv/templates/local.jinja";
-        };
-        overriding = {
-          package = vllm;
-          port = 8005;
-          model = "Qwen/Qwen3-8B";
-          revision = commit;
-          chatTemplate = template;
-          extraArgs = [
-            "--chat-template=/srv/templates/local.jinja"
-            "--trust_request_chat_template"
-          ];
-        };
-      };
-    }
-  ];
-
-  noTemplateCfg = evalNixosModule [
-    ../../nixos/huggingface.nix
-    ../../nixos/vllm.nix
-    baseConfig
-    {
-      o11n.vllm.servers.bare = {
-        package = vllm;
-        port = 8006;
-        model = "Qwen/Qwen3-8B";
-        revision = commit;
-      };
-    }
-  ];
+  # Servers reading what can change under them.
+  unpinnedCfg = eval {
+    branch = server {
+      port = 8002;
+      model = "Qwen/Qwen3-8B";
+      revision = "main";
+      chatTemplate = template;
+    };
+    default = server {
+      port = 8003;
+      model = "Qwen/Qwen3-8B";
+      chatTemplate = template;
+    };
+    host = server {
+      port = 8004;
+      model = "/srv/models/local";
+      chatTemplate = "/srv/templates/local.jinja";
+    };
+    overriding = server {
+      port = 8005;
+      model = "Qwen/Qwen3-8B";
+      revision = commit;
+      chatTemplate = template;
+      extraArgs = [
+        "--chat-template=/srv/templates/local.jinja"
+        "--trust_request_chat_template"
+      ];
+    };
+  };
 
   pinned = import pin { inherit (pkgs.stdenv.hostPlatform) system; };
+  inherit (import stub { inherit (pkgs.stdenv.hostPlatform) system; }) vllm;
   chat = cfg.containers.vllm-chat;
   local = cfg.containers.vllm-local;
 in
@@ -162,22 +162,18 @@ in
   test_vllm_model_inputs_pinned = {
     expr = map (assertion: assertion.message) (
       lib.filter (
-        assertion: !assertion.assertion && lib.hasPrefix "o11n.vllm.servers." assertion.message
+        assertion:
+        !assertion.assertion && lib.hasPrefix "service.vllm.hosts.testhost.servers." assertion.message
       ) unpinnedCfg.assertions
     );
     expected = [
-      "o11n.vllm.servers.branch.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated."
-      "o11n.vllm.servers.default.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated."
-      "o11n.vllm.servers.host.model must be a Hugging Face model ID or a path in the Nix store, not a path on the host."
-      "o11n.vllm.servers.host.chatTemplate must be in the Nix store, not a file on the host."
-      "o11n.vllm.servers.overriding.extraArgs must not set --chat-template: set chatTemplate, which the report covers."
-      "o11n.vllm.servers.overriding.extraArgs must not set --trust-request-chat-template: it lets a request replace the chat template."
+      "service.vllm.hosts.testhost.servers.branch.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated."
+      "service.vllm.hosts.testhost.servers.default.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated."
+      "service.vllm.hosts.testhost.servers.host.model must be a Hugging Face model ID or a path in the Nix store, not a path on the host."
+      "service.vllm.hosts.testhost.servers.host.chatTemplate must be in the Nix store, not a file on the host."
+      "service.vllm.hosts.testhost.servers.overriding.extraArgs must not set --chat-template: set chatTemplate, which the report covers."
+      "service.vllm.hosts.testhost.servers.overriding.extraArgs must not set --trust-request-chat-template: it lets a request replace the chat template."
     ];
-  };
-
-  test_vllm_chat_template_required = {
-    expr = (builtins.tryEval noTemplateCfg.o11n.vllm.servers.bare.chatTemplate).success;
-    expected = false;
   };
 
   test_vllm_container_home = {

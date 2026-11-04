@@ -8,16 +8,12 @@
 
 let
   inherit (lib)
-    mkEnableOption
     optionalString
     ;
   vpn = org.vpn.wg0;
   hostname = host.network.wg0.fqdn;
 in
 {
-  options.o11n.nginx = {
-    monitor = mkEnableOption "nginx web server.";
-  };
 
   config = {
     networking.firewall.allowedTCPPorts = [

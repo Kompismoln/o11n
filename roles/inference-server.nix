@@ -60,9 +60,6 @@
       services.xserver.videoDrivers = [ "nvidia" ];
 
       o11n = {
-        huggingface = {
-          repo = "/srv/models/huggingface";
-        };
 
         unfree = [
           "nvidia-kernel-modules"

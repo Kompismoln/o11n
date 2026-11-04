@@ -4,16 +4,16 @@
 }:
 let
   baseConfig = {
-    o11n.keycloak = {
+    _module.args.app = {
+      name = "keycloak";
       endpoint = "auth.example.com";
-      home = "/var/lib/keycloak";
-      bindAddress = "fd12:3456:7890:1::1";
+      principal.bindAddress = "fd12:3456:7890:1::1";
     };
     system.stateVersion = lib.trivial.release;
   };
 
   cfg = evalNixosModule [
-    ../../nixos/keycloak.nix
+    ../../nixos/apps/keycloak.nix
     baseConfig
   ];
 
