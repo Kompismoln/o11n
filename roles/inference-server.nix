@@ -11,7 +11,6 @@
         ../nixos/org/sops.nix
         ../nixos/huggingface.nix
         ../nixos/unfree.nix
-        ../nixos/vllm.nix
       ];
 
       nix = {

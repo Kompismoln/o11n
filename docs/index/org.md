@@ -960,6 +960,15 @@ Default: `null`
 
 maybe canonical name on internet
 
+### `service.<name>.hosts`
+
+`org/service.nix` · attribute set of attribute set of anything
+
+Default: `{ }`
+
+the service's settings on each host it's on, which its configuration reads, typed by o11n's org/services/<name>.nix when
+that exists
+
 ### `service.<name>.namespace`
 
 `org/service.nix` · null or string
