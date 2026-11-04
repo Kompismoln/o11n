@@ -20,6 +20,8 @@ Default: `[ ]`
 
 alternative access points that should be redirected to endpoint
 
+<<<<<<< signed
+=======
 ### `app.<name>.collabora`
 
 `org/app.nix` · null or (submodule)
@@ -36,13 +38,26 @@ Default: `[ ]`
 
 the hosts collabora accepts WOPI from
 
+>>>>>>> @stamp
 ### `app.<name>.configurationFile`
 
+<<<<<<< signed
+`org/app.nix` · absolute path or string convertible to it
+=======
 `org/app.nix` · null or (absolute path or string convertible to it)
+>>>>>>> @stamp
 
+<<<<<<< signed
+Default: `"apps/‹name›.nix"`
+=======
 Default: the org's `apps/<name>.nix`, if it exists
+>>>>>>> @stamp
 
+<<<<<<< signed
+path to specific configuration
+=======
 the org's own configuration of the app, beside its kind's, or null
+>>>>>>> @stamp
 
 ### `app.<name>.database`
 
@@ -52,6 +67,8 @@ Default: `"‹name›"`
 
 app's database
 
+<<<<<<< signed
+=======
 ### `app.<name>.django`
 
 `org/app.nix` · null or (submodule)
@@ -98,12 +115,15 @@ Default: `[ ]`
 
 django's CSRF_TRUSTED_ORIGINS
 
+>>>>>>> @stamp
 ### `app.<name>.endpoint`
 
 `org/app.nix` · string
 
 canonical name on internet
 
+<<<<<<< signed
+=======
 ### `app.<name>.jitsi`
 
 `org/app.nix` · null or (submodule)
@@ -142,6 +162,7 @@ Default: the one of its kinds' tables that is set, or null
 the kind of the app, whose configuration in o11n's nixos/apps/ it gets: the one of its kinds' tables that is set, or
 null
 
+>>>>>>> @stamp
 ### `app.<name>.location`
 
 `org/app.nix` · string
@@ -150,6 +171,8 @@ Default: `"/"`
 
 canonical path
 
+<<<<<<< signed
+=======
 ### `app.<name>.mobilizon`
 
 `org/app.nix` · null or (submodule)
@@ -212,6 +235,7 @@ Default: `null`
 
 the collabora app whose endpoint nextcloud's office uses, or null
 
+>>>>>>> @stamp
 ### `app.<name>.run-on-hosts`
 
 `org/app.nix` · list of string
@@ -244,6 +268,8 @@ Default: `"${scheme}://${endpoint}"`
 
 public url including scheme
 
+<<<<<<< signed
+=======
 ### `app.<name>.wordpress`
 
 `org/app.nix` · null or (submodule)
@@ -252,6 +278,7 @@ Default: `null`
 
 the app's settings as a wordpress, which make it one
 
+>>>>>>> @stamp
 ### `build-hosts`
 
 `org/default.nix` · list of impossible (empty enum)
@@ -260,6 +287,8 @@ Default: `[ ]`
 
 list of designated build hosts
 
+<<<<<<< signed
+=======
 ### `certs`
 
 `org/default.nix` · attribute set of raw value
@@ -268,6 +297,7 @@ Default: each service whose `namespace` isn't null, by it
 
 the service that holds each namespace's tls-cert, by namespace
 
+>>>>>>> @stamp
 ### `contact`
 
 `org/default.nix` · string
@@ -374,6 +404,8 @@ record of disk layouts that applies to host
 
 unix path to device(s)
 
+<<<<<<< signed
+=======
 ### `host.<name>.disk-layouts.<name>.encrypted`
 
 `org/disk.nix` · boolean
@@ -382,6 +414,7 @@ Default: `true` but for the `single-xfs` and `raid1-xfs` layouts
 
 whether the layout encrypts the disk with the host's luks-key
 
+>>>>>>> @stamp
 ### `host.<name>.disk-layouts.<name>.layout`
 
 `org/disk.nix` · string
@@ -670,6 +703,8 @@ Default: `"‹name›"`
 
 network type
 
+<<<<<<< signed
+=======
 ### `host.<name>.nixos`
 
 `org/host.nix` · boolean
@@ -678,6 +713,7 @@ Default: `true`
 
 whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes
 
+>>>>>>> @stamp
 ### `host.<name>.principals`
 
 `org/host.nix` · list of raw value
@@ -711,6 +747,8 @@ Default: `[ ]`
 
 roles that this host has
 
+<<<<<<< signed
+=======
 ### `host.<name>.services`
 
 `org/host.nix` · list of raw value
@@ -719,6 +757,7 @@ Default: the `services` of its `roles`, in the order of their name
 
 the services of the host's roles, whose configuration it imports
 
+>>>>>>> @stamp
 ### `host.<name>.stateVersion`
 
 `org/host.nix` · null or string
@@ -936,6 +975,8 @@ list of root identities
 
 record of all services
 
+<<<<<<< signed
+=======
 ### `service.<name>.configurationFile`
 
 `org/service.nix` · null or absolute path
@@ -944,6 +985,7 @@ Default: o11n's `nixos/services/<name>.nix`, or else the org's `services/<name>.
 
 the configuration a host with the service imports, or null
 
+>>>>>>> @stamp
 ### `service.<name>.data`
 
 `org/service.nix` · attribute set of anything
@@ -960,6 +1002,8 @@ Default: `null`
 
 maybe canonical name on internet
 
+<<<<<<< signed
+=======
 ### `service.<name>.hosts`
 
 `org/service.nix` · attribute set of attribute set of anything
@@ -978,6 +1022,7 @@ Default: `<namespace>` for the service `domain-<namespace>`, of a namespace in t
 
 the namespace whose tls-cert the service holds, for it and its subdomains, or null
 
+>>>>>>> @stamp
 ### `service.<name>.vpn`
 
 `org/service.nix` · null or impossible (empty enum)
@@ -1386,11 +1431,19 @@ entity id in various formats
 `org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
 "luks", "passphrase")
 
+<<<<<<< signed
+Default: the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`
+=======
 Default: the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; a user's `mail` with `mail`; a service's `tls-cert` with a
 `namespace`, and the keys o11n's modules read of the services they name
+>>>>>>> @stamp
 
+<<<<<<< signed
+the entity's keys, each with its type: its class's, and those its configuration adds
+=======
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
+>>>>>>> @stamp
 
 ### `<entity>.name`
 
@@ -1495,7 +1548,11 @@ had by `<entity>.principal`
 
 Default: `{ }`
 
+<<<<<<< signed
+the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+=======
 the hosts with the archive service that archive the principal's home, as a list or each with a schedule; only an archive
+>>>>>>> @stamp
 with a schedule has a timer
 
 ### `<principal>.archives.<name>.schedule`
