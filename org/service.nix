@@ -54,6 +54,15 @@
           null;
       defaultText = lib.literalMD "`<namespace>` for the service `domain-<namespace>`, of a namespace in the org's `namespaces` or a vpn's `namespace`, or else `null`";
     };
+    configurationFile = lib.mkOption {
+      description = "the configuration a host with the service imports, or null";
+      type = lib.types.nullOr lib.types.path;
+      default = lib.findFirst builtins.pathExists null [
+        (../nixos/services + "/${config.name}.nix")
+        (context.path + "/services/${config.name}.nix")
+      ];
+      defaultText = lib.literalMD "o11n's `nixos/services/<name>.nix`, or else the org's `services/<name>.nix`, if either exists";
+    };
     data = lib.mkOption {
       description = "arbitrary data to service";
       type = with lib.types; attrsOf anything;

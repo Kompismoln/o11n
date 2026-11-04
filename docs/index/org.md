@@ -90,8 +90,6 @@ Default: `[ ]`
 
 list of designated build hosts
 
-<<<<<<< signed
-=======
 ### `certs`
 
 `org/default.nix` · attribute set of raw value
@@ -100,7 +98,6 @@ Default: each service whose `namespace` isn't null, by it
 
 the service that holds each namespace's tls-cert, by namespace
 
->>>>>>> @stamp
 ### `contact`
 
 `org/default.nix` · string
@@ -207,8 +204,6 @@ record of disk layouts that applies to host
 
 unix path to device(s)
 
-<<<<<<< signed
-=======
 ### `host.<name>.disk-layouts.<name>.encrypted`
 
 `org/disk.nix` · boolean
@@ -217,7 +212,6 @@ Default: `true` but for the `single-xfs` and `raid1-xfs` layouts
 
 whether the layout encrypts the disk with the host's luks-key
 
->>>>>>> @stamp
 ### `host.<name>.disk-layouts.<name>.layout`
 
 `org/disk.nix` · string
@@ -539,6 +533,14 @@ Default: `[ ]`
 
 roles that this host has
 
+### `host.<name>.services`
+
+`org/host.nix` · list of raw value
+
+Default: the `services` of its `roles`, in the order of their name
+
+the services of the host's roles, whose configuration it imports
+
 ### `host.<name>.stateVersion`
 
 `org/host.nix` · null or string
@@ -756,6 +758,14 @@ list of root identities
 
 record of all services
 
+### `service.<name>.configurationFile`
+
+`org/service.nix` · null or absolute path
+
+Default: o11n's `nixos/services/<name>.nix`, or else the org's `services/<name>.nix`, if either exists
+
+the configuration a host with the service imports, or null
+
 ### `service.<name>.data`
 
 `org/service.nix` · attribute set of anything
@@ -772,8 +782,6 @@ Default: `null`
 
 maybe canonical name on internet
 
-<<<<<<< signed
-=======
 ### `service.<name>.namespace`
 
 `org/service.nix` · null or string
@@ -783,7 +791,6 @@ Default: `<namespace>` for the service `domain-<namespace>`, of a namespace in t
 
 the namespace whose tls-cert the service holds, for it and its subdomains, or null
 
->>>>>>> @stamp
 ### `service.<name>.vpn`
 
 `org/service.nix` · null or impossible (empty enum)
@@ -1192,19 +1199,11 @@ entity id in various formats
 `org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
 "luks", "passphrase")
 
-<<<<<<< signed
-Default: the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`
-=======
 Default: the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; a user's `mail` with `mail`; a service's `tls-cert` with a
 `namespace`, and the keys o11n's modules read of the services they name
->>>>>>> @stamp
 
-<<<<<<< signed
-the entity's keys, each with its type: its class's, and those its configuration adds
-=======
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
->>>>>>> @stamp
 
 ### `<entity>.name`
 
@@ -1309,7 +1308,7 @@ had by `<entity>.principal`
 
 Default: `{ }`
 
-the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+the hosts with the archive service that archive the principal's home, as a list or each with a schedule; only an archive
 with a schedule has a timer
 
 ### `<principal>.archives.<name>.schedule`

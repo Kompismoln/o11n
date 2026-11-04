@@ -61,9 +61,13 @@ rec {
           };
           modules =
             (lib.optionals (host.disk-layouts != { }) [ ../nixos/disko.nix ])
-            ++ map (role: o11nInputs.self.nixosModules.${role}) (
-              lib.unique (host.roles ++ (lib.concatMap (home: home.roles) (lib.attrValues host.home)))
-            );
+            ++ map (service: service.configurationFile) (
+              lib.filter (service: service.configurationFile != null) host.services
+            )
+            # Policy: a role is its services and stores; one with more than those has a module of its own.
+            ++ lib.concatMap (
+              role: lib.optional (o11nInputs.self.nixosModules ? ${role}) o11nInputs.self.nixosModules.${role}
+            ) (lib.unique (host.roles ++ (lib.concatMap (home: home.roles) (lib.attrValues host.home))));
         }
       )
     );

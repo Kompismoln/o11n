@@ -1,4 +1,4 @@
-# nixos/org/remote-builder-relay.nix
+# nixos/services/remote-builder-relay.nix
 {
   config,
   host,
@@ -7,10 +7,12 @@
   ...
 }:
 let
-  builders = lib.filter (peer: lib.elem "remote-builder" peer.roles) (lib.attrValues org.host);
+  builders = lib.filter (peer: lib.any (service: service.name == "nix-remote") peer.services) (
+    lib.attrValues org.host
+  );
 
   builder = lib.throwIfNot (lib.length builders == 1) ''
-    The remote-builder-relay role relays to the host with the remote-builder role, and there are ${toString (lib.length builders)}.
+    The remote-builder-relay service relays to the host with the nix-remote service, and there are ${toString (lib.length builders)}.
   '' (lib.head builders);
 
   network = lib.throwIf (host.reach.${builder.name} == null) ''
@@ -25,7 +27,7 @@ in
   assertions = [
     {
       assertion = host.endpoint != null;
-      message = "The remote-builder-relay role serves on the host's endpoint, and ${host.name} has none.";
+      message = "The remote-builder-relay service serves on the host's endpoint, and ${host.name} has none.";
     }
   ];
 

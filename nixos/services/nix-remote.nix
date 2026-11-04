@@ -1,4 +1,4 @@
-# nixos/org/remote-builder.nix
+# nixos/services/nix-remote.nix
 {
   config,
   host,
@@ -82,11 +82,11 @@ in
   assertions = [
     {
       assertion = host.endpoint != null;
-      message = "The remote-builder role serves on the host's endpoint, and ${host.name} has none.";
+      message = "The nix-remote service serves on the host's endpoint, and ${host.name} has none.";
     }
     {
       assertion = evaluates -> orgFlake != null;
-      message = ''The remote-builder role evaluates the org from [repository] in org.toml, whose type has to be "github" or "git".'';
+      message = ''The nix-remote service evaluates the org from [repository] in org.toml, whose type has to be "github" or "git".'';
     }
   ];
 

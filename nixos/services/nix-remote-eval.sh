@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# nixos/org/nix-remote-eval.sh
+# nixos/services/nix-remote-eval.sh
 #
 # Runs once per connection, with the connection as stdin and stdout: an HTTP request from
 # nginx, GET /nix-eval/<stage>/<org revision>[/<o11n revision>]. Builds that stage of the org

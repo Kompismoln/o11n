@@ -86,14 +86,16 @@ let
     else
       daemon;
 
+  serves = peer: lib.any (service: service.name == "nix-serve") peer.services;
+
   substituters = lib.filter (
-    peer: peer.name != host.name && lib.elem "substituter" peer.roles && host.reach.${peer.name} != null
+    peer: peer.name != host.name && serves peer && host.reach.${peer.name} != null
   ) (lib.attrValues org.host);
 in
 {
   assertions = map (buildHost: {
-    assertion = lib.elem "substituter" org.host.${buildHost}.roles;
-    message = "Build host ${buildHost} needs the substituter role, or no host can fetch what it builds.";
+    assertion = serves org.host.${buildHost};
+    message = "Build host ${buildHost} needs the nix-serve service, or no host can fetch what it builds.";
   }) org.build-hosts;
 
   nix = {

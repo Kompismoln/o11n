@@ -87,7 +87,7 @@
       defaultText = lib.literalMD "true for an app or store";
     };
     archives = lib.mkOption {
-      description = "the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive with a schedule has a timer";
+      description = "the hosts with the archive service that archive the principal's home, as a list or each with a schedule; only an archive with a schedule has a timer";
       default = { };
       type =
         with lib.types;

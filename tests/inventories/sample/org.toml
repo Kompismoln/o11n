@@ -88,7 +88,7 @@ services = ["nix-serve"]
 services = ["nix-remote"]
 
 [role.remote-builder-relay]
-services = []
+services = ["remote-builder-relay"]
 
 [role.archive]
 services = ["archive"]
@@ -132,6 +132,8 @@ grants = ["host-*"]
 id = 10
 principal.hasPublicKey = false
 grants = ["host:remote-builder"]
+
+[service.remote-builder-relay]
 
 [service.archive]
 id = 11

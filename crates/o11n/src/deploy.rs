@@ -146,7 +146,7 @@ impl Org {
         if !status.success() && build_host != "localhost" && said.contains("don't know how to build these paths") {
             return Err(Error::new(format!(
                 "{host} couldn't fetch the build from {build_host}. To copy it there instead:\n    \
-                 BUILD_HOST=localhost o11n apply {host}\n{host} fetches from the hosts with the substituter role in \
+                 BUILD_HOST=localhost o11n apply {host}\n{host} fetches from the hosts with the nix-serve service in \
                  the configuration it runs now: check that its /etc/nix/nix.conf lists {build_host} among the \
                  substituters, and that it reaches {build_host} on port 5000."
             )));

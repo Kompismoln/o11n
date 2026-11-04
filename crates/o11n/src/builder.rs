@@ -10,10 +10,10 @@ use clap::Subcommand;
 use crate::Error;
 use crate::util::{TempDir, exited, log, run};
 
-// Dependency: nixos/org/remote-builder.nix serves the tunnel under this prefix.
+// Dependency: nixos/services/nix-remote.nix serves the tunnel under this prefix.
 const PREFIX: &str = "nix-daemon";
 
-/// Builds on a host with the remote-builder role, through its endpoint on 443: here evaluates, the host builds and
+/// Builds on a host with the nix-remote service, through its endpoint on 443: here evaluates, the host builds and
 /// keeps the outputs, and the build logs are shown as they come.
 #[derive(Subcommand)]
 pub enum RemoteCommand {

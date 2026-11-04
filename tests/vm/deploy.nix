@@ -91,7 +91,7 @@ pkgs.testers.runNixOSTest {
         imports = [
           (peer "gw")
           o11nInputs.sops-nix.nixosModules.sops
-          ../../nixos/org/nix-serve.nix
+          ../../nixos/services/nix-serve.nix
         ];
         # Accommodating for sops-nix, which refuses a key file in the store: the sample's committed
         # root identity, which reads every secret, nix-serve's key too, is installed outside it.

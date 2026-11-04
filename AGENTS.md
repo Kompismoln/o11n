@@ -14,7 +14,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
   `./dev/agent.sh fetch-inputs <flake.lock>`.
 
 - Instead of `/dev/kvm`, NixOS VM tests can run on the `O11N_REMOTE_BUILDER` when set, and its host allowed by the
-  session's network policy, `o11n remote build <installable>` builds them on a host with the remote-builder role, and
+  session's network policy, `o11n remote build <installable>` builds them on a host with the nix-remote service, and
   `o11n remote check` builds every check there. session-start says so when that host doesn't answer.
 
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub flakes

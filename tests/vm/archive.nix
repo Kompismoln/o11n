@@ -49,7 +49,7 @@ pkgs.testers.runNixOSTest {
     web = {
       imports = [
         sampleSecrets
-        ../../nixos/org/archive.nix
+        ../../nixos/services/archive.nix
         (principal org.service.archive)
         (principal org.store.archives)
       ];
