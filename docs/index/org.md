@@ -20,13 +20,29 @@ Default: `[ ]`
 
 alternative access points that should be redirected to endpoint
 
+### `app.<name>.collabora`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a collabora, which make it one
+
+### `app.<name>.collabora.allowedHosts`
+
+`org/apps/collabora.nix` · list of string
+
+Default: `[ ]`
+
+the hosts collabora accepts WOPI from
+
 ### `app.<name>.configurationFile`
 
-`org/app.nix` · absolute path or string convertible to it
+`org/app.nix` · null or (absolute path or string convertible to it)
 
-Default: `"apps/‹name›.nix"`
+Default: the org's `apps/<name>.nix`, if it exists
 
-path to specific configuration
+the org's own configuration of the app, beside its kind's, or null
 
 ### `app.<name>.database`
 
@@ -36,11 +52,95 @@ Default: `"‹name›"`
 
 app's database
 
+### `app.<name>.django`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a django, which make it one
+
+### `app.<name>.django.input`
+
+`org/apps/django.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system> has the app's django-app and scripts
+
+### `app.<name>.django.locationProxy`
+
+`org/apps/django.nix` · string
+
+Default: `"/"`
+
+the nginx location that django serves, the rest being static
+
+### `app.<name>.django.module`
+
+`org/apps/django.nix` · string
+
+the app's django module
+
+### `app.<name>.django.timeout`
+
+`org/apps/django.nix` · signed integer
+
+Default: `30`
+
+gunicorn's timeout, in seconds
+
+### `app.<name>.django.trustedOrigins`
+
+`org/apps/django.nix` · list of string
+
+Default: `[ ]`
+
+django's CSRF_TRUSTED_ORIGINS
+
 ### `app.<name>.endpoint`
 
 `org/app.nix` · string
 
 canonical name on internet
+
+### `app.<name>.jitsi`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a jitsi, which make it one
+
+### `app.<name>.jitsi.keycloak`
+
+`org/apps/jitsi.nix` · impossible (empty enum)
+
+the keycloak app jitsi authenticates with
+
+### `app.<name>.jitsi.realm`
+
+`org/apps/jitsi.nix` · string
+
+the keycloak realm of jitsi's client
+
+### `app.<name>.keycloak`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a keycloak, which make it one
+
+### `app.<name>.kind`
+
+`org/app.nix` · null or one of "collabora", "django", "jitsi", "keycloak", "mobilizon", "nextcloud", "nextcloud-rolf",
+"wordpress"
+
+Default: the one of its kinds' tables that is set, or null
+
+the kind of the app, whose configuration in o11n's nixos/apps/ it gets: the one of its kinds' tables that is set, or
+null
 
 ### `app.<name>.location`
 
@@ -49,6 +149,68 @@ canonical name on internet
 Default: `"/"`
 
 canonical path
+
+### `app.<name>.mobilizon`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a mobilizon, which make it one
+
+### `app.<name>.mobilizon.input`
+
+`org/apps/mobilizon.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system>.default is the app's mobilizon
+
+### `app.<name>.mobilizon.mailServer`
+
+`org/apps/mobilizon.nix` · null or string
+
+Default: `null`
+
+the SMTP relay mobilizon sends through, or null
+
+### `app.<name>.nextcloud`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a nextcloud, which make it one
+
+### `app.<name>.nextcloud-rolf`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a nextcloud-rolf, which make it one
+
+### `app.<name>.nextcloud-rolf.input`
+
+`org/apps/nextcloud-rolf.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system> has the site's packages
+
+### `app.<name>.nextcloud-rolf.nextcloud`
+
+`org/apps/nextcloud-rolf.nix` · impossible (empty enum)
+
+the nextcloud app whose files the site is built from, and whose user builds it
+
+### `app.<name>.nextcloud.collabora`
+
+`org/apps/nextcloud.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the collabora app whose endpoint nextcloud's office uses, or null
 
 ### `app.<name>.run-on-hosts`
 
@@ -81,6 +243,14 @@ let's encrypt and force https
 Default: `"${scheme}://${endpoint}"`
 
 public url including scheme
+
+### `app.<name>.wordpress`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a wordpress, which make it one
 
 ### `build-hosts`
 
