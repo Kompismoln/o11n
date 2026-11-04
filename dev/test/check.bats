@@ -158,7 +158,7 @@ DOC
   [ "$(tail -n +2 dev/state/logs/docs.log)" = "• docs" ]
 }
 
-@test "parts flags a stage or layer not declared, code or a doc that isn't there, a file two parts hold, and an index of no part" {
+@test "parts flags a stage or layer not declared, code or a doc that isn't there, a file two parts hold alike, and an index of no part" {
   mkdir -p docs/index
   echo '# Index' >docs/index/gone.md
   cat >dev/parts.toml <<'TOML'
@@ -167,19 +167,20 @@ layers = ["domain"]
 [parts.one]
 stage = "drafted"
 layer = "domain"
-code = ["dev", "gone.nix"]
+code = ["dev", "gone.nix", "dev/write.sh"]
 [parts.two]
 stage = "felt"
 layer = "domin"
 doc = "doc.md"
-code = ["dev/check.sh"]
+code = ["dev/check.sh", "dev/write.sh"]
 TOML
   run dev/check.sh parts
   [ "$status" -eq 1 ]
   [[ $output == *"[parts.one]: \`gone.nix\` isn't there"* ]]
   [[ $output == *"[parts.two]: stage 'felt' isn't one of stages"* ]]
   [[ $output == *"[parts.two]: layer 'domin' isn't one of layers"* ]]
-  [[ $output == *"\`dev/check.sh\` is held by 2 parts, one, two, not one"* ]]
+  [[ $output == *"\`dev/write.sh\` is held by 2 parts, one, two, not one"* ]]
+  [[ $output != *"\`dev/check.sh\` is held"* ]]
   [[ $output == *"\`docs/index/gone.md\` indexes no part"* ]]
   [[ $output != *"default.nix"* ]]
 }

@@ -29,13 +29,40 @@ let
     ) archiving
   );
 
+  # Policy: the operator reaches a repo through this, over ssh as root, with the repo's restic-key on stdin; restic runs
+  # as the store, whose files rest-server reads through their group, and not as rest-server, which would read the key.
+  archiveRestic = pkgs.writeShellApplication {
+    name = "archive-restic";
+    runtimeInputs = [
+      pkgs.restic
+      pkgs.util-linux
+    ];
+    text = ''
+      id=$1
+      shift
+      [[ $id =~ ^[a-z0-9-]+$ && -d ${repos}/$id ]] || {
+        echo "archive-restic: there's no repo of $id here" >&2
+        exit 1
+      }
+      IFS= read -r RESTIC_PASSWORD
+      export RESTIC_PASSWORD RESTIC_REPOSITORY=${repos}/$id
+      umask 0007
+      exec setpriv --reuid=${store.name} --regid=${store.name} --clear-groups restic --no-cache "$@"
+    '';
+  };
+
   inherit (service) vpn;
   inherit (host.network.${vpn}.principals.service-archive) address fqdn;
   inherit (org.vpn.${vpn}) namespace;
   cert = org.certs.${namespace};
 in
 {
-  imports = [ ../org/sops.nix ];
+  imports = [
+    ../org/mail.nix
+    ../org/sops.nix
+  ];
+
+  o11n.mail.failures.archive = service.handle;
 
   assertions = [
     {
@@ -79,6 +106,8 @@ in
 
   users.groups.tls-cert = { };
 
+  environment.systemPackages = [ archiveRestic ];
+
   networking.firewall.interfaces.${org.vpn.${vpn}.interface}.allowedTCPPorts = [ port ];
 
   systemd.tmpfiles.rules = [
@@ -105,6 +134,7 @@ in
         "--htpasswd-file"
         htpasswd
         "--private-repos"
+        "--append-only"
         "--group-accessible-repos"
         "--tls"
         "--tls-cert"

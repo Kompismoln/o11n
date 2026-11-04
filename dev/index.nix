@@ -38,11 +38,23 @@ let
     if builtins.readFileType file == "directory" then "${name}/default.nix" else name;
 
   holds = entry: file: file == entry || lib.hasPrefix "${lib.removeSuffix "/" entry}/" file;
+  # Dependency: as crates/o11n-dev/src/parts.rs has it, the part whose entry is closest to the file holds it.
+  closeness =
+    name: file:
+    lib.foldl' lib.max (-1) (
+      map (entry: builtins.stringLength (lib.removeSuffix "/" entry)) (
+        builtins.filter (entry: holds entry file) (parts.${name}.code or [ ])
+      )
+    );
   partOf =
     file:
-    lib.findFirst (name: builtins.any (entry: holds entry file) (parts.${name}.code or [ ])) null (
-      builtins.attrNames parts
-    );
+    let
+      held = builtins.filter (name: closeness name file >= 0) (builtins.attrNames parts);
+    in
+    if held == [ ] then
+      null
+    else
+      lib.foldl' (a: b: if closeness b file > closeness a file then b else a) (builtins.head held) held;
 
   options =
     map

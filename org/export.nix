@@ -9,8 +9,7 @@ let
     path:
     builtins.unsafeDiscardStringContext (lib.removePrefix "${toString context.path}/" (toString path));
 
-  stateful =
-    entity: entity.principal != null && entity.id != null && entity.principal.home != "/var/empty";
+  stateful = entity: entity.principal != null && entity.principal.state != null;
 
   exported =
     entity:
@@ -33,6 +32,9 @@ let
     // lib.optionalAttrs (stateful entity) {
       state = {
         inherit (entity.principal) home;
+        archives = lib.mapAttrs (_: archive: {
+          forget = archive.prune.flags;
+        }) entity.principal.state.archives;
         hosts = map (host: host.name) (
           lib.filter (host: lib.any (principal: principal.handle == entity.handle) host.principals) (
             lib.attrValues config.host

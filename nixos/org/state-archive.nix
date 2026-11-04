@@ -11,7 +11,8 @@ let
   # Dependency: nixos/services/archive.nix serves at this port.
   port = 8000;
 
-  archiving = lib.filter (entity: entity.principal.archives != { }) host.principals;
+  archives = entity: if entity.principal.state == null then { } else entity.principal.state.archives;
+  archiving = lib.filter (entity: archives entity != { }) host.principals;
 
   # Dependency: nixos/services/archive.nix serves at the archive service's address on its vpn.
   server =
@@ -75,21 +76,22 @@ let
   unitName = entity: archiveHost: "state-archive@${entity.handle}:${archiveHost}";
 in
 {
+  imports = [ ./mail.nix ];
+
   config = lib.mkIf (archiving != [ ]) {
+    o11n.mail.failures = lib.listToAttrs (
+      lib.concatMap (
+        entity:
+        map (name: lib.nameValuePair (unitName entity name) entity.handle) (lib.attrNames (archives entity))
+      ) archiving
+    );
+
     assertions = lib.concatMap (
       entity:
       let
         id = entity.handle;
       in
       [
-        {
-          assertion = entity.principal.home != "/var/empty";
-          message = "${id} has no home to archive: set principal.hasHome, or remove principal.archives.";
-        }
-        {
-          assertion = entity.publicKeys ? archive-passwd && entity.publicKeys ? restic-key;
-          message = "${id} is of a class without an archive-passwd and a restic-key, so it can't archive: remove principal.archives.";
-        }
         {
           assertion = builtins.pathExists (entity.publicKeys.archive-passwd or "/nonexistent");
           message = "${id} archives without an archive-passwd: run `o11n secret generate ${id} archive-passwd` and `o11n secret generate ${id} restic-key`.";
@@ -104,16 +106,16 @@ in
           {
             assertion =
               archiveHost != null && lib.any (service: service.name == "archive") archiveHost.services;
-            message = "${id} archives to ${name}, which is no host with the archive service: fix principal.archives.";
+            message = "${id} archives to ${name}, which is no host with the archive service: fix principal.state.archives.";
           }
           {
             assertion = (org.service.archive.vpn or null) == null || lib.elem org.service.archive.vpn host.vpns;
             message = "${id} archives to ${name} on ${
               toString (org.service.archive.vpn or null)
-            }, which ${host.name} isn't on: fix principal.archives or ${host.name}'s vpns.";
+            }, which ${host.name} isn't on: fix principal.state.archives or ${host.name}'s vpns.";
           }
         ]
-      ) (lib.attrNames entity.principal.archives)
+      ) (lib.attrNames (archives entity))
     ) archiving;
 
     sops.secrets = lib.listToAttrs (
@@ -157,7 +159,7 @@ in
               CacheDirectory = "restic";
             };
           }
-        ) entity.principal.archives
+        ) (archives entity)
       ) archiving
     );
 
@@ -173,7 +175,7 @@ in
               Persistent = true;
             };
           }
-        ) (lib.filterAttrs (_: archive: archive.schedule != null) entity.principal.archives)
+        ) (lib.filterAttrs (_: archive: archive.schedule != null) (archives entity))
       ) archiving
     );
   };

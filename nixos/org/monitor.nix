@@ -78,21 +78,6 @@ in
         ];
       }
       {
-        job_name = "backup";
-        static_configs = [
-          {
-            targets = [
-              "helsinki.km:${toString restic.port}"
-              "stationary.km:${toString restic.port}"
-              "lenovo.km:${toString restic.port}"
-            ];
-            labels = {
-              service = "backup";
-            };
-          }
-        ];
-      }
-      {
         job_name = "nginx";
         static_configs = [
           {

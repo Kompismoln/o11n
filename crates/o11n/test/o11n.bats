@@ -459,9 +459,9 @@ setup() {
   fails "verify:mail: no member of host-* has a mail"
 }
 
-@test "a key comes with what reads it: a user's mail with mail, o11n's services', or the org's declaring it" {
+@test "a key comes with what reads it: a principal's mail and state, o11n's services', or the org's declaring it" {
   [ "$(o11n keys user-testuser)" = "$(printf '%s\n' age-key archive-passwd mail passwd restic-key ssh-key)" ]
-  [ "$(o11n keys user-admin)" = "$(printf '%s\n' age-key archive-passwd passwd restic-key ssh-key)" ]
+  [ "$(o11n keys user-admin)" = "$(printf '%s\n' age-key passwd ssh-key)" ]
   [ "$(o11n keys service-nix-serve)" = "$(printf '%s\n' age-key nix-sign passwd ssh-key)" ]
   [ "$(o11n keys service-sysctl-user-portal)" = "$(printf '%s\n' age-key passwd secret-key ssh-key)" ]
   [ "$(o11n keys service-testservice)" = "$(printf '%s\n' age-key passwd ssh-key)" ]
@@ -524,6 +524,56 @@ setup() {
   fails "service-testservice has no home to fetch"
 }
 
+@test "state snapshots and prune run restic on each archive, as archive-restic, with the restic-key on stdin" {
+  o11n identity create service-rescue
+  o11n secret generate service-rescue ssh-key
+  o11n identity create user-testuser
+  o11n secret generate user-testuser restic-key
+  local key
+  key=$(o11n secret show user-testuser restic-key)
+
+  O11N_ROUTES=$lorem_routes run o11n state snapshots user-testuser
+  succeeds
+  [[ $output == *"lorem:"*"archive-restic 'user-testuser' 'snapshots'  on lorem.local, with $key"* ]]
+  [[ $output == *"testhost:"*"archive-restic 'user-testuser' 'snapshots'  on testhost.local, with $key"* ]]
+
+  O11N_ROUTES=$lorem_routes run o11n state snapshots user-testuser --from nowhere
+  fails "user-testuser archives to lorem, testhost, not nowhere"
+
+  O11N_ROUTES=$lorem_routes run o11n state prune user-testuser
+  succeeds
+  [[ $output == *"archive-restic 'user-testuser' 'forget' '--prune' '--keep-last=2'  on lorem.local"* ]]
+  [[ $output == *"testhost: user-testuser's archive there has no prune, so it keeps everything"* ]]
+
+  O11N_ROUTES=$lorem_routes run o11n state snapshots service-testservice
+  fails "service-testservice has no state"
+}
+
+@test "state restore downloads a snapshot, or extracts it into an empty home on a host, of the host named or restored to" {
+  o11n identity create service-rescue
+  o11n secret generate service-rescue ssh-key
+  o11n identity create user-testuser
+  o11n secret generate user-testuser restic-key
+  local dump="archive-restic 'user-testuser' 'dump' '--archive' 'tar' '--host'"
+
+  O11N_ROUTES=$lorem_routes run o11n state restore user-testuser --dir "$BATS_TEST_TMPDIR"
+  fails "user-testuser archives to lorem, testhost: name one with --from"
+  O11N_ROUTES=$lorem_routes run o11n state restore user-testuser --from lorem --dir "$BATS_TEST_TMPDIR"
+  fails "user-testuser is on lorem, testhost: name the host whose snapshot with --of"
+
+  O11N_ROUTES=$lorem_routes run o11n state restore user-testuser --from lorem --of testhost --snapshot 1a2b3c --dir "$BATS_TEST_TMPDIR"
+  succeeds
+  [[ $(cat "$BATS_TEST_TMPDIR/user-testuser@testhost-1a2b3c.tar.zst") == "$dump 'testhost' '1a2b3c' '/home/testuser' | zstd -q on lorem.local, with "* ]]
+
+  O11N_ROUTES=$lorem_routes run o11n state restore user-testuser --from lorem --to testhost
+  succeeds
+  [[ $(cat "$BATS_TEST_TMPDIR/extracted-testhost.local") == "$dump 'testhost' 'latest' '/home/testuser' | zstd -q on lorem.local, with "* ]]
+
+  echo /home/testuser/kept >"$BATS_TEST_TMPDIR/home-testhost.local"
+  O11N_ROUTES=$lorem_routes run o11n state restore user-testuser --from lorem --to testhost
+  fails "user-testuser's home on testhost, /home/testuser, isn't empty: move what's in it aside first"
+}
+
 @test "a route is pinned, an address or tried in the namespaces" {
   run o11n route testhost
   succeeds
@@ -537,6 +587,8 @@ setup() {
   run o11n route lorem --port 1
   fails "no contact with lorem:1"
 }
+
+lorem_routes="testhost=testhost.local lorem=lorem.local"
 
 test_identity_root_1=AGE-SECRET-KEY-1DJDMVRRC7UNF8HSKVSGQCWFNMJ5HTRT6HT2MDML9JZ54GCW8TYNSSWWL8D
 

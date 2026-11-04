@@ -152,6 +152,7 @@ in
       {
         gw = uids // {
           nix-remote = 2010;
+          dmarc-reports = 2012;
         };
         web = uids // {
           archive = 2011;
@@ -167,8 +168,11 @@ in
       gw = {
         "admin/archive-passwd" = "user-admin.yaml";
         "admin/mail" = "user-admin.yaml";
+        "admin/mail-sha512" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
         "admin/restic-key" = "user-admin.yaml";
+        "archive/mail-sha512" = "service-archive.yaml";
+        "dmarc-reports/mail-sha512" = "service-dmarc-reports.yaml";
         "nix-remote/secret-key" = "service-nix-remote.yaml";
         "nix-remote/ssh-key" = "service-nix-remote.yaml";
         "nix-serve/nix-sign" = "service-nix-serve.yaml";
@@ -179,7 +183,9 @@ in
         "admin/mail" = "user-admin.yaml";
         "admin/passwd-sha512" = "user-admin.yaml";
         "admin/restic-key" = "user-admin.yaml";
+        "archive/mail" = "service-archive.yaml";
         "domain-sample/tls-cert" = "service-domain-sample.yaml";
+        "luks-key" = "host-web.yaml";
         "wg0-key" = "host-web.yaml";
       };
     };
@@ -203,12 +209,76 @@ in
     };
   };
 
-  # Policy: gw is the mailserver host, so only web relays mail through msmtp.
-  test_sendmail = {
-    expr = onHosts (config: config.programs.msmtp.enable);
+  # Policy: gw's mail server trusts no network, lets only root and dovecot use its sendmail, and has an account for
+  # each principal with an inbox or that sends, which is send-only without an inbox.
+  test_mailserver = {
+    expr = {
+      inherit (gw.config.services.postfix.settings.main) mynetworks authorized_submit_users;
+      sendOnly = lib.mapAttrs (_: account: account.sendOnly) gw.config.mailserver.accounts;
+      postfixSendmail = gw.config.services.postfix.setSendmail;
+    };
     expected = {
-      gw = false;
-      web = true;
+      mynetworks = [ ];
+      authorized_submit_users = [
+        "root"
+        "virtualMail"
+      ];
+      sendOnly = {
+        "admin@example.com" = false;
+        "archive@example.com" = true;
+        "dmarc-reports@example.com" = false;
+      };
+      postfixSendmail = true;
+    };
+  };
+
+  # Policy: each host has an msmtp account for each principal on it that sends, as itself, and none by default; msmtp
+  # is sendmail but where postfix is.
+  test_mail_clients = {
+    expr = onHosts (config: {
+      accounts = lib.mapAttrs (_: account: {
+        inherit (account) from set_from_header;
+      }) config.programs.msmtp.accounts;
+      sendmail = config.programs.msmtp.setSendmail;
+    });
+    expected = {
+      gw = {
+        accounts.user-admin = {
+          from = "admin@example.com";
+          set_from_header = "on";
+        };
+        sendmail = false;
+      };
+      web = {
+        accounts = {
+          service-archive = {
+            from = "archive@example.com";
+            set_from_header = "on";
+          };
+          user-admin = {
+            from = "admin@example.com";
+            set_from_header = "on";
+          };
+        };
+        sendmail = true;
+      };
+    };
+  };
+
+  # Policy: an archive that fails mails the admin as the principal it archives, and the archive service as itself.
+  test_mail_failures = {
+    expr = {
+      inherit (web.config.systemd.services."state-archive@user-admin:web") onFailure;
+      archive = web.config.systemd.services.archive.onFailure;
+      tellers = lib.filter (lib.hasPrefix "mail-failure-") (lib.attrNames web.config.systemd.services);
+    };
+    expected = {
+      onFailure = [ "mail-failure-user-admin@%n.service" ];
+      archive = [ "mail-failure-service-archive@%n.service" ];
+      tellers = [
+        "mail-failure-service-archive@"
+        "mail-failure-user-admin@"
+      ];
     };
   };
 
@@ -459,8 +529,8 @@ in
       };
       web = {
         snapshots = {
-          user-admin = "/home/admin";
-          store-archives = "/var/lib/archives";
+          user-admin = "/srv/storage/home/admin";
+          store-archives = "/srv/storage/var/lib/archives";
         };
         template = true;
       };
@@ -499,6 +569,72 @@ in
       };
   };
 
+  # Policy: a host preserves and snapshots the home of each principal on it that preserves its state.
+  test_state_preserved = {
+    expr = onHosts (config: {
+      preserved = lib.filter (dir: lib.hasPrefix "/home/" dir || lib.hasPrefix "/var/lib/" dir) (
+        map (dir: dir.directory) config.o11n.preserve.directories
+      );
+      snapshots = lib.attrNames config.o11n.snapshots;
+    });
+    expected = {
+      gw = {
+        preserved = [ "/home/admin" ];
+        snapshots = [ "user-admin" ];
+      };
+      web = {
+        preserved = [
+          "/home/admin"
+          "/var/lib/archives"
+        ];
+        snapshots = [
+          "store-archives"
+          "user-admin"
+        ];
+      };
+    };
+  };
+
+  # Policy: the export holds each archive's prune as restic forget's flags, for o11n state prune.
+  test_state_prune = {
+    expr = outputs.org.export.entities.user-admin.state.archives;
+    expected.web.forget = [ "--keep-last=2" ];
+  };
+
+  # Policy: a host warns of each home it archives that state-snapshot@ can't snapshot, as gw's on ext4, and not of one
+  # it can, as web's on its btrfs storage.
+  test_state_unsnapshotted = {
+    expr = onHosts (config: lib.filter (lib.hasInfix "state-snapshot@") config.warnings);
+    expected = {
+      gw = [
+        "user-admin's home, at /home/admin, is on ext4, which state-snapshot@ can't snapshot, so each archive of it reads it as it changes: put it on btrfs or zfs."
+      ];
+      web = [ ];
+    };
+  };
+
+  # Policy: a principal with a home has a state, and one that archives it has the keys to.
+  test_state_keys = {
+    expr = lib.mapAttrs (_: entity: {
+      state = entity.principal.state != null;
+      archives = entity.keys ? archive-passwd && entity.keys ? restic-key;
+    }) { inherit (outputs.org.entities) user-admin store-archives service-locksmith; };
+    expected = {
+      user-admin = {
+        state = true;
+        archives = true;
+      };
+      store-archives = {
+        state = true;
+        archives = false;
+      };
+      service-locksmith = {
+        state = false;
+        archives = false;
+      };
+    };
+  };
+
   # Policy: rest-server, as the archive service, keeps each entity's repo in the archives store, at its address on wg0, and lets in
   # each entity with an archive-passwd as its htpasswd entry.
   test_archive =
@@ -515,6 +651,7 @@ in
         inherit (sockets.archive) listenStreams;
         ports = web.config.networking.firewall.interfaces.wg0.allowedTCPPorts;
         onGw = gw.config.systemd.services ? archive;
+        appendOnly = lib.elem "--append-only" flags;
       };
       expected = {
         User = "archive";
@@ -524,6 +661,7 @@ in
         listenStreams = [ "[fd12:3456:7890:0000:ffff:0002:2011:000b]:8000" ];
         ports = [ 8000 ];
         onGw = false;
+        appendOnly = true;
       };
     };
 

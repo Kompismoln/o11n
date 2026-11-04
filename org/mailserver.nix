@@ -1,26 +1,25 @@
-{ lib, context, ... }:
+{
+  config,
+  context,
+  lib,
+  ...
+}:
 {
   options = {
     dkimSelector = lib.mkOption {
-      description = "dkim selector";
+      description = "the selector of the mail server's dkim keys";
       type = lib.types.str;
     };
     endpoint = lib.mkOption {
-      description = "endpoint";
+      description = "the domain the mail server is mail.<endpoint> of, and the principals' addresses are on by default";
       type = lib.types.str;
       default = context.org.endpoint;
     };
-    host = lib.mkOption {
-      description = "host";
+    admin = lib.mkOption {
+      description = "the address that hears of what goes wrong on the org's hosts, such as a unit that fails";
       type = lib.types.str;
-    };
-    int = lib.mkOption {
-      description = "internal name";
-      type = lib.types.str;
-    };
-    ext = lib.mkOption {
-      description = "external name";
-      type = lib.types.str;
+      default = "admin@${config.endpoint}";
+      defaultText = lib.literalExpression ''"admin@''${endpoint}"'';
     };
   };
 }

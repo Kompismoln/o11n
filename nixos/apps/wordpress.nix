@@ -2,6 +2,7 @@
 {
   app,
   config,
+  lib,
   pkgs,
   ...
 }:
@@ -162,6 +163,10 @@ in
           log_errors = On;
           error_log = ${cfg.home}/error.log;
           extension=${pkgs.phpExtensions.redis}/lib/php/extensions/redis.so
+        ''
+        # Dependency: nixos/org/mail.nix gives a principal that sends an msmtp account named by its id.
+        + lib.optionalString app.principal.mail.send ''
+          sendmail_path = "${pkgs.msmtp}/bin/msmtp -C /etc/msmtprc -a ${app.handle} -t"
         '';
         settings = {
           "listen.owner" = webserver.user;

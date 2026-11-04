@@ -163,6 +163,40 @@ enum StateCommand {
         #[arg(long, default_value = ".")]
         dir: PathBuf,
     },
+    /// Lists the snapshots of the principal's archive, on each host it archives to.
+    Snapshots {
+        id: String,
+        /// The host it archives to, of those it does.
+        #[arg(long)]
+        from: Option<String>,
+    },
+    /// Restores a snapshot of the principal's archive: into its home on a host, which has to be empty, or as
+    /// <id>@<host>-<snapshot>.tar.zst in a directory.
+    Restore {
+        id: String,
+        /// The host it archives to, of those it does, or its only one.
+        #[arg(long)]
+        from: Option<String>,
+        /// The host the snapshot was taken on, by default the one restored to, or the principal's only one.
+        #[arg(long)]
+        of: Option<String>,
+        /// The snapshot, by its id.
+        #[arg(long, default_value = "latest")]
+        snapshot: String,
+        /// The host to restore into the principal's home on.
+        #[arg(long, conflicts_with = "dir", required_unless_present = "dir")]
+        to: Option<String>,
+        /// The directory to download to.
+        #[arg(long)]
+        dir: Option<PathBuf>,
+    },
+    /// Forgets and prunes what each archive's prune doesn't keep, on each host the principal archives to that has one.
+    Prune {
+        id: String,
+        /// The host it archives to, of those it does.
+        #[arg(long)]
+        from: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -380,6 +414,31 @@ fn query(org: &Export, json: &str, command: Command) -> Result<(), Error> {
     Ok(())
 }
 
+fn state(org: &Org, command: StateCommand) -> Result<(), Error> {
+    match command {
+        StateCommand::Fetch { id, dir } => org.fetch_state(&id, &dir),
+        StateCommand::Snapshots { id, from } => org.snapshots(&id, from.as_deref()),
+        StateCommand::Restore {
+            id,
+            from,
+            of,
+            snapshot,
+            to,
+            dir,
+        } => org.restore(
+            &id,
+            from.as_deref(),
+            of.as_deref(),
+            &snapshot,
+            match (to, dir) {
+                (Some(host), _) => state::Target::Host(host),
+                (None, dir) => state::Target::Dir(dir.unwrap_or_default()),
+            },
+        ),
+        StateCommand::Prune { id, from } => org.prune(&id, from.as_deref()),
+    }
+}
+
 fn act(org: &Org, command: Command) -> Result<(), Error> {
     if !matches!(command, Command::Path(_) | Command::SopsYaml { .. }) {
         match org.acting_as() {
@@ -466,7 +525,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
         } => org.unit(&unit, &host, from.as_deref(), inject)?,
         Command::Tunnel { server, action } => org.tunnel(&server, action)?,
         Command::Image { variant } => org.image(&variant)?,
-        Command::State(StateCommand::Fetch { id, dir }) => org.fetch_state(&id, &dir)?,
+        Command::State(command) => state(org, command)?,
         Command::Ops { name, run: true } => org.run_ops(&name)?,
         command => return query(&org.export, "", command),
     }

@@ -98,9 +98,15 @@ pub fn check() -> Result<Vec<String>, String> {
         let documented = parts
             .iter()
             .filter(|part| part.doc == Some(path.as_str()) || *path == format!("docs/index/{}.md", part.name));
-        let coded = parts
-            .iter()
-            .filter(|part| part.code.iter().any(|entry| holds(entry, path)));
+        let held = |part: &Part| {
+            part.code
+                .iter()
+                .filter(|entry| holds(entry, path))
+                .map(|entry| entry.trim_end_matches('/').len())
+                .max()
+        };
+        let closest = parts.iter().filter_map(held).max();
+        let coded = parts.iter().filter(|part| closest.is_some() && held(part) == closest);
         let holders: Vec<&str> = documented.chain(coded).map(|part| part.name).collect();
         if holders.len() > 1 {
             flags.push(format!(

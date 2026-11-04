@@ -180,15 +180,6 @@
                     "space_cache=v2"
                   ];
                 };
-                "@backup" = {
-                  mountpoint = "/srv/backup";
-                  mountOptions = [
-                    "compress=no"
-                    "noatime"
-                    "space_cache=v2"
-                    "ro"
-                  ];
-                };
                 "@snapshots" = {
                   mountpoint = "/mnt/snapshots";
                   mountOptions = [

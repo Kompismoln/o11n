@@ -20,7 +20,19 @@ root)
 	ssh-add -l >/dev/null || exit 255
 	case $1 in
 	du) echo "1536	$4" ;;
-	tar) echo "the tar of $* on $fqdn" ;;
+	tar)
+		if [[ $2 == --zstd && $3 == -x ]]; then
+			cat >"$BATS_TEST_TMPDIR/extracted-$fqdn"
+		else
+			echo "the tar of $* on $fqdn"
+		fi
+		;;
+	find) cat "$BATS_TEST_TMPDIR/home-$fqdn" 2>/dev/null || true ;;
+	"set -o pipefail;")
+		shift
+		IFS= read -r password
+		echo "$* on $fqdn, with $password"
+		;;
 	esac
 	;;
 testadmin | admin)

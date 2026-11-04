@@ -30,8 +30,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
   the fetch would have produced.
 - `pkill -f <pattern>` can match the command line of the shell running it. Kill by PID.
 - Don't evaluate every host of an org here, as Kompismoln/org's `stages.systems` does: ~11 GB and minutes, and more with
-  its homes. That belongs on the remote builder: `o11n remote eval systems [o11n revision]` from the org's clone, once
-  it runs there (`agents/wip-remote-evaluation.md`).
+  its homes. That belongs on the remote builder: `o11n remote eval systems [o11n revision]` from the org's clone.
 
 ### Pitfalls
 

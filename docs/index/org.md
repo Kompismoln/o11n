@@ -166,14 +166,6 @@ Default: `name`
 
 the org's input whose packages.<system>.default is the app's mobilizon
 
-### `app.<name>.mobilizon.mailServer`
-
-`org/apps/mobilizon.nix` · null or string
-
-Default: `null`
-
-the SMTP relay mobilizon sends through, or null
-
 ### `app.<name>.nextcloud`
 
 `org/app.nix` · null or (submodule)
@@ -779,38 +771,6 @@ Default: `null`
 
 main mailserver
 
-### `mailserver.dkimSelector`
-
-`org/mailserver.nix` · string
-
-dkim selector
-
-### `mailserver.endpoint`
-
-`org/mailserver.nix` · string
-
-Default: `"example.com"`
-
-endpoint
-
-### `mailserver.ext`
-
-`org/mailserver.nix` · string
-
-external name
-
-### `mailserver.host`
-
-`org/mailserver.nix` · string
-
-host
-
-### `mailserver.int`
-
-`org/mailserver.nix` · string
-
-internal name
-
 ### `name`
 
 `org/default.nix` · string
@@ -1067,22 +1027,6 @@ record of all users
 Default: `null`
 
 user's email address
-
-### `user.<name>.inboxes`
-
-`org/user.nix` · list of string
-
-Default: `[ ]`
-
-mail addresses delivered to the user's mailbox, as the mail server's aliases
-
-### `user.<name>.mail`
-
-`org/user.nix` · boolean
-
-Default: `false`
-
-Whether to enable internal mail.
 
 ### `vpn`
 
@@ -1387,8 +1331,8 @@ entity id in various formats
 "luks", "passphrase")
 
 Default: the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its
-`luks-key` if one of its `disk-layouts` is `encrypted`; a user's `mail` with `mail`; a service's `tls-cert` with a
-`namespace`, and the keys o11n's modules read of the services they name
+`luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
+`tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name
 
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 
@@ -1489,23 +1433,6 @@ id as string
 
 had by `<entity>.principal`
 
-### `<principal>.archives`
-
-`org/principal.nix` · (attribute set of (submodule)) or (list of impossible (empty enum)) convertible to it
-
-Default: `{ }`
-
-the hosts with the archive service that archive the principal's home, as a list or each with a schedule; only an archive
-with a schedule has a timer
-
-### `<principal>.archives.<name>.schedule`
-
-`org/principal.nix` · null or string
-
-Default: `null`
-
-when to archive, as a systemd calendar event, or null to archive only when asked
-
 ### `<principal>.bindAddress`
 
 `org/principal.nix` · string matching the pattern
@@ -1587,6 +1514,14 @@ Default: `"0750"`
 
 permissions of the principal's home
 
+### `<principal>.mail`
+
+`org/principal.nix` · `<mail>`
+
+Default: `{ }`
+
+the principal's mail
+
 ### `<principal>.members`
 
 `org/principal.nix` · list of string
@@ -1594,6 +1529,14 @@ permissions of the principal's home
 Default: `[ ]`
 
 members of the principal's groups
+
+### `<principal>.state`
+
+`org/principal.nix` · null or (`<state>`)
+
+Default: `{ }` for a principal with a `home`, or else `null`
+
+the settings of the principal's state, its home, which only a principal with a home has
 
 ### `<principal>.uid`
 

@@ -7,10 +7,5 @@
       default = app.name;
       defaultText = lib.literalExpression "name";
     };
-    mailServer = lib.mkOption {
-      description = "the SMTP relay mobilizon sends through, or null";
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-    };
   };
 }

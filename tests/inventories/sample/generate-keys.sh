@@ -25,6 +25,7 @@ for host in gw web; do
     o11n secret generate "host-$host" wg0-key
     o11n secret generate "host-$host" ssh-key
 done
+o11n secret generate host-web luks-key
 
 o11n identity create user-admin
 for key in ssh-key passwd mail archive-passwd restic-key; do
@@ -34,6 +35,11 @@ done
 for service in rescue locksmith reverse-tunnel nix-build nix-switch nix-push egress-proxy; do
     o11n identity create "service-$service"
     o11n secret generate "service-$service" ssh-key
+done
+
+for service in archive dmarc-reports; do
+    o11n identity create "service-$service"
+    o11n secret generate "service-$service" mail
 done
 
 o11n secret generate service-rescue passwd

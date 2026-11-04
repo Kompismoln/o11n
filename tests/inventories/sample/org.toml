@@ -24,12 +24,11 @@ gateway = "gw"
 namespace = "sample"
 dns = ["gw"]
 
-# The server role sends mail through this host.
 [mailserver]
 dkimSelector = "s1"
-host = "gw"
-int = "gw.sample"
-ext = "mail.example.com"
+
+[domain."example.com"]
+mailbox = true
 
 [root.1]
 
@@ -39,7 +38,7 @@ rescueMode = true
 boot = "grub"
 endpoint = "gw.example.com"
 users = ["admin"]
-roles = ["peer", "server", "remote-builder", "substituter"]
+roles = ["peer", "server", "remote-builder", "substituter", "mailserver"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -54,12 +53,17 @@ system = "x86_64-linux"
 stateVersion = "26.05"
 home.admin.roles = ["cinnamon-office"]
 
+[host.web.disk-layouts.main]
+layout = "main-server-btrfs"
+devices = "/dev/sda"
+
 [user.admin]
 id = 0
 description = "Administrator"
-mail = true
+principal.mail = { inbox = true, send = true }
 principal.groups = ["wheel"]
-principal.archives.web.schedule = "daily"
+principal.state.archives.web.schedule = "daily"
+principal.state.archives.web.prune.keep-last = 2
 email = "admin@example.com"
 grants = ["host-*"]
 
@@ -90,6 +94,9 @@ services = ["remote-builder-relay"]
 [role.archive]
 services = ["archive"]
 stores = ["archives"]
+
+[role.mailserver]
+services = ["mailserver", "dmarc-reports"]
 
 [service.rescue]
 grants = ["host-*"]
@@ -136,6 +143,16 @@ grants = ["host:remote-builder"]
 id = 11
 vpn = "wg0"
 principal.hasPublicKey = false
+principal.mail.send = true
+grants = ["host:archive", "host:mailserver"]
+
+[service.mailserver]
+
+[service.dmarc-reports]
+id = 12
+principal.hasPublicKey = false
+principal.mail.inbox = true
+grants = ["host:mailserver"]
 
 [service.domain-sample]
 grants = ["host:archive"]

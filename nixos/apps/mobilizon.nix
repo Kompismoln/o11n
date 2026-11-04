@@ -5,6 +5,7 @@
   host,
   inputs,
   lib,
+  org,
   pkgs,
   ...
 }:
@@ -26,6 +27,7 @@ let
   };
 
   hostConfig = config;
+  inherit (app.principal) mail;
 in
 {
   imports = [
@@ -33,12 +35,11 @@ in
   ];
 
   config = {
-    services.mobilizon.settings."Mobilizon.Web.Email.Mailer" =
-      lib.mkIf (app.mobilizon.mailServer != null)
-        {
-          adapter = (pkgs.formats.elixirConf { }).lib.mkAtom "Swoosh.Adapters.SMTP";
-          relay = app.mobilizon.mailServer;
-        };
+    # Dependency: nixos/org/mail.nix declares the password of a principal that sends.
+    sops.templates."${cfg.name}-mail.env" = lib.mkIf mail.send {
+      content = "O11N_MAIL_PASSWORD=${config.sops.placeholder."${cfg.name}/mail"}\n";
+      owner = cfg.user;
+    };
 
     o11n.postgresql = {
       databases = {
@@ -118,6 +119,11 @@ in
           "/run/postgresql" = {
             isReadOnly = false;
           };
+        }
+        // lib.optionalAttrs mail.send {
+          "/run/o11n-mail.env" = {
+            hostPath = config.sops.templates."${cfg.name}-mail.env".path;
+          };
         };
 
         config =
@@ -142,6 +148,7 @@ in
 
             systemd.services.mobilizon = {
               path = [ postgresqlPackage ];
+              serviceConfig.EnvironmentFile = lib.mkIf mail.send "/run/o11n-mail.env";
             };
 
             services.postgresql = {
@@ -170,9 +177,24 @@ in
                   ":instance" = {
                     inherit (cfg) name;
                     hostname = cfg.endpoint;
+                  }
+                  // lib.optionalAttrs mail.send {
+                    email_from = mail.address;
+                    email_reply_to = mail.address;
+                  };
+                }
+                // lib.optionalAttrs mail.send {
+                  # Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>.
+                  "Mobilizon.Web.Email.Mailer" = {
+                    adapter = elixirConf.lib.mkAtom "Swoosh.Adapters.SMTP";
+                    relay = "mail.${org.mailserver.endpoint}";
+                    port = 587;
+                    username = mail.address;
+                    password = elixirConf.lib.mkGetEnv { envVariable = "O11N_MAIL_PASSWORD"; };
+                    tls = elixirConf.lib.mkAtom ":always";
+                    auth = elixirConf.lib.mkAtom ":always";
                   };
                 };
-
               };
           };
 

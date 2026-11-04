@@ -34,3 +34,30 @@ stage = "drafted"
 layer = "dx"
 doc = "docs/parts/o11n-dev.md"
 code = ["crates/o11n-dev", "packages/o11n-dev.nix"]
+
+[parts.state]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/state.md"
+code = [
+  "crates/o11n/src/state.rs",
+  "nixos/dump.nix",
+  "nixos/org/snapshot.nix",
+  "nixos/org/state-archive.nix",
+  "nixos/org/state.nix",
+  "nixos/services/archive.nix",
+  "org/state.nix",
+  "tests/vm/archive.nix",
+  "tests/vm/snapshot.nix",
+]
+
+[parts.mail]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/mail.md"
+code = [
+  "nixos/org/mail.nix",
+  "nixos/services/mailserver.nix",
+  "org/mail.nix",
+  "org/mailserver.nix",
+]

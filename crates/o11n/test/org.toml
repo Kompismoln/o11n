@@ -58,10 +58,12 @@ root-identities = [
 
 [user.testuser]
 id = 1
-mail = true
+principal.mail = { inbox = true, send = true }
 grants = [
   "host-testhost",
 ]
+principal.state.archives.lorem.prune.keep-last = 2
+principal.state.archives.testhost = {}
 
 [user.admin]
 

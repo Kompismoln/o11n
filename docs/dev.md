@@ -7,20 +7,7 @@ clone.
 ## Packages
 
 `dev/` holds four scripts, `write.sh`, `check.sh`, `agent.sh` and `operator.sh`, and what's left of the work is
-`o11n-dev`'s. Each script is a package as well (`packages/dev.nix`), `write`, `check`, `agent` and `operator`, each with
-what it runs. They're not in the dev shell: it has what each package the flake builds runs, read from the package's
-`runtimeInputs`, so that the scripts run there as they are, and bats for their tests.
-
-`o11n-dev` (`crates/o11n-dev`, `packages/o11n-dev.nix`) reads the clone and decides for the scripts, which keep what
-they run and, but for the stamps, what they write: for now, the files a stage reads, what `dev/parts.toml` holds amiss,
-the commit to stamp against, the stamps, which it reads and writes, the references of the docs that don't resolve, and
-the index, which it writes from the flake's `index`. It reads the clone's `settings.toml`: `main`, the main branch,
-which `./dev/operator.sh merge` squashes onto. It is a crate with a workspace and a lock of its own, apart from
-`o11n`'s, so that a change to it doesn't change `o11n`. With `O11N_ROOT` naming an o11n clone, as the dev shell,
-`dev/agent.sh` and `dev/state/env` set it, o11n-dev builds that clone's o11n-dev with `cargo build` each time it's
-called, and runs it in its place, so that the scripts run the o11n-dev of the tree they're in, and fails for an
-`O11N_ROOT` that holds no `crates/o11n-dev`. Without, as in the sandbox, it runs as nix built it from the tree.
-`dev/agent.sh` sets it to its clone where it isn't set and the clone holds the crate.
+`o11n-dev`'s.
 
 ## Check
 
@@ -46,8 +33,9 @@ the sandbox, every file under it.
 
 ## Parts
 
-`dev/parts.toml` declares the parts of o11n: each its stage, its layer, its doc, if it has one, and its code, which no
-other part's code holds.
+`dev/parts.toml` declares the parts of o11n: each its stage, its layer, its doc, if it has one, and its code. A file is
+the part's whose entry is closest to it, as `org/state.nix` is the state's within the org's `org/`, and no two parts'
+entries for it are alike.
 
 - `stages` names, in order, how far a part has come: felt, implied, mentioned, named, itemized, planned, drafted,
   solidified, cemented and protected.

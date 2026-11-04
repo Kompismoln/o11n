@@ -21,7 +21,7 @@ let
       setupSecrets.deps = [ "sample-age-key" ];
     };
     sops.age = {
-      keyFile = "/run/sample-age-key";
+      keyFile = lib.mkForce "/run/sample-age-key";
       sshKeyPaths = [ ];
     };
   };
@@ -43,7 +43,7 @@ pkgs.testers.runNixOSTest {
   imports = [ ./timeout.nix ];
   globalTimeout = 180;
 
-  node.specialArgs = { inherit org; };
+  node.specialArgs = { inherit org o11nInputs; };
 
   nodes = {
     web = {
@@ -52,6 +52,7 @@ pkgs.testers.runNixOSTest {
         ../../nixos/services/archive.nix
         (principal org.service.archive)
         (principal org.store.archives)
+        (principal org.user.admin)
       ];
       _module.args.host = org.host.web;
       # Accommodating for the test's network, which has no wg0: eth1 takes web's address on it, and web the
@@ -153,6 +154,40 @@ pkgs.testers.runNixOSTest {
         gw.succeed("systemctl start state-archive@user-admin:web")
         kept = gw.succeed(restic("user-admin", "user-admin", "dump latest /home/admin/kept")).strip()
         assert kept == "two", kept
+
+    with subtest("an entity can't forget what it archived"):
+        gw.fail(restic("user-admin", "user-admin", "forget --prune --keep-last 1"))
+        snapshots = json.loads(gw.succeed(restic("user-admin", "user-admin", "snapshots --json")))
+        assert len(snapshots) == 2, snapshots
+
+    def archive_restic(command):
+        key = gw.succeed("cat /run/secrets/admin/restic-key").strip()
+        return web.succeed(f"printf '%s\\n' '{key}' | archive-restic user-admin {command}")
+
+    with subtest("archive-restic reads, prunes and dumps a repo as the archives store, which rest-server still serves"):
+        gw.succeed("echo three > /home/admin/kept")
+        gw.succeed("systemctl start state-archive@user-admin:web")
+        archive_restic("forget --prune --keep-last 2")
+        snapshots = json.loads(archive_restic("snapshots --json"))
+        assert len(snapshots) == 2, snapshots
+        owners = web.succeed("find /var/lib/archives/repos/user-admin -not -group archives").strip()
+        assert owners == "", owners
+        archive_restic("dump --archive tar --host gw latest /home/admin | tar -x -C /tmp")
+        kept = web.succeed("cat /tmp/home/admin/kept").strip()
+        assert kept == "three", kept
+        gw.succeed("echo four > /home/admin/kept")
+        gw.succeed("systemctl start state-archive@user-admin:web")
+        web.fail("printf 'wrong\\n' | archive-restic user-admin snapshots")
+        web.fail("printf 'x\\n' | archive-restic ../repos snapshots")
+
+    with subtest("an archive that fails tells of it, as the principal it archives"):
+        gw.succeed("systemctl mask --runtime state-snapshot@user-admin.service")
+        gw.fail("systemctl start state-archive@user-admin:web")
+        # Accommodating for the test's network, which has no mail server: msmtp tries the account, which is enough.
+        gw.wait_until_succeeds(
+            "journalctl -b -t mail-failure-user-admin | grep -qF 'could not send mail (account user-admin'"
+        )
+        gw.succeed("systemctl unmask --runtime state-snapshot@user-admin.service")
 
     with subtest("nothing gets in but an entity with its archive-passwd, to its own repo"):
         gw.fail(restic("user-admin", "user-admin", "snapshots", password="wrong"))

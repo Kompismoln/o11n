@@ -22,9 +22,8 @@ let
 in
 {
   imports = [
-    ../preserve.nix
-    ./snapshot.nix
-    ./state-archive.nix
+    ./mail.nix
+    ./state.nix
   ];
 
   sops.secrets = lib.genAttrs' (lib.filter (entity: entity.principal.hasPasswd) entities) (
@@ -72,18 +71,6 @@ in
       }
     );
   };
-
-  o11n.preserve.directories = map (entity: {
-    directory = entity.principal.home;
-    user = entity.name;
-    group = entity.name;
-  }) (builtins.filter (entity: entity.principal.home != "/var/empty") entities);
-
-  o11n.snapshots = lib.listToAttrs (
-    map (
-      entity: lib.nameValuePair entity.handle (config.o11n.preserve.onStorage entity.principal.home)
-    ) (builtins.filter (entity: entity.principal.home != "/var/empty") entities)
-  );
 
   services.openssh.extraConfig = lib.concatStringsSep "\n" (
     map (entity: ''

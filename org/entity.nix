@@ -7,7 +7,12 @@
 }:
 {
   config = {
-    keys = context.classes.${config.class}.keys;
+    keys =
+      context.classes.${config.class}.keys
+      // lib.optionalAttrs (config.principal != null) (
+        config.principal.mail.keys
+        // lib.optionalAttrs (config.principal.state != null) config.principal.state.keys
+      );
     publicKeys = lib.mapAttrs (
       key: _:
       lib.mkDefault (
@@ -88,7 +93,7 @@
     };
     keys = lib.mkOption {
       description = "the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it";
-      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; a user's `mail` with `mail`; a service's `tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name";
+      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name";
       # Dependency: crates/o11n/src/keys.rs reads each of these types.
       type = lib.types.attrsOf (
         lib.types.enum [

@@ -46,6 +46,13 @@ pub struct Entity {
 pub struct State {
     pub home: String,
     pub hosts: Vec<String>,
+    #[serde(default)]
+    pub archives: BTreeMap<String, Archive>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Archive {
+    pub forget: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

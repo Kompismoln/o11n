@@ -86,20 +86,33 @@
       ];
       defaultText = lib.literalMD "true for an app or store";
     };
-    archives = lib.mkOption {
-      description = "the hosts with the archive service that archive the principal's home, as a list or each with a schedule; only an archive with a schedule has a timer";
+    mail = lib.mkOption {
+      description = "the principal's mail";
+      type = lib.types.submoduleWith {
+        modules = [ ./mail.nix ];
+        specialArgs = {
+          inherit context entity;
+        };
+      };
       default = { };
-      type =
-        with lib.types;
-        coercedTo (listOf context.types.host.ref) (hosts: lib.genAttrs hosts (_: { })) (
-          attrsOf (submodule {
-            options.schedule = lib.mkOption {
-              description = "when to archive, as a systemd calendar event, or null to archive only when asked";
-              default = null;
-              type = nullOr str;
-            };
-          })
-        );
+    };
+    state = lib.mkOption {
+      description = "the settings of the principal's state, its home, which only a principal with a home has";
+      type = lib.types.nullOr (
+        lib.types.submoduleWith {
+          modules = [ ./state.nix ];
+          specialArgs = {
+            inherit context entity;
+          };
+        }
+      );
+      default = if config.home == "/var/empty" then null else { };
+      defaultText = lib.literalMD "`{ }` for a principal with a `home`, or else `null`";
+      apply =
+        state:
+        lib.throwIf (config.home == "/var/empty" && state != null)
+          "${entity.handle} has settings for a state, which it has no home for: set principal.hasHome, or drop principal.state."
+          state;
     };
     bindAddress = lib.mkOption {
       description = "unique ipv6 loopback address for entity to bind to";

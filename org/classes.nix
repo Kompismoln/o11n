@@ -17,8 +17,6 @@
       age-key = "age";
       ssh-key = "ssh";
       passwd = "password";
-      restic-key = "passphrase";
-      archive-passwd = "htpasswd";
     };
   };
   service = {
@@ -34,8 +32,6 @@
     keys = {
       age-key = "age";
       ssh-key = "ssh";
-      restic-key = "passphrase";
-      archive-passwd = "htpasswd";
     };
   };
   store = {
