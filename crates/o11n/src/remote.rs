@@ -126,14 +126,18 @@ impl Org {
         let id = format!("host-{host}");
         let temp = TempDir::new()?;
         let identity = self.identity(&id)?;
-        let luks_key = temp.file(
-            "luks-key",
-            &self.required(Secret {
-                id: &id,
-                key: "luks-key",
-                slot: 0,
-            })?,
-        )?;
+        let luks_key = if self.entity(&id)?.keys.contains_key("luks-key") {
+            Some(temp.file(
+                "luks-key",
+                &self.required(Secret {
+                    id: &id,
+                    key: "luks-key",
+                    slot: 0,
+                })?,
+            )?)
+        } else {
+            None
+        };
         let rescue_key = temp.file("rescue-ssh-key", &self.required(ssh_key("service-rescue"))?)?;
         let extra_files = temp.path().join("extra-files");
         // Dependency: nixos-anywhere copies extra-files onto the machine's root with their modes.
@@ -175,9 +179,11 @@ impl Org {
             .arg(format!("root@{address}"))
             .args(["--ssh-option", "GlobalKnownHostsFile=/dev/null"])
             .args(["--disk-encryption-keys", &format!("/keys/{id}")])
-            .arg(&age_key)
-            .args(["--disk-encryption-keys", "/luks-key"])
-            .arg(&luks_key)
+            .arg(&age_key);
+        if let Some(luks_key) = &luks_key {
+            anywhere.args(["--disk-encryption-keys", "/luks-key"]).arg(luks_key);
+        }
+        anywhere
             .args(["--generate-hardware-config", "nixos-facter"])
             .arg(self.root.join(format!("hosts/{host}/facter.json")))
             .arg("--extra-files")

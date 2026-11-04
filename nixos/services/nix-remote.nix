@@ -1,4 +1,4 @@
-# nixos/org/remote-builder.nix
+# nixos/services/nix-remote.nix
 {
   config,
   host,
@@ -17,7 +17,7 @@ let
   daemon = "${address}:7337";
   evaluator = "${address}:7338";
 
-  # gost's plain HTTP tunnel (PHT): requests and responses only, so it passes proxies that
+  # Policy: gost's plain HTTP tunnel (PHT): requests and responses only, so it passes proxies that
   # carry neither WebSockets nor HTTP/2, as a Claude session's does. The relay handler in
   # forward mode connects every client to the daemon, whatever destination it asks for.
   pht = "relay+pht://${tunnel}/${daemon}?${
@@ -82,11 +82,11 @@ in
   assertions = [
     {
       assertion = host.endpoint != null;
-      message = "The remote-builder role serves on the host's endpoint, and ${host.name} has none.";
+      message = "The nix-remote service serves on the host's endpoint, and ${host.name} has none.";
     }
     {
       assertion = evaluates -> orgFlake != null;
-      message = ''The remote-builder role evaluates the org from [repository] in org.toml, whose type has to be "github" or "git".'';
+      message = ''The nix-remote service evaluates the org from [repository] in org.toml, whose type has to be "github" or "git".'';
     }
   ];
 
@@ -105,10 +105,8 @@ in
     reloadUnits = [ "nginx.service" ];
   };
 
-  o11n.nginx.enable = true;
-
   services.nginx = {
-    # The default bucket is too small for a key of "Bearer " and a 40-byte base64 secret.
+    # Fact: the default bucket is too small for a key of "Bearer " and a 40-byte base64 secret.
     mapHashBucketSize = 128;
     appendHttpConfig = ''
       map $http_authorization $nix_remote_authorized {
@@ -162,11 +160,11 @@ in
     // hardening;
   };
 
-  # One nix-daemon --stdio per connection, as the untrusted user nix-remote: it relays the
+  # Policy: one nix-daemon --stdio per connection, as the untrusted user nix-remote: it relays the
   # connection to the system daemon, which builds in its sandbox and never trusts the client.
   systemd.sockets.nix-remote = {
     wantedBy = [ "sockets.target" ];
-    # switch-to-configuration leaves a changed socket listening nowhere until it is
+    # Accommodating for switch-to-configuration, which leaves a changed socket listening nowhere until it is
     # restarted. The tunnel names the same address, so it restarts when that changes.
     partOf = [ "nix-remote-tunnel.service" ];
     listenStreams = [ daemon ];
@@ -182,7 +180,7 @@ in
       Group = service.name;
       StandardInput = "socket";
       StandardOutput = "socket";
-      # Anything else on the socket would corrupt the protocol.
+      # Fact: anything else on the socket would corrupt the protocol.
       StandardError = "journal";
       RestrictAddressFamilies = [ "AF_UNIX" ];
     }

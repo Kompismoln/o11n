@@ -65,6 +65,17 @@ in
       description = "list of interface names for vpns";
       type = lib.types.listOf context.types.vpn.ref;
     };
+    services = lib.mkOption {
+      description = "the services of the host's roles, whose configuration it imports";
+      type = lib.types.listOf lib.types.raw;
+      readOnly = true;
+      default = lib.attrValues (
+        lib.genAttrs' (lib.concatMap (role: org.role.${role}.services) config.roles) (
+          service: lib.nameValuePair service org.service.${service}
+        )
+      );
+      defaultText = lib.literalMD "the `services` of its `roles`, in the order of their name";
+    };
     principals = lib.mkOption {
       description = "the principals on the host: its users, the apps that run on it, and its roles' services and stores";
       type = lib.types.listOf lib.types.raw;
@@ -75,11 +86,8 @@ in
             map (entity: lib.nameValuePair entity.handle entity) (
               map (user: org.user.${user}) config.users
               ++ lib.filter (app: lib.elem config.name app.run-on-hosts) (lib.attrValues org.app)
-              ++ lib.concatMap (
-                role:
-                map (service: org.service.${service}) org.role.${role}.services
-                ++ map (store: org.store.${store}) org.role.${role}.stores
-              ) config.roles
+              ++ config.services
+              ++ lib.concatMap (role: map (store: org.store.${store}) org.role.${role}.stores) config.roles
             )
           )
         )
@@ -138,9 +146,18 @@ in
       type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
     };
     rescueMode = lib.mkEnableOption "insecure rescue mode.";
+    nixos = lib.mkOption {
+      description = "whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes";
+      type = lib.types.bool;
+      default = true;
+    };
   };
   config = {
-    keys = lib.genAttrs' config.vpns (vpn: lib.nameValuePair org.vpn.${vpn}.key "wireguard");
+    keys =
+      lib.genAttrs' config.vpns (vpn: lib.nameValuePair org.vpn.${vpn}.key "wireguard")
+      // lib.optionalAttrs (lib.any (disk: disk.encrypted) (lib.attrValues config.disk-layouts)) {
+        luks-key = "luks";
+      };
     network = lib.genAttrs config.vpns (
       name:
       let

@@ -49,11 +49,16 @@ root-identities = [
   "verify:ssh-key",
   "verify:tls-cert",
   "verify:passwd",
+]
+
+[ops.amiss]
+"host-*" = [
   "verify:mail",
 ]
 
 [user.testuser]
 id = 1
+mail = true
 grants = [
   "host-testhost",
 ]
@@ -72,6 +77,12 @@ grants = [
 actors = ["user-testadmin"]
 
 [service.sysctl-user-portal]
+grants = [
+  "host-*",
+]
+keys.secret-key = "passphrase"
+
+[service.nix-serve]
 grants = [
   "host-*",
 ]
@@ -129,6 +140,10 @@ endpoint = "stationary.kompismoln.se"
 users = ["testuser"]
 vpns = ["wg0", "wg1", "wg2"]
 system = "x86_64-linux"
+
+[host.testhost.disk-layouts.main]
+layout = "main-server-btrfs"
+devices = "/dev/sda"
 
 [host.lorem]
 id = 2

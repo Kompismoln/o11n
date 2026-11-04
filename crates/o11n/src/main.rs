@@ -373,14 +373,7 @@ fn query(org: &Export, json: &str, command: Command) -> Result<(), Error> {
         }
         Command::Grants { id } => lines(org.expand(org.entity(&id)?.grants.iter().map(String::as_str))?),
         Command::Recipients { id } => lines(org.recipients(&id)?),
-        Command::Ops { name, .. } => {
-            let groups = org.ops.get(&name).ok_or_else(|| Error::new(format!("no ops {name}")))?;
-            for (group, ops) in groups {
-                for id in org.members(group)? {
-                    lines(ops.iter().map(|op| format!("{id} {op}")));
-                }
-            }
-        }
+        Command::Ops { name, .. } => lines(org.ops(&name)?.into_iter().map(|(id, op)| format!("{id} {op}"))),
         Command::Route { name, port } => println!("{}", org.route(&name, port)?),
         _ => unreachable!(),
     }

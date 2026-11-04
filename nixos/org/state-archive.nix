@@ -8,12 +8,12 @@
   ...
 }:
 let
-  # Dependency: nixos/org/archive.nix serves at this port.
+  # Dependency: nixos/services/archive.nix serves at this port.
   port = 8000;
 
   archiving = lib.filter (entity: entity.principal.archives != { }) host.principals;
 
-  # Dependency: nixos/org/archive.nix serves at the archive service's address on its vpn.
+  # Dependency: nixos/services/archive.nix serves at the archive service's address on its vpn.
   server =
     name:
     let
@@ -22,7 +22,7 @@ let
     {
       inherit vpn;
       inherit (org.host.${name}.network.${vpn}.principals.service-archive) fqdn;
-      cert = org.service."domain-${org.vpn.${vpn}.namespace}".publicKeys.tls-cert;
+      cert = org.certs.${org.vpn.${vpn}.namespace}.publicKeys.tls-cert;
     };
 
   archive = pkgs.writeShellApplication {
@@ -102,8 +102,9 @@ in
         in
         [
           {
-            assertion = archiveHost != null && lib.elem "archive" archiveHost.roles;
-            message = "${id} archives to ${name}, which is no host with the archive role: fix principal.archives.";
+            assertion =
+              archiveHost != null && lib.any (service: service.name == "archive") archiveHost.services;
+            message = "${id} archives to ${name}, which is no host with the archive service: fix principal.archives.";
           }
           {
             assertion = (org.service.archive.vpn or null) == null || lib.elem org.service.archive.vpn host.vpns;

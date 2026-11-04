@@ -9,7 +9,6 @@
     keys = {
       age-key = "age";
       ssh-key = "ssh";
-      luks-key = "luks";
     };
   };
   user = {
@@ -17,7 +16,6 @@
     keys = {
       age-key = "age";
       ssh-key = "ssh";
-      mail = "password";
       passwd = "password";
       restic-key = "passphrase";
       archive-passwd = "htpasswd";
@@ -28,11 +26,7 @@
     keys = {
       age-key = "age";
       ssh-key = "ssh";
-      mail = "password";
       passwd = "password";
-      secret-key = "passphrase";
-      tls-cert = "tls-cert";
-      nix-sign = "nix-sign";
     };
   };
   app = {
@@ -40,7 +34,6 @@
     keys = {
       age-key = "age";
       ssh-key = "ssh";
-      secret-key = "passphrase";
       restic-key = "passphrase";
       archive-passwd = "htpasswd";
     };

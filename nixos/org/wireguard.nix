@@ -15,10 +15,7 @@ let
   peers =
     vpn:
     lib.filter (
-      peer:
-      lib.elem "peer" peer.roles
-      && lib.elem vpn.interface peer.vpns
-      && (peer.name == vpn.gateway || host.name == vpn.gateway)
+      peer: lib.elem vpn.name peer.vpns && (peer.name == vpn.gateway || host.name == vpn.gateway)
     ) (lib.attrValues org.host);
 
   # Policy: the host first, then its principals by name.

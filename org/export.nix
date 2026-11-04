@@ -40,6 +40,9 @@ let
         );
       };
     }
+    // lib.optionalAttrs (entity.class == "service") {
+      inherit (entity) namespace;
+    }
     // lib.optionalAttrs (entity.class == "host") {
       inherit (entity)
         endpoint

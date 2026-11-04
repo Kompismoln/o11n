@@ -37,7 +37,7 @@ pkgs.testers.runNixOSTest {
     imports = [
       o11nInputs.sops-nix.nixosModules.sops
       ../../nixos/preserve.nix
-      ../../nixos/org/remote-builder.nix
+      ../../nixos/services/nix-remote.nix
     ];
     _module.args.host = org.host.gw;
 

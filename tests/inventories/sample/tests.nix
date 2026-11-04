@@ -274,7 +274,7 @@ in
       in
       map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) config.assertions);
     expected = [
-      "Build host web needs the substituter role, or no host can fetch what it builds."
+      "Build host web needs the nix-serve service, or no host can fetch what it builds."
     ];
   };
 
@@ -292,7 +292,7 @@ in
     };
   };
 
-  # Policy: only gw has the remote-builder role: an untrusted relay to its nix-daemon, reached
+  # Policy: only gw has the nix-remote service: an untrusted relay to its nix-daemon, reached
   # through the tunnel, behind its nginx and the bearer from nix-remote's secret-key.
   test_remote_builder = {
     expr = onHosts (
@@ -384,7 +384,7 @@ in
       evaluator = false;
       location = false;
       failed = [
-        ''The remote-builder role evaluates the org from [repository] in org.toml, whose type has to be "github" or "git".''
+        ''The nix-remote service evaluates the org from [repository] in org.toml, whose type has to be "github" or "git".''
       ];
     };
   };

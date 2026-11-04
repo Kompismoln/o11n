@@ -64,7 +64,12 @@ let
     hostName:
     { nodes, ... }:
     {
-      imports = [ ../../nixos/org/nix.nix ];
+      imports = [
+        ../../nixos/org/nix.nix
+        ../../nixos/services/nix-build.nix
+        ../../nixos/services/nix-push.nix
+        ../../nixos/services/nix-switch.nix
+      ];
       _module.args.host = org.host.${hostName};
       services.openssh.enable = true;
       users.groups = lib.genAttrs [ "nix-build" "nix-switch" "nix-push" ] (_: { });
@@ -91,7 +96,7 @@ pkgs.testers.runNixOSTest {
         imports = [
           (peer "gw")
           o11nInputs.sops-nix.nixosModules.sops
-          ../../nixos/org/nix-serve.nix
+          ../../nixos/services/nix-serve.nix
         ];
         # Accommodating for sops-nix, which refuses a key file in the store: the sample's committed
         # root identity, which reads every secret, nix-serve's key too, is installed outside it.

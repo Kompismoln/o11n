@@ -1,99 +1,52 @@
-# nixos/vllm.nix
+# nixos/services/vllm.nix
 {
   config,
+  host,
+  inputs,
   lib,
+  org,
   pkgs,
   ...
 }:
 
 let
-  cfg = config.o11n.vllm;
-  hostConfig = config;
-  enabledServers = lib.filterAttrs (_: serverCfg: serverCfg.enable) cfg.servers;
-
-  vllmOpts =
-    { name, config, ... }:
-    {
-      options = {
-        enable = lib.mkEnableOption "vLLM inference server" // {
-          default = true;
-        };
-        name = lib.mkOption {
-          type = lib.types.str;
-          default = name;
-          description = "The name for this vllm server.";
-        };
-        nixpkgs = lib.mkOption {
-          type = lib.types.path;
-          default = pkgs.path;
-          description = "An optional nixpkgs pin for the container";
-        };
-        pkgs = lib.mkOption {
-          type = lib.types.pkgs;
-          readOnly = true;
-          default = import config.nixpkgs {
-            inherit (pkgs.stdenv.hostPlatform) system;
-            inherit (hostConfig.nixpkgs) config overlays;
-          };
-          defaultText = lib.literalMD "`nixpkgs`, imported with the host's `nixpkgs.config` and `nixpkgs.overlays`";
-          description = "The container's package set.";
-        };
-        package = lib.mkOption {
-          type = lib.types.package;
-          default = config.pkgs.vllm;
-          defaultText = lib.literalExpression "pkgs.vllm";
-          description = "The vllm package to use, from the container's package set by default.";
-        };
-        host = lib.mkOption {
-          type = lib.types.str;
-          default = "127.0.0.1";
-          description = "The host address to bind the server to.";
-        };
-        port = lib.mkOption {
-          type = lib.types.port;
-          description = "The port to bind the server to.";
-        };
-        model = lib.mkOption {
-          type = lib.types.str;
-          description = "A Hugging Face model ID, read from the Hugging Face cache at `revision`, or a path to the model weights in the Nix store.";
-          example = "lmsys/vicuna-7b-v1.5";
-        };
-        revision = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-          description = "The commit of the model in the Hugging Face cache. Required for a model ID: a branch or tag moves when the cache is updated.";
-        };
-        chatTemplate = lib.mkOption {
-          type = lib.types.path;
-          description = ''
-            Chat template file in the Nix store, passed as --chat-template: vLLM then uses it for
-            every request, instead of looking for one in the model's files. vLLM renders gpt-oss
-            with Harmony and never reads the template; give it the model's own chat_template.jinja,
-            which describes that format.
-          '';
-        };
-        servedModelNames = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          description = "Names passed as --served-model-name; responses carry the first. If empty, the model is served under its own name.";
-        };
-        extraArgs = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          description = "Extra arguments to pass to the vllm server (e.g. ['--kv-cache-dtype', 'fp8']).";
-        };
-        environment = lib.mkOption {
-          type = lib.types.attrsOf lib.types.str;
-          default = { };
-          description = "Extra arguments to pass to the vllm server (e.g. VLLM_ATTENTION_BACKEND=FLASHINFER).";
-        };
-        allowedGPUs = lib.mkOption {
-          type = lib.types.listOf lib.types.int;
-          default = [ 0 ];
-          description = "List of NVIDIA GPU indices this server is allowed to access.";
-        };
+  settings =
+    org.service.vllm.hosts.${host.name} or {
+      report = {
+        enable = false;
+        host = "127.0.0.1";
+        port = 12008;
       };
+      servers = { };
     };
+
+  cfg = {
+    user = "vllm";
+    inherit (settings) report;
+    servers = lib.mapAttrs (
+      name: server:
+      let
+        nixpkgs = if server.nixpkgs == null then pkgs.path else inputs.${server.nixpkgs};
+        serverPkgs = import nixpkgs {
+          inherit (pkgs.stdenv.hostPlatform) system;
+          inherit (hostConfig.nixpkgs) config overlays;
+        };
+      in
+      server
+      // {
+        inherit name nixpkgs;
+        pkgs = serverPkgs;
+        package = serverPkgs.vllm;
+      }
+    ) settings.servers;
+  };
+  hostConfig = config;
+
+  # Dependency: nixos/huggingface.nix keeps the cache there.
+  huggingface = {
+    inherit (config.users.users.huggingface) home;
+    repo = "/srv/models/huggingface";
+  };
 
   servicePath = serverPkgs: [
     serverPkgs.which
@@ -104,7 +57,7 @@ let
   hostUser = config.users.users.${cfg.user};
   hasHome = hostUser.home != "/var/empty";
 
-  # Each server's home inside the container: its own directory in the user's home on the host,
+  # Policy: each server's home inside the container: its own directory in the user's home on the host,
   # on storage where the host preserves.
   serverHome =
     server: config.o11n.preserve.onStorage "${hostUser.home}/${servers.${server}.container}";
@@ -113,26 +66,25 @@ let
   inStore = lib.hasPrefix "${builtins.storeDir}/";
   isCommit = revision: revision != null && builtins.match "[0-9a-f]{40}" revision != null;
 
-  # A model ID's snapshot in the Hugging Face cache. vLLM is given the directory, not the ID: offline,
-  # it resolves an ID with huggingface_hub, which refuses a snapshot that lacks any file of its commit,
-  # even one vLLM never reads.
+  # Accommodating for huggingface_hub, which refuses a snapshot that lacks any file of its commit, even one vLLM
+  # never reads: offline, vLLM resolves a model ID with it, so it's given the ID's snapshot in the cache instead.
   modelPath =
     serverCfg:
     if isLocal serverCfg.model then
       serverCfg.model
     else
-      "${config.o11n.huggingface.repo}/models--${
+      "${huggingface.repo}/models--${
         builtins.replaceStrings [ "/" ] [ "--" ] serverCfg.model
       }/snapshots/${toString serverCfg.revision}";
 
-  # The options a server's extraArgs set, as vLLM reads them: `--a_b=c` sets `--a-b`.
+  # Fact: the options a server's extraArgs set, as vLLM reads them: `--a_b=c` sets `--a-b`.
   extraOptions =
     serverCfg:
     map (
       arg: lib.head (lib.splitString "=" (builtins.replaceStrings [ "_" ] [ "-" ] arg))
     ) serverCfg.extraArgs;
 
-  # The groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
+  # Fact: the groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
   hostGroups = lib.unique (
     [ hostUser.group ]
     ++ hostUser.extraGroups
@@ -157,8 +109,8 @@ let
     ++ serverCfg.extraArgs;
 
     environment = {
-      HF_HOME = config.o11n.huggingface.home;
-      HF_HUB_CACHE = config.o11n.huggingface.repo;
+      HF_HOME = huggingface.home;
+      HF_HUB_CACHE = huggingface.repo;
       HF_HUB_OFFLINE = "1";
       CUDA_VISIBLE_DEVICES = lib.concatMapStringsSep "," toString serverCfg.allowedGPUs;
       CUDA_HOME = "${serverCfg.pkgs.cudaPackages.cudatoolkit}";
@@ -166,7 +118,7 @@ let
     }
     // serverCfg.environment;
 
-    # Everything the server runs from the store: its path changes when any of it does,
+    # Policy: everything the server runs from the store: its path changes when any of it does,
     # and `nix-store -qR` on it gives the whole runtime closure. Built from the container's
     # package set under one name, so servers running the same packages share it, and the
     # host's nixpkgs or a server's name don't move it.
@@ -183,18 +135,18 @@ let
     ]
     ++ map (i: "/dev/nvidia${toString i}") serverCfg.allowedGPUs;
 
-    # What the server reads from the host outside the store: the driver's libraries
+    # Fact: what the server reads from the host outside the store: the driver's libraries
     # and the Hugging Face cache.
     readOnlyPaths = [
       "/run/opengl-driver"
-      config.o11n.huggingface.repo
+      huggingface.repo
     ];
-  }) enabledServers;
+  }) cfg.servers;
 
   reportConfig = pkgs.writeText "vllm-report.json" (
     builtins.toJSON {
       hostname = config.networking.hostName;
-      hub_cache = config.o11n.huggingface.repo;
+      hub_cache = huggingface.repo;
       servers = lib.mapAttrs (server: serverCfg: {
         unit = "container@${servers.${server}.container}.service";
         service = "vllm.service";
@@ -215,7 +167,7 @@ let
         served_model_names = serverCfg.servedModelNames;
         extra_args = serverCfg.extraArgs;
         gpus = serverCfg.allowedGPUs;
-      }) enabledServers;
+      }) cfg.servers;
     }
   );
 
@@ -238,72 +190,41 @@ let
 in
 {
   imports = [
-    ./preserve-paths.nix
+    ../huggingface.nix
+    ../preserve-paths.nix
   ];
 
-  options.o11n.vllm = {
-    enable = lib.mkEnableOption "vLLM inference server environment";
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "vllm";
-    };
-    servers = lib.mkOption {
-      type = with lib.types; attrsOf (submodule vllmOpts);
-      default = { };
-      description = "Definition of per-domain vLLM inference servers.";
-    };
-    report = {
-      enable = lib.mkEnableOption "an HTTP endpoint reporting what each vLLM server runs: package, runtime closure, argv, env, GPUs, model files and chat template, hashed";
-      host = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1";
-        description = "The host address to bind the report endpoint to.";
-      };
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 12008;
-        description = "The port to bind the report endpoint to.";
-      };
-    };
-  };
-
-  config = lib.mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = config.o11n.huggingface.enable;
-        message = "o11n.vllm requires o11n.huggingface to be enabled";
-      }
-    ]
-    # What a server reads must not change under it: no host paths, no moving revisions.
-    ++ lib.concatLists (
+  config = {
+    # Policy: what a server reads must not change under it: no host paths, no moving revisions.
+    assertions = lib.concatLists (
       lib.mapAttrsToList (server: serverCfg: [
         {
           assertion = isLocal serverCfg.model -> inStore serverCfg.model;
-          message = "o11n.vllm.servers.${server}.model must be a Hugging Face model ID or a path in the Nix store, not a path on the host.";
+          message = "service.vllm.hosts.${host.name}.servers.${server}.model must be a Hugging Face model ID or a path in the Nix store, not a path on the host.";
         }
         {
           assertion = !isLocal serverCfg.model -> isCommit serverCfg.revision;
-          message = "o11n.vllm.servers.${server}.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated.";
+          message = "service.vllm.hosts.${host.name}.servers.${server}.revision must be a commit hash: a branch or tag moves when the Hugging Face cache is updated.";
         }
         {
           assertion = inStore "${serverCfg.chatTemplate}";
-          message = "o11n.vllm.servers.${server}.chatTemplate must be in the Nix store, not a file on the host.";
+          message = "service.vllm.hosts.${host.name}.servers.${server}.chatTemplate must be in the Nix store, not a file on the host.";
         }
         {
           assertion = !lib.elem "--chat-template" (extraOptions serverCfg);
-          message = "o11n.vllm.servers.${server}.extraArgs must not set --chat-template: set chatTemplate, which the report covers.";
+          message = "service.vllm.hosts.${host.name}.servers.${server}.extraArgs must not set --chat-template: set chatTemplate, which the report covers.";
         }
         {
           assertion = !lib.elem "--trust-request-chat-template" (extraOptions serverCfg);
-          message = "o11n.vllm.servers.${server}.extraArgs must not set --trust-request-chat-template: it lets a request replace the chat template.";
+          message = "service.vllm.hosts.${host.name}.servers.${server}.extraArgs must not set --trust-request-chat-template: it lets a request replace the chat template.";
         }
-      ]) enabledServers
+      ]) cfg.servers
     );
 
     systemd.tmpfiles.rules = lib.optionals hasHome (
       lib.mapAttrsToList (
         server: _: "d '${serverHome server}' 0750 ${cfg.user} ${hostUser.group} - -"
-      ) enabledServers
+      ) cfg.servers
     );
 
     environment.systemPackages = [ vllmReport ];
@@ -317,7 +238,7 @@ in
             KillMode = "mixed";
           };
         }
-      ) enabledServers
+      ) cfg.servers
       // lib.optionalAttrs cfg.report.enable {
         vllm-report = {
           description = "Report of the vLLM servers";
@@ -343,7 +264,7 @@ in
       lib.nameValuePair servers.${server}.container {
         autoStart = true;
         ephemeral = true;
-        # The NixOS modules come from the same nixpkgs as the package set.
+        # Policy: the NixOS modules come from the same nixpkgs as the package set.
         nixpkgs = serverCfg.pkgs.path;
 
         allowedDevices = map (node: {
@@ -358,7 +279,7 @@ in
           // lib.genAttrs servers.${server}.readOnlyPaths (_: {
             isReadOnly = true;
           })
-          # A home of the server's own, for the caches vLLM, Triton, FlashInfer and CUDA keep there.
+          # Policy: a home of the server's own, for the caches vLLM, Triton, FlashInfer and CUDA keep there.
           // lib.optionalAttrs hasHome {
             ${hostUser.home} = {
               hostPath = serverHome server;
@@ -370,7 +291,7 @@ in
           system.stateVersion = config.system.stateVersion;
           nixpkgs.pkgs = serverCfg.pkgs;
 
-          # For diagnostics: the host driver's nvidia-smi, as only that matches the loaded
+          # Policy: for diagnostics, the host driver's nvidia-smi, as only that matches the loaded
           # kernel module, and nix-shell with the container's nixpkgs.
           environment.systemPackages = [ config.hardware.nvidia.package.bin ];
           nix.nixPath = [ "nixpkgs=${toString serverCfg.nixpkgs}" ];
@@ -404,6 +325,6 @@ in
           };
         };
       }
-    ) enabledServers;
+    ) cfg.servers;
   };
 }

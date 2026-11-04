@@ -115,6 +115,15 @@
       default = { };
       type = lib.types.attrsOf context.types.domain.module;
     };
+    certs = lib.mkOption {
+      description = "the service that holds each namespace's tls-cert, by namespace";
+      type = lib.types.attrsOf lib.types.raw;
+      readOnly = true;
+      default = lib.mapAttrs' (_: service: lib.nameValuePair service.namespace service) (
+        lib.filterAttrs (_: service: service.namespace != null) config.service
+      );
+      defaultText = lib.literalMD "each service whose `namespace` isn't null, by it";
+    };
     ops = lib.mkOption {
       description = "operations per entity groups";
       default = { };

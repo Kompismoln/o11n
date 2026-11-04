@@ -6,9 +6,6 @@
   ...
 }:
 {
-  options.o11n.printing = {
-    enable = lib.mkEnableOption "avahi printer discovery";
-  };
   config = {
     services.avahi = {
       enable = true;

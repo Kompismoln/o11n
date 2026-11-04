@@ -1,4 +1,4 @@
-# nixos/org/remote-builder-relay.nix
+# nixos/services/remote-builder-relay.nix
 {
   config,
   host,
@@ -7,10 +7,12 @@
   ...
 }:
 let
-  builders = lib.filter (peer: lib.elem "remote-builder" peer.roles) (lib.attrValues org.host);
+  builders = lib.filter (peer: lib.any (service: service.name == "nix-remote") peer.services) (
+    lib.attrValues org.host
+  );
 
   builder = lib.throwIfNot (lib.length builders == 1) ''
-    The remote-builder-relay role relays to the host with the remote-builder role, and there are ${toString (lib.length builders)}.
+    The remote-builder-relay service relays to the host with the nix-remote service, and there are ${toString (lib.length builders)}.
   '' (lib.head builders);
 
   network = lib.throwIf (host.reach.${builder.name} == null) ''
@@ -25,19 +27,17 @@ in
   assertions = [
     {
       assertion = host.endpoint != null;
-      message = "The remote-builder-relay role serves on the host's endpoint, and ${host.name} has none.";
+      message = "The remote-builder-relay service serves on the host's endpoint, and ${host.name} has none.";
     }
   ];
 
-  o11n.nginx.enable = true;
-
-  # A tunnel sends a request per write, so connections to the builder are kept open.
+  # Policy: a tunnel sends a request per write, so connections to the builder are kept open.
   services.nginx.upstreams.nix-remote-builder = {
     servers."[${network.address}]:443" = { };
     extraConfig = "keepalive 8;";
   };
 
-  # For clients that can't reach the builder themselves, such as an IPv4-only one when the
+  # Policy: for clients that can't reach the builder themselves, such as an IPv4-only one when the
   # builder has only IPv6: its daemon and its evaluations. The builder checks their bearer.
   services.nginx.virtualHosts.${host.endpoint} = {
     forceSSL = true;
@@ -46,7 +46,7 @@ in
       lib.genAttrs ([ "/nix-daemon/" ] ++ lib.optional (org.repository != { }) "/nix-eval/")
         (_: {
           proxyPass = "https://nix-remote-builder";
-          # The builder's nginx picks its vhost by Host, so it gets the builder's endpoint.
+          # Fact: the builder's nginx picks its vhost by Host, so it gets the builder's endpoint.
           recommendedProxySettings = false;
           extraConfig = ''
             proxy_http_version 1.1;

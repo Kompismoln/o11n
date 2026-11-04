@@ -20,13 +20,29 @@ Default: `[ ]`
 
 alternative access points that should be redirected to endpoint
 
+### `app.<name>.collabora`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a collabora, which make it one
+
+### `app.<name>.collabora.allowedHosts`
+
+`org/apps/collabora.nix` · list of string
+
+Default: `[ ]`
+
+the hosts collabora accepts WOPI from
+
 ### `app.<name>.configurationFile`
 
-`org/app.nix` · absolute path or string convertible to it
+`org/app.nix` · null or (absolute path or string convertible to it)
 
-Default: `"apps/‹name›.nix"`
+Default: the org's `apps/<name>.nix`, if it exists
 
-path to specific configuration
+the org's own configuration of the app, beside its kind's, or null
 
 ### `app.<name>.database`
 
@@ -36,11 +52,95 @@ Default: `"‹name›"`
 
 app's database
 
+### `app.<name>.django`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a django, which make it one
+
+### `app.<name>.django.input`
+
+`org/apps/django.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system> has the app's django-app and scripts
+
+### `app.<name>.django.locationProxy`
+
+`org/apps/django.nix` · string
+
+Default: `"/"`
+
+the nginx location that django serves, the rest being static
+
+### `app.<name>.django.module`
+
+`org/apps/django.nix` · string
+
+the app's django module
+
+### `app.<name>.django.timeout`
+
+`org/apps/django.nix` · signed integer
+
+Default: `30`
+
+gunicorn's timeout, in seconds
+
+### `app.<name>.django.trustedOrigins`
+
+`org/apps/django.nix` · list of string
+
+Default: `[ ]`
+
+django's CSRF_TRUSTED_ORIGINS
+
 ### `app.<name>.endpoint`
 
 `org/app.nix` · string
 
 canonical name on internet
+
+### `app.<name>.jitsi`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a jitsi, which make it one
+
+### `app.<name>.jitsi.keycloak`
+
+`org/apps/jitsi.nix` · impossible (empty enum)
+
+the keycloak app jitsi authenticates with
+
+### `app.<name>.jitsi.realm`
+
+`org/apps/jitsi.nix` · string
+
+the keycloak realm of jitsi's client
+
+### `app.<name>.keycloak`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a keycloak, which make it one
+
+### `app.<name>.kind`
+
+`org/app.nix` · null or one of "collabora", "django", "jitsi", "keycloak", "mobilizon", "nextcloud", "nextcloud-rolf",
+"wordpress"
+
+Default: the one of its kinds' tables that is set, or null
+
+the kind of the app, whose configuration in o11n's nixos/apps/ it gets: the one of its kinds' tables that is set, or
+null
 
 ### `app.<name>.location`
 
@@ -49,6 +149,68 @@ canonical name on internet
 Default: `"/"`
 
 canonical path
+
+### `app.<name>.mobilizon`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a mobilizon, which make it one
+
+### `app.<name>.mobilizon.input`
+
+`org/apps/mobilizon.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system>.default is the app's mobilizon
+
+### `app.<name>.mobilizon.mailServer`
+
+`org/apps/mobilizon.nix` · null or string
+
+Default: `null`
+
+the SMTP relay mobilizon sends through, or null
+
+### `app.<name>.nextcloud`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a nextcloud, which make it one
+
+### `app.<name>.nextcloud-rolf`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a nextcloud-rolf, which make it one
+
+### `app.<name>.nextcloud-rolf.input`
+
+`org/apps/nextcloud-rolf.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system> has the site's packages
+
+### `app.<name>.nextcloud-rolf.nextcloud`
+
+`org/apps/nextcloud-rolf.nix` · impossible (empty enum)
+
+the nextcloud app whose files the site is built from, and whose user builds it
+
+### `app.<name>.nextcloud.collabora`
+
+`org/apps/nextcloud.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the collabora app whose endpoint nextcloud's office uses, or null
 
 ### `app.<name>.run-on-hosts`
 
@@ -82,6 +244,14 @@ Default: `"${scheme}://${endpoint}"`
 
 public url including scheme
 
+### `app.<name>.wordpress`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a wordpress, which make it one
+
 ### `build-hosts`
 
 `org/default.nix` · list of impossible (empty enum)
@@ -89,6 +259,14 @@ public url including scheme
 Default: `[ ]`
 
 list of designated build hosts
+
+### `certs`
+
+`org/default.nix` · attribute set of raw value
+
+Default: each service whose `namespace` isn't null, by it
+
+the service that holds each namespace's tls-cert, by namespace
 
 ### `contact`
 
@@ -195,6 +373,14 @@ record of disk layouts that applies to host
 `org/disk.nix` · string or list of string
 
 unix path to device(s)
+
+### `host.<name>.disk-layouts.<name>.encrypted`
+
+`org/disk.nix` · boolean
+
+Default: `true` but for the `single-xfs` and `raid1-xfs` layouts
+
+whether the layout encrypts the disk with the host's luks-key
 
 ### `host.<name>.disk-layouts.<name>.layout`
 
@@ -484,6 +670,14 @@ Default: `"‹name›"`
 
 network type
 
+### `host.<name>.nixos`
+
+`org/host.nix` · boolean
+
+Default: `true`
+
+whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes
+
 ### `host.<name>.principals`
 
 `org/host.nix` · list of raw value
@@ -516,6 +710,14 @@ Whether to enable insecure rescue mode..
 Default: `[ ]`
 
 roles that this host has
+
+### `host.<name>.services`
+
+`org/host.nix` · list of raw value
+
+Default: the `services` of its `roles`, in the order of their name
+
+the services of the host's roles, whose configuration it imports
 
 ### `host.<name>.stateVersion`
 
@@ -734,6 +936,14 @@ list of root identities
 
 record of all services
 
+### `service.<name>.configurationFile`
+
+`org/service.nix` · null or absolute path
+
+Default: o11n's `nixos/services/<name>.nix`, or else the org's `services/<name>.nix`, if either exists
+
+the configuration a host with the service imports, or null
+
 ### `service.<name>.data`
 
 `org/service.nix` · attribute set of anything
@@ -749,6 +959,24 @@ arbitrary data to service
 Default: `null`
 
 maybe canonical name on internet
+
+### `service.<name>.hosts`
+
+`org/service.nix` · attribute set of attribute set of anything
+
+Default: `{ }`
+
+the service's settings on each host it's on, which its configuration reads, typed by o11n's org/services/<name>.nix when
+that exists
+
+### `service.<name>.namespace`
+
+`org/service.nix` · null or string
+
+Default: `<namespace>` for the service `domain-<namespace>`, of a namespace in the org's `namespaces` or a vpn's
+`namespace`, or else `null`
+
+the namespace whose tls-cert the service holds, for it and its subdomains, or null
 
 ### `service.<name>.vpn`
 
@@ -1158,9 +1386,11 @@ entity id in various formats
 `org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
 "luks", "passphrase")
 
-Default: the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`
+Default: the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its
+`luks-key` if one of its `disk-layouts` is `encrypted`; a user's `mail` with `mail`; a service's `tls-cert` with a
+`namespace`, and the keys o11n's modules read of the services they name
 
-the entity's keys, each with its type: its class's, and those its configuration adds
+the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 
 ### `<entity>.name`
 
@@ -1265,7 +1495,7 @@ had by `<entity>.principal`
 
 Default: `{ }`
 
-the hosts with the archive role that archive the principal's home, as a list or each with a schedule; only an archive
+the hosts with the archive service that archive the principal's home, as a list or each with a schedule; only an archive
 with a schedule has a timer
 
 ### `<principal>.archives.<name>.schedule`

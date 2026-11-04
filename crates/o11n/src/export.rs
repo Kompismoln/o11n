@@ -37,6 +37,8 @@ pub struct Entity {
     pub secrets: Secrets,
     #[serde(default)]
     pub roles: Vec<String>,
+    #[serde(default)]
+    pub namespace: Option<String>,
     pub state: Option<State>,
 }
 

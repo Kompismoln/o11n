@@ -88,7 +88,7 @@ pub fn generate(kind: Kind, id: &str, domain: Option<&str>) -> Result<String, Er
         Kind::TlsCert => {
             domain.ok_or_else(|| {
                 Error::new(format!(
-                    "{id}: a tls-cert is a domain's, its service named domain-<domain>"
+                    "{id}: a tls-cert is a namespace's, on its service domain-<namespace>"
                 ))
             })?;
             rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519)

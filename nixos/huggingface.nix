@@ -1,35 +1,20 @@
 # nixos/huggingface.nix
 {
   config,
-  lib,
   pkgs,
   ...
 }:
 
 let
-  cfg = config.o11n.huggingface;
+  # Dependency: nixos/services/vllm.nix reads the cache there.
+  cfg = {
+    inherit (config.users.users.huggingface) home;
+    repo = "/srv/models/huggingface";
+  };
 in
 {
-  options.o11n.huggingface = {
-    enable = lib.mkEnableOption "the Hugging Face Hub CLI with configured cache directories";
-    home = lib.mkOption {
-      type = lib.types.str;
-      default = config.users.users.huggingface.home;
-      description = ''
-        The path to use for the HF_HOME environment variable.
-      '';
-    };
-    repo = lib.mkOption {
-      type = lib.types.str;
-      default = "${cfg.home}/hub";
-      example = "/srv/models/huggingface";
-      description = ''
-        The path to use for the HF_HUB_CACHE environment variable.
-      '';
-    };
-  };
 
-  config = lib.mkIf cfg.enable {
+  config = {
     environment.systemPackages =
       let
         huggingface-cli = pkgs.writeShellScriptBin "huggingface-cli" ''

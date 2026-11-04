@@ -1,16 +1,11 @@
 # nixos/cinnamon.nix
 {
-  config,
-  lib,
   pkgs,
   ...
 }:
 {
-  options.o11n.cinnamon = {
-    enable = lib.mkEnableOption "cinnamon desktop environment";
-  };
 
-  config = lib.mkIf config.o11n.cinnamon.enable {
+  config = {
     security = {
       polkit.enable = true;
     };

@@ -1,4 +1,9 @@
-{ name, lib, ... }:
+{
+  config,
+  name,
+  lib,
+  ...
+}:
 {
   options = {
     name = lib.mkOption {
@@ -18,6 +23,17 @@
       description = "where the layout mounts the disk, for a layout that takes one";
       type = lib.types.nullOr lib.types.str;
       default = null;
+    };
+    encrypted = lib.mkOption {
+      description = "whether the layout encrypts the disk with the host's luks-key";
+      type = lib.types.bool;
+      # Dependency: of the layouts in disk-layouts/, these two read no host.luksKeyFile.
+      default =
+        !lib.elem config.layout [
+          "single-xfs"
+          "raid1-xfs"
+        ];
+      defaultText = lib.literalMD "`true` but for the `single-xfs` and `raid1-xfs` layouts";
     };
   };
 }

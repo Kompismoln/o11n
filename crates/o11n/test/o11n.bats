@@ -222,7 +222,7 @@ setup() {
 
 @test "a public key that's missing or another's fails verification, and is written again" {
   o11n identity create host-testhost
-  o11n identity create service-testservice
+  o11n identity create service-nix-serve
   o11n identity create user-testuser
 
   for key in wg0-key wg1-key wg2-key; do
@@ -238,14 +238,14 @@ setup() {
   fails "> "
 
   for key in nix-sign ssh-key; do
-    run o11n secret generate service-testservice "$key"
+    run o11n secret generate service-nix-serve "$key"
     succeeds
-    rm "$(o11n path public-key service-testservice "$key")"
-    run o11n public-key verify service-testservice "$key"
-    fails "there's no $(o11n path public-key service-testservice "$key")"
-    run o11n public-key write service-testservice "$key"
+    rm "$(o11n path public-key service-nix-serve "$key")"
+    run o11n public-key verify service-nix-serve "$key"
+    fails "there's no $(o11n path public-key service-nix-serve "$key")"
+    run o11n public-key write service-nix-serve "$key"
     succeeds
-    run o11n public-key verify service-testservice "$key"
+    run o11n public-key verify service-nix-serve "$key"
     succeeds
   done
 
@@ -261,12 +261,18 @@ setup() {
 @test "a host has a wireguard key for each of its vpns, and none for another" {
   o11n identity create host-lorem
 
-  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key luks-key ssh-key wg0-key)" ]
-  [ "$(o11n keys host)" = "$(printf '%s\n' age-key luks-key ssh-key)" ]
+  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key ssh-key wg0-key)" ]
+  [ "$(o11n keys host)" = "$(printf '%s\n' age-key ssh-key)" ]
   run o11n secret generate host-lorem wg0-key
   succeeds
   run o11n secret generate host-lorem wg1-key
-  fails "wg1-key isn't one of host-lorem's keys: age-key, luks-key, ssh-key, wg0-key"
+  fails "wg1-key isn't one of host-lorem's keys: age-key, ssh-key, wg0-key"
+}
+
+@test "a host has a luks-key only with an encrypted disk" {
+  [ "$(o11n keys host-testhost)" = "$(printf '%s\n' age-key luks-key ssh-key wg0-key wg1-key wg2-key)" ]
+  run o11n secret generate host-lorem luks-key
+  fails "luks-key isn't one of host-lorem's keys"
 }
 
 @test "a password's public key is its hash beside it" {
@@ -306,7 +312,7 @@ setup() {
   fails "isn't the tls-cert's public key"
 
   run o11n secret generate service-testservice tls-cert
-  fails "a tls-cert is a domain's"
+  fails "tls-cert isn't one of service-testservice's keys"
 }
 
 @test "entities with hyphens in their name" {
@@ -440,6 +446,25 @@ setup() {
 
   run o11n ops rebuild --run
   succeeds
+}
+
+@test "an op on a key is for the members that have it, and fails for a group none of whose members has it" {
+  run o11n ops verify
+  succeeds
+  [[ $output == *"user-testuser verify:mail"* ]]
+  [[ $output != *"user-admin verify:mail"* ]]
+  [[ $output != *"service-testservice verify:tls-cert"* ]]
+
+  run o11n ops amiss
+  fails "verify:mail: no member of host-* has a mail"
+}
+
+@test "a key comes with what reads it: a user's mail with mail, o11n's services', or the org's declaring it" {
+  [ "$(o11n keys user-testuser)" = "$(printf '%s\n' age-key archive-passwd mail passwd restic-key ssh-key)" ]
+  [ "$(o11n keys user-admin)" = "$(printf '%s\n' age-key archive-passwd passwd restic-key ssh-key)" ]
+  [ "$(o11n keys service-nix-serve)" = "$(printf '%s\n' age-key nix-sign passwd ssh-key)" ]
+  [ "$(o11n keys service-sysctl-user-portal)" = "$(printf '%s\n' age-key passwd secret-key ssh-key)" ]
+  [ "$(o11n keys service-testservice)" = "$(printf '%s\n' age-key passwd ssh-key)" ]
 }
 
 @test "tunnel opens, closes and tells of a server's reverse tunnel as admin, the code as one word, on the endpoint" {

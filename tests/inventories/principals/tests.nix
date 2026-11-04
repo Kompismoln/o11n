@@ -21,7 +21,10 @@
     expected = "huggingface";
   };
   test_nixos_sftps = {
-    expr = outputs.nixosConfigurations.test-host.config.services.openssh.extraConfig;
+    # Accommodating for ssh.nix's own Match block, which comes first.
+    expr = builtins.head (
+      builtins.match ".*\n\n(Match User test-app\n.*)" outputs.nixosConfigurations.test-host.config.services.openssh.extraConfig
+    );
     expected = ''
       Match User test-app
         ForceCommand internal-sftp

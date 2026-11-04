@@ -125,7 +125,8 @@
                   lib.concatMap (package: package.runtimeInputs or [ ]) (lib.attrValues config.packages)
                   ++ [
                     config.packages.gost
-                    config.packages.o11n-tools
+                    config.packages.o11n
+                    config.packages.o11n-dev
                     pkgs.bats
                     pkgs.cargo
                     pkgs.clippy

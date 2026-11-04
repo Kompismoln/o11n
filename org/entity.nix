@@ -87,8 +87,8 @@
       defaultText = lib.literalMD "`{ }` for an entity with an `id` but a host, or else `null`";
     };
     keys = lib.mkOption {
-      description = "the entity's keys, each with its type: its class's, and those its configuration adds";
-      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, and a host's vpn `key` for each of its `vpns`";
+      description = "the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it";
+      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; a user's `mail` with `mail`; a service's `tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name";
       # Dependency: crates/o11n/src/keys.rs reads each of these types.
       type = lib.types.attrsOf (
         lib.types.enum [

@@ -1,5 +1,6 @@
 # disk-layouts/main-server-btrfs.nix
 {
+  host,
   pkgs,
   ...
 }:
@@ -71,7 +72,7 @@
                 type = "luks";
                 name = "crypted";
                 settings = {
-                  keyFile = "/luks-key";
+                  keyFile = host.luksKeyFile;
                   allowDiscards = true;
                 };
                 content = {
