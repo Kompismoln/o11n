@@ -1,4 +1,5 @@
 mod acting;
+mod allotments;
 mod builder;
 mod deploy;
 mod dns;

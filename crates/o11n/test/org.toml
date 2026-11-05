@@ -138,6 +138,10 @@ vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "20.03"
 
+[allotment."user-testuser@testhost"]
+size = "1G"
+replicas = ["lorem"]
+
 [host.ipsum]
 id = 3
 nixos = false

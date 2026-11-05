@@ -146,6 +146,22 @@ in
       type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
     };
     rescueMode = lib.mkEnableOption "insecure rescue mode.";
+    allotments = lib.mkOption {
+      description = "the allotments on the host";
+      type = lib.types.listOf lib.types.raw;
+      readOnly = true;
+      default = lib.filter (allotment: allotment.host == config.name) (lib.attrValues org.allotment);
+      defaultText = lib.literalMD "the org's `allotment`s whose `host` is the host, in the order of their name";
+    };
+    replicas = lib.mkOption {
+      description = "the allotments the host keeps a replica of";
+      type = lib.types.listOf lib.types.raw;
+      readOnly = true;
+      default = lib.filter (allotment: lib.elem config.name allotment.replicas) (
+        lib.attrValues org.allotment
+      );
+      defaultText = lib.literalMD "the org's `allotment`s whose `replicas` have the host, in the order of their name";
+    };
     nixos = lib.mkOption {
       description = "whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes";
       type = lib.types.bool;
@@ -155,6 +171,9 @@ in
   config = {
     keys =
       lib.genAttrs' config.vpns (vpn: lib.nameValuePair org.vpn.${vpn}.key "wireguard")
+      // lib.genAttrs' (
+        lib.filter (allotment: allotment.replicas != [ ]) config.allotments ++ config.replicas
+      ) (allotment: lib.nameValuePair allotment.key "syncthing")
       // lib.optionalAttrs (lib.any (disk: disk.encrypted) (lib.attrValues config.disk-layouts)) {
         luks-key = "luks";
       };

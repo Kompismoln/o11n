@@ -331,16 +331,16 @@ setup() {
 @test "a host has a wireguard key for each of its vpns, and none for another" {
   o11n identity create host-lorem
 
-  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key wg0-key)" ]
+  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key syncthing-user-testuser.testhost wg0-key)" ]
   [ "$(o11n keys host)" = "$(printf '%s\n' age-key)" ]
   run o11n secret generate host-lorem wg0-key
   succeeds
   run o11n secret generate host-lorem wg1-key
-  fails "wg1-key isn't one of host-lorem's keys: age-key, wg0-key"
+  fails "wg1-key isn't one of host-lorem's keys: age-key, syncthing-user-testuser.testhost, wg0-key"
 }
 
 @test "a host has a luks-key only with an encrypted disk" {
-  [ "$(o11n keys host-testhost)" = "$(printf '%s\n' age-key luks-key wg0-key wg1-key wg2-key)" ]
+  [ "$(o11n keys host-testhost)" = "$(printf '%s\n' age-key luks-key syncthing-user-testuser.testhost wg0-key wg1-key wg2-key)" ]
   run o11n secret generate host-lorem luks-key
   fails "luks-key isn't one of host-lorem's keys"
 }
@@ -901,4 +901,49 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
 
   run o11n status user-testuser
   [[ $output == *"user-testuser secrets fail: enc/user-testuser.yaml holds what o11n doesn't know: stray, testuser.wifi-keys: declare each under the entity's keys, or take it out with o11n secret edit user-testuser"* ]]
+}
+
+@test "status tells whether an allotment's replicas are in sync" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-nix-switch
+  local said=$BATS_TEST_TMPDIR/allotments-testhost.local
+  allotment() {
+    local peer=$1 conflicts=${2:-0}
+    printf '{"user-testuser.testhost": {"state": "idle", "errors": [], "conflicts": %s, "peers": {"lorem": %s}}}' \
+      "$conflicts" "$peer" >"$said"
+  }
+
+  run o11n status host-testhost
+  [[ $output == *"host-testhost allotment-sync user-testuser.testhost lorem skip: host-testhost runs a system that doesn't say how its allotments sync"* ]]
+
+  allotment '{"connected": true, "lastSeen": "2026-11-05T12:00:00Z", "lastSeenAgoS": 0, "completion": 100, "needItems": 0, "needBytes": 0}'
+  run o11n status host-testhost
+  [[ $output == *"host-testhost allotment-sync user-testuser.testhost lorem ok"* ]]
+  [[ $output == *"host-testhost allotment-conflicts user-testuser.testhost ok"* ]]
+
+  allotment '{"connected": true, "lastSeen": "2026-11-05T12:00:00Z", "lastSeenAgoS": 0, "completion": 97.5, "needItems": 3, "needBytes": 2048}' 2
+  run o11n status host-testhost
+  [[ $output == *"lorem fail: lorem has 97.5% of user-testuser.testhost, 3 items, 2048 bytes, to go"* ]]
+  [[ $output == *"allotment-conflicts user-testuser.testhost fail: /srv/allotments/user-testuser has 2 conflicting copies"* ]]
+
+  allotment '{"connected": false, "lastSeen": "2026-11-04T12:00:00Z", "lastSeenAgoS": 86400, "completion": 100, "needItems": 0, "needBytes": 0}'
+  run o11n status host-testhost
+  [[ $output == *"lorem skip: lorem isn't connected, last seen 2026-11-04T12:00:00Z"* ]]
+
+  allotment '{"connected": false, "lastSeen": "2026-10-01T12:00:00Z", "lastSeenAgoS": 3000000, "completion": 100, "needItems": 0, "needBytes": 0}'
+  run o11n status host-testhost
+  [[ $output == *"lorem fail: lorem was last seen 2026-10-01T12:00:00Z, over a week ago"* ]]
+
+  allotment '{"connected": false, "lastSeen": "1970-01-01T00:00:00Z", "lastSeenAgoS": 1793000000, "completion": 0, "needItems": 0, "needBytes": 0}'
+  run o11n status host-testhost
+  [[ $output == *"lorem fail: lorem has never connected"* ]]
+
+  echo '{"user-testuser.testhost": {"error": "curl: (7) Failed to connect"}}' >"$said"
+  run o11n status host-testhost
+  [[ $output == *"lorem fail: allotment-sync@user-testuser.testhost: curl: (7) Failed to connect"* ]]
+
+  echo '{}' >"$said"
+  run o11n status host-testhost
+  [[ $output == *"lorem fail: host-testhost runs no allotment-sync@user-testuser.testhost: o11n apply host-testhost"* ]]
 }

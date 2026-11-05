@@ -6,6 +6,14 @@ place in that.
 
 ## Options
 
+### `allotment`
+
+`org/default.nix` · attribute set of (submodule)
+
+Default: `{ }`
+
+record of all allotments, each by <handle>@<host>: room on a host for a principal
+
 ### `app`
 
 `org/default.nix` · attribute set of (`<entity>` and its own options)
@@ -319,6 +327,14 @@ every host, user, service, app and store, by its handle
 `org/default.nix` · attribute set of (`<entity>` and its own options)
 
 record of all hosts
+
+### `host.<name>.allotments`
+
+`org/host.nix` · list of raw value
+
+Default: the org's `allotment`s whose `host` is the host, in the order of their name
+
+the allotments on the host
 
 ### `host.<name>.boot`
 
@@ -686,6 +702,14 @@ the principals on the host: its users, the apps that run on it, and its roles' s
 Default: `{ }`
 
 each host's network on the first vpn it shares with this host, in the order of this host's vpns, or null
+
+### `host.<name>.replicas`
+
+`org/host.nix` · list of raw value
+
+Default: the org's `allotment`s whose `replicas` have the host, in the order of their name
+
+the allotments the host keeps a replica of
 
 ### `host.<name>.rescueMode`
 
@@ -1319,13 +1343,14 @@ entity id in various formats
 
 ### `<entity>.keys`
 
-`org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
-"luks", "passphrase", "file")
+`org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "syncthing", "password",
+"htpasswd", "luks", "passphrase", "file")
 
 Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's
 `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
-`tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name
+`tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, and the keys
+o11n's modules read of the services they name
 
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 

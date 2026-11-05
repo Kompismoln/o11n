@@ -67,6 +67,15 @@ pub struct Entity {
     pub url: Option<String>,
     #[serde(default)]
     pub nixos: Option<bool>,
+    #[serde(default)]
+    pub allotments: Vec<Allotment>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Allotment {
+    pub id: String,
+    pub path: String,
+    pub replicas: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

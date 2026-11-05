@@ -1112,6 +1112,7 @@ dependencies = [
  "serde_json",
  "sha-crypt",
  "sha1",
+ "sha2 0.10.9",
  "ssh-key",
  "time",
  "x25519-dalek 3.0.0",

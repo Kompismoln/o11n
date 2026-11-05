@@ -107,6 +107,8 @@ VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks:
   function.
 - `mail`: a mail server on `mx`, and on `web` a WordPress and a mobilizon that send as their own domains, whose mail
   `vmTests.mail` runs without either.
+- `allotments`: an allotment for a user and one for a store on `zhost`, whose disk layout is ZFS, and on `laptop`, on
+  wg0 with `zhost`, a replica of the user's. `tests/vm/allotment-sync/` holds its Syncthing keys, decrypted.
 - `sample`: a cluster meant to use every role. It has `gw` (wg0 gateway and DNS, rescue mode, grub) and `web`, both with
   the nixos, peer and server roles, and an admin user with a cinnamon-office home on `web`.
 

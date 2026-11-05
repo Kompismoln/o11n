@@ -99,7 +99,7 @@
     };
     keys = lib.mkOption {
       description = "the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it";
-      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name";
+      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, and the keys o11n's modules read of the services they name";
       # Dependency: crates/o11n/src/keys.rs reads each of these types.
       type = lib.types.attrsOf (
         lib.types.enum [
@@ -108,6 +108,7 @@
           "wireguard"
           "nix-sign"
           "tls-cert"
+          "syncthing"
           "password"
           "htpasswd"
           "luks"

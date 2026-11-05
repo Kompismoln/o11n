@@ -51,6 +51,23 @@ code = [
   "tests/vm/snapshot.nix",
 ]
 
+[parts.allotments]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/allotments.md"
+code = [
+  "crates/o11n/src/allotments.rs",
+  "nixos/allotment-sync.nix",
+  "nixos/allotments.nix",
+  "nixos/org/allotments.nix",
+  "org/allotment.nix",
+  "tests/inventories/allotments",
+  "tests/nixos/allotments.nix",
+  "tests/vm/allotment-sync",
+  "tests/vm/allotment-sync.nix",
+  "tests/vm/allotments.nix",
+]
+
 [parts.mail]
 stage = "drafted"
 layer = "domain"

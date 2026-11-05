@@ -88,6 +88,9 @@ let
         nixos
         ;
       services = map (service: service.name) entity.services;
+      allotments = map (allotment: {
+        inherit (allotment) id path replicas;
+      }) (lib.filter (allotment: allotment.replicas != [ ]) entity.allotments);
     };
 
   root = name: {

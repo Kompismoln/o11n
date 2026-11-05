@@ -71,6 +71,7 @@ rec {
           ]
           ++ lib.optional (host.vpns != [ ]) ../nixos/org/wireguard.nix
           ++ lib.optional (host.disk-layouts != { }) ../nixos/disko.nix
+          ++ lib.optional (host.allotments != [ ] || host.replicas != [ ]) ../nixos/org/allotments.nix
           ++ map (service: service.configurationFile) (
             lib.filter (service: service.configurationFile != null) host.services
           )

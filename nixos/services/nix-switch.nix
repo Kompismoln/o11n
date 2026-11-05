@@ -46,8 +46,15 @@ let
           done
         done
         exit 0
+      elif [[ $generation == allotments ]]; then
+        # Dependency: nixos/allotment-sync.nix puts this on a host that syncs an allotment, which a host that doesn't, or
+        # runs a system from before, says nothing for.
+        if [[ -x /run/current-system/sw/bin/allotment-sync-status ]]; then
+          exec /run/current-system/sw/bin/allotment-sync-status
+        fi
+        exit 0
       elif [[ -n $generation ]]; then
-        echo "usage: switch-system [store path | generation | status]" >&2
+        echo "usage: switch-system [store path | generation | status | allotments]" >&2
         exit 1
       fi
 

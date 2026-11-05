@@ -32,6 +32,8 @@ pub enum Check {
     O11n,
     Version,
     Reboot,
+    AllotmentSync(String, String),
+    AllotmentConflicts(String),
     Url(String),
     NixDaemon,
     NixStore,
@@ -57,6 +59,8 @@ impl Check {
             Self::O11n => "o11n".into(),
             Self::Version => "version".into(),
             Self::Reboot => "reboot".into(),
+            Self::AllotmentSync(allotment, replica) => format!("allotment-sync {allotment} {replica}"),
+            Self::AllotmentConflicts(allotment) => format!("allotment-conflicts {allotment}"),
             Self::Url(url) => format!("url {url}"),
             Self::NixDaemon => "nix-daemon".into(),
             Self::NixStore => "nix-store".into(),
@@ -195,6 +199,12 @@ impl Org {
             if nixos && entity.services.iter().any(|service| service == "nix-switch") {
                 checks.push(Check::Version);
                 checks.push(Check::Reboot);
+                for allotment in &entity.allotments {
+                    for replica in &allotment.replicas {
+                        checks.push(Check::AllotmentSync(allotment.id.clone(), replica.clone()));
+                    }
+                    checks.push(Check::AllotmentConflicts(allotment.id.clone()));
+                }
             }
             if entity
                 .services
@@ -310,6 +320,8 @@ impl Org {
             Check::O11n => self.o11n_outcome(),
             Check::Version => self.version_outcome(id, entity)?,
             Check::Reboot => self.reboot_outcome(id, entity)?,
+            Check::AllotmentSync(allotment, replica) => self.allotment_sync(id, entity, allotment, replica)?,
+            Check::AllotmentConflicts(allotment) => self.allotment_conflicts(id, entity, allotment)?,
             Check::Url(url) => fails(Self::answers(url)),
             Check::NixDaemon => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;

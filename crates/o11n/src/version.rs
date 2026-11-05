@@ -53,9 +53,7 @@ impl Org {
             .ok_or_else(|| skip("nix flake metadata gives the org no narHash"))
     }
 
-    // Dependency: nixos/services/nix-switch.nix has switch-system say this of the host's booted, current and next
-    // systems.
-    fn deployed(&self, id: &str, entity: &Entity) -> Result<Deployed, Outcome> {
+    pub fn switch_system(&self, id: &str, entity: &Entity, command: &str) -> Result<String, Outcome> {
         let acting = self
             .acting("service-nix-switch")
             .map_err(|error| skip(error.to_string().lines().next().unwrap_or_default().to_owned()))?;
@@ -68,7 +66,13 @@ impl Org {
         let mut ssh = self
             .pinned_ssh(id, "nix-switch", acting.command("ssh"))
             .map_err(|error| fail(&error))?;
-        let said = run(ssh.command.arg("status"), None).map_err(|error| fail(&error))?;
+        run(ssh.command.arg(command), None).map_err(|error| fail(&error))
+    }
+
+    // Dependency: nixos/services/nix-switch.nix has switch-system say this of the host's booted, current and next
+    // systems.
+    fn deployed(&self, id: &str, entity: &Entity) -> Result<Deployed, Outcome> {
+        let said = self.switch_system(id, entity, "status")?;
         Ok(said
             .lines()
             .filter_map(|line| {

@@ -4,6 +4,7 @@ use rand::RngCore;
 use rand::rngs::OsRng;
 use sha_crypt::{PasswordHasher, PasswordVerifier, ShaCrypt};
 use sha1::{Digest, Sha1};
+use sha2::Sha256;
 
 use crate::Error;
 
@@ -14,6 +15,7 @@ pub enum Kind {
     Wireguard,
     NixSign,
     TlsCert,
+    Syncthing,
     Password,
     Htpasswd,
     Passphrase { bytes: usize, slots: bool },
@@ -29,6 +31,7 @@ impl Kind {
             "wireguard" => Self::Wireguard,
             "nix-sign" => Self::NixSign,
             "tls-cert" => Self::TlsCert,
+            "syncthing" => Self::Syncthing,
             "password" => Self::Password,
             "htpasswd" => Self::Htpasswd,
             "luks" => Self::Passphrase { bytes: 12, slots: true },
@@ -101,6 +104,20 @@ pub fn generate(kind: Kind, id: &str, domain: Option<&str>) -> Result<String, Er
                 .map_err(|e| Error::new(format!("tls-cert: {e}")))?
                 .serialize_pem()
         }
+        Kind::Syncthing => {
+            let pair = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519)
+                .map_err(|e| Error::new(format!("syncthing: {e}")))?;
+            // Policy: a certificate as Syncthing makes its own, which never expires, as a device's ID is its hash.
+            let mut params = rcgen::CertificateParams::new(vec!["syncthing".to_owned()])
+                .map_err(|e| Error::new(format!("syncthing: {e}")))?;
+            params.distinguished_name.push(rcgen::DnType::CommonName, "syncthing");
+            params.not_before = rcgen::date_time_ymd(1975, 1, 1);
+            params.not_after = rcgen::date_time_ymd(4096, 1, 1);
+            let cert = params
+                .self_signed(&pair)
+                .map_err(|e| Error::new(format!("syncthing: {e}")))?;
+            format!("{}{}", cert.pem(), pair.serialize_pem())
+        }
         Kind::Password => passphrase(8),
         // Policy: random enough that its unsalted {SHA} hash, the one hash rest-server reads that o11n can write,
         // is safe to publish.
@@ -159,6 +176,7 @@ pub fn public(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Resu
             params.not_after = params.not_before + time::Duration::days(3650);
             Ok(params.self_signed(&pair).map_err(|e| invalid(key, e))?.pem())
         }
+        Kind::Syncthing => syncthing_id(key, secret),
         Kind::Password => Ok(ShaCrypt::SHA512
             .hash_password_with_salt(secret.as_bytes(), &random::<12>())
             .map_err(|e| invalid(key, e))?
@@ -213,6 +231,69 @@ fn tls_matches(key: &str, secret: &str, certificate: &str, domain: &str) -> Resu
     Ok(lasts && for_domain && own)
 }
 
+// Fact: Syncthing reads its certificate and its key from the same file, as it skips the other's block in each.
+fn syncthing_id(key: &str, secret: &str) -> Result<String, Error> {
+    let (mut certificate, mut private) = (None, None);
+    for pem in x509_parser::pem::Pem::iter_from_buffer(secret.as_bytes()) {
+        let pem = pem.map_err(|e| invalid(key, e))?;
+        match pem.label.as_str() {
+            "CERTIFICATE" => certificate = Some(pem),
+            "PRIVATE KEY" => private = Some(pem),
+            _ => {}
+        }
+    }
+    let certificate = certificate.ok_or_else(|| invalid(key, "no certificate"))?;
+    let private = private.ok_or_else(|| invalid(key, "no private key"))?;
+    let pair = rcgen::KeyPair::try_from(private.contents.as_slice()).map_err(|e| invalid(key, e))?;
+    let cert = certificate.parse_x509().map_err(|e| invalid(key, e))?;
+    if cert.public_key().subject_public_key.data.as_ref() != pair.public_key_raw() {
+        return Err(invalid(key, "its certificate is of another key"));
+    }
+    Ok(format!("{}\n", device_id(&certificate.contents)))
+}
+
+const BASE32: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+// Fact: as Syncthing's lib/protocol/deviceid.go has it: the certificate's SHA-256 in base32, a Luhn mod 32 check
+// character after each 13, in groups of 7.
+fn device_id(certificate: &[u8]) -> String {
+    let digest = Sha256::digest(certificate);
+    let mut encoded = Vec::new();
+    let (mut buffer, mut bits) = (0u32, 0);
+    for byte in digest {
+        buffer = (buffer << 8) | u32::from(byte);
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            encoded.push(BASE32[((buffer >> bits) & 31) as usize]);
+        }
+    }
+    if bits > 0 {
+        encoded.push(BASE32[((buffer << (5 - bits)) & 31) as usize]);
+    }
+    let checked: Vec<u8> = encoded
+        .chunks(13)
+        .flat_map(|chunk| chunk.iter().copied().chain([luhn32(chunk)]))
+        .collect();
+    checked
+        .chunks(7)
+        .map(|group| String::from_utf8_lossy(group).into_owned())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn luhn32(chunk: &[u8]) -> u8 {
+    let mut factor = 1;
+    let mut sum = 0;
+    for &character in chunk {
+        let codepoint = BASE32.iter().position(|&c| c == character).unwrap_or(0);
+        let addend = factor * codepoint;
+        factor = if factor == 2 { 1 } else { 2 };
+        sum += addend / 32 + addend % 32;
+    }
+    BASE32[(32 - sum % 32) % 32]
+}
+
 pub fn validate(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Result<(), Error> {
     match kind {
         Kind::Password | Kind::Htpasswd | Kind::Passphrase { .. } => {
@@ -251,6 +332,7 @@ mod tests {
             ("wg0-key", "wireguard"),
             ("nix-sign", "nix-sign"),
             ("tls-cert", "tls-cert"),
+            ("syncthing-user-alice.web", "syncthing"),
             ("passwd", "password"),
         ] {
             let kind = Kind::named(kind).unwrap();
@@ -273,6 +355,29 @@ mod tests {
         // Fact: as `printf hunter22 | openssl sha1 -binary | base64` gives it.
         let sha = "{SHA}YLOvi/43NWI8fUpe90m7asGkQTo=\n";
         assert_eq!(public(Kind::Htpasswd, "archive-passwd", "hunter22", None).unwrap(), sha);
+    }
+
+    #[test]
+    fn a_device_id_is_as_syncthing_gives_it() {
+        // Fact: as `syncthing generate` wrote the certificate and gave its device ID.
+        let pem = concat!(
+            "-----BEGIN CERTIFICATE-----\n",
+            "MIIBoDCCAVKgAwIBAgIJAOGqLpYkYACmMAUGAytlcDBKMRIwEAYDVQQKEwlTeW5j\n",
+            "dGhpbmcxIDAeBgNVBAsTF0F1dG9tYXRpY2FsbHkgR2VuZXJhdGVkMRIwEAYDVQQD\n",
+            "EwlzeW5jdGhpbmcwHhcNMjYxMTA1MDAwMDAwWhcNNDYxMDMxMDAwMDAwWjBKMRIw\n",
+            "EAYDVQQKEwlTeW5jdGhpbmcxIDAeBgNVBAsTF0F1dG9tYXRpY2FsbHkgR2VuZXJh\n",
+            "dGVkMRIwEAYDVQQDEwlzeW5jdGhpbmcwKjAFBgMrZXADIQD80RuhmFB9GjFIa0jA\n",
+            "4+LSKYNyfF5ajvYtjLIpQT+LiaNVMFMwDgYDVR0PAQH/BAQDAgWgMB0GA1UdJQQW\n",
+            "MBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMBAf8EAjAAMBQGA1UdEQQNMAuC\n",
+            "CXN5bmN0aGluZzAFBgMrZXADQQCY5MggYBx6Hu1+41rwFnhuQDA+kRW+gEEn4wN2\n",
+            "vXceWVRPRxmzhYyRTYf9ilWSkdYG+P2yefEUWpTWgT5QSzcG\n",
+            "-----END CERTIFICATE-----\n",
+        );
+        let (_, pem) = x509_parser::pem::parse_x509_pem(pem.as_bytes()).unwrap();
+        assert_eq!(
+            device_id(&pem.contents),
+            "6ZO3OSJ-JYEXK3W-YFWVHMX-HVQWACL-OJEIFKI-T2SZFSQ-HU4UUMC-6YGCIQ2"
+        );
     }
 
     #[test]

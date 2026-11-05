@@ -101,6 +101,13 @@ entities
     };
   };
 
+  allotment.module = lib.types.submoduleWith {
+    modules = [ ./allotment.nix ];
+    specialArgs = {
+      inherit context;
+    };
+  };
+
   theme.module = lib.types.submoduleWith {
     modules = [ ./theme.nix ];
     specialArgs = {

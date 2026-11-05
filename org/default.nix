@@ -191,6 +191,11 @@
       description = "record of all stores";
       type = lib.types.attrsOf context.types.store.module;
     };
+    allotment = lib.mkOption {
+      description = "record of all allotments, each by <handle>@<host>: room on a host for a principal";
+      type = lib.types.attrsOf context.types.allotment.module;
+      default = { };
+    };
     theme = lib.mkOption {
       description = "colors, wallpaper and fonts";
       default = null;
