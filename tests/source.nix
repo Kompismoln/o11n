@@ -104,6 +104,7 @@ in
           pkgs.bats
           pkgs.git
           pkgs.jq
+          pkgs.libarchive
           pkgs.nix
           pkgs.nixfmt
           o11n

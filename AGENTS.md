@@ -20,9 +20,8 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
 - An org's private `git+ssh` inputs can't be fetched. Override them with stub flakes
   (`--override-input <input> path:<stub>`) that have the attributes the org reads. Kompismoln/org's `tests/stubs` holds
   them, and `tests/stubs/with-stubs.sh <command>` appends the overrides to a `nix` or `o11n remote` command.
-- Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools` and exports `O11N_ORG_ROOT=$PWD`, which the
-  wrapper only defaults to `/etc/nix/inputs/self`. To try changes to o11n on the org, put the clone's
-  `nix build .#o11n-tools` first on its PATH: `O11N_TOOLS` named the clone's `tools/`, which has no `bin/` any more.
+- Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools`, which is `o11n` now, and exports
+  `O11N_ORG_ROOT=$PWD`. To try changes to o11n on the org, put the clone's `nix build .#o11n` first on its PATH.
 - Nix runs in single-user mode on this session's `/nix`. For a Lix daemon, as the remote builder runs, use
   `./dev/agent.sh lix-daemon <dir>` (`docs/dev.md`, "Lix daemon").
 - A fixed-output fetch from a GitHub archive URL fails here too. Fetch the same revision over git into a directory named
@@ -114,15 +113,12 @@ Evaluate inventories with `o11nLib.fromInventory { path; inputs ? { }; }`.
 
 An org's own expectations live in that org's checks, not here. A real org is read with `fromFlake`.
 
-`./dev/operator.sh check-org`, with `ORG` set to an org's clone, builds that org's `eval` stage with this tree as its
-o11n; nothing else runs it. Here, Kompismoln/org needs its stubs for that:
-
-`tests/stubs/with-stubs.sh nix build .#stages.eval --override-input o11n git+file://<clone>` from the org.
-
-To see whether a change alters an org's systems, evaluate each host's `config.system.build.toplevel.drvPath` with
-`--override-input o11n "git+file://<clone>?rev=<rev>&shallow=1"` at the old and the new revision: equal paths are equal
-systems. Keep the org's tree as it is meanwhile: NixOS hosts carry the org's source (`/etc/nix/inputs/self`), so a
-change to any file git tracks there changes them.
+`o11n-dev systems check`, with `ORG` set to an org's clone, builds that org's `eval` stage with this tree as its o11n;
+nothing else runs it. `o11n-dev systems compare <old> <new> <host>...` says whether a change alters an org's systems
+(`docs/parts/o11n-dev.md`, "Systems"). Here, Kompismoln/org needs its stubs for both, which
+`<org>/tests/stubs/with-stubs.sh o11n-dev systems ... --` appends after the `--`. Keep the org's tree as it is
+meanwhile: NixOS hosts carry the org's source (`/etc/nix/inputs/self`), so a change to any file git tracks there changes
+them.
 
 ### Keys and secrets
 

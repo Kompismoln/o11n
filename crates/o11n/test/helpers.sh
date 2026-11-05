@@ -57,6 +57,41 @@ mock-host() {
     echo "$test_luks_key_1" >"$hostroot/keys/luks-key"
 }
 
+# Dependency: nixos/services/locksmith.sh reads the sops files a system decrypts where nixos/services/locksmith.nix
+# lists them.
+mock-systems() {
+    local hostroot=$BATS_TEST_TMPDIR/host-testhost.local system
+    system=$hostroot/system-$RANDOM
+    mkdir -p "$system/etc/o11n"
+    printf '%s\n' "$@" >"$system/etc/o11n/sops-files"
+    ln -sfn "$system" "$hostroot/system"
+    ln -sfn "$system" "$hostroot/current"
+}
+
+# Dependency: nixos/services/locksmith.sh reads the initrd's secrets where nixpkgs' boot loaders write them.
+mock-boot() {
+    local loader=$1 key=$2 hostroot=$BATS_TEST_TMPDIR/host-testhost.local system secrets
+    system=$hostroot/system-$RANDOM
+    secrets=$BATS_TEST_TMPDIR/initrd-secrets
+    rm -rf "${hostroot:?}/boot" "$secrets"
+    mkdir -p "$system" "$secrets/.initrd-secrets" "$hostroot/boot/kernels" "$hostroot/boot/loader/entries" \
+        "$hostroot/boot/EFI/nixos"
+    system=$(readlink -f "$system")
+    echo "the initrd of $system" >"$system/initrd"
+    echo -n "$key" >"$secrets/.initrd-secrets/luks-key"
+    ln -sfn "$system" "$hostroot/system"
+    (cd "$secrets" && find . -mindepth 1 | bsdtar --format newc -cnzf - -T -) >"$secrets.cpio.gz"
+    case $loader in
+    grub) cp "$secrets.cpio.gz" "$hostroot/boot/kernels/${system##*/}-secrets" ;;
+    systemd-boot)
+        cat "$system/initrd" "$secrets.cpio.gz" >"$hostroot/boot/EFI/nixos/initrd.efi"
+        printf 'linux /EFI/nixos/kernel.efi\ninitrd /EFI/nixos/initrd.efi\noptions init=%s/init loglevel=4\n' \
+            "$system" >"$hostroot/boot/loader/entries/nixos.conf"
+        ;;
+    esac
+    export BOOT_LOADER=$loader
+}
+
 test_age_key_1=AGE-SECRET-KEY-1L0EJY3FLSYHDE46Y80F0KLUKUWP6V3J340UR7G2GWNFGXJQ0P6ZQ6X37TN
 
 test_ssh_key_1="-----BEGIN OPENSSH PRIVATE KEY-----

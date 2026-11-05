@@ -306,14 +306,6 @@ Default: each of `host`, `user`, `service`, `app` and `store` by its `handle`
 
 every host, user, service, app and store, by its handle
 
-### `flake`
-
-`org/default.nix` · attribute set of string
-
-Default: `{ }`
-
-flake that the hosts' nix registry calls o11n
-
 ### `host`
 
 `org/default.nix` · attribute set of (`<entity>` and its own options)
@@ -1538,33 +1530,3 @@ the settings of the principal's state, its home, which only a principal with a h
 Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
 
 posix user id
-
-### `<secrets>`
-
-`org/secrets.nix`
-
-had by `<entity>.secrets`
-
-### `<secrets>.decryptionKey`
-
-`org/secrets.nix` · string
-
-Default: `"/keys/${handle}"`
-
-path on the host to the age key that decrypts the entity's secrets
-
-### `<secrets>.identityFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/${handle}.age"`
-
-the entity's age key, encrypted to itself, its actors and the root identities
-
-### `<secrets>.sopsFile`
-
-`org/secrets.nix` · absolute path
-
-Default: `"<org>/enc/${handle}.yaml"`
-
-sops file holding the entity's secrets

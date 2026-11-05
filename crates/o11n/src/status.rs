@@ -6,6 +6,7 @@ use crate::Error;
 use crate::builder::Builder;
 use crate::export::Entity;
 use crate::keys::Kind;
+use crate::ssh;
 use crate::store::{Org, Secret};
 use crate::util::{self, TempDir};
 
@@ -26,6 +27,10 @@ pub enum Check {
     Secrets,
     SshKey,
     OnHost(String),
+    InitrdKey,
+    O11n,
+    Version,
+    Reboot,
     Url(String),
     NixDaemon,
     NixStore,
@@ -43,6 +48,10 @@ impl Check {
             Self::Secrets => "secrets".into(),
             Self::SshKey => "ssh-key".into(),
             Self::OnHost(key) => format!("on-host {key}"),
+            Self::InitrdKey => "initrd-key".into(),
+            Self::O11n => "o11n".into(),
+            Self::Version => "version".into(),
+            Self::Reboot => "reboot".into(),
             Self::Url(url) => format!("url {url}"),
             Self::NixDaemon => "nix-daemon".into(),
             Self::NixStore => "nix-store".into(),
@@ -105,7 +114,7 @@ fn curled(curl: &mut Command) -> Result<String, Error> {
 impl Org {
     pub fn checks(&self, ids: &[String]) -> Result<Vec<(String, Check)>, Error> {
         let decrypting = self.decrypting()?;
-        let mut planned = Vec::new();
+        let mut planned = vec![("org".to_owned(), Check::O11n)];
         for id in ids {
             let entity = self.entity(id)?;
             let identified = entity.class == "root"
@@ -170,6 +179,13 @@ impl Org {
                         checks.push(Check::OnHost(key.to_owned()));
                     }
                 }
+                if entity.keys.contains_key("luks-key") {
+                    checks.push(Check::InitrdKey);
+                }
+            }
+            if nixos && entity.services.iter().any(|service| service == "nix-switch") {
+                checks.push(Check::Version);
+                checks.push(Check::Reboot);
             }
             if entity
                 .services
@@ -197,6 +213,9 @@ impl Org {
     }
 
     pub fn check(&self, id: &str, check: &Check) -> Outcome {
+        if let Check::O11n = check {
+            return self.o11n_outcome();
+        }
         match self.outcome(id, check) {
             Ok(outcome) | Err(outcome) => outcome,
         }
@@ -245,29 +264,12 @@ impl Org {
                     )))
                 })
             }
-            Check::SshKey => {
-                self.reachable(entity)?;
-                fails(self.confirm_on_host(id, "ssh-key", 0))
-            }
-            Check::OnHost(key) => {
-                needs(self.required(Secret {
-                    id: "service-locksmith",
-                    key: "ssh-key",
-                    slot: 0,
-                }))?;
-                let slots = if key == "age-key" {
-                    needs(self.identity(id))?;
-                    vec![0]
-                } else {
-                    needs(self.slots(id, key))?
-                };
-                self.reachable(entity)?;
-                fails(
-                    slots
-                        .into_iter()
-                        .try_for_each(|slot| self.confirm_on_host(id, key, slot)),
-                )
-            }
+            Check::SshKey => self.ssh_key(id, entity)?,
+            Check::OnHost(key) => self.on_host(id, entity, key)?,
+            Check::InitrdKey => self.initrd_key(id, entity)?,
+            Check::O11n => self.o11n_outcome(),
+            Check::Version => self.version_outcome(id, entity)?,
+            Check::Reboot => self.reboot_outcome(id, entity)?,
             Check::Url(url) => fails(Self::answers(url)),
             Check::NixDaemon => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;
@@ -304,6 +306,86 @@ impl Org {
                 fails(Self::submission(server, Some((address, &password))))
             }
         })
+    }
+
+    // Policy: where connections are shared, the host shows its ssh-key on the connection that logs in as locksmith or
+    // nix-switch, which the checks after it share, rather than to ssh-keyscan, which sshd's PerSourcePenalties count
+    // against the address for not logging in.
+    fn ssh_key(&self, id: &str, entity: &Entity) -> Result<Outcome, Outcome> {
+        self.reachable(entity)?;
+        let serves = |name: &str| entity.services.iter().any(|service| service == name);
+        let background = ["-f", "-N"];
+        let opened = if !ssh::shared() {
+            None
+        } else if serves("locksmith")
+            && self
+                .required(Secret {
+                    id: "service-locksmith",
+                    key: "ssh-key",
+                    slot: 0,
+                })
+                .is_ok()
+        {
+            Some(
+                self.locksmith_ssh(id, &background)
+                    .and_then(|(mut ssh, _identity)| util::run(&mut ssh.command, None)),
+            )
+        } else if let (true, Ok(acting)) = (serves("nix-switch"), self.acting("service-nix-switch")) {
+            let mut ssh = acting.command("ssh");
+            ssh.args(background);
+            Some(
+                self.pinned_ssh(id, "nix-switch", ssh)
+                    .and_then(|mut ssh| util::run(&mut ssh.command, None)),
+            )
+        } else {
+            None
+        };
+        Ok(fails(match opened {
+            Some(opened) => opened
+                .map(|_| ())
+                .map_err(|error| Error::new(format!("{error}\no11n host pull-ssh-key {id}, if it's the host's own"))),
+            None => self.confirm_on_host(id, "ssh-key", 0),
+        }))
+    }
+
+    fn on_host(&self, id: &str, entity: &Entity, key: &str) -> Result<Outcome, Outcome> {
+        needs(self.required(Secret {
+            id: "service-locksmith",
+            key: "ssh-key",
+            slot: 0,
+        }))?;
+        let slots = if key == "age-key" {
+            needs(self.identity(id))?;
+            vec![0]
+        } else {
+            needs(self.slots(id, key))?
+        };
+        self.reachable(entity)?;
+        Ok(fails(
+            slots
+                .into_iter()
+                .try_for_each(|slot| self.confirm_on_host(id, key, slot)),
+        ))
+    }
+
+    fn initrd_key(&self, id: &str, entity: &Entity) -> Result<Outcome, Outcome> {
+        needs(self.required(Secret {
+            id: "service-locksmith",
+            key: "ssh-key",
+            slot: 0,
+        }))?;
+        let deployed = Secret {
+            id,
+            key: "luks-key",
+            slot: 0,
+        };
+        let deployed = if needs(self.slots(id, deployed.key))?.contains(&0) {
+            needs(self.required(deployed))?
+        } else {
+            String::new()
+        };
+        self.reachable(entity)?;
+        Ok(fails(self.confirm_initrd_key(id, &deployed)))
     }
 
     // Policy: a key with slots has no public key, and is whichever of its slots the org holds, each as it should be.
@@ -510,19 +592,31 @@ impl Org {
             return Ok(());
         }
         util::quiet();
-        let queue = Mutex::new(planned.iter().enumerate());
+        ssh::share()?;
+        // Policy: an entity's checks run in order, one after another, so that a host's share a connection, and the
+        // entities side by side.
+        let mut entities: Vec<Vec<usize>> = Vec::new();
+        for (index, (id, _)) in planned.iter().enumerate() {
+            match entities.iter_mut().find(|indices| planned[indices[0]].0 == *id) {
+                Some(indices) => indices.push(index),
+                None => entities.push(vec![index]),
+            }
+        }
+        let queue = Mutex::new(entities.into_iter());
         let (sender, receiver) = mpsc::channel();
         let mut failed = 0;
         std::thread::scope(|scope| {
             for _ in 0..WORKERS.min(planned.len()) {
                 let sender = sender.clone();
                 let queue = &queue;
+                let planned = &planned;
                 scope.spawn(move || {
-                    loop {
-                        let next = queue.lock().map(|mut queue| queue.next()).ok().flatten();
-                        let Some((index, (id, check))) = next else { break };
-                        if sender.send((index, self.check(id, check))).is_err() {
-                            break;
+                    while let Some(indices) = queue.lock().map(|mut queue| queue.next()).ok().flatten() {
+                        for index in indices {
+                            let (id, check) = &planned[index];
+                            if sender.send((index, self.check(id, check))).is_err() {
+                                return;
+                            }
                         }
                     }
                 });
@@ -551,6 +645,7 @@ impl Org {
                 }
             }
         });
+        ssh::close();
         if failed > 0 {
             return Err(Error::new(format!("{failed} of {} checks failed", planned.len())));
         }

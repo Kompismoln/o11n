@@ -12,8 +12,8 @@
   jq,
   lib,
   nixfmt,
+  o11n,
   o11n-dev,
-  o11n-tools,
   prettier,
   rustfmt,
   shellcheck,
@@ -54,7 +54,8 @@ let
       shellcheck
       statix
     ]
-    ++ o11n-tools.runtimeInputs;
+    ++ [ o11n ]
+    ++ o11n.runtimeInputs;
 in
 lib.mapAttrs script {
   inherit write check;

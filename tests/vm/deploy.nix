@@ -137,9 +137,7 @@ pkgs.testers.runNixOSTest {
         "flakes"
       ];
       environment.systemPackages = [
-        (pkgs.callPackage ../../packages/o11n-tools.nix {
-          o11n = pkgs.callPackage ../../packages/o11n.nix { };
-        })
+        (pkgs.callPackage ../../packages/o11n.nix { gost = pkgs.callPackage ../../packages/gost.nix { }; })
         pkgs.gettext
         pkgs.git
       ];
@@ -210,6 +208,12 @@ pkgs.testers.runNixOSTest {
           operator.succeed("ssh -n nix-switch@web ${next}")
           web.succeed("test \"$(readlink -f /run/current-system)\" = ${next}")
           web.succeed("grep -qx next /etc/next")
+
+      with subtest("switch-system status tells of the system web booted, runs and boots next"):
+          out = operator.succeed("ssh -n nix-switch@web status")
+          assert "current system ${next}\n" in out, out
+          assert "next system ${next}\n" in out, out
+          assert "booted kernel ${builtins.storeDir}/" in out, out
 
       with subtest("switch-system switches to a generation, and lists them"):
           operator.succeed(f"ssh -n nix-switch@web {first}")

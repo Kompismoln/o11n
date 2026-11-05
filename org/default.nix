@@ -96,9 +96,15 @@
       type = lib.types.nullOr context.types.mailserver.module;
     };
     flake = lib.mkOption {
-      description = "flake that the hosts' nix registry calls o11n";
+      description = "nothing: the hosts' nix registry calls the o11n they're built from o11n";
+      internal = true;
       default = { };
-      type = with lib.types; attrsOf str;
+      type = lib.types.raw;
+      apply =
+        flake:
+        lib.throwIf (flake != { })
+          "flake is gone: drop it from org.toml. A host's nix registry calls the o11n it's built from, at /etc/nix/inputs/o11n, o11n."
+          flake;
     };
     repository = lib.mkOption {
       description = "the organisation's own flake, where the remote builder fetches its revisions";

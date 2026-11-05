@@ -91,9 +91,7 @@ pkgs.testers.runNixOSTest {
 
     environment.systemPackages = [
       pkgs.git
-      (pkgs.callPackage ../../packages/o11n-tools.nix {
-        o11n = pkgs.callPackage ../../packages/o11n.nix { };
-      })
+      (pkgs.callPackage ../../packages/o11n.nix { gost = pkgs.callPackage ../../packages/gost.nix { }; })
     ];
     virtualisation.memorySize = 2048;
     virtualisation.cores = 2;

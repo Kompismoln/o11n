@@ -9,13 +9,15 @@ mod remote;
 mod route;
 mod secrets;
 mod sops;
+mod ssh;
 mod state;
 mod status;
 mod store;
 mod util;
+mod version;
 
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
@@ -23,12 +25,21 @@ use clap::{Args, Parser, Subcommand};
 use export::Export;
 use store::{Org, Secret};
 
+// Dependency: nixos/org/nix.nix keeps the org a host is built from here.
+fn default_org() -> PathBuf {
+    if Path::new("org.toml").exists() {
+        PathBuf::from(".")
+    } else {
+        PathBuf::from("/etc/nix/inputs/self")
+    }
+}
+
 /// Reads an evaluated org and acts on it.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
-    /// The org's clone.
-    #[arg(long, env = "O11N_ORG_ROOT", default_value = ".")]
+    /// The org's clone: by default the working directory if it holds an org.toml, or else the org a host is built from.
+    #[arg(long, env = "O11N_ORG_ROOT", default_value_os_t = default_org())]
     org: PathBuf,
     /// The org's export as JSON, instead of evaluating `org.export` of the org's flake.
     #[arg(long, env = "O11N_EXPORT")]
@@ -328,12 +339,13 @@ enum HostCommand {
         #[command(flatten)]
         from: From,
     },
-    /// Has the host drop a luks-key, and then the org.
+    /// Has the host drop a luks-key, and then the org, but for slot 0, which a deployment writes, and the one in the
+    /// initrd the host boots next; or every identity but its current one, once its systems' secrets open without them.
     Revoke {
         id: String,
         key: String,
         #[arg(long)]
-        slot: u32,
+        slot: Option<u32>,
     },
     /// Writes the ssh-key the host answers with as its public key.
     PullSshKey { id: String },

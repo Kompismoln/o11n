@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Usage: ./dev/operator.sh fetch [branch] | stamp [message] | merge [branch] | check-org, in the dev
-# shell, pulling and pushing through `o11n as` as user-$O11N_DEV.
+# Usage: ./dev/operator.sh fetch [branch] | stamp [message] | merge [branch], in the dev shell, pulling and pushing
+# through `o11n as` as user-$O11N_DEV.
 set -euo pipefail
 
 die() {
@@ -115,19 +115,11 @@ merge() {
     git rev-parse --short "$main"
 }
 
-check-org() {
-    [[ -n ${ORG:-} ]] || die "ORG is unset, so there's no org to check"
-    local here=$PWD
-    cd "$ORG"
-    nix build --no-link -L .#stages.eval --override-input o11n "git+file://$here"
-}
-
 case "${1:-}" in
 fetch | stamp | merge)
     [[ -n ${O11N_DEV:-} ]] || die "O11N_DEV is unset, so o11n has no one to pull and push as"
     command -v o11n >/dev/null || die "no o11n on PATH to pull and push with"
     "$1" "${2:-}"
     ;;
-check-org) check-org ;;
-*) die "usage: ./dev/operator.sh fetch [branch] | stamp [message] | merge [branch] | check-org" ;;
+*) die "usage: ./dev/operator.sh fetch [branch] | stamp [message] | merge [branch]" ;;
 esac

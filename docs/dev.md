@@ -83,7 +83,6 @@ In the dev shell, pulling and pushing through `o11n as` as `user-$O11N_DEV`, `$O
 ./dev/operator.sh fetch [branch]    # switch to the branch, bring it and refs/stamped/* up to origin, say what is pending
 ./dev/operator.sh stamp [message]   # once nothing is pending: commit as "stamp", or the message, set refs/stamped/<branch>, push both, print the revision
 ./dev/operator.sh merge [branch]    # once nothing is pending and eval holds: squash onto main, push, delete the branch and its refs/stamped, print main's revision
-./dev/operator.sh check-org         # with ORG set to an org's clone: build its eval stage with this tree as its o11n
 ```
 
 `stamp` prints at once when nothing changed since it last stamped, as in `./dev/operator.sh stamp | osc copy`. Start the

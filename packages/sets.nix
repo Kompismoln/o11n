@@ -98,7 +98,7 @@ pkgs: with pkgs; rec {
     bitwarden-cli
     sops
     ssh-to-age
-    o11n-tools
+    o11n
   ];
 
   nix-tools = [

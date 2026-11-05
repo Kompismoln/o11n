@@ -66,7 +66,7 @@ stage-bats() {
 }
 
 stage-vm() {
-    nix run --quiet --no-warn-dirty .#o11n-tools -- remote build .#stages.vm
+    nix run --quiet --no-warn-dirty .#o11n -- remote build .#stages.vm
 }
 
 built() {

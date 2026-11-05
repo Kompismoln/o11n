@@ -133,6 +133,7 @@ setup() {
 
 @test "a host takes a new identity through its locksmith" {
   mock-host testhost
+  o11n host pull-ssh-key host-testhost
   o11n identity create service-locksmith
   o11n secret generate service-locksmith ssh-key
   o11n identity create host-testhost --from <(echo "$test_age_key_1")
@@ -154,6 +155,38 @@ setup() {
   succeeds
 }
 
+@test "a host drops its old identities once the secrets of its systems open without them" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-locksmith
+  o11n secret generate service-locksmith ssh-key
+  o11n identity create host-testhost --from <(echo "$test_age_key_1")
+  cp enc/host-testhost.yaml "$BATS_TEST_TMPDIR/before.yaml"
+  o11n host push host-testhost age-key --from <(echo "$test_age_key_2")
+  local keyfile=$BATS_TEST_TMPDIR/host-testhost.local/keys/host-testhost
+  [ "$(wc -l <"$keyfile")" -eq 2 ]
+
+  run o11n host revoke host-testhost age-key --slot 1
+  fails "a host's age-key has no slots"
+
+  run o11n host revoke host-testhost age-key
+  fails "doesn't list the sops files it decrypts: deploy before revoking"
+
+  mock-systems "$BATS_TEST_TMPDIR/before.yaml"
+  run o11n host revoke host-testhost age-key
+  fails "doesn't open with the current identity alone: deploy before revoking"
+  [[ $output == *"before.yaml, which "* ]]
+  [ "$(wc -l <"$keyfile")" -eq 2 ]
+
+  mock-systems "$TESTROOT/enc/host-testhost.yaml"
+  run o11n host revoke host-testhost age-key
+  succeeds
+  [[ $output == *"host-testhost dropped every identity but its current one"* ]]
+  [ "$(cat "$keyfile")" = "$test_age_key_2" ]
+  run o11n host check host-testhost age-key
+  succeeds
+}
+
 @test "a host's identity isn't pushed while its public key doesn't match" {
   mock-host testhost
   o11n identity create service-locksmith
@@ -167,6 +200,7 @@ setup() {
 
 @test "a host's luks-keys are added and revoked through its locksmith" {
   mock-host testhost
+  o11n host pull-ssh-key host-testhost
   o11n identity create service-locksmith
   o11n secret generate service-locksmith ssh-key
   o11n identity create host-testhost --from <(echo "$test_age_key_1")
@@ -186,19 +220,54 @@ setup() {
 
   run o11n host push host-testhost luks-key --from <(echo -n "$test_luks_key_2")
   succeeds
-  [[ $output == *"took a luks-key for slot 1, on the strength of slot 0"* ]]
-  run o11n host check host-testhost luks-key --slot 1
-  succeeds
-
-  run o11n host revoke host-testhost luks-key --slot 0
-  succeeds
+  [[ $output == *"took a luks-key for slot 0, and the one it held moved to slot 1"* ]]
+  [ "$(o11n secret show host-testhost luks-key)" = "$test_luks_key_2" ]
   run o11n host check host-testhost luks-key --slot 1
   succeeds
   run o11n host check host-testhost luks-key
-  fails "there's no host-testhost's luks-key"
+  succeeds
 
+  run o11n host revoke host-testhost luks-key --slot 0
+  fails "slot 0 is the luks-key a deployment writes"
+
+  mock-boot grub "$test_luks_key_1"
   run o11n host revoke host-testhost luks-key --slot 1
-  fails "is the last luks-key the org holds for host-testhost"
+  fails "holds this luks-key: deploy the one that replaces it first"
+  run o11n host check host-testhost luks-key --slot 1
+  succeeds
+
+  mock-boot grub "$test_luks_key_2"
+  run o11n host revoke host-testhost luks-key --slot 1
+  succeeds
+  run o11n host check host-testhost luks-key --slot 1
+  fails "there's no host-testhost's luks-key in slot 1"
+  run o11n host check host-testhost luks-key
+  succeeds
+}
+
+@test "status reads the luks-key of the initrd the host boots next, which opens its disk and is the one deployed" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-locksmith
+  o11n secret generate service-locksmith ssh-key
+  o11n identity create host-testhost --from <(echo "$test_age_key_1")
+  o11n secret generate host-testhost luks-key --from <(echo -n "$test_luks_key_1")
+
+  mock-boot grub "$test_luks_key_1"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost initrd-key ok"* ]]
+
+  o11n host push host-testhost luks-key --from <(echo -n "$test_luks_key_2")
+  run o11n status host-testhost
+  [[ $output == *"host-testhost initrd-key fail: "*"opens /dev/null, but isn't the one a deployment writes"* ]]
+
+  mock-boot systemd-boot "$test_luks_key_2"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost initrd-key ok"* ]]
+
+  mock-boot systemd-boot "luks3-Atzc2gtZWQyNTUxO"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost initrd-key fail: ssh: the luks-key in the initrd that boots "*" doesn't open /dev/null"* ]]
 }
 
 @test "a host's ssh-key is its own, which the org has the public key of, pulled from the host" {
@@ -436,6 +505,10 @@ setup() {
   run o11n status --list host-testhost host-lorem user-testuser user-admin
   succeeds
   [[ $output == *"host-testhost on-host luks-key"* ]]
+  [[ $output == *"host-testhost initrd-key"* ]]
+  [[ $output == *"org o11n"* ]]
+  [[ $output == *"host-testhost version"* ]]
+  [[ $output == *"host-testhost reboot"* ]]
   [[ $output == *"host-testhost nix-daemon"* ]]
   [[ $output == *"host-testhost submission mail.example.com"* ]]
   [[ $output == *"user-testuser mail-login mail.example.com"* ]]
@@ -443,6 +516,87 @@ setup() {
   [[ $output != *"host-lorem nix-daemon"* ]]
   [[ $output != *"user-admin mail-login"* ]]
   [[ $output != *"public-key passwd"* ]]
+}
+
+@test "status checks a host's ssh-key on the connections it logs in with" {
+  mock-host testhost
+  o11n identity create service-locksmith
+  o11n secret generate service-locksmith ssh-key
+  o11n identity create host-testhost --from <(echo "$test_age_key_1")
+  ssh-keygen -q -t ed25519 -N '' -f "$BATS_TEST_TMPDIR/other"
+  cut -d' ' -f1,2 "$BATS_TEST_TMPDIR/other.pub" >public-keys/host-testhost-ssh-key.pub
+
+  run o11n status host-testhost
+  [[ $output == *"host-testhost ssh-key fail: ssh: Host key verification failed."* ]]
+  [[ $output == *"o11n host pull-ssh-key host-testhost, if it's the host's own"* ]]
+  [[ $output == *"host-testhost on-host age-key fail: ssh: Host key verification failed."* ]]
+
+  o11n host pull-ssh-key host-testhost
+  run o11n status host-testhost
+  [[ $output == *"host-testhost ssh-key ok"* ]]
+  [[ $output == *"host-testhost on-host age-key ok"* ]]
+}
+
+@test "status tells whether this o11n is the package the o11n the org pins builds" {
+  local o11n
+  o11n=$(readlink -f "$(command -v o11n)")
+  if [[ $o11n != /nix/store/* ]]; then
+    run o11n status host-testhost
+    [[ $output == *"org o11n skip: this o11n isn't in the nix store, as one cargo built"* ]]
+  fi
+  o11n=$(nix-store --add "$o11n" 2>/dev/null) || skip "nix can't add to the store here"
+
+  mkdir o11n-stub
+  echo "{ outputs = _: { packages.x86_64-linux.o11n.outPath = \"$o11n\"; }; }" >o11n-stub/flake.nix
+  echo "{ inputs.o11n.url = \"path:$TESTROOT/o11n-stub\"; outputs = _: { }; }" >flake.nix
+  nix flake lock 2>/dev/null || skip "nix can't lock a flake here"
+  run "$o11n" status host-testhost
+  [[ $output == *"org o11n ok"* ]]
+
+  echo "{ outputs = _: { packages.x86_64-linux.o11n.outPath = \"/nix/store/other\"; }; }" >o11n-stub/flake.nix
+  nix flake update 2>/dev/null
+  run "$o11n" status host-testhost
+  [[ $output == *"org o11n fail: this o11n is $o11n, and the org's builds /nix/store/other"* ]]
+}
+
+@test "status tells whether a host runs the org's tree and the o11n it pins" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-nix-switch
+  mkdir o11n-stub
+  echo '{ outputs = _: { }; }' >o11n-stub/flake.nix
+  echo "{ inputs.o11n.url = \"path:$TESTROOT/o11n-stub\"; outputs = _: { }; }" >flake.nix
+  nix flake lock 2>/dev/null || skip "nix can't lock a flake here"
+  local tree pinned
+  tree=$(nix flake metadata --json . 2>/dev/null | jq -r .locked.narHash)
+  pinned=$(jq -r .nodes.o11n.locked.narHash flake.lock)
+
+  echo "current system /nix/store/a" >"$BATS_TEST_TMPDIR/deployed-testhost.local"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost version skip: host-testhost runs a system that doesn't say its versions"* ]]
+
+  printf 'current org %s\ncurrent o11n %s\n' "$tree" "$pinned" >"$BATS_TEST_TMPDIR/deployed-testhost.local"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost version ok"* ]]
+
+  printf 'current org sha256-old\ncurrent o11n sha256-old\n' >"$BATS_TEST_TMPDIR/deployed-testhost.local"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost version fail: host-testhost runs the org's tree sha256-old, not this one's $tree, and o11n sha256-old, not the one the org pins, $pinned: o11n apply host-testhost"* ]]
+}
+
+@test "status tells whether a host boots another kernel than it runs" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-nix-switch
+  printf '%s\n' "booted kernel /nix/store/k1" "booted kernel-modules /nix/store/m1" \
+    "next kernel /nix/store/k1" "next kernel-modules /nix/store/m1" >"$BATS_TEST_TMPDIR/deployed-testhost.local"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost reboot ok"* ]]
+
+  printf '%s\n' "booted kernel /nix/store/k1" "booted kernel-modules /nix/store/m1" \
+    "next kernel /nix/store/k2" "next kernel-modules /nix/store/m1" >"$BATS_TEST_TMPDIR/deployed-testhost.local"
+  run o11n status host-testhost
+  [[ $output == *"host-testhost reboot fail: host-testhost runs kernel /nix/store/k1 boots as /nix/store/k2: reboot it"* ]]
 }
 
 @test "status says ok, fail or skip of each check, a skip for a secret it can't decrypt, and fails for a fail" {

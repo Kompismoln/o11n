@@ -17,7 +17,6 @@ setup() {
   git init -q -b main repo
   cd repo || exit
   git config commit.gpgsign false
-  top=$(git rev-parse --show-toplevel)
   git remote add origin ../origin.git
   mkdir dev
   cp "$BATS_TEST_DIRNAME/../.gitignore" dev/
@@ -186,23 +185,6 @@ three" ]
   run "$operator" merge
   [ "$status" -eq 1 ]
   [[ $output == *"'work' is not based on the tip of 'main'"* ]]
-}
-
-@test "check-org builds the org's eval stage with this tree as its o11n, ORG relative to the clone's root" {
-  mkdir "$BATS_TEST_TMPDIR/org" sub
-  cd sub || exit
-
-  ORG=../org run "$operator" check-org
-  [ "$status" -eq 0 ]
-  grep -qxF "$BATS_TEST_TMPDIR/org: nix build --no-link -L .#stages.eval --override-input o11n git+file://$top" \
-    "$BATS_TEST_TMPDIR/nix.log"
-
-  ORG=$BATS_TEST_TMPDIR/org NIX_FAILS_IN=$BATS_TEST_TMPDIR/org run "$operator" check-org
-  [ "$status" -ne 0 ]
-
-  run "$operator" check-org
-  [ "$status" -eq 1 ]
-  [[ $output == *"ORG is unset"* ]]
 }
 
 @test "operator.sh needs O11N_DEV to pull and push as, and a command" {

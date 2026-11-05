@@ -9,9 +9,22 @@ o11n-dev hook <hook> refuse|tell         # the stages settings.toml has a hook r
 o11n-dev parts check
 o11n-dev refs check
 o11n-dev index write | check
+o11n-dev systems check [-- <nix argument>...]
+o11n-dev systems compare <rev> <rev> <host>... [-- <nix argument>...]
 ```
 
 Each flags on stderr as `flag: ...`, and fails if it flags any.
+
+## Systems
+
+`systems` reads the org whose clone `ORG` names, with the clone's tree as its o11n, passing the nix arguments to each
+evaluation, as an org's stub overrides (`crates/o11n-dev/src/systems.rs`):
+
+- `check` builds the org's `eval` stage.
+- `compare` evaluates each host's `toplevel.drvPath` at both revisions with `o11n.source.enable` off, the one place
+  o11n's tree enters a system (`nixos/org/nix.nix`), so that equal paths are systems equal in all they're built from,
+  says `<host> same` or `<host> differs: <old> <new>`, and fails when one differs. A revision from before
+  `o11n.source.enable` doesn't evaluate.
 
 ## Packaging
 

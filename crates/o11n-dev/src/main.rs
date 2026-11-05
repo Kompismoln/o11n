@@ -6,6 +6,7 @@ mod parts;
 mod refs;
 mod settings;
 mod stamps;
+mod systems;
 mod tree;
 
 use std::io::Write;
@@ -51,6 +52,30 @@ enum Command {
     /// The parts of o11n, as dev/parts.toml declares them.
     #[command(subcommand)]
     Parts(PartsCommand),
+    /// The systems of the org whose clone ORG names, with this clone's tree as their o11n.
+    #[command(subcommand)]
+    Systems(SystemsCommand),
+}
+
+#[derive(Subcommand)]
+enum SystemsCommand {
+    /// Builds the org's eval stage.
+    Check {
+        /// Passed to nix, as an org's stubs.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+    /// Says of each host whether its system differs between two revisions of the clone, without o11n's tree, and
+    /// fails if one does.
+    Compare {
+        old: String,
+        new: String,
+        #[arg(required = true)]
+        hosts: Vec<String>,
+        /// Passed to nix, as an org's stubs.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -150,6 +175,13 @@ fn main() -> ExitCode {
         Command::Index(IndexCommand::Write) => index::index(false),
         Command::Index(IndexCommand::Check) => index::index(true),
         Command::Parts(PartsCommand::Check) => parts::check(),
+        Command::Systems(command) => {
+            return match command {
+                SystemsCommand::Check { args } => systems::check(&args),
+                SystemsCommand::Compare { old, new, hosts, args } => systems::compare(&old, &new, &hosts, &args),
+            }
+            .unwrap_or_else(|message| failed(&message));
+        }
     };
     match said {
         Ok(flags) => flagged(&flags),

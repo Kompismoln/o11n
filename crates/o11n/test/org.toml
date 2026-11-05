@@ -58,6 +58,11 @@ grants = [
   "host-*",
 ]
 
+[service.nix-switch]
+grants = [
+  "host-*",
+]
+
 [service.domain-local]
 grants = [
   "host-*",
@@ -75,7 +80,7 @@ dkimSelector = "mail"
 [role.testrole]
 
 [role.serving]
-services = ["locksmith", "mailserver", "nix-remote"]
+services = ["locksmith", "mailserver", "nix-remote", "nix-switch"]
 
 [role.lorem]
 

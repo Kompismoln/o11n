@@ -66,4 +66,20 @@ code = [
 stage = "drafted"
 layer = "ux"
 doc = "docs/parts/o11n.md"
-code = ["crates/o11n/src/status.rs"]
+code = ["crates/o11n/src/status.rs", "crates/o11n/src/version.rs"]
+
+[parts.secrets]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/secrets.md"
+code = [
+  "crates/o11n/src/host.rs",
+  "crates/o11n/src/keys.rs",
+  "crates/o11n/src/secrets.rs",
+  "crates/o11n/src/sops.rs",
+  "crates/o11n/src/store.rs",
+  "nixos/org/sops.nix",
+  "nixos/services/locksmith.nix",
+  "nixos/services/locksmith.sh",
+  "org/secrets.nix",
+]

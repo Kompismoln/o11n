@@ -24,8 +24,30 @@ let
         nix-env -p "$profile" --set "$generation"
       elif [[ $generation =~ ^[0-9]+$ ]]; then
         nix-env -p "$profile" --switch-generation "$generation"
+      elif [[ $generation == status ]]; then
+        # Dependency: crates/o11n/src/status.rs reads these, a line each: <system> <field> <value>.
+        for system in booted current next; do
+          case $system in
+          booted) path=/run/booted-system ;;
+          current) path=/run/current-system ;;
+          next) path=$profile ;;
+          esac
+          path=$(readlink -f "$path")
+          echo "$system system $path"
+          for field in kernel kernel-modules; do
+            echo "$system $field $(readlink -f "$path/$field")"
+          done
+          # Dependency: nixos/org/nix.nix keeps the org and o11n a system is built from under these.
+          for input in self:org o11n:o11n; do
+            if [[ -e $path/etc/nix/inputs/''${input%%:*} ]]; then
+              hash=$(nix-store --query --hash "$(readlink -f "$path/etc/nix/inputs/''${input%%:*}")")
+              echo "$system ''${input#*:} $(nix hash to-sri "$hash" 2>/dev/null)"
+            fi
+          done
+        done
+        exit 0
       elif [[ -n $generation ]]; then
-        echo "usage: switch-system [store path | generation]" >&2
+        echo "usage: switch-system [store path | generation | status]" >&2
         exit 1
       fi
 
@@ -33,6 +55,9 @@ let
 
       if [[ -n $generation ]]; then
         "$profile/bin/switch-to-configuration" switch
+        # Fact: switch installs the boot loader, which copies the initrd's secrets, before the activation that has
+        # sops-nix write them, so the initrd would hold those of the deployment before.
+        "$profile/bin/switch-to-configuration" boot
       fi
     '';
   };

@@ -1,17 +1,39 @@
 #!/usr/bin/env bash
+known_hosts='' no_command=''
 while [[ $1 == -* ]]; do
 	case $1 in
-	-t | -n) shift ;;
+	-t | -n | -f) shift ;;
+	-N)
+		no_command=1
+		shift
+		;;
+	-o)
+		[[ $2 == UserKnownHostsFile=* ]] && known_hosts=${2#*=}
+		shift 2
+		;;
 	*) shift 2 ;;
 	esac
 done
 IFS='@' read -r name fqdn <<<"$1"
 IFS='.' read -r host _ <<<"$fqdn"
 
+hostkey=$BATS_TEST_TMPDIR/host-$fqdn/keys/ssh-key
+if [[ -n $known_hosts && -f $hostkey ]] &&
+	! grep -qF "$(ssh-keygen -y -f "$hostkey" | cut -d' ' -f1,2)" "$known_hosts"; then
+	echo "Host key verification failed." >&2
+	exit 255
+fi
+[[ -z $no_command ]] || exit 0
+
 case "$name" in
 locksmith)
 	export LUKS_DEVICE="/dev/null"
 	export KEY_FILE=$BATS_TEST_TMPDIR/host-$fqdn/keys/host-$host
+	export SYSTEM_PROFILE=$BATS_TEST_TMPDIR/host-$fqdn/system
+	export CURRENT_SYSTEM=$BATS_TEST_TMPDIR/host-$fqdn/current
+	export BOOT_LOADER=${BOOT_LOADER:-grub}
+	export BOOT_DIR=$BATS_TEST_TMPDIR/host-$fqdn/boot
+	export INITRD_KEY_FILE=./.initrd-secrets/luks-key
 	shift
 	"$LOCKSMITH" "$@"
 	;;
@@ -34,6 +56,9 @@ root)
 		echo "$* on $fqdn, with $password"
 		;;
 	esac
+	;;
+nix-switch)
+	[[ $2 == status ]] && cat "$BATS_TEST_TMPDIR/deployed-$fqdn"
 	;;
 testadmin | admin)
 	shift

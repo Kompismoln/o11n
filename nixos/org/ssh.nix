@@ -1,4 +1,5 @@
 # nixos/org/ssh.nix
+{ org, ... }:
 {
   services = {
     fail2ban.jails = {
@@ -9,6 +10,9 @@
 
     openssh = {
       enable = true;
+      # Policy: the org's own addresses, whose peers wireguard has let in, are spared sshd's penalties, as for
+      # connections o11n opens without logging in.
+      settings.PerSourcePenaltyExemptList = "${org.prefix}::/48,${org.prefix4}.0.0/16";
       extraConfig = ''
         Match User *
           PasswordAuthentication no

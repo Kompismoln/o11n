@@ -84,11 +84,12 @@
 
               packages = {
                 gost = pkgs.callPackage ./packages/gost.nix { };
-                o11n = pkgs.callPackage ./packages/o11n.nix { };
+                o11n = pkgs.callPackage ./packages/o11n.nix { inherit (config.packages) gost; };
                 o11n-dev = pkgs.callPackage ./packages/o11n-dev.nix { };
-                o11n-tools = pkgs.callPackage ./packages/o11n-tools.nix { inherit (config.packages) gost o11n; };
+                # Accommodating for orgs whose devShell still takes o11n-tools, which o11n now is.
+                o11n-tools = config.packages.o11n;
               }
-              // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n-dev o11n-tools; };
+              // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n o11n-dev; };
 
               legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
                 inherit pkgs;
@@ -119,7 +120,7 @@
               legacyPackages.vmTests.snapshot = import ./tests/vm/snapshot.nix { inherit pkgs; };
 
               # Policy: the dev shell runs each package's source as it is, with what the package runs,
-              # bats and socat for their tests, and cargo, rustc and clippy for o11n's crate.
+              # bats, socat and libarchive for their tests, and cargo, rustc and clippy for o11n's crate.
               devShells.default = pkgs.mkShell {
                 packages = lib.unique (
                   lib.concatMap (package: package.runtimeInputs or [ ]) (lib.attrValues config.packages)
@@ -129,6 +130,7 @@
                     config.packages.o11n-dev
                     pkgs.bats
                     pkgs.cargo
+                    pkgs.libarchive
                     pkgs.clippy
                     pkgs.rustc
                     pkgs.socat
