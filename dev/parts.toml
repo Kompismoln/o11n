@@ -61,3 +61,9 @@ code = [
   "org/mail.nix",
   "org/mailserver.nix",
 ]
+
+[parts.o11n]
+stage = "drafted"
+layer = "ux"
+doc = "docs/parts/o11n.md"
+code = ["crates/o11n/src/status.rs"]

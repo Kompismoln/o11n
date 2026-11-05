@@ -5,12 +5,12 @@ mod export;
 mod groups;
 mod host;
 mod keys;
-mod ops;
 mod remote;
 mod route;
 mod secrets;
 mod sops;
 mod state;
+mod status;
 mod store;
 mod util;
 
@@ -56,13 +56,17 @@ enum Command {
     Grants { id: String },
     /// The entities that decrypt the entity's sops file.
     Recipients { id: String },
-    /// Each entity an op of the name applies to, and the op.
-    Ops {
-        name: String,
-        /// Runs each op, all of them though some fail: verify and check as `public-key verify` and `host check` do,
-        /// and rebuild as `reencrypt`, once.
+    /// Checks each entity of the groups, all of them by default, by what it has: its keys and secrets, its host, and
+    /// what it serves; a line each, ok, fail or skip, a skip for what needs a secret the operator can't decrypt.
+    Status {
+        #[arg(default_value = "*")]
+        groups: Vec<String>,
+        /// The checks, without running them.
         #[arg(long)]
-        run: bool,
+        list: bool,
+        /// Only the checks that fail.
+        #[arg(long, conflicts_with = "list")]
+        failed: bool,
     },
     /// The address the name answers at: as it is, if dotted, or in each of the org's namespaces in turn.
     Route {
@@ -292,6 +296,12 @@ enum SecretCommand {
     },
     /// Edits the entity's sops file in sops' editor.
     Edit { id: String },
+    /// What the sops files of the groups' members hold that isn't one of their keys, a line `<id> <path>` each, the
+    /// path from the file's top; a file the operator can't decrypt is said and passed over.
+    Extra {
+        #[arg(default_value = "*")]
+        groups: Vec<String>,
+    },
     /// The sha512-crypt hash of a password.
     Hash { id: String, key: String },
 }
@@ -407,7 +417,6 @@ fn query(org: &Export, json: &str, command: Command) -> Result<(), Error> {
         }
         Command::Grants { id } => lines(org.expand(org.entity(&id)?.grants.iter().map(String::as_str))?),
         Command::Recipients { id } => lines(org.recipients(&id)?),
-        Command::Ops { name, .. } => lines(org.ops(&name)?.into_iter().map(|(id, op)| format!("{id} {op}"))),
         Command::Route { name, port } => println!("{}", org.route(&name, port)?),
         _ => unreachable!(),
     }
@@ -440,7 +449,10 @@ fn state(org: &Org, command: StateCommand) -> Result<(), Error> {
 }
 
 fn act(org: &Org, command: Command) -> Result<(), Error> {
-    if !matches!(command, Command::Path(_) | Command::SopsYaml { .. }) {
+    if !matches!(
+        command,
+        Command::Path(_) | Command::SopsYaml { .. } | Command::Status { list: true, .. }
+    ) {
         match org.acting_as() {
             Ok(Some(id)) => util::log(format!("acting as {id}")),
             Ok(None) => util::log("acting as an identity the org doesn't have"),
@@ -487,6 +499,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             SecretCommand::Show { key } => print!("{}", org.show_secret(key.secret())?),
             SecretCommand::Remove { key } => org.remove_secret(key.secret())?,
             SecretCommand::Edit { id } => org.edit_secrets(&id)?,
+            SecretCommand::Extra { groups } => org.print_extra_secrets(&groups)?,
             SecretCommand::Hash { id, key } => println!("{}", org.hash_password(&id, &key)?),
         },
         Command::PublicKey(command) => match command {
@@ -526,7 +539,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
         Command::Tunnel { server, action } => org.tunnel(&server, action)?,
         Command::Image { variant } => org.image(&variant)?,
         Command::State(command) => state(org, command)?,
-        Command::Ops { name, run: true } => org.run_ops(&name)?,
+        Command::Status { groups, list, failed } => org.status(&groups, list, failed)?,
         command => return query(&org.export, "", command),
     }
     Ok(())
@@ -550,7 +563,6 @@ fn run(cli: Cli) -> Result<(), Error> {
         | Command::Keys { .. }
         | Command::Grants { .. }
         | Command::Recipients { .. }
-        | Command::Ops { run: false, .. }
         | Command::Route { .. }) => query(&export, &json, command),
         command => act(&Org { export, root: cli.org }, command),
     }

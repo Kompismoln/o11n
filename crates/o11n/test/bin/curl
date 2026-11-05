@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Fact: the status checks ask with -w for the code, and an smtp:// url for submission.
+{
+	printf 'curl'
+	printf ' %s' "$@"
+	echo
+} >>"$BATS_TEST_TMPDIR/curl"
+while (($#)); do
+	case $1 in
+	-K) cat "$2" >>"$BATS_TEST_TMPDIR/curl" ;;
+	smtp://*)
+		[[ -z ${CURL_SMTP:-} ]] || {
+			echo "curl: $CURL_SMTP" >&2
+			exit 67
+		}
+		;;
+	esac
+	shift
+done
+echo "${CURL_CODE:-401}"

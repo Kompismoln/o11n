@@ -92,7 +92,8 @@ These are for developers and ops, so:
 
 - `bats crates/o11n/test dev/test` runs them outside the sandbox, with the dev shell's tools, ~3 minutes.
 - `crates/o11n/test` copies its `org.toml` for each test and stubs `ssh`, `ssh-keyscan` and `cryptsetup`, and pins
-  `testhost` to `testhost.local` with `O11N_ROUTES`; the `ssh` stub runs `nixos/org/locksmith.sh` for the locksmith.
+  `testhost` to `testhost.local` with `O11N_ROUTES`; the `ssh` stub runs `nixos/services/locksmith.sh` for the
+  locksmith.
 
 ### VM
 

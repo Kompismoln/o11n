@@ -9,7 +9,7 @@ setup-testenv() {
     here="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     root=$TESTROOT
     # Dependency: the ssh stub runs the other end of o11n's locksmith.
-    export LOCKSMITH=$here/../../../nixos/org/locksmith.sh
+    export LOCKSMITH=$here/../../../nixos/services/locksmith.sh
     mkdir -p "$root"
     cp -a "$here/bin" "$here/org.toml" "$root"
     mkdir "$root/enc" "$root/keys" "$root/public-keys"

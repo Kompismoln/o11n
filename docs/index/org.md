@@ -785,14 +785,6 @@ Default: `[ endpoint ]`
 
 namespaces for hosts in the organisation
 
-### `ops`
-
-`org/default.nix` · attribute set of attribute set of list of string
-
-Default: `{ }`
-
-operations per entity groups
-
 ### `postgres`
 
 `org/default.nix` · string matching the pattern [0-9]+
@@ -1328,9 +1320,10 @@ entity id in various formats
 ### `<entity>.keys`
 
 `org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "password", "htpasswd",
-"luks", "passphrase")
+"luks", "passphrase", "file")
 
-Default: the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its
+Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's
+`passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
 `tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name
 

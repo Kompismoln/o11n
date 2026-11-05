@@ -15,47 +15,6 @@ root-identities = [
   "root-2",
 ]
 
-[ops.rebuild]
-"*" = [
-  "rebuild:age-key",
-]
-
-[ops.check]
-"host:luks+server" = [
-  "check:luks-key",
-]
-"host:server" = [
-  "check:age-key",
-  "check:ssh-key",
-]
-"host-lorem" = [
-  "check:age-key",
-  "check:ssh-key",
-]
-
-[ops.verify]
-"*" = [
-  "verify:age-key",
-]
-"user-*" = [
-  "verify:ssh-key",
-  "verify:passwd",
-  "verify:mail",
-]
-"host-*" = [
-  "verify:wg0-key",
-]
-"service-*" = [
-  "verify:ssh-key",
-  "verify:tls-cert",
-  "verify:passwd",
-]
-
-[ops.amiss]
-"host-*" = [
-  "verify:mail",
-]
-
 [user.testuser]
 id = 1
 principal.mail = { inbox = true, send = true }
@@ -104,9 +63,19 @@ grants = [
   "host-*",
 ]
 
+[service.mailserver]
+
+[service.nix-remote]
+
+[mailserver]
+dkimSelector = "mail"
+
 [root.1]
 
 [role.testrole]
+
+[role.serving]
+services = ["locksmith", "mailserver", "nix-remote"]
 
 [role.lorem]
 
@@ -137,7 +106,7 @@ dns = ["testhost"]
 
 [host.testhost]
 id = 1
-roles = ["testrole"]
+roles = ["testrole", "serving"]
 endpoint = "stationary.kompismoln.se"
 users = ["testuser"]
 vpns = ["wg0", "wg1", "wg2"]
@@ -157,3 +126,11 @@ users = ["testuser"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "20.03"
+
+[host.ipsum]
+id = 3
+nixos = false
+roles = ["testrole"]
+users = []
+vpns = ["wg0"]
+system = "aarch64-linux"

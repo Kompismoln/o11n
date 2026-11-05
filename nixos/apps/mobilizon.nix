@@ -185,13 +185,18 @@ in
                 }
                 // lib.optionalAttrs mail.send {
                   # Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>.
-                  "Mobilizon.Web.Email.Mailer" = {
+                  "Mobilizon.Web.Email.Mailer" = rec {
                     adapter = elixirConf.lib.mkAtom "Swoosh.Adapters.SMTP";
                     relay = "mail.${org.mailserver.endpoint}";
                     port = 587;
                     username = mail.address;
                     password = elixirConf.lib.mkGetEnv { envVariable = "O11N_MAIL_PASSWORD"; };
                     tls = elixirConf.lib.mkAtom ":always";
+                    # Quirk: gen_smtp's default tls_options have no cacerts, so OTP's default verify_peer refuses them
+                    # before the handshake, and gen_smtp says QUIT in plain text, which postfix logs as "wrong version
+                    # number".
+                    # Fact: a raw value that ends in a newline ends the expression before the next key.
+                    tls_options = elixirConf.lib.mkRaw "[verify: :verify_peer, cacerts: :public_key.cacerts_get(), server_name_indication: ~c\"${relay}\", depth: 99]";
                     auth = elixirConf.lib.mkAtom ":always";
                   };
                 };

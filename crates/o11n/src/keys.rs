@@ -17,6 +17,7 @@ pub enum Kind {
     Password,
     Htpasswd,
     Passphrase { bytes: usize, slots: bool },
+    File,
 }
 
 impl Kind {
@@ -35,12 +36,17 @@ impl Kind {
                 bytes: 40,
                 slots: false,
             },
+            "file" => Self::File,
             _ => return Err(Error::new(format!("{kind} is no type of key o11n knows"))),
         })
     }
 
     pub fn has_slots(self) -> bool {
         matches!(self, Self::Passphrase { slots: true, .. })
+    }
+
+    pub fn has_public_key(self) -> bool {
+        !matches!(self, Self::Passphrase { .. } | Self::File)
     }
 }
 
@@ -100,6 +106,11 @@ pub fn generate(kind: Kind, id: &str, domain: Option<&str>) -> Result<String, Er
         // is safe to publish.
         Kind::Htpasswd => passphrase(32),
         Kind::Passphrase { bytes, .. } => passphrase(bytes),
+        Kind::File => {
+            return Err(Error::new(format!(
+                "a file isn't generated: o11n secret generate {id} <key> --from <file>"
+            )));
+        }
     })
 }
 
@@ -153,7 +164,7 @@ pub fn public(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Resu
             .map_err(|e| invalid(key, e))?
             .to_string()),
         Kind::Htpasswd => Ok(format!("{{SHA}}{}\n", STANDARD.encode(Sha1::digest(secret.as_bytes())))),
-        Kind::Passphrase { .. } => Err(Error::new(format!("a {key} has no public key"))),
+        Kind::Passphrase { .. } | Kind::File => Err(Error::new(format!("a {key} has no public key"))),
     }
 }
 
@@ -213,6 +224,8 @@ pub fn validate(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Re
             }
             Ok(())
         }
+        Kind::File if secret.is_empty() => Err(Error::new(format!("the {key} is empty"))),
+        Kind::File => Ok(()),
         _ => public(kind, key, secret, domain).map(|_| ()),
     }
 }
@@ -220,6 +233,15 @@ pub fn validate(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_is_taken_as_it_is_and_never_generated() {
+        let kind = Kind::named("file").unwrap();
+        assert!(validate(kind, "wifi-keys", "psk_staple=abc\n", None).is_ok());
+        assert!(validate(kind, "wifi-keys", "", None).is_err());
+        assert!(generate(kind, "host-alice", None).is_err());
+        assert!(!kind.has_public_key());
+    }
 
     #[test]
     fn generated_secrets_have_public_keys_that_match() {

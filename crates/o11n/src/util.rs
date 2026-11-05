@@ -6,8 +6,17 @@ use std::process::{Command, ExitStatus, Stdio};
 
 use crate::Error;
 
+static QUIET: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+// Policy: a command that tells of what it does in its own output, as status, has the rest keep quiet.
+pub fn quiet() {
+    QUIET.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub fn log(message: impl std::fmt::Display) {
-    eprintln!("o11n: {message}");
+    if !QUIET.load(std::sync::atomic::Ordering::Relaxed) {
+        eprintln!("o11n: {message}");
+    }
 }
 
 // Policy: a failure is what the command said, stderr first, as locksmith.sh says why on stdout.

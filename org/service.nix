@@ -16,9 +16,19 @@
       lib.optionalAttrs (config.namespace != null) { tls-cert = "tls-cert"; }
       # Dependency: o11n's modules read these keys of the services they name.
       // {
-        glesys-api.secret-key = "passphrase";
-        nix-remote.secret-key = "passphrase";
+        # Dependency: crates/o11n/src/host.rs logs in to a host's locksmith with it.
+        locksmith.ssh-key = "ssh";
+        nix-remote = {
+          secret-key = "passphrase";
+          ssh-key = "ssh";
+        };
         nix-serve.nix-sign = "nix-sign";
+        # Dependency: nixos/org/system.nix and nixos/org/rescue-usb.nix let root in with them, and o11n logs in with the
+        # ssh-key as root.
+        rescue = {
+          passwd = "password";
+          ssh-key = "ssh";
+        };
       }
       .${config.name} or { };
   };

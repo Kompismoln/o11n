@@ -15,9 +15,15 @@ pub struct Export {
     pub namespaces: Vec<String>,
     #[serde(default)]
     pub build_hosts: Vec<String>,
-    pub ops: BTreeMap<String, BTreeMap<String, Vec<String>>>,
+    #[serde(default)]
+    pub mailserver: Option<Mailserver>,
     pub classes: BTreeMap<String, Class>,
     pub entities: BTreeMap<String, Entity>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Mailserver {
+    pub endpoint: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +46,21 @@ pub struct Entity {
     #[serde(default)]
     pub namespace: Option<String>,
     pub state: Option<State>,
+    #[serde(default)]
+    pub endpoint: Option<String>,
+    #[serde(default)]
+    pub services: Vec<String>,
+    #[serde(default)]
+    pub mail: Option<Mail>,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub nixos: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Mail {
+    pub address: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -21,7 +21,7 @@ impl Org {
         self.export.route(self.host_name(id)?, 22)
     }
 
-    // Dependency: nixos/org/locksmith.sh takes one line as a secret to confirm, two as one to change it with.
+    // Dependency: nixos/services/locksmith.sh takes one line as a secret to confirm, two as one to change it with.
     fn locksmith(&self, id: &str, key: &str, lines: &[&str]) -> Result<String, Error> {
         let address = self.address(id)?;
         let ssh_key = self.required(Secret {
@@ -53,6 +53,28 @@ impl Org {
     }
 
     pub fn check_on_host(&self, id: &str, key: &str, slot: u32) -> Result<(), Error> {
+        self.confirm_on_host(id, key, slot)?;
+        log(format!("{id} has its {key}"));
+        Ok(())
+    }
+
+    // Dependency: org/entity.nix gives a host's ssh-key a public key and no secret.
+    pub fn confirm_on_host(&self, id: &str, key: &str, slot: u32) -> Result<(), Error> {
+        self.host_name(id)?;
+        if key == "ssh-key" {
+            let path = self.public_path(id, key)?;
+            let public = crate::util::read(&path)?
+                .ok_or_else(|| Error::new(format!("there's no {}: o11n host pull-ssh-key {id}", path.display())))?;
+            let scanned = self.scanned_ssh_key(id)?;
+            if public != scanned {
+                return Err(Error::new(format!(
+                    "{id} has another ssh-key: o11n host pull-ssh-key {id}, if it's the host:\n< {}\n> {}",
+                    public.trim(),
+                    scanned.trim()
+                )));
+            }
+            return Ok(());
+        }
         let secret = Secret { id, key, slot };
         match self.kind(secret)? {
             Kind::Age => {
@@ -61,22 +83,8 @@ impl Org {
             Kind::Passphrase { slots: true, .. } => {
                 self.locksmith(id, key, &[&self.required(secret)?])?;
             }
-            Kind::Ssh => {
-                let path = self.public_path(id, key)?;
-                let public =
-                    crate::util::read(&path)?.ok_or_else(|| Error::new(format!("there's no {}", path.display())))?;
-                let scanned = self.scanned_ssh_key(id)?;
-                if public != scanned {
-                    return Err(Error::new(format!(
-                        "{id} has another ssh-key:\n< {}\n> {}",
-                        public.trim(),
-                        scanned.trim()
-                    )));
-                }
-            }
             _ => return Err(Error::new(format!("a host's {key} can't be checked on it"))),
         }
-        log(format!("{id} has its {key}"));
         Ok(())
     }
 

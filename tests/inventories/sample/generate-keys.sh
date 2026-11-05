@@ -23,7 +23,11 @@ o11n identity create root-1
 for host in gw web; do
     o11n identity create "host-$host"
     o11n secret generate "host-$host" wg0-key
-    o11n secret generate "host-$host" ssh-key
+    # Fact: a host's ssh-key is its own, which `o11n host pull-ssh-key` would pull; here, one is made for it.
+    rm -f "keys/host-$host-ssh-key"
+    ssh-keygen -q -t ed25519 -N '' -C '' -f "keys/host-$host-ssh-key"
+    cut -d' ' -f1-2 "keys/host-$host-ssh-key.pub" >"public-keys/host-$host-ssh-key.pub"
+    rm "keys/host-$host-ssh-key" "keys/host-$host-ssh-key.pub"
 done
 o11n secret generate host-web luks-key
 

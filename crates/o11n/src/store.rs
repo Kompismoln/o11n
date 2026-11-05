@@ -114,7 +114,7 @@ impl Org {
         })
     }
 
-    fn decrypted(&self, id: &str) -> Result<Value, Error> {
+    pub fn decrypted(&self, id: &str) -> Result<Value, Error> {
         self.decrypted_with(id, None)
     }
 

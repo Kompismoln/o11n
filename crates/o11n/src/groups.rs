@@ -87,7 +87,6 @@ mod tests {
             &serde_json::json!({
                 "root-identities": ["root-1"],
                 "endpoint": "example.com",
-                "ops": {},
                 "classes": {},
                 "entities": {
                     "root-1": entity("root", &[], &[]),

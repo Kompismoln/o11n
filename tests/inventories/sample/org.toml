@@ -157,10 +157,6 @@ grants = ["host:mailserver"]
 [service.domain-sample]
 grants = ["host:archive"]
 
-[ops.check]
-"host:server+substituter" = ["check:age-key"]
-"service-rescue" = ["verify:ssh-key", "verify:passwd"]
-
 [store.archives]
 id = 0
 principal.hasPublicKey = false

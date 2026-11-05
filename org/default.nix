@@ -125,9 +125,15 @@
       defaultText = lib.literalMD "each service whose `namespace` isn't null, by it";
     };
     ops = lib.mkOption {
-      description = "operations per entity groups";
+      description = "nothing: o11n status checks each entity by what it has, which `[ops]` named by hand";
+      internal = true;
       default = { };
-      type = with lib.types; attrsOf (attrsOf (listOf str));
+      type = lib.types.raw;
+      apply =
+        ops:
+        lib.throwIf (ops != { })
+          "[ops] is gone: drop it from org.toml. o11n status checks what verify and check did, for each entity that has the key, and o11n reencrypt does what rebuild did."
+          ops;
     };
     root-identities = lib.mkOption {
       description = "list of root identities";

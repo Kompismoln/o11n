@@ -78,16 +78,17 @@ impl Org {
     pub fn acting(&self, id: &str) -> Result<Acting, Error> {
         let temp = TempDir::new()?;
         let identity = temp.file("identity", &self.identity(id)?)?;
-        let ssh_key = self.required_as(
-            Secret {
-                id,
-                key: "ssh-key",
-                slot: 0,
-            },
-            &identity,
-        )?;
         let agent = Agent::start(temp.path())?;
-        agent.add(&ssh_key)?;
+        if self.entity(id)?.keys.contains_key("ssh-key") {
+            agent.add(&self.required_as(
+                Secret {
+                    id,
+                    key: "ssh-key",
+                    slot: 0,
+                },
+                &identity,
+            )?)?;
+        }
         Ok(Acting {
             agent,
             identity,

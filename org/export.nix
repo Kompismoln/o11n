@@ -11,13 +11,30 @@ let
 
   stateful = entity: entity.principal != null && entity.principal.state != null;
 
+  # Policy: a grant that names an entity names one of the org's, or o11n can't tell its recipients.
+  grants =
+    entity:
+    map (
+      grant:
+      lib.throwIf
+        (
+          grant != "*"
+          && !lib.hasInfix ":" grant
+          && !lib.hasSuffix "-*" grant
+          && !(config.entities ? ${grant})
+          && !lib.elem grant config.root-identities
+        )
+        "${entity.handle} grants ${grant}, which is no entity of the org's: drop it from [${entity.class}.${entity.name}] grants."
+        grant
+    ) entity.grants;
+
   exported =
     entity:
     {
+      grants = grants entity;
       inherit (entity)
         class
         name
-        grants
         actors
         settings
         keys
@@ -42,8 +59,19 @@ let
         );
       };
     }
+    //
+      lib.optionalAttrs
+        (entity.principal != null && (entity.principal.mail.inbox || entity.principal.mail.send))
+        {
+          mail = {
+            inherit (entity.principal.mail) address inbox send;
+          };
+        }
     // lib.optionalAttrs (entity.class == "service") {
       inherit (entity) namespace;
+    }
+    // lib.optionalAttrs (entity.class == "app") {
+      inherit (entity) url;
     }
     // lib.optionalAttrs (entity.class == "host") {
       inherit (entity)
@@ -52,7 +80,9 @@ let
         vpns
         system
         luksKeyFile
+        nixos
         ;
+      services = map (service: service.name) entity.services;
     };
 
   root = name: {
@@ -72,15 +102,15 @@ in
     internal = true;
     readOnly = true;
     type = lib.types.raw;
-    default = {
+    default = builtins.seq config.ops {
       inherit (config)
         name
         endpoint
         namespaces
         build-hosts
         root-identities
-        ops
         ;
+      mailserver = lib.mapNullable (mailserver: { inherit (mailserver) endpoint; }) config.mailserver;
       inherit (context) classes;
       entities =
         lib.genAttrs' (lib.unique (

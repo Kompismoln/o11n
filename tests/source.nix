@@ -94,7 +94,7 @@ in
           fileset.unions [
             ../.prettierrc.yaml
             ../dev
-            ../nixos/org/locksmith.sh
+            ../nixos/services/locksmith.sh
             ../crates/o11n/test
             ../settings.toml
           ]

@@ -73,7 +73,7 @@ setup() {
   run o11n secret show host-testhost luks-key --slot 1
   fails "there's no host-testhost's luks-key in slot 1"
 
-  run o11n secret generate host-testhost ssh-key --slot 1
+  run o11n secret generate user-testuser ssh-key --slot 1
   fails "a ssh-key has no slots"
 }
 
@@ -201,23 +201,23 @@ setup() {
   fails "is the last luks-key the org holds for host-testhost"
 }
 
-@test "a host's ssh-key is pulled from the host" {
+@test "a host's ssh-key is its own, which the org has the public key of, pulled from the host" {
   mock-host testhost
   o11n identity create host-testhost
 
   run o11n secret generate host-testhost ssh-key
-  succeeds
-  run o11n public-key verify host-testhost ssh-key
-  succeeds
+  fails "ssh-key isn't one of host-testhost's keys"
   run o11n host check host-testhost ssh-key
-  fails "> ssh-ed25519 AAA"
+  fails "o11n host pull-ssh-key host-testhost"
 
   run o11n host pull-ssh-key host-testhost
   succeeds
   run o11n host check host-testhost ssh-key
   succeeds
-  run o11n public-key verify host-testhost ssh-key
-  fails "> ssh-ed25519 AAAA"
+
+  echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHbJn6Vuli56nRUNM600//YqhKLqmDIlbWwKN/VZAyNg" >public-keys/host-testhost-ssh-key.pub
+  run o11n host check host-testhost ssh-key
+  fails "host-testhost has another ssh-key: o11n host pull-ssh-key host-testhost, if it's the host"
 }
 
 @test "a public key that's missing or another's fails verification, and is written again" {
@@ -237,15 +237,16 @@ setup() {
   run o11n public-key verify host-testhost wg0-key
   fails "> "
 
-  for key in nix-sign ssh-key; do
-    run o11n secret generate service-nix-serve "$key"
+  for entity_key in "service-nix-serve nix-sign" "user-testuser ssh-key"; do
+    read -r entity key <<<"$entity_key"
+    run o11n secret generate "$entity" "$key"
     succeeds
-    rm "$(o11n path public-key service-nix-serve "$key")"
-    run o11n public-key verify service-nix-serve "$key"
-    fails "there's no $(o11n path public-key service-nix-serve "$key")"
-    run o11n public-key write service-nix-serve "$key"
+    rm "$(o11n path public-key "$entity" "$key")"
+    run o11n public-key verify "$entity" "$key"
+    fails "there's no $(o11n path public-key "$entity" "$key")"
+    run o11n public-key write "$entity" "$key"
     succeeds
-    run o11n public-key verify service-nix-serve "$key"
+    run o11n public-key verify "$entity" "$key"
     succeeds
   done
 
@@ -261,16 +262,16 @@ setup() {
 @test "a host has a wireguard key for each of its vpns, and none for another" {
   o11n identity create host-lorem
 
-  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key ssh-key wg0-key)" ]
-  [ "$(o11n keys host)" = "$(printf '%s\n' age-key ssh-key)" ]
+  [ "$(o11n keys host-lorem)" = "$(printf '%s\n' age-key wg0-key)" ]
+  [ "$(o11n keys host)" = "$(printf '%s\n' age-key)" ]
   run o11n secret generate host-lorem wg0-key
   succeeds
   run o11n secret generate host-lorem wg1-key
-  fails "wg1-key isn't one of host-lorem's keys: age-key, ssh-key, wg0-key"
+  fails "wg1-key isn't one of host-lorem's keys: age-key, wg0-key"
 }
 
 @test "a host has a luks-key only with an encrypted disk" {
-  [ "$(o11n keys host-testhost)" = "$(printf '%s\n' age-key luks-key ssh-key wg0-key wg1-key wg2-key)" ]
+  [ "$(o11n keys host-testhost)" = "$(printf '%s\n' age-key luks-key wg0-key wg1-key wg2-key)" ]
   run o11n secret generate host-lorem luks-key
   fails "luks-key isn't one of host-lorem's keys"
 }
@@ -317,10 +318,7 @@ setup() {
 
 @test "entities with hyphens in their name" {
   o11n identity create service-sysctl-user-portal
-
-  run o11n secret generate service-sysctl-user-portal ssh-key
-  succeeds
-  [ -f public-keys/service-sysctl-user-portal-ssh-key.pub ]
+  [ -f public-keys/service-sysctl-user-portal-age-key.pub ]
 
   run o11n secret generate service-sysctl-user-portal secret-key
   succeeds
@@ -434,37 +432,76 @@ setup() {
   [ "$output" = yes ]
 }
 
-@test "ops run each op of the name, and say which failed" {
-  o11n identity create host-testhost
+@test "status checks each entity by what it has: its keys, its host's services, its url and its mail" {
+  run o11n status --list host-testhost host-lorem user-testuser user-admin
+  succeeds
+  [[ $output == *"host-testhost on-host luks-key"* ]]
+  [[ $output == *"host-testhost nix-daemon"* ]]
+  [[ $output == *"host-testhost submission mail.example.com"* ]]
+  [[ $output == *"user-testuser mail-login mail.example.com"* ]]
+  [[ $output == *"user-testuser secret passwd"* ]]
+  [[ $output != *"host-lorem nix-daemon"* ]]
+  [[ $output != *"user-admin mail-login"* ]]
+  [[ $output != *"public-key passwd"* ]]
+}
+
+@test "status says ok, fail or skip of each check, a skip for a secret it can't decrypt, and fails for a fail" {
+  mock-host testhost
+  o11n identity create service-locksmith
+  o11n secret generate service-locksmith ssh-key
+  o11n identity create host-testhost --from <(echo "$test_age_key_1")
+  o11n host pull-ssh-key host-testhost
   o11n identity create user-testuser
-  o11n secret generate user-testuser ssh-key
+  o11n secret generate user-testuser mail
 
-  run o11n ops verify --run
-  fails "ops of verify failed"
-  [[ $output == *"user-testuser verify:passwd: there's no user-testuser's passwd"* ]]
-  [[ $output != *"user-testuser verify:ssh-key"* ]]
+  run o11n status host-testhost user-testuser
+  fails "checks failed"
+  [[ $output == *"host-testhost identity ok"* ]]
+  [[ $output == *"host-testhost recipients ok"* ]]
+  [[ $output == *"host-testhost ssh-key ok"* ]]
+  [[ $output == *"host-testhost on-host age-key ok"* ]]
+  [[ $output == *"host-testhost nix-daemon ok"* ]]
+  [[ $output == *"host-testhost nix-store skip: "* ]]
+  [[ $output == *"host-testhost submission mail.example.com ok"* ]]
+  [[ $output == *"host-testhost public-key wg0-key fail: there's no public-keys/host-testhost-wg0-key.pub"* ]]
+  [[ $output == *"user-testuser secret mail ok"* ]]
+  [[ $output == *"user-testuser secret passwd fail: there's no user-testuser's passwd"* ]]
+  [[ $output == *"user-testuser mail-login mail.example.com ok"* ]]
+  grep -q "^curl -sS --max-time 20 --ssl-reqd -X NOOP smtp://mail.example.com:587 -K " "$BATS_TEST_TMPDIR/curl"
+  grep -q "^user = \"testuser@example.com:$(o11n secret show user-testuser mail 2>/dev/null)\"$" "$BATS_TEST_TMPDIR/curl"
 
-  run o11n ops rebuild --run
-  succeeds
+  CURL_SMTP="(67) Login denied" run o11n status user-testuser
+  [[ $output == *"user-testuser mail-login mail.example.com fail: curl: (67) Login denied"* ]]
+
+  SOPS_AGE_KEY_FILE=$BATS_TEST_TMPDIR/nobody run o11n status user-testuser
+  [[ $output == *"user-testuser secret mail skip: "* ]]
+  [[ $output == *"user-testuser mail-login mail.example.com skip: "* ]]
 }
 
-@test "an op on a key is for the members that have it, and fails for a group none of whose members has it" {
-  run o11n ops verify
-  succeeds
-  [[ $output == *"user-testuser verify:mail"* ]]
-  [[ $output != *"user-admin verify:mail"* ]]
-  [[ $output != *"service-testservice verify:tls-cert"* ]]
+@test "status tells a sops file encrypted to another than it should be" {
+  o11n identity create user-testuser
+  o11n identity create user-testadmin
+  cp enc/user-testadmin.yaml enc/user-testuser.yaml
 
-  run o11n ops amiss
-  fails "verify:mail: no member of host-* has a mail"
+  run o11n status user-testuser
+  fails "checks failed"
+  [[ $output == *"user-testuser recipients fail: enc/user-testuser.yaml is encrypted to user-testadmin it shouldn't be, and not to user-testuser it should: o11n reencrypt"* ]]
 }
 
-@test "a key comes with what reads it: a principal's mail and state, o11n's services', or the org's declaring it" {
+@test "status skips a host without an endpoint that doesn't answer, and fails one with" {
+  O11N_ROUTES='' run o11n status host-testhost host-lorem
+  [[ $output == *"host-lorem ssh-key skip: no contact with lorem:22"* ]]
+  [[ $output == *"host-testhost ssh-key fail: no contact with testhost:22"* ]]
+}
+
+@test "a key comes with what reads it: a principal's passwd, ssh-key, mail and state, o11n's services', or the org's declaring it" {
   [ "$(o11n keys user-testuser)" = "$(printf '%s\n' age-key archive-passwd mail passwd restic-key ssh-key)" ]
-  [ "$(o11n keys user-admin)" = "$(printf '%s\n' age-key passwd ssh-key)" ]
-  [ "$(o11n keys service-nix-serve)" = "$(printf '%s\n' age-key nix-sign passwd ssh-key)" ]
-  [ "$(o11n keys service-sysctl-user-portal)" = "$(printf '%s\n' age-key passwd secret-key ssh-key)" ]
-  [ "$(o11n keys service-testservice)" = "$(printf '%s\n' age-key passwd ssh-key)" ]
+  [ "$(o11n keys user-admin)" = "$(printf '%s\n' age-key ssh-key)" ]
+  [ "$(o11n keys service-nix-serve)" = "$(printf '%s\n' age-key nix-sign)" ]
+  [ "$(o11n keys service-sysctl-user-portal)" = "$(printf '%s\n' age-key secret-key)" ]
+  [ "$(o11n keys service-testservice)" = "$(printf '%s\n' age-key)" ]
+  [ "$(o11n keys service-rescue)" = "$(printf '%s\n' age-key passwd ssh-key)" ]
+  [ "$(o11n keys service-locksmith)" = "$(printf '%s\n' age-key ssh-key)" ]
 }
 
 @test "tunnel opens, closes and tells of a server's reverse tunnel as admin, the code as one word, on the endpoint" {
@@ -597,3 +634,58 @@ test_age_key_2=AGE-SECRET-KEY-1V782VQAQT6QJPARYTCD8CLES04Q83V068FRFDWG02HGLE96U9
 
 test_luks_key_1="luks1-Atzc2gtZWQyNTUxO"
 test_luks_key_2="luks2-roGxnLozh/+wBGot"
+
+@test "status checks each slot of a luks-key the org holds, without slot 0" {
+  o11n identity create host-testhost
+  o11n secret generate host-testhost luks-key --slot 1
+
+  run o11n status host-testhost
+  [[ $output == *"host-testhost secret luks-key ok"* ]]
+
+  sops set enc/host-testhost.yaml '["luks-key--1"]' '"luks1-Atzc2gtZWQyNTUxO\n"'
+  run o11n status host-testhost
+  [[ $output == *"host-testhost secret luks-key fail: host-testhost's luks-key in slot 1: the luks-key has a trailing newline"* ]]
+}
+
+@test "status --failed says only what fails, and fails as status does" {
+  o11n identity create user-testuser
+
+  run o11n status --failed user-testuser
+  fails "checks failed"
+  [[ $output == *"user-testuser secret passwd fail: there's no user-testuser's passwd"* ]]
+  [[ $output != *" ok"* ]]
+  [[ $output != *" skip: "* ]]
+}
+
+@test "an entity with no secrets of its own or another's is let be without an identity, until it has one" {
+  run o11n status --list service-testservice
+  succeeds
+  [[ $output != *"service-testservice identity"* ]]
+
+  o11n identity create service-testservice
+  run o11n status --list service-testservice
+  [[ $output == *"service-testservice identity"* ]]
+}
+
+@test "a host without NixOS has no ssh-key or locksmith checked" {
+  run o11n status --list host-ipsum host-testhost
+  succeeds
+  [[ $output == *"host-testhost ssh-key"* ]]
+  [[ $output != *"host-ipsum ssh-key"* ]]
+  [[ $output != *"host-ipsum on-host"* ]]
+}
+
+@test "secret extra lists what a sops file holds that isn't one of its keys, and status fails for it" {
+  o11n identity create host-testhost
+  o11n identity create user-testuser
+  o11n secret generate user-testuser passwd
+  o11n secret generate host-testhost luks-key --slot 2
+  sops set enc/user-testuser.yaml '["testuser"]["wifi-keys"]' '"psk=x"'
+  sops set enc/user-testuser.yaml '["stray"]' '"x"'
+  sops set enc/host-testhost.yaml '["ssh-key"]' '"x"'
+
+  [ "$(o11n secret extra user-testuser host-testhost 2>/dev/null)" = "$(printf '%s\n' 'host-testhost ssh-key' 'user-testuser stray' 'user-testuser testuser.wifi-keys')" ]
+
+  run o11n status user-testuser
+  [[ $output == *"user-testuser secrets fail: enc/user-testuser.yaml holds what o11n doesn't know: stray, testuser.wifi-keys: declare each under the entity's keys, or take it out with o11n secret edit user-testuser"* ]]
+}

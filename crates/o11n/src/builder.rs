@@ -37,12 +37,42 @@ pub enum RemoteCommand {
     Eval { stage: String, o11n: Option<String> },
 }
 
-struct Builder {
+pub struct Builder {
     server: String,
     token: Option<String>,
 }
 
 impl Builder {
+    pub fn new(server: &str, token: Option<String>) -> Self {
+        Self {
+            server: server.to_owned(),
+            token,
+        }
+    }
+
+    // Dependency: nixos/services/nix-remote.nix answers 401 without the bearer, and its gost 404 under the prefix.
+    pub fn probe(&self) -> Result<String, Error> {
+        let temp = TempDir::new()?;
+        let url = format!("https://{}/{PREFIX}/probe", self.name());
+        let answer = run(
+            self.curl(&temp)?
+                .args(["-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20"])
+                .arg(&url),
+            None,
+        )?;
+        Ok(answer.trim().to_owned())
+    }
+
+    pub fn store_answers(&self) -> Result<(), Error> {
+        let temp = TempDir::new()?;
+        let tunnel = Tunnel::start(self, &temp)?;
+        run(
+            Command::new("nix").args(["store", store_info(), "--store", &tunnel.store()]),
+            None,
+        )
+        .map(|_| ())
+    }
+
     fn from_env() -> Result<Self, Error> {
         let url = std::env::var("O11N_REMOTE_BUILDER")
             .ok()
@@ -70,25 +100,18 @@ impl Builder {
 
     // Accommodating for gost, which logs nothing when the tunnel's requests fail: the endpoint is asked once, the
     // same way, for a path under the prefix that the host's gost doesn't serve, which answers 404.
-    fn diagnose(&self, temp: &TempDir) -> Result<(), Error> {
+    fn diagnose(&self) {
         let url = format!("https://{}/{PREFIX}/probe", self.name());
-        let answer = run(
-            self.curl(temp)?
-                .args(["-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20"])
-                .arg(&url),
-            None,
-        )
-        .unwrap_or_else(|error| error.to_string());
-        match answer.trim() {
-            "404" => log(format!("{url} answers as it should, so the tunnel itself failed")),
-            "401" => log(format!("{url}: the bearer token is missing or wrong")),
-            answer => log(format!("{url}: {answer}")),
+        match self.probe() {
+            Ok(answer) if answer == "404" => log(format!("{url} answers as it should, so the tunnel itself failed")),
+            Ok(answer) if answer == "401" => log(format!("{url}: the bearer token is missing or wrong")),
+            Ok(answer) => log(format!("{url}: {answer}")),
+            Err(error) => log(format!("{url}: {error}")),
         }
-        Ok(())
     }
 }
 
-fn host(url: &str) -> &str {
+pub fn host(url: &str) -> &str {
     let url = url.split_once("://").map_or(url, |(_, rest)| rest);
     url.split('/').next().unwrap_or(url)
 }
@@ -310,7 +333,7 @@ fn build(builder: &Builder, args: &[String]) -> Result<(), Error> {
         )),
         Err(_) => {
             tunnel.show_log();
-            builder.diagnose(&temp)?;
+            builder.diagnose();
         }
     }
     built
@@ -326,7 +349,7 @@ fn info(builder: &Builder, options: &[String]) -> Result<(), Error> {
     );
     if answered.is_err() {
         tunnel.show_log();
-        builder.diagnose(&temp)?;
+        builder.diagnose();
     }
     answered
 }

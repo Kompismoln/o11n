@@ -120,7 +120,7 @@ impl Org {
         };
         keys::validate(kind, secret.key, &value, domain)?;
         self.store(secret, &value)?;
-        if !matches!(kind, Kind::Passphrase { .. }) {
+        if kind.has_public_key() {
             self.write_public_key(secret.id, secret.key)?;
         }
         Ok(())
@@ -161,7 +161,7 @@ impl Org {
         let (kind, value) = self.derivable(id, key)?;
         let domain = self.domain(id)?;
         match kind {
-            Kind::Passphrase { .. } => Err(Error::new(format!("a {key} has no public key"))),
+            Kind::Passphrase { .. } | Kind::File => Err(Error::new(format!("a {key} has no public key"))),
             Kind::Password => {
                 let hash_key = Self::hash_key(key);
                 let stored = Secret {
@@ -200,7 +200,7 @@ impl Org {
         let (kind, value) = self.derivable(id, key)?;
         let domain = self.domain(id)?;
         let (place, stored) = match kind {
-            Kind::Passphrase { .. } => return keys::validate(kind, key, &value, domain),
+            Kind::Passphrase { .. } | Kind::File => return keys::validate(kind, key, &value, domain),
             Kind::Password => {
                 let hash_key = Self::hash_key(key);
                 let stored = self.secret(Secret {

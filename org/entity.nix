@@ -7,12 +7,18 @@
 }:
 {
   config = {
+    # Policy: an entity has the secrets something reads: nixos/org/principals.nix a principal's passwd and ssh-key, as
+    # it has them, and o11n's modules and o11n itself what org/service.nix names.
     keys =
       context.classes.${config.class}.keys
       // lib.optionalAttrs (config.principal != null) (
-        config.principal.mail.keys
+        lib.optionalAttrs config.principal.hasPasswd { passwd = "password"; }
+        // lib.optionalAttrs config.principal.hasPublicKey { ssh-key = "ssh"; }
+        // config.principal.mail.keys
         // lib.optionalAttrs (config.principal.state != null) config.principal.state.keys
       );
+    # Policy: a host's ssh-key is its own, which `o11n host pull-ssh-key` writes the public key of, and the org has no
+    # secret of.
     publicKeys = lib.mapAttrs (
       key: _:
       lib.mkDefault (
@@ -26,7 +32,7 @@
           .${key} or "pub"
         }"
       )
-    ) config.keys;
+    ) (config.keys // lib.optionalAttrs (config.class == "host") { ssh-key = "ssh"; });
   };
 
   options = {
@@ -93,7 +99,7 @@
     };
     keys = lib.mkOption {
       description = "the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it";
-      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name";
+      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, and the keys o11n's modules read of the services they name";
       # Dependency: crates/o11n/src/keys.rs reads each of these types.
       type = lib.types.attrsOf (
         lib.types.enum [
@@ -106,6 +112,7 @@
           "htpasswd"
           "luks"
           "passphrase"
+          "file"
         ]
       );
     };

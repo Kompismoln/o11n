@@ -68,7 +68,8 @@ let
         [[ $(o11n entities 'host:remote-builder+server' 'user-*' | tr '\n' ' ') == "host-gw user-admin " ]]
         [[ $(o11n search tunnel) == service-reverse-tunnel ]]
         [[ $(o11n get build-hosts) == gw ]]
-        [[ $(o11n ops check | tr '\n' ' ') == "host-gw check:age-key service-rescue verify:ssh-key service-rescue verify:passwd " ]]
+        [[ $(o11n status --list host-gw | grep -E 'nix-daemon|submission' | tr '\n' ' ') == "host-gw nix-daemon host-gw submission mail.example.com " ]]
+        [[ $(o11n status --list host-web | grep nix-daemon) == "host-web nix-daemon" ]]
         [[ -f $org/$(o11n path public-key host-gw ssh-key) && -f $org/$(o11n path sops-file user-admin) ]]
         [[ -f $org/$(o11n path identity user-admin) ]]
         diff <(o11n sops-yaml service-nix-remote) - <<EOF
