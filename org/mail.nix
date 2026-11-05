@@ -30,6 +30,11 @@
       default = false;
       type = lib.types.bool;
     };
+    sendAs = lib.mkOption {
+      description = "the other addresses the principal sends as, each an address or, as @<domain>, any address on a domain of the org's without a mailbox";
+      default = [ ];
+      type = with lib.types; listOf str;
+    };
     keys = lib.mkOption {
       description = "the keys the principal's entity has for its mail";
       internal = true;

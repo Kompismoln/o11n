@@ -22,8 +22,19 @@ pub struct Export {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Mailserver {
     pub endpoint: String,
+    #[serde(default)]
+    pub dkim_selector: String,
+    #[serde(default)]
+    pub domains: BTreeMap<String, Domain>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Domain {
+    pub mailbox: bool,
+    pub sent: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,8 +70,13 @@ pub struct Entity {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Mail {
     pub address: String,
+    #[serde(default)]
+    pub send: bool,
+    #[serde(default)]
+    pub send_as: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

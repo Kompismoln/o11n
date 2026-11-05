@@ -632,6 +632,65 @@ setup() {
   [[ $output == *"user-testuser mail-login mail.example.com skip: "* ]]
 }
 
+# Usage: dns <name> <type> <type's code> <data>...: what the DNS stub of bin/curl answers name type with.
+dns() {
+  local name=$1 type=$2 code=$3 answers='' data
+  shift 3
+  for data; do
+    answers+="${answers:+,}{\"type\":$code,\"data\":$(jq -Rn --arg data "$data" '$data')}"
+  done
+  mkdir -p "$BATS_TEST_TMPDIR/dns"
+  echo "{\"Status\":0,\"Answer\":[$answers]}" >"$BATS_TEST_TMPDIR/dns/$name.$type"
+}
+
+@test "status checks the DNS of the mail server's domains as a receiver reads it" {
+  run o11n status --list host-testhost user-testuser user-admin
+  [[ $output == *"host-testhost mx example.com"* ]]
+  [[ $output == *"host-testhost spf example.com"* ]]
+  [[ $output == *"host-testhost dkim example.com"* ]]
+  [[ $output == *"host-testhost dmarc example.com"* ]]
+  [[ $output != *"host-testhost mx example.org"* ]]
+  [[ $output != *"host-testhost spf example.org"* ]]
+  [[ $output == *"user-testuser spf example.org"* ]]
+  [[ $output == *"user-testuser dkim example.org"* ]]
+  [[ $output == *"user-testuser dmarc example.org"* ]]
+  [[ $output != *"user-testuser spf example.com"* ]]
+  [[ $output != *"user-admin spf"* ]]
+
+  mock-host testhost
+  dns mail.example.com A 1 192.0.2.1
+  dns mail.example.com AAAA 28 2001:db8::1
+  dns example.com MX 15 "10 mail.example.com."
+  dns example.com TXT 16 '"v=spf1 include:_spf.example.com -all"' '"other"'
+  dns _spf.example.com TXT 16 '"v=spf1 ip4:192.0.2.0/24 ip6:2001:db8::/32 -all"'
+  dns mail._domainkey.example.com TXT 16 '"v=DKIM1; k=rsa; " "p=MIIB"'
+  dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject"'
+  run o11n status host-testhost
+  [[ $output == *"host-testhost mx example.com ok"* ]]
+  [[ $output == *"host-testhost spf example.com ok"* ]]
+  [[ $output == *"host-testhost dkim example.com ok"* ]]
+  [[ $output == *"host-testhost dmarc example.com ok"* ]]
+  grep -q "^curl -sS --max-time 20 --get -H accept: application/dns-json --data-urlencode name=example.com --data-urlencode type=TXT https://cloudflare-dns.com/dns-query$" "$BATS_TEST_TMPDIR/curl"
+
+  dns example.com MX 15 "10 other.example.net."
+  dns example.com TXT 16 '"v=spf1 ip4:192.0.2.1 ~all"'
+  rm "$BATS_TEST_TMPDIR/dns/mail._domainkey.example.com.TXT"
+  dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject"' '"v=DMARC1; p=none"'
+  run o11n status host-testhost
+  fails "checks failed"
+  [[ $output == *"host-testhost mx example.com fail: example.com's MX is other.example.net, not mail.example.com, so its mailboxes get no mail: publish example.com MX 10 mail.example.com"* ]]
+  [[ $output == *"host-testhost spf example.com fail: SPF of example.com gives softfail for 2001:db8::1, which mail.example.com sends from: add a:mail.example.com to it"* ]]
+  [[ $output == *"host-testhost dkim example.com fail: mail._domainkey.example.com has no DKIM key"* ]]
+  [[ $output == *"host-testhost dmarc example.com fail: _dmarc.example.com has 2 v=DMARC1 records, which receivers take as none: keep one"* ]]
+
+  dns example.org TXT 16 '"v=spf1 a:mail.example.com -all"'
+  dns mail._domainkey.example.org TXT 16 '"p=MIIB"'
+  run o11n status user-testuser
+  [[ $output == *"user-testuser spf example.org ok"* ]]
+  [[ $output == *"user-testuser dkim example.org ok"* ]]
+  [[ $output == *"user-testuser dmarc example.org fail: _dmarc.example.org has no v=DMARC1 record"* ]]
+}
+
 @test "status tells a sops file encrypted to another than it should be" {
   o11n identity create user-testuser
   o11n identity create user-testadmin

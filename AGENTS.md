@@ -103,7 +103,10 @@ VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks:
 
 - `base`: an org with nothing in it.
 - `principals`: one host with the inference-server and app-scheduler roles, and an app that imports a module from an
-  input. The tests pass an inventory's `inputs.nix`, if it has one, as its `inputs`.
+  input. The tests pass an inventory's `inputs.nix`, if it has one, as its `inputs`, called with `pkgs` if it's a
+  function.
+- `mail`: a mail server on `mx`, and on `web` a WordPress and a mobilizon that send as their own domains, whose mail
+  `vmTests.mail` runs without either.
 - `sample`: a cluster meant to use every role. It has `gw` (wg0 gateway and DNS, rescue mode, grub) and `web`, both with
   the nixos, peer and server roles, and an admin user with a cinnamon-office home on `web`.
 

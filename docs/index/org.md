@@ -158,6 +158,14 @@ Default: `null`
 
 the app's settings as a mobilizon, which make it one
 
+### `app.<name>.mobilizon.from`
+
+`org/apps/mobilizon.nix` · string
+
+Default: `principal.mail.address`
+
+the address mobilizon's mail is from, which its principal sends as
+
 ### `app.<name>.mobilizon.input`
 
 `org/apps/mobilizon.nix` · string

@@ -164,9 +164,12 @@ in
           error_log = ${cfg.home}/error.log;
           extension=${pkgs.phpExtensions.redis}/lib/php/extensions/redis.so
         ''
-        # Dependency: nixos/org/mail.nix gives a principal that sends an msmtp account named by its id.
+        # Dependency: nixos/org/mail.nix gives a principal that sends an msmtp account named by its id, which keeps the
+        # From of a principal that sends as others too, and the mail server holds the envelope to it as to From.
         + lib.optionalString app.principal.mail.send ''
-          sendmail_path = "${pkgs.msmtp}/bin/msmtp -C /etc/msmtprc -a ${app.handle} -t"
+          sendmail_path = "${pkgs.msmtp}/bin/msmtp -C /etc/msmtprc -a ${app.handle} -t${
+            lib.optionalString (app.principal.mail.sendAs != [ ]) " --read-envelope-from"
+          }"
         '';
         settings = {
           "listen.owner" = webserver.user;

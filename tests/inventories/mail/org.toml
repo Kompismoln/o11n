@@ -1,0 +1,76 @@
+name = "Test AB"
+endpoint = "example.com"
+prefix = "fd12:3456:7890"
+prefix4 = "10.0"
+timezone = "Europe/Stockholm"
+locale = "en_US.UTF-8"
+root-identities = ["root-1"]
+postgres = "17"
+
+[vpn.wg0]
+id = 0
+trusted = true
+gateway = "mx"
+namespace = "mail"
+
+[mailserver]
+dkimSelector = "s1"
+
+[domain."example.com"]
+mailbox = true
+
+# Fact: the blog's and the calendar's own domains, which they send as but receive at none of.
+[domain."example.org"]
+mailbox = false
+
+[domain."example.net"]
+mailbox = false
+
+[root.1]
+
+[host.mx]
+id = 1
+endpoint = "mx.example.com"
+roles = ["mailserver"]
+vpns = ["wg0"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
+[host.web]
+id = 2
+users = ["alice"]
+roles = ["app-scheduler"]
+vpns = ["wg0"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
+[user.alice]
+id = 0
+principal.mail = { inbox = true, send = true }
+grants = ["host-*"]
+
+[app.blog]
+id = 0
+endpoint = "www.example.org"
+ssl = false
+run-on-hosts = ["web"]
+grants = ["host:app-scheduler", "host:mailserver"]
+principal.members = ["nginx"]
+principal.mail = { send = true, sendAs = ["@example.org"] }
+wordpress = {}
+
+[app.calendar]
+id = 1
+endpoint = "example.net"
+ssl = false
+run-on-hosts = ["web"]
+grants = ["host:app-scheduler", "host:mailserver"]
+principal.mail = { send = true, sendAs = ["@example.net"] }
+mobilizon.from = "noreply@example.net"
+
+[role.mailserver]
+services = ["mailserver"]
+
+[role.app-scheduler]
+
+[service.mailserver]

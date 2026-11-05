@@ -68,3 +68,12 @@ Default: `false`
 
 whether the principal sends mail, as its address, by logging in to the mail server from the hosts it's on, as it does to
 tell of its failures
+
+### `<mail>.sendAs`
+
+`org/mail.nix` · list of string
+
+Default: `[ ]`
+
+the other addresses the principal sends as, each an address or, as @<domain>, any address on a domain of the org's
+without a mailbox

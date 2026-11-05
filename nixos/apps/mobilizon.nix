@@ -21,6 +21,7 @@ let
       ;
     inherit (app.principal) bindAddress uid gid;
     home = "${app.principal.home}/mobilizon";
+    inherit (app.mobilizon) from;
     package = inputs.${app.mobilizon.input}.packages.${host.system}.default;
     port = 4000;
     user = app.name;
@@ -35,6 +36,15 @@ in
   ];
 
   config = {
+    assertions = lib.optional mail.send {
+      assertion =
+        lib.elem (lib.toLower cfg.from) (map lib.toLower ([ mail.address ] ++ mail.sendAs))
+        || lib.elem (lib.toLower "@${lib.last (lib.splitString "@" cfg.from)}") (
+          map lib.toLower mail.sendAs
+        );
+      message = "${app.handle}'s mobilizon is from ${cfg.from}, which it doesn't send as: set mobilizon.from, or add it to principal.mail.sendAs.";
+    };
+
     # Dependency: nixos/org/mail.nix declares the password of a principal that sends.
     sops.templates."${cfg.name}-mail.env" = lib.mkIf mail.send {
       content = "O11N_MAIL_PASSWORD=${config.sops.placeholder."${cfg.name}/mail"}\n";
@@ -179,8 +189,8 @@ in
                     hostname = cfg.endpoint;
                   }
                   // lib.optionalAttrs mail.send {
-                    email_from = mail.address;
-                    email_reply_to = mail.address;
+                    email_from = cfg.from;
+                    email_reply_to = cfg.from;
                   };
                 }
                 // lib.optionalAttrs mail.send {

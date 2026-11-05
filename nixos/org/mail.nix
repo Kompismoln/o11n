@@ -71,8 +71,9 @@ in
       ) sending
     );
 
-    # Policy: each principal sends as itself alone, from an account whose password only it reads, and whose From is
-    # its address whatever the mail says; there's no default account, so mail that names none isn't sent.
+    # Policy: each principal sends from an account whose password only it reads, and whose From is its address
+    # whatever the mail says, unless it sends as others too, which the mail server then holds it to; there's no
+    # default account, so mail that names none isn't sent.
     programs.msmtp = {
       enable = true;
       setSendmail = !serving;
@@ -87,7 +88,7 @@ in
             auth = true;
             user = entity.principal.mail.address;
             from = entity.principal.mail.address;
-            set_from_header = "on";
+            set_from_header = if entity.principal.mail.sendAs == [ ] then "on" else "auto";
             passwordeval = "${pkgs.coreutils}/bin/cat ${secret entity}";
           }
         ) sending

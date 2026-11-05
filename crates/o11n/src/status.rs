@@ -4,6 +4,7 @@ use std::sync::{Mutex, mpsc};
 
 use crate::Error;
 use crate::builder::Builder;
+use crate::dns;
 use crate::export::Entity;
 use crate::keys::Kind;
 use crate::ssh;
@@ -36,6 +37,10 @@ pub enum Check {
     NixStore,
     Submission(String),
     MailLogin(String),
+    Mx(String),
+    Spf(String),
+    Dkim(String),
+    Dmarc(String),
 }
 
 impl Check {
@@ -57,6 +62,10 @@ impl Check {
             Self::NixStore => "nix-store".into(),
             Self::Submission(server) => format!("submission {server}"),
             Self::MailLogin(server) => format!("mail-login {server}"),
+            Self::Mx(domain) => format!("mx {domain}"),
+            Self::Spf(domain) => format!("spf {domain}"),
+            Self::Dkim(domain) => format!("dkim {domain}"),
+            Self::Dmarc(domain) => format!("dmarc {domain}"),
         }
     }
 }
@@ -199,6 +208,18 @@ impl Org {
                 && entity.services.iter().any(|service| service == "mailserver")
             {
                 checks.push(Check::Submission(format!("mail.{}", mailserver.endpoint)));
+                // Policy: a domain with mailboxes is to receive at the server, and one a principal's address is on,
+                // which it sends as, is to pass a receiver's SPF, DKIM and DMARC.
+                for (domain, settings) in &mailserver.domains {
+                    if settings.mailbox {
+                        checks.push(Check::Mx(domain.clone()));
+                    }
+                    if settings.sent {
+                        checks.push(Check::Spf(domain.clone()));
+                        checks.push(Check::Dkim(domain.clone()));
+                        checks.push(Check::Dmarc(domain.clone()));
+                    }
+                }
             }
         }
         if let Some(url) = &entity.url {
@@ -208,6 +229,25 @@ impl Org {
             && entity.keys.contains_key("mail")
         {
             checks.push(Check::MailLogin(format!("mail.{}", mailserver.endpoint)));
+        }
+        // Policy: a domain a principal sends as beyond the org's addresses is the principal's, as are its SPF, DKIM
+        // and DMARC.
+        if let (Some(mailserver), Some(mail)) = (&self.export.mailserver, &entity.mail)
+            && mail.send
+        {
+            let mut domains: Vec<&str> = mail
+                .send_as
+                .iter()
+                .filter_map(|address| address.rsplit_once('@').map(|(_, domain)| domain))
+                .filter(|domain| !mailserver.domains.get(*domain).is_some_and(|settings| settings.sent))
+                .collect();
+            domains.sort_unstable();
+            domains.dedup();
+            for domain in domains {
+                checks.push(Check::Spf(domain.to_owned()));
+                checks.push(Check::Dkim(domain.to_owned()));
+                checks.push(Check::Dmarc(domain.to_owned()));
+            }
         }
         Ok(checks)
     }
@@ -305,7 +345,107 @@ impl Org {
                 }))?;
                 fails(Self::submission(server, Some((address, &password))))
             }
+            Check::Mx(domain) => fails(self.mx(domain)),
+            Check::Spf(domain) => fails(self.spf(domain)),
+            Check::Dkim(domain) => fails(self.dkim(domain)),
+            Check::Dmarc(domain) => fails(Self::dmarc(domain)),
         })
+    }
+
+    fn mail_server(&self) -> Result<String, Error> {
+        self.export
+            .mailserver
+            .as_ref()
+            .map(|mailserver| format!("mail.{}", mailserver.endpoint))
+            .ok_or_else(|| Error::new("the org has no [mailserver]"))
+    }
+
+    fn mx(&self, domain: &str) -> Result<(), Error> {
+        let server = self.mail_server()?;
+        let exchangers = dns::exchangers(domain)?;
+        if exchangers.contains(&server) {
+            return Ok(());
+        }
+        Err(Error::new(format!(
+            "{domain}'s MX is {}, not {server}, so its mailboxes get no mail: publish {domain} MX 10 {server}",
+            if exchangers.is_empty() {
+                "none".to_owned()
+            } else {
+                exchangers.join(", ")
+            }
+        )))
+    }
+
+    // Policy: from each address of the server, which is where it sends from.
+    fn spf(&self, domain: &str) -> Result<(), Error> {
+        let server = self.mail_server()?;
+        let addresses = dns::addresses(&server)?;
+        if addresses.is_empty() {
+            return Err(Error::new(format!("{server} has no address")));
+        }
+        let mut failing = Vec::new();
+        for address in addresses {
+            let result = dns::spf(domain, address).map_err(|e| Error::new(format!("SPF of {domain}: {e}")))?;
+            if result != dns::Spf::Pass {
+                failing.push(format!("{} for {address}", result.name()));
+            }
+        }
+        if failing.is_empty() {
+            return Ok(());
+        }
+        Err(Error::new(format!(
+            "SPF of {domain} gives {}, which {server} sends from: add a:{server} to it",
+            failing.join(", ")
+        )))
+    }
+
+    fn dkim(&self, domain: &str) -> Result<(), Error> {
+        let selector = self
+            .export
+            .mailserver
+            .as_ref()
+            .map(|mailserver| mailserver.dkim_selector.as_str())
+            .unwrap_or_default();
+        let name = format!("{selector}._domainkey.{domain}");
+        // Fact: a DKIM record's v= is optional, and its p= the key, empty for one revoked.
+        let keys: Vec<String> = dns::lookup(&name, dns::Type::Txt)?
+            .iter()
+            .filter_map(|text| {
+                text.split(';')
+                    .filter_map(|tag| tag.trim().split_once('='))
+                    .find(|(tag, _)| tag.trim() == "p")
+                    .map(|(_, key)| key.split_whitespace().collect::<String>())
+            })
+            .filter(|key| !key.is_empty())
+            .collect();
+        // Dependency: nixos/services/mailserver.nix keeps the server's keys under /var/dkim, on storage on a host
+        // that preserves.
+        match keys.as_slice() {
+            [_] => Ok(()),
+            [] => Err(Error::new(format!(
+                "{name} has no DKIM key: publish the server's {domain}.{selector}.txt, under its dkim keyDirectory, there"
+            ))),
+            _ => Err(Error::new(format!(
+                "{name} has {} DKIM keys: keep the server's",
+                keys.len()
+            ))),
+        }
+    }
+
+    fn dmarc(domain: &str) -> Result<(), Error> {
+        let name = format!("_dmarc.{domain}");
+        let record = dns::record(&name, "v=DMARC1")?;
+        let policy = record
+            .split(';')
+            .filter_map(|tag| tag.trim().split_once('='))
+            .find(|(tag, _)| tag.trim() == "p")
+            .map(|(_, policy)| policy.trim().to_ascii_lowercase());
+        match policy.as_deref() {
+            Some("none" | "quarantine" | "reject") => Ok(()),
+            _ => Err(Error::new(format!(
+                "{name} has no policy, p=none, quarantine or reject, which receivers take as no DMARC"
+            ))),
+        }
     }
 
     // Policy: where connections are shared, the host shows its ssh-key on the connection that logs in as locksmith or

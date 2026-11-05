@@ -30,7 +30,10 @@ let
     o11nLib.fromInventory {
       inherit path;
       inputs = lib.optionalAttrs (builtins.pathExists (path + "/inputs.nix")) (
-        import (path + "/inputs.nix")
+        let
+          inputs = import (path + "/inputs.nix");
+        in
+        if lib.isFunction inputs then inputs { inherit pkgs; } else inputs
       );
     }
   );

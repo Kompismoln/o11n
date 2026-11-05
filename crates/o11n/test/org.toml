@@ -17,7 +17,7 @@ root-identities = [
 
 [user.testuser]
 id = 1
-principal.mail = { inbox = true, send = true }
+principal.mail = { inbox = true, send = true, sendAs = ["@example.org"] }
 grants = [
   "host-testhost",
 ]
@@ -74,6 +74,12 @@ grants = [
 
 [mailserver]
 dkimSelector = "mail"
+
+[domain."example.com"]
+mailbox = true
+
+[domain."example.org"]
+mailbox = false
 
 [root.1]
 

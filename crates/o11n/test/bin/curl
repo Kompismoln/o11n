@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Fact: the status checks ask with -w for the code, and an smtp:// url for submission.
+# Fact: the status checks ask with -w for the code, an smtp:// url for submission, and name= and type= for DNS.
 {
 	printf 'curl'
 	printf ' %s' "$@"
 	echo
 } >>"$BATS_TEST_TMPDIR/curl"
+name='' type=''
 while (($#)); do
 	case $1 in
 	-K) cat "$2" >>"$BATS_TEST_TMPDIR/curl" ;;
+	name=*) name=${1#name=} ;;
+	type=*) type=${1#type=} ;;
 	smtp://*)
 		[[ -z ${CURL_SMTP:-} ]] || {
 			echo "curl: $CURL_SMTP" >&2
@@ -17,4 +20,9 @@ while (($#)); do
 	esac
 	shift
 done
+# Fact: a DNS query answers from dns/<name>.<type>, as DNS JSON, or as a name without records.
+if [[ -n $name ]]; then
+	cat "$BATS_TEST_TMPDIR/dns/$name.$type" 2>/dev/null || echo '{"Status":3}'
+	exit
+fi
 echo "${CURL_CODE:-401}"

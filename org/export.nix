@@ -64,7 +64,12 @@ let
         (entity.principal != null && (entity.principal.mail.inbox || entity.principal.mail.send))
         {
           mail = {
-            inherit (entity.principal.mail) address inbox send;
+            inherit (entity.principal.mail)
+              address
+              inbox
+              send
+              sendAs
+              ;
           };
         }
     // lib.optionalAttrs (entity.class == "service") {
@@ -95,6 +100,14 @@ let
     publicKeys.age-key = "public-keys/root-${name}-age-key.pub";
     secrets.identityFile = "keys/root-${name}";
   };
+
+  # Policy: a domain is sent from when a principal that sends has its address on it; one it has a sendAs on is its own.
+  sentDomains = lib.concatMap (
+    entity:
+    lib.optional (entity.principal != null && entity.principal.mail.send) (
+      lib.last (lib.splitString "@" entity.principal.mail.address)
+    )
+  ) (lib.attrValues config.entities);
 in
 {
   options.export = lib.mkOption {
@@ -110,7 +123,13 @@ in
         build-hosts
         root-identities
         ;
-      mailserver = lib.mapNullable (mailserver: { inherit (mailserver) endpoint; }) config.mailserver;
+      mailserver = lib.mapNullable (mailserver: {
+        inherit (mailserver) endpoint dkimSelector;
+        domains = lib.mapAttrs (name: domain: {
+          inherit (domain) mailbox;
+          sent = lib.elem name sentDomains;
+        }) config.domain;
+      }) config.mailserver;
       inherit (context) classes;
       entities =
         lib.genAttrs' (lib.unique (

@@ -1,6 +1,7 @@
 mod acting;
 mod builder;
 mod deploy;
+mod dns;
 mod export;
 mod groups;
 mod host;
