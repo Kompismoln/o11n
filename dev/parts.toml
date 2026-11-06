@@ -68,6 +68,12 @@ code = [
   "tests/vm/allotments.nix",
 ]
 
+[parts.vpns]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/vpns.md"
+code = ["nixos/org/wireguard.nix", "org/vpn.nix", "tests/inventories/mesh"]
+
 [parts.mail]
 stage = "drafted"
 layer = "domain"

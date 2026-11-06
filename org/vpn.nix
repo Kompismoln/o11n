@@ -92,9 +92,18 @@
       default = 25;
       type = lib.types.int;
     };
+    topology = lib.mkOption {
+      description = "how the vpn's hosts peer: `hub`, each with the gateway alone, which forwards between them, or `mesh`, each with each, at the endpoint of either";
+      type = lib.types.enum [
+        "hub"
+        "mesh"
+      ];
+      default = "hub";
+    };
     gateway = lib.mkOption {
-      description = "designated gateway host";
-      type = context.types.host.ref;
+      description = "designated gateway host, which a hub has and a mesh doesn't";
+      type = lib.types.nullOr context.types.host.ref;
+      default = null;
     };
     proxy = lib.mkEnableOption "ipv6 proxy through gateway";
     dns = lib.mkOption {

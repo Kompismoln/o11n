@@ -1,0 +1,51 @@
+name = "Test AB"
+endpoint = "example.com"
+prefix = "fd12:3456:7890"
+prefix4 = "10.0"
+timezone = "Europe/Stockholm"
+locale = "en_US"
+root-identities = ["root-1"]
+
+[vpn.wg0]
+id = 0
+trusted = true
+gateway = "alpha"
+namespace = "access"
+dns = ["alpha"]
+
+[vpn.wg1]
+id = 1
+trusted = false
+topology = "mesh"
+namespace = "data"
+dns = []
+
+[host.alpha]
+id = 1
+endpoint = "alpha.example.com"
+roles = []
+vpns = ["wg0", "wg1"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
+[host.beta]
+id = 2
+endpoint = "beta.example.com"
+roles = []
+vpns = ["wg0", "wg1"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
+[host.gamma]
+id = 3
+roles = []
+vpns = ["wg0", "wg1"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
+[root.1]
+
+# Fact: every class needs a table, even when empty.
+[user]
+[service]
+[app]
