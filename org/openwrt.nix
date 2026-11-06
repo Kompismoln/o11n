@@ -83,6 +83,47 @@ let
     ) other.vpns
   ) behind;
 
+  # Policy: the router, which alone knows when its WAN address changes, updates the A records that name it, once its
+  # WAN is up and every 15 minutes after, and only those that differ.
+  glesys = lib.optionalAttrs (config.glesys != null) {
+    "/etc/o11n/glesys" = ''
+      #!/bin/sh
+      set -u
+      account=${lib.escapeShellArg config.glesys.account}
+      key='@o11n-secret:${config.glesys.key}@'
+      ip=$(ifstatus wan | jsonfilter -e '@["ipv4-address"][0].address')
+      [ -n "$ip" ] || exit 0
+      api() {
+      	uclient-fetch -q -O - --user="$account" --password="$key" --header='Accept: application/json' \
+      		--post-data="$2" "https://api.glesys.com/domain/$1"
+      }
+      for fqdn in ${lib.escapeShellArgs config.glesys.records}; do
+      	name=''${fqdn%%.*}
+      	domain=''${fqdn#*.}
+      	records=$(api listrecords "domainname=$domain") || {
+      		logger -t o11n-glesys "can't list the records of $domain: the API key has to let any address in, as the router's changes, and use the domain API"
+      		continue
+      	}
+      	record="@.response.records[@.host=\"$name\" && @.type=\"A\"]"
+      	id=$(echo "$records" | jsonfilter -e "$record.recordid")
+      	data=$(echo "$records" | jsonfilter -e "$record.data")
+      	if [ -z "$id" ]; then
+      		logger -t o11n-glesys "$domain has no A record $name"
+      	elif [ "$data" != "$ip" ]; then
+      		api updaterecord "recordid=$id&data=$ip" >/dev/null &&
+      			logger -t o11n-glesys "$fqdn is $ip, was $data" ||
+      			logger -t o11n-glesys "can't update $fqdn to $ip"
+      	fi
+      done
+    '';
+    "/etc/hotplug.d/iface/90-o11n-glesys" = ''
+      [ "$ACTION" = ifup ] && [ "$INTERFACE" = wan ] && sh /etc/o11n/glesys &
+    '';
+    "/etc/crontabs/root" = ''
+      */15 * * * * sh /etc/o11n/glesys
+    '';
+  };
+
   derived = {
     system = [
       (section "system" "system" { hostname = host.name; })
@@ -164,6 +205,32 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
     };
+    glesys = lib.mkOption {
+      description = "the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, or null";
+      default = null;
+      type = lib.types.nullOr (
+        lib.types.submodule {
+          options = {
+            account = lib.mkOption {
+              description = "the account, as GleSYS names it";
+              type = lib.types.str;
+              example = "CL12345";
+            };
+            key = lib.mkOption {
+              description = "the host's secret that is the account's API key, which may update its DNS records";
+              type = lib.types.str;
+              default = "glesys-key";
+            };
+            records = lib.mkOption {
+              description = "the names whose A record is the router's WAN address, each `<name>.<domain>` of a domain of the account's";
+              type = lib.types.listOf (lib.types.strMatching "[a-z0-9-]+\\.[a-z0-9.-]+");
+              default = lib.filter (endpoint: endpoint != null) (map (other: other.endpoint) behind);
+              defaultText = lib.literalMD "the `endpoint` of each host behind the router that has one";
+            };
+          };
+        }
+      );
+    };
     dmz = lib.mkOption {
       description = "the host behind the router that what isn't forwarded otherwise is forwarded to on IPv4, or null";
       type = lib.types.nullOr context.types.host.ref;
@@ -199,12 +266,13 @@ in
             )
           )
         )
+        // glesys
         // {
           "/etc/dropbear/authorized_keys" = lib.concatMapStrings (
             user: builtins.readFile org.user.${user}.publicKeys.ssh-key
           ) (lib.filter (user: org.user.${user}.principal.hasPublicKey) host.users);
         };
-      defaultText = lib.literalMD "each file of `uci`, and `system`, `dropbear` and those o11n derives sections of, rendered, and `/etc/dropbear/authorized_keys` from the ssh-keys of the host's users";
+      defaultText = lib.literalMD "each file of `uci`, and `system`, `dropbear` and those o11n derives sections of, rendered, and `/etc/dropbear/authorized_keys` from the ssh-keys of the host's users, and with `glesys` its updater";
     };
   };
 }

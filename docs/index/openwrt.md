@@ -19,10 +19,40 @@ the host behind the router that what isn't forwarded otherwise is forwarded to o
 `org/openwrt.nix` · attribute set of string
 
 Default: each file of `uci`, and `system`, `dropbear` and those o11n derives sections of, rendered, and
-`/etc/dropbear/authorized_keys` from the ssh-keys of the host's users
+`/etc/dropbear/authorized_keys` from the ssh-keys of the host's users, and with `glesys` its updater
 
 the files o11n writes on the router, by path: each `/etc/config/` file whole, the router's own sections first, in the
 order of their names, and those o11n derives after, in its order
+
+### `host.<name>.openwrt.glesys`
+
+`org/openwrt.nix` · null or (submodule)
+
+Default: `null`
+
+the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, or null
+
+### `host.<name>.openwrt.glesys.account`
+
+`org/openwrt.nix` · string
+
+the account, as GleSYS names it
+
+### `host.<name>.openwrt.glesys.key`
+
+`org/openwrt.nix` · string
+
+Default: `"glesys-key"`
+
+the host's secret that is the account's API key, which may update its DNS records
+
+### `host.<name>.openwrt.glesys.records`
+
+`org/openwrt.nix` · list of string matching the pattern [a-z0-9-]+\.[a-z0-9.-]+
+
+Default: the `endpoint` of each host behind the router that has one
+
+the names whose A record is the router's WAN address, each `<name>.<domain>` of a domain of the account's
 
 ### `host.<name>.openwrt.imageFiles`
 

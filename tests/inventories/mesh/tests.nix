@@ -390,7 +390,10 @@ in
         "/etc/config/network"
         "/etc/config/system"
         "/etc/config/wireless"
+        "/etc/crontabs/root"
         "/etc/dropbear/authorized_keys"
+        "/etc/hotplug.d/iface/90-o11n-glesys"
+        "/etc/o11n/glesys"
       ];
       "/etc/config/dhcp" = ''
         config host 'o11n_alpha'
@@ -417,6 +420,37 @@ in
         ''\toption ssid 'windsor'
       '';
       nixos = false;
+    };
+  };
+
+  # Policy: the router updates the A records of the hosts behind it that have an endpoint, with a key the image leaves
+  # out, as it does any file with a secret.
+  test_router_glesys = {
+    expr =
+      let
+        inherit (outputs.org.host.windsor) openwrt;
+      in
+      {
+        inherit (openwrt.glesys) records;
+        key = lib.hasInfix "key='@o11n-secret:glesys-key@'" openwrt.files."/etc/o11n/glesys";
+        image = lib.attrNames openwrt.imageFiles;
+      };
+    expected = {
+      records = [
+        "alpha.example.com"
+        "beta.example.com"
+      ];
+      key = true;
+      image = [
+        "/etc/config/dhcp"
+        "/etc/config/dropbear"
+        "/etc/config/firewall"
+        "/etc/config/network"
+        "/etc/config/system"
+        "/etc/crontabs/root"
+        "/etc/dropbear/authorized_keys"
+        "/etc/hotplug.d/iface/90-o11n-glesys"
+      ];
     };
   };
 

@@ -62,6 +62,7 @@ roles = []
 vpns = []
 system = "mips-linux"
 keys.wifi-key = "passphrase"
+keys.glesys-key = "passphrase"
 
 [host.windsor.openwrt]
 release = "25.12.6"
@@ -69,6 +70,7 @@ target = "ath79/generic"
 profile = "netgear_wndr3700"
 packages = ["-ppp", "-ppp-mod-pppoe"]
 dmz = "beta"
+glesys = { account = "CL12345" }
 
 [host.windsor.openwrt.uci.system.system]
 _type = "system"

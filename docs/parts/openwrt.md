@@ -80,3 +80,23 @@ with the operator's ssh-key, reached as `o11n` reaches any host, by `O11N_ROUTES
 with a secret, and `authorized_keys`, are root's alone. It keeps what it replaces in `/tmp/o11n-rollback`, and runs
 `reload_config`, which restarts what the files changed. Unless `o11n` logs in again within 90 seconds, the router puts
 back what it kept and reloads that, so that files that lock `o11n` out undo themselves.
+
+## GleSYS
+
+A router with `glesys` keeps its WAN address in the account's DNS, as the A record of each of its `records`, by default
+the `endpoint` of each host behind it that has one, as the hosts behind its NAT share its address:
+
+```toml
+[host.windsor]
+keys.glesys-key = "passphrase"
+
+[host.windsor.openwrt]
+glesys = { account = "CL12345" }
+```
+
+o11n derives `/etc/o11n/glesys`, which lists each record's domain's records with the API key, the host's secret `key`,
+and updates the A record that isn't the WAN address, and says so, or why it couldn't, to the router's log as
+`o11n-glesys`. It runs once the WAN is up, by `/etc/hotplug.d/iface/90-o11n-glesys`, and every 15 minutes, by
+`/etc/crontabs/root`, which `o11n openwrt apply` has cron read anew. As the address changes, the API key has to let any
+address in, and needs nothing but the domain API. The image leaves the script out, as it holds the key, until it's
+applied.

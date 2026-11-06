@@ -168,7 +168,13 @@ impl Org {
                 },
             );
         }
-        let script = writes(&written, "")? + &arm(ROLLBACK.as_secs(), "reload_config");
+        // Fact: busybox crond reads a crontab written behind its back only when it starts.
+        let reload = if written.contains_key("/etc/crontabs/root") {
+            "reload_config; /etc/init.d/cron enable; /etc/init.d/cron restart"
+        } else {
+            "reload_config"
+        };
+        let script = writes(&written, "")? + &arm(ROLLBACK.as_secs(), reload);
         let acting = self.acting(&self.operator_id()?)?;
 
         log(format!("writing {} files on {host}", written.len()));
