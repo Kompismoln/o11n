@@ -227,6 +227,23 @@
         "type": "github"
       }
     },
+    "openwrt-imagebuilder": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793980533,
+        "narHash": "sha256-zyUYJtokCvUOVBy+LEBZh/2ti+M6bviN36OChDwWVAI=",
+        "ref": "refs/heads/main",
+        "rev": "eebf667f84ff62e63006efb47ff3cd15d55c10fd",
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/astro/nix-openwrt-imagebuilder"
+      },
+      "original": {
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/astro/nix-openwrt-imagebuilder"
+      }
+    },
     "preservation": {
       "locked": {
         "lastModified": 1792953443,
@@ -250,6 +267,7 @@
         "nixos-mailserver": "nixos-mailserver",
         "nixpkgs": "nixpkgs",
         "nixvim": "nixvim",
+        "openwrt-imagebuilder": "openwrt-imagebuilder",
         "preservation": "preservation",
         "sops-nix": "sops-nix"
       }

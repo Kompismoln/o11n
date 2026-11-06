@@ -57,3 +57,25 @@ o11n derives:
 - with a `dmz`, a redirect of all else on IPv4 to the dmz's `address4`, `firewall.o11n_dmz`, after the others.
 
 A host whose `behind` has no `openwrt` fails evaluation.
+
+## Image
+
+`openwrtConfigurations.<host>.image` is the router's sysupgrade image, built by OpenWrt's ImageBuilder as the flake
+input `openwrt-imagebuilder` wraps it (`lib/default.nix`), with the profile's packages and `packages`, and
+`openwrt.imageFiles`: its `files` but those with a secret, which the image leaves to OpenWrt's own until they're
+applied, as a `wireless` whose radios are off. The input reads the release's package index from downloads.openwrt.org as
+the image is evaluated, so only a machine that reaches it evaluates the image, and no check does. It holds the hashes of
+each series' latest release alone, so `release` is that of the input's revision.
+
+`o11n openwrt image <host>` builds it and prints it, and `o11n openwrt flash <host> <image>` copies it to the router as
+root with the operator's ssh-key, has `sysupgrade -T` check it there, and flashes it with `sysupgrade -n`, which keeps
+nothing of what the router had (`crates/o11n/src/openwrt.rs`). The router comes up with a new ssh-key, which
+`o11n host pull-ssh-key host-<host>` takes, and without the files with secrets, which `o11n openwrt apply` writes.
+
+## Apply
+
+`o11n openwrt apply <host>` writes the router's `files`, each secret's marker replaced with the host's secret, as root
+with the operator's ssh-key, reached as `o11n` reaches any host, by `O11N_ROUTES` or its name in a namespace. A file
+with a secret, and `authorized_keys`, are root's alone. It keeps what it replaces in `/tmp/o11n-rollback`, and runs
+`reload_config`, which restarts what the files changed. Unless `o11n` logs in again within 90 seconds, the router puts
+back what it kept and reloads that, so that files that lock `o11n` out undo themselves.

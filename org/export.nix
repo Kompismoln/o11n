@@ -95,6 +95,11 @@ let
       allotments = map (allotment: {
         inherit (allotment) id path replicas;
       }) (lib.filter (allotment: allotment.replicas != [ ]) entity.allotments);
+    }
+    // lib.optionalAttrs (entity.class == "host" && entity.openwrt != null) {
+      openwrt = {
+        inherit (entity.openwrt) files;
+      };
     };
 
   root = name: {

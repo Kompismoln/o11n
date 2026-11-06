@@ -24,6 +24,15 @@ Default: each file of `uci`, and `system`, `dropbear` and those o11n derives sec
 the files o11n writes on the router, by path: each `/etc/config/` file whole, the router's own sections first, in the
 order of their names, and those o11n derives after, in its order
 
+### `host.<name>.openwrt.imageFiles`
+
+`org/openwrt.nix` · attribute set of string
+
+Default: its `files` without a secret in them
+
+the files the router's image holds: its `files` but those with a secret, which it has OpenWrt's own of until they're
+applied
+
 ### `host.<name>.openwrt.packages`
 
 `org/openwrt.nix` · list of string

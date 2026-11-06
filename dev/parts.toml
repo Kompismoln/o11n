@@ -78,7 +78,7 @@ code = ["nixos/org/networking.nix", "org/network.nix"]
 stage = "drafted"
 layer = "domain"
 doc = "docs/parts/openwrt.md"
-code = ["org/openwrt.nix"]
+code = ["crates/o11n/src/openwrt.rs", "org/openwrt.nix"]
 
 [parts.vpns]
 stage = "drafted"
