@@ -53,8 +53,13 @@ root)
 	"set -o pipefail;")
 		shift
 		IFS= read -r password
-		echo "$* on $fqdn, with $password"
+		if [[ " $* " == *" snapshots --json "* ]]; then
+			cat "$BATS_TEST_TMPDIR/snapshots-$fqdn" 2>/dev/null || echo '[]'
+		else
+			echo "$* on $fqdn, with $password"
+		fi
 		;;
+	systemctl) cat "$BATS_TEST_TMPDIR/trigger-$fqdn" 2>/dev/null || echo ;;
 	esac
 	;;
 nix-switch)

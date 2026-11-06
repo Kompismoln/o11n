@@ -1,10 +1,34 @@
 #!/usr/bin/env bash
-# Fact: the status checks ask with -w for the code, an smtp:// url for submission, and name= and type= for DNS.
+# Fact: the status checks ask with -w for the code, an smtp:// url for submission, name= and type= for DNS, and
+# Keycloak's admin API at its paths, which answers its body and then its code.
 {
 	printf 'curl'
 	printf ' %s' "$@"
 	echo
 } >>"$BATS_TEST_TMPDIR/curl"
+args=("$@") url=''
+for ((i = 0; i < $#; i++)); do
+	[[ ${args[i]} != http* ]] || url=${args[i]}
+	[[ ${args[i]} != -H || ${args[i + 1]} != @* ]] || cat "${args[i + 1]#@}" >>"$BATS_TEST_TMPDIR/curl"
+done
+token='{"access_token": "token"}'
+realm='{"smtpServer": {"host": "mail.example.com", "password": "**********"}}'
+case $url in
+*/protocol/openid-connect/token)
+	printf 'stdin %s\n' "$(cat)" >>"$BATS_TEST_TMPDIR/curl"
+	printf '%s\n%s' "${KEYCLOAK_TOKEN:-$token}" "${KEYCLOAK_TOKEN_CODE:-200}"
+	exit
+	;;
+*/testSMTPConnection)
+	printf 'stdin %s\n' "$(cat)" >>"$BATS_TEST_TMPDIR/curl"
+	printf '%s\n%s' "${KEYCLOAK_SMTP:-}" "${KEYCLOAK_SMTP_CODE:-204}"
+	exit
+	;;
+*/admin/realms/*)
+	printf '%s\n200' "${KEYCLOAK_REALM:-$realm}"
+	exit
+	;;
+esac
 name='' type=''
 while (($#)); do
 	case $1 in

@@ -947,3 +947,55 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   run o11n status host-testhost
   [[ $output == *"lorem fail: host-testhost runs no allotment-sync@user-testuser.testhost: o11n apply host-testhost"* ]]
 }
+
+@test "status tells whether a principal's archive holds a snapshot of each host, since its timer last started it" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-rescue
+  o11n secret generate service-rescue ssh-key
+  o11n identity create user-testuser
+  o11n secret generate user-testuser restic-key
+
+  run o11n status user-testuser
+  [[ $output == *"user-testuser archive testhost testhost fail: testhost holds no snapshot of user-testuser on testhost: o11n ssh service-rescue testhost --user root systemctl start state-archive@user-testuser:testhost"* ]]
+  [[ $output == *"user-testuser archive testhost lorem skip: "*", and it has no endpoint"* ]]
+  [[ $output == *"user-testuser archive lorem testhost skip: "*", and it has no endpoint"* ]]
+
+  echo '[{"time": "2026-11-06T03:00:12.123456789+01:00"}]' >"$BATS_TEST_TMPDIR/snapshots-testhost.local"
+  run o11n status user-testuser
+  [[ $output == *"user-testuser archive testhost testhost ok"* ]]
+
+  echo '@1793930400' >"$BATS_TEST_TMPDIR/trigger-testhost.local"
+  run o11n status user-testuser
+  [[ $output == *"user-testuser archive testhost testhost ok"* ]]
+
+  echo '@1793934000' >"$BATS_TEST_TMPDIR/trigger-testhost.local"
+  run o11n status user-testuser
+  [[ $output == *"user-testuser archive testhost testhost fail: state-archive@user-testuser:testhost on testhost took no snapshot since its timer last started it, the latest being of 2026-11-06T03:00:12.123456789+01:00: journalctl -u state-archive@user-testuser:testhost on testhost"* ]]
+}
+
+@test "status has Keycloak test each realm's mail, logged in as its o11n client with the app's admin-client-secret" {
+  run o11n status --list app-auth
+  [[ $output == *"app-auth keycloak-mail example"* ]]
+
+  run o11n status app-auth
+  [[ $output == *"app-auth keycloak-mail example skip: "* ]]
+
+  o11n identity create app-auth
+  o11n secret generate app-auth admin-client-secret
+  run o11n status app-auth
+  [[ $output == *"app-auth keycloak-mail example ok"* ]]
+  grep -qxF "stdin $(o11n secret show app-auth admin-client-secret)" "$BATS_TEST_TMPDIR/curl"
+  grep -qxF "Authorization: Bearer token" "$BATS_TEST_TMPDIR/curl"
+  grep -qxF 'stdin {"host":"mail.example.com","password":"**********"}' "$BATS_TEST_TMPDIR/curl"
+
+  KEYCLOAK_SMTP='{"errorMessage": "Failed to send email"}' KEYCLOAK_SMTP_CODE=500 run o11n status app-auth
+  [[ $output == *"app-auth keycloak-mail example fail: https://auth.example.com/admin/realms/example/testSMTPConnection answers 500: Failed to send email"* ]]
+
+  KEYCLOAK_TOKEN='{"error": "unauthorized_client", "error_description": "Invalid client credentials"}' KEYCLOAK_TOKEN_CODE=401 \
+    run o11n status app-auth
+  [[ $output == *"app-auth keycloak-mail example fail: https://auth.example.com/realms/master/protocol/openid-connect/token answers 401: Invalid client credentials"* ]]
+
+  KEYCLOAK_REALM='{"realm": "example"}' run o11n status app-auth
+  [[ $output == *"app-auth keycloak-mail example fail: realm example has no mail server"* ]]
+}

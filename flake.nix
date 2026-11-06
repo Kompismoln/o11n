@@ -121,6 +121,12 @@
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
               };
 
+              legacyPackages.vmTests.keycloak = import ./tests/vm/keycloak.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
+              };
+
               legacyPackages.vmTests.containers = import ./tests/vm/containers.nix { inherit pkgs; };
 
               legacyPackages.vmTests.snapshot = import ./tests/vm/snapshot.nix { inherit pkgs; };

@@ -6,6 +6,7 @@ mod dns;
 mod export;
 mod groups;
 mod host;
+mod keycloak;
 mod keys;
 mod remote;
 mod route;

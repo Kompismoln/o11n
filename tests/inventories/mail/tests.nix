@@ -36,6 +36,7 @@ in
       ];
       smtpAuth = false;
       setFromHeader = {
+        app-auth = "on";
         app-blog = "auto";
         app-calendar = "auto";
         user-alice = "on";

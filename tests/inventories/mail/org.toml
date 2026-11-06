@@ -68,6 +68,32 @@ grants = ["host:app-scheduler", "host:mailserver"]
 principal.mail = { send = true, sendAs = ["@example.net"] }
 mobilizon.from = "noreply@example.net"
 
+[app.auth]
+id = 2
+endpoint = "auth.example.com"
+ssl = false
+run-on-hosts = ["web"]
+grants = ["host:app-scheduler", "host:mailserver"]
+principal.mail = { inbox = true, send = true }
+keycloak.realms.example = { displayName = "Example" }
+
+# Fact: a jitsi on no host, whose client auth keeps.
+[app.meet]
+id = 3
+endpoint = "meet.example.com"
+run-on-hosts = []
+principal.hasPublicKey = false
+jitsi = { keycloak = "auth", realm = "example" }
+
+# Fact: a nextcloud whose confidential client auth keeps, with the secret web decrypts as the app-scheduler; only
+# vmTests.keycloak runs it, on web.
+[app.cloud]
+id = 4
+endpoint = "cloud.example.com"
+run-on-hosts = []
+grants = ["host:app-scheduler"]
+nextcloud = { keycloak = "auth", realm = "example" }
+
 [role.mailserver]
 services = ["mailserver"]
 

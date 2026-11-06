@@ -8,6 +8,7 @@ let
     endpoint = "cloud.example.com";
     database = "cloud";
     ssl = true;
+    scheme = "https";
     principal = {
       home = "/var/lib/cloud";
       bindAddress = "fd12:3456:7890:ffff::bb7:7";
@@ -15,18 +16,43 @@ let
       gid = 3007;
     };
     secrets.sopsFile = "/enc/app-cloud.yaml";
-    nextcloud.collabora = "office";
+    nextcloud = {
+      collabora = "office";
+      client = null;
+    };
   };
 
-  eval =
-    uid:
+  # Fact: as org/apps/nextcloud.nix derives it for nextcloud.keycloak = "auth" and nextcloud.realm = "example".
+  logsIn = lib.recursiveUpdate app {
+    nextcloud.client = {
+      keycloak = "auth";
+      realm = "example";
+      app = "app-cloud";
+      secret = {
+        name = "cloud/oidc-secret";
+        inherit (app.secrets) sopsFile;
+      };
+      representation.clientId = "cloud";
+    };
+  };
+
+  evalApp =
+    app: uid:
     evalNixosModule [
       ../../nixos/apps/nextcloud.nix
       {
         # Accommodating for sops-nix and preservation, which this evaluation doesn't import: what the app
-        # declares there is only declared.
+        # declares there is only declared, at the paths sops-nix would give it.
         options.sops.secrets = lib.mkOption {
-          type = lib.types.attrsOf (lib.types.attrsOf lib.types.anything);
+          type = lib.types.attrsOf (
+            lib.types.submodule (
+              { name, ... }:
+              {
+                freeformType = lib.types.attrsOf lib.types.anything;
+                options.path = lib.mkOption { default = "/run/secrets/${name}"; };
+              }
+            )
+          );
           default = { };
         };
         options.o11n.preserve.directories = lib.mkOption {
@@ -38,7 +64,13 @@ let
             inherit app;
             org = {
               postgres = "17";
-              app.office.endpoint = "office.example.com";
+              app = {
+                office.endpoint = "office.example.com";
+                auth = {
+                  url = "https://auth.example.com";
+                  keycloak.realms.example.displayName = "Example";
+                };
+              };
             };
             host.name = "web";
           };
@@ -53,6 +85,8 @@ let
         };
       }
     ];
+
+  eval = evalApp app;
 
   failed =
     cfg:
@@ -92,4 +126,60 @@ in
       "Nextcloud cloud connects to postgresql as the host's user cloud, whose uid has to be 3007."
     ];
   };
+
+  test_nextcloud_without_keycloak_logs_in_alone = {
+    expr = {
+      oidc = container.config.systemd.services ? nextcloud-oidc;
+      secret = container.bindMounts ? "/run/secrets/oidc-secret";
+      apps = lib.attrNames container.config.services.nextcloud.extraApps;
+    };
+    expected = {
+      oidc = false;
+      secret = false;
+      apps = [ "calendar" ];
+    };
+  };
+
+  # Policy: a nextcloud with a keycloak has its users log in with the realm, as the Keycloak user of their name.
+  test_nextcloud_logs_in_with_keycloak =
+    let
+      cfg = evalApp logsIn app.principal.uid;
+      inner = cfg.containers.cloud.config;
+      script = inner.systemd.services.nextcloud-oidc.script;
+    in
+    {
+      expr = {
+        apps = lib.attrNames inner.services.nextcloud.extraApps;
+        secret = {
+          inherit (cfg.containers.cloud.bindMounts."/run/secrets/oidc-secret") hostPath isReadOnly;
+          inherit (cfg.sops.secrets."cloud/oidc-secret") sopsFile owner;
+        };
+        provider = lib.filter (word: word != "" && word != "\\") (
+          lib.drop 1 (lib.splitString " " (lib.replaceStrings [ "\n" ] [ " " ] script))
+        );
+        after = inner.systemd.services.nextcloud-oidc.after;
+      };
+      expected = {
+        apps = [
+          "calendar"
+          "user_oidc"
+        ];
+        secret = {
+          hostPath = "/run/secrets/cloud/oidc-secret";
+          isReadOnly = true;
+          sopsFile = "/enc/app-cloud.yaml";
+          owner = "cloud";
+        };
+        provider = [
+          "user_oidc:provider"
+          "Example"
+          "--clientid=cloud"
+          "--clientsecret-file=/run/secrets/oidc-secret"
+          "--discoveryuri=https://auth.example.com/realms/example/.well-known/openid-configuration"
+          "--unique-uid=0"
+          "--mapping-uid=preferred_username"
+        ];
+        after = [ "nextcloud-setup.service" ];
+      };
+    };
 }

@@ -69,6 +69,13 @@ pub struct Entity {
     pub nixos: Option<bool>,
     #[serde(default)]
     pub allotments: Vec<Allotment>,
+    #[serde(default)]
+    pub keycloak: Option<Keycloak>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Keycloak {
+    pub realms: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -98,6 +105,8 @@ pub struct State {
 
 #[derive(Debug, Deserialize)]
 pub struct Archive {
+    #[serde(default)]
+    pub schedule: Option<String>,
     pub forget: Vec<String>,
 }
 

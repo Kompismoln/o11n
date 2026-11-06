@@ -598,7 +598,10 @@ in
   # Policy: the export holds each archive's prune as restic forget's flags, for o11n state prune.
   test_state_prune = {
     expr = outputs.org.export.entities.user-admin.state.archives;
-    expected.web.forget = [ "--keep-last=2" ];
+    expected.web = {
+      schedule = "daily";
+      forget = [ "--keep-last=2" ];
+    };
   };
 
   # Policy: a host warns of each home it archives that state-snapshot@ can't snapshot, as gw's on ext4, and not of one

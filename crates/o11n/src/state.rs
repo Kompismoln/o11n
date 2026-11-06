@@ -4,9 +4,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use serde::Deserialize;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
+
 use crate::Error;
 use crate::acting::Acting;
 use crate::export::State;
+use crate::status::{Outcome, needs};
 use crate::store::{Org, Secret};
 use crate::util::{exited, log, run};
 
@@ -125,7 +130,89 @@ fn archive<'a>(id: &str, state: &'a State, from: Option<&'a str>) -> Result<&'a 
     }
 }
 
+#[derive(Deserialize)]
+struct Snapshot {
+    time: String,
+}
+
+fn failed(error: &Error) -> Outcome {
+    Outcome::Fail(error.to_string())
+}
+
 impl Org {
+    fn reached(&self, host: &str) -> Result<String, Outcome> {
+        let id = format!("host-{host}");
+        self.reachable(self.entity(&id).map_err(|error| failed(&error))?)?;
+        Ok(id)
+    }
+
+    // Policy: an archive works when it holds a snapshot of the home on the host, and, with a schedule, one taken since
+    // the timer last started the unit that takes it, as the host's clock has both.
+    // Dependency: nixos/org/state-archive.nix names the unit and its timer.
+    pub fn archive_outcome(&self, id: &str, archive: &str, host: &str) -> Result<Outcome, Outcome> {
+        let state = self.state(id).map_err(|error| failed(&error))?;
+        let settings = state
+            .archives
+            .get(archive)
+            .ok_or_else(|| Outcome::Fail(format!("{id} archives to no {archive}")))?;
+        let password = needs(self.restic_key(id))?;
+        let acting = needs(self.acting("service-rescue"))?;
+        let unit = format!("state-archive@{id}:{archive}");
+
+        let started = if settings.schedule.is_some() {
+            let mut ssh = self
+                .pinned_ssh(&self.reached(host)?, "root", acting.command("ssh"))
+                .map_err(|error| failed(&error))?;
+            let said = run(
+                ssh.command
+                    .args(["systemctl", "show", "--timestamp=unix", "-P", "LastTriggerUSec"])
+                    .arg(quoted(&format!("{unit}.timer"))),
+                None,
+            )
+            .map_err(|error| failed(&error))?;
+            said.trim()
+                .strip_prefix('@')
+                .and_then(|epoch| epoch.parse::<i64>().ok())
+        } else {
+            None
+        };
+
+        let mut ssh = self
+            .pinned_ssh(&self.reached(archive)?, "root", acting.command("ssh"))
+            .map_err(|error| failed(&error))?;
+        let said = run(
+            ssh.command
+                .arg("set -o pipefail;")
+                .arg("archive-restic")
+                .arg(quoted(id))
+                .args(["snapshots", "--json", "--latest", "1", "--host"])
+                .arg(quoted(host)),
+            Some(&password),
+        )
+        .map_err(|error| failed(&error))?;
+        let snapshots: Vec<Snapshot> = serde_json::from_str(&said)
+            .map_err(|e| Outcome::Fail(format!("archive-restic {id} snapshots on {archive}: {e}")))?;
+        let mut latest = None;
+        for snapshot in snapshots {
+            let taken = OffsetDateTime::parse(&snapshot.time, &Rfc3339)
+                .map_err(|e| Outcome::Fail(format!("a snapshot of {}: {e}", snapshot.time)))?
+                .unix_timestamp();
+            if latest.as_ref().is_none_or(|(at, _)| taken > *at) {
+                latest = Some((taken, snapshot.time));
+            }
+        }
+
+        Ok(match (latest, started) {
+            (None, _) => Outcome::Fail(format!(
+                "{archive} holds no snapshot of {id} on {host}: o11n ssh service-rescue {host} --user root systemctl start {unit}"
+            )),
+            (Some((taken, time)), Some(started)) if taken < started => Outcome::Fail(format!(
+                "{unit} on {host} took no snapshot since its timer last started it, the latest being of {time}: journalctl -u {unit} on {host}"
+            )),
+            _ => Outcome::Ok,
+        })
+    }
+
     pub fn fetch_state(&self, id: &str, dir: &Path) -> Result<(), Error> {
         let entity = self.entity(id)?;
         let state = entity

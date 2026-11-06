@@ -50,6 +50,7 @@ let
       state = {
         inherit (entity.principal) home;
         archives = lib.mapAttrs (_: archive: {
+          inherit (archive) schedule;
           forget = archive.prune.flags;
         }) entity.principal.state.archives;
         hosts = map (host: host.name) (
@@ -77,6 +78,9 @@ let
     }
     // lib.optionalAttrs (entity.class == "app") {
       inherit (entity) url;
+    }
+    // lib.optionalAttrs (entity.class == "app" && entity.keycloak != null) {
+      keycloak.realms = lib.attrNames entity.keycloak.realms;
     }
     // lib.optionalAttrs (entity.class == "host") {
       inherit (entity)

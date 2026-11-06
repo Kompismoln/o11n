@@ -1,4 +1,3 @@
-# nixos/apps/nextcloud.nix
 {
   app,
   config,
@@ -25,6 +24,40 @@ let
     ) app.nextcloud.collabora;
   };
 
+  # Dependency: org/apps/nextcloud.nix derives the client, which the keycloak app keeps.
+  inherit (app.nextcloud) client;
+  secret = "/run/secrets/oidc-secret";
+
+  # Policy: a Keycloak user is the Nextcloud user of the same name, which the realm lets no one take or rename to:
+  # user_oidc's soft auto-provisioning has a login of an account made before it the account's.
+  oidc =
+    { config, ... }:
+    let
+      keycloak = org.app.${client.keycloak};
+      realm = keycloak.keycloak.realms.${client.realm} or { displayName = client.realm; };
+    in
+    {
+      services.nextcloud.extraApps = {
+        inherit (pkgs.nextcloud34Packages.apps) user_oidc;
+      };
+      systemd.services.nextcloud-oidc = {
+        description = "keep nextcloud's login with ${client.keycloak}'s realm ${client.realm}";
+        after = [ "nextcloud-setup.service" ];
+        requires = [ "nextcloud-setup.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          ${lib.getExe config.services.nextcloud.occ} user_oidc:provider ${lib.escapeShellArg realm.displayName} \
+            --clientid=${client.representation.clientId} --clientsecret-file=${secret} \
+            --discoveryuri=${keycloak.url}/realms/${client.realm}/.well-known/openid-configuration \
+            --unique-uid=0 --mapping-uid=preferred_username
+        '';
+      };
+    };
+
 in
 {
   imports = [
@@ -32,10 +65,19 @@ in
   ];
 
   config = {
-    sops.secrets."${app.name}/secret-key" = {
-      inherit (app.secrets) sopsFile;
-      owner = app.name;
-      group = app.name;
+    sops.secrets = {
+      "${app.name}/secret-key" = {
+        inherit (app.secrets) sopsFile;
+        owner = app.name;
+        group = app.name;
+      };
+    }
+    // lib.optionalAttrs (client != null) {
+      ${client.secret.name} = {
+        inherit (client.secret) sopsFile;
+        owner = app.name;
+        group = app.name;
+      };
     };
 
     # Policy: the container connects as the host user with its uid, by peer authentication.
@@ -104,9 +146,16 @@ in
           "/run/postgresql" = {
             isReadOnly = false;
           };
+        }
+        // lib.optionalAttrs (client != null) {
+          ${secret} = {
+            hostPath = config.sops.secrets.${client.secret.name}.path;
+            isReadOnly = true;
+          };
         };
 
         config = {
+          imports = lib.optional (client != null) oidc;
           system.stateVersion = config.system.stateVersion;
 
           users.users.nextcloud.uid = cfg.uid;
@@ -141,7 +190,7 @@ in
 
           services.nextcloud = {
             enable = true;
-            https = true;
+            https = cfg.ssl;
             hostName = "localhost";
             package = pkgs.nextcloud34;
             appstoreEnable = true;
@@ -155,10 +204,10 @@ in
               ];
               trusted_domains = [
                 cfg.endpoint
-                cfg.collaboraEndpoint
-              ];
+              ]
+              ++ lib.optional (cfg.collaboraEndpoint != null) cfg.collaboraEndpoint;
               default_phone_region = "SE";
-              overwriteprotocol = "https";
+              overwriteprotocol = app.scheme;
               forwarded_for_headers = [ "HTTP_X_FORWARDED_FOR" ];
               "simpleSignUpLink.shown" = false;
             };

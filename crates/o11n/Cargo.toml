@@ -19,7 +19,7 @@ sha-crypt = "0.6.0"
 sha1 = "0.10"
 sha2 = "0.10"
 ssh-key = { version = "0.6.7", features = ["ed25519", "rand_core", "std"] }
-time = "0.3.55"
+time = { version = "0.3.55", features = ["parsing"] }
 x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }
 x509-parser = "0.18.1"
 

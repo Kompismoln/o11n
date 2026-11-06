@@ -8,36 +8,15 @@ let
   inherit (outputs) org;
   inherit (org.app) blog calendar;
   inherit (org.mailserver) dkimSelector endpoint;
-  fqdn = "mail.${endpoint}";
-  elsewhere = "elsewhere.test";
-  receiver = "mx.${elsewhere}";
-
-  tls = pkgs.runCommand "mail-test-tls" { nativeBuildInputs = [ pkgs.openssl ]; } ''
-    mkdir $out
-    openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj /CN=test-ca \
-      -addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign \
-      -keyout ca.key -out $out/ca.crt
-    openssl req -newkey rsa:2048 -nodes -subj /CN=${fqdn} -keyout $out/mail.key -out mail.csr
-    printf 'subjectAltName=DNS:${fqdn},DNS:${receiver}\n' > ext
-    openssl x509 -req -in mail.csr -CA $out/ca.crt -CAkey ca.key -CAcreateserial -days 3650 \
-      -extfile ext -out $out/mail.crt
-  '';
-
-  # Accommodating for sops-nix, which refuses a key file in the store: the inventory's committed
-  # root identity, which reads every secret, is installed outside it.
-  inventorySecrets = {
-    imports = [ o11nInputs.sops-nix.nixosModules.sops ];
-    system.activationScripts = {
-      inventory-age-key = lib.stringAfter [ "specialfs" ] ''
-        install -m 400 ${outputs.context.path}/keys/root-1 /run/inventory-age-key
-      '';
-      setupSecrets.deps = [ "inventory-age-key" ];
-    };
-    sops.age = {
-      keyFile = lib.mkForce "/run/inventory-age-key";
-      sshKeyPaths = [ ];
-    };
-  };
+  shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
+  inherit (shared)
+    fqdn
+    elsewhere
+    receiver
+    tls
+    inventorySecrets
+    principal
+    ;
 
   # Fact: the internet answers DNS for the org's domains as their zones would, and receives elsewhere.test's mail.
   resolving =
@@ -48,20 +27,11 @@ let
       environment.systemPackages = [ pkgs.swaks ];
     };
 
-  # Accommodating for the test's network, which has no ACME server and no DNSSEC.
+  # Accommodating for the test's network, whose internet answers DNS.
   mailserver =
     { nodes, ... }:
     {
-      mailserver = {
-        localDnsResolver = false;
-        x509 = {
-          useACMEHost = lib.mkForce null;
-          certificateFile = "${tls}/mail.crt";
-          privateKeyFile = "${tls}/mail.key";
-        };
-      };
-      security.acme.certs = lib.mkForce { };
-      services.postfix-tlspol.configurePostfix = lib.mkForce false;
+      imports = [ shared.mailserver ];
       services.rspamd.locals."options.inc".text = ''
         dns {
           nameservers = ["${nodes.internet.networking.primaryIPAddress}"];
@@ -69,23 +39,7 @@ let
           retransmits = 0;
         }
       '';
-      virtualisation.memorySize = 2048;
-      virtualisation.cores = 2;
     };
-
-  # Duplication: as nixos/org/principals.nix makes them.
-  principal = entity: {
-    users.users.${entity.name} = {
-      isSystemUser = true;
-      group = entity.name;
-      inherit (entity.principal) uid home homeMode;
-      createHome = entity.principal.home != "/var/empty";
-    };
-    users.groups.${entity.name} = {
-      inherit (entity.principal) gid;
-      members = [ entity.name ] ++ entity.principal.members;
-    };
-  };
 
   # Fact: the blog's kind without WordPress, whose own mail is its business: its PHP pool mails through
   # sendmail_path as WordPress does, From wordpress@<site's domain>.
@@ -137,6 +91,7 @@ pkgs.testers.runNixOSTest {
         (principal org.user.alice)
         (principal blog)
         (principal calendar)
+        (principal org.app.auth)
       ];
       _module.args.host = org.host.web;
       services.nginx.enable = true;

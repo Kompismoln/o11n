@@ -1,4 +1,3 @@
-# nixos/apps/jitsi.nix
 {
   app,
   lib,
@@ -15,6 +14,8 @@ let
     };
   };
   issuer = "https://${cfg.keycloak.endpoint}/realms/${cfg.keycloak.realm}";
+  # Dependency: org/apps/jitsi.nix derives the client, which the keycloak app keeps.
+  client = app.jitsi.client.representation;
 in
 {
 
@@ -50,22 +51,24 @@ in
 
         tokenAuthUrl =
           "${issuer}/protocol/openid-connect/auth"
-          + "?client_id=${cfg.name}"
+          + "?client_id=${client.clientId}"
           + "&response_type=code&scope=openid"
           + "&state={state}"
-          + "&redirect_uri=https://${cfg.endpoint}/static/sso.html"
-          + "&code_challenge={code_challenge}&code_challenge_method=S256";
+          + "&redirect_uri=${lib.head client.redirectUris}"
+          + "&code_challenge={code_challenge}&code_challenge_method=${
+            client.attributes."pkce.code.challenge.method"
+          }";
 
         tokenLogoutUrl =
           "${issuer}/protocol/openid-connect/logout"
-          + "?post_logout_redirect_uri=https://${cfg.endpoint}/static/logout.html";
+          + "?post_logout_redirect_uri=${client.attributes."post.logout.redirect.uris"}";
 
         tokenAuthInline = true;
 
         sso = {
           ssoService = cfg.keycloak.endpoint;
           tokenService = "${cfg.keycloak.endpoint}/realms/${cfg.keycloak.realm}/protocol/openid-connect";
-          clientId = cfg.name;
+          inherit (client) clientId;
         };
       };
     };

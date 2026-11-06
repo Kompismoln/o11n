@@ -100,3 +100,15 @@ code = [
   "nixos/services/locksmith.sh",
   "org/secrets.nix",
 ]
+
+[parts.keycloak]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/keycloak.md"
+code = [
+  "crates/o11n/src/keycloak.rs",
+  "nixos/apps/keycloak.nix",
+  "org/apps/keycloak.nix",
+  "tests/nixos/keycloak.nix",
+  "tests/vm/keycloak.nix",
+]

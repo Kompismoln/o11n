@@ -22,7 +22,7 @@ grants = [
   "host-testhost",
 ]
 principal.state.archives.lorem.prune.keep-last = 2
-principal.state.archives.testhost = {}
+principal.state.archives.testhost.schedule = "daily"
 
 [user.admin]
 
@@ -90,7 +90,12 @@ services = ["locksmith", "mailserver", "nix-remote", "nix-switch"]
 
 [role.lorem]
 
-[app]
+[app.auth]
+id = 0
+endpoint = "auth.example.com"
+run-on-hosts = []
+principal.mail = { inbox = true, send = true }
+keycloak.realms.example = {}
 
 [store]
 

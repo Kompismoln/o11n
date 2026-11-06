@@ -40,3 +40,13 @@ for app in blog calendar; do
     o11n secret generate "app-$app" ssh-key
     o11n secret generate "app-$app" mail
 done
+
+o11n identity create app-auth
+for key in ssh-key mail admin-client-secret; do
+    o11n secret generate app-auth "$key"
+done
+
+o11n identity create app-cloud
+for key in ssh-key secret-key oidc-secret; do
+    o11n secret generate app-cloud "$key"
+done

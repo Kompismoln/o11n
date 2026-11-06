@@ -9,7 +9,7 @@ let
     collabora = ./apps/collabora.nix;
     django = ./apps/django.nix;
     jitsi = ./apps/jitsi.nix;
-    keycloak = { };
+    keycloak = ./apps/keycloak.nix;
     mobilizon = ./apps/mobilizon.nix;
     nextcloud = ./apps/nextcloud.nix;
     nextcloud-rolf = ./apps/nextcloud-rolf.nix;
@@ -25,10 +25,15 @@ in
   config = {
     class = "app";
     # Dependency: nixos/apps/<kind>.nix reads these keys.
-    keys = lib.optionalAttrs (lib.elem config.kind [
-      "django"
-      "nextcloud"
-    ]) { secret-key = "passphrase"; };
+    keys =
+      lib.optionalAttrs (lib.elem config.kind [
+        "django"
+        "nextcloud"
+      ]) { secret-key = "passphrase"; }
+      // lib.optionalAttrs (config.kind == "keycloak") { admin-client-secret = "passphrase"; }
+      // lib.optionalAttrs (config.nextcloud != null && config.nextcloud.keycloak != null) {
+        oidc-secret = "passphrase";
+      };
   };
 
   options =

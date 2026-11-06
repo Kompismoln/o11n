@@ -34,6 +34,7 @@ pub enum Check {
     Reboot,
     AllotmentSync(String, String),
     AllotmentConflicts(String),
+    Archive(String, String),
     Url(String),
     NixDaemon,
     NixStore,
@@ -43,6 +44,7 @@ pub enum Check {
     Spf(String),
     Dkim(String),
     Dmarc(String),
+    KeycloakMail(String),
 }
 
 impl Check {
@@ -61,6 +63,7 @@ impl Check {
             Self::Reboot => "reboot".into(),
             Self::AllotmentSync(allotment, replica) => format!("allotment-sync {allotment} {replica}"),
             Self::AllotmentConflicts(allotment) => format!("allotment-conflicts {allotment}"),
+            Self::Archive(archive, host) => format!("archive {archive} {host}"),
             Self::Url(url) => format!("url {url}"),
             Self::NixDaemon => "nix-daemon".into(),
             Self::NixStore => "nix-store".into(),
@@ -70,6 +73,7 @@ impl Check {
             Self::Spf(domain) => format!("spf {domain}"),
             Self::Dkim(domain) => format!("dkim {domain}"),
             Self::Dmarc(domain) => format!("dmarc {domain}"),
+            Self::KeycloakMail(realm) => format!("keycloak-mail {realm}"),
         }
     }
 }
@@ -82,7 +86,7 @@ pub enum Outcome {
 
 // Policy: what an outcome can't be had without, as a secret the operator can't decrypt, makes it a skip, not a fail,
 // told by the first line of why.
-fn needs<T>(result: Result<T, Error>) -> Result<T, Outcome> {
+pub fn needs<T>(result: Result<T, Error>) -> Result<T, Outcome> {
     result.map_err(|error| Outcome::Skip(error.to_string().lines().next().unwrap_or_default().to_owned()))
 }
 
@@ -107,7 +111,7 @@ fn recipients_of(sops_file: &str) -> Vec<String> {
     recipients
 }
 
-fn curl() -> Command {
+pub fn curl() -> Command {
     let mut curl = Command::new("curl");
     curl.args(["-sS", "--max-time", "20"]);
     curl
@@ -232,9 +236,7 @@ impl Org {
                 }
             }
         }
-        if let Some(url) = &entity.url {
-            checks.push(Check::Url(url.clone()));
-        }
+        checks.extend(Self::serving_checks(entity));
         if let (Some(mailserver), Some(_)) = (&self.export.mailserver, &entity.mail)
             && entity.keys.contains_key("mail")
         {
@@ -260,6 +262,28 @@ impl Org {
             }
         }
         Ok(checks)
+    }
+
+    fn serving_checks(entity: &Entity) -> Vec<Check> {
+        let mut checks = Vec::new();
+        if let Some(state) = &entity.state {
+            for archive in state.archives.keys() {
+                for host in &state.hosts {
+                    checks.push(Check::Archive(archive.clone(), host.clone()));
+                }
+            }
+        }
+        if let Some(url) = &entity.url {
+            checks.push(Check::Url(url.clone()));
+        }
+        if let (Some(keycloak), Some(mail)) = (&entity.keycloak, &entity.mail)
+            && mail.send
+        {
+            for realm in &keycloak.realms {
+                checks.push(Check::KeycloakMail(realm.clone()));
+            }
+        }
+        checks
     }
 
     pub fn check(&self, id: &str, check: &Check) -> Outcome {
@@ -322,6 +346,7 @@ impl Org {
             Check::Reboot => self.reboot_outcome(id, entity)?,
             Check::AllotmentSync(allotment, replica) => self.allotment_sync(id, entity, allotment, replica)?,
             Check::AllotmentConflicts(allotment) => self.allotment_conflicts(id, entity, allotment)?,
+            Check::Archive(archive, host) => self.archive_outcome(id, archive, host)?,
             Check::Url(url) => fails(Self::answers(url)),
             Check::NixDaemon => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;
@@ -361,6 +386,7 @@ impl Org {
             Check::Spf(domain) => fails(self.spf(domain)),
             Check::Dkim(domain) => fails(self.dkim(domain)),
             Check::Dmarc(domain) => fails(Self::dmarc(domain)),
+            Check::KeycloakMail(realm) => self.keycloak_mail(id, entity, realm)?,
         })
     }
 
@@ -585,7 +611,7 @@ impl Org {
     }
 
     // Policy: a host without an endpoint, as a workstation, is expected to be out of reach at times.
-    fn reachable(&self, entity: &Entity) -> Result<(), Outcome> {
+    pub fn reachable(&self, entity: &Entity) -> Result<(), Outcome> {
         match self.export.route(&entity.name, 22) {
             Ok(_) => Ok(()),
             Err(error) if entity.endpoint.is_none() => Err(Outcome::Skip(format!("{error}, and it has no endpoint"))),

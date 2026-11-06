@@ -220,6 +220,22 @@ Default: `null`
 
 the collabora app whose endpoint nextcloud's office uses, or null
 
+### `app.<name>.nextcloud.keycloak`
+
+`org/apps/nextcloud.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the keycloak app nextcloud's users log in with, or null for nextcloud's own logins alone
+
+### `app.<name>.nextcloud.realm`
+
+`org/apps/nextcloud.nix` · string
+
+Default: `""`
+
+the keycloak realm of nextcloud's client
+
 ### `app.<name>.run-on-hosts`
 
 `org/app.nix` · list of string
