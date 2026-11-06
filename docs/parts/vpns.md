@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # Vpns
 
 A vpn is a WireGuard network of the hosts whose `vpns` have it, `vpn.<name>` in `org.toml` (`org/vpn.nix`), each host on
@@ -36,18 +34,16 @@ dns = []
 ```
 
 - a host with an `endpoint` listens on the vpn's port there, and is dialed at it
-- a host without one dials the others, and keeps each connection open, so that the NAT it's behind lets their replies
-  in
+- a host without one dials the others, and keeps each connection open, so that the NAT it's behind lets their replies in
 - two hosts without an endpoint don't peer, and don't reach each other
 - nothing forwards, and a mesh with a `gateway` or `proxy` fails evaluation.
 
-The vpn's `peers` has, for each host on it, the hosts it has a tunnel with, and its `reaches` those it reaches: on a
-hub each other, on a mesh its `peers`. What has to go between two hosts fails evaluation where they don't reach each
-other on the vpn it would go over:
+The vpn's `peers` has, for each host on it, the hosts it has a tunnel with, and its `reaches` those it reaches: on a hub
+each other, on a mesh its `peers`. What has to go between two hosts fails evaluation where they don't reach each other
+on the vpn it would go over:
 
 - an allotment's replica and its host, on the first vpn they share (`org/allotment.nix`, `docs/parts/allotments.md`)
 - a host that archives a principal and the archive's host, on `service.archive.vpn` (`nixos/org/state-archive.nix`,
   `docs/parts/state.md`).
 
 An endpoint is dialed at what it resolves to, so a host on IPv6 alone is reached only from those that have IPv6.
->>>>>>> @stamp
