@@ -352,6 +352,15 @@ Default: the org's `allotment`s whose `host` is the host, in the order of their 
 
 the allotments on the host
 
+### `host.<name>.behind`
+
+`org/host.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the router whose NAT the host is behind, a host with `openwrt`, which forwards to it the ports it listens on for its
+vpns, or null
+
 ### `host.<name>.boot`
 
 `org/host.nix` · one of "grub", "systemd"
@@ -536,9 +545,17 @@ networks to configure on host
 
 `org/host.nix` · boolean
 
-Default: `true`
+Default: `openwrt == null`
 
 whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes
+
+### `host.<name>.openwrt`
+
+`org/host.nix` · null or (submodule)
+
+Default: `null`
+
+the OpenWrt the host runs, as a router, or null
 
 ### `host.<name>.principals`
 

@@ -44,7 +44,33 @@ rec {
     diskoConfigurations = mkDiskoConfigurations context;
     homeConfigurations = mkHomeConfigurations context;
     nixosConfigurations = mkNixosConfigurations context;
+    openwrtConfigurations = mkOpenwrtConfigurations context;
   };
+
+  # Policy: a router's configuration is the files o11n writes on it, as a tree, and what its image is built from.
+  mkOpenwrtConfigurations =
+    context:
+    lib.mapAttrs (
+      name: host:
+      let
+        inherit (o11nInputs.nixpkgs.legacyPackages.x86_64-linux) runCommand;
+      in
+      {
+        inherit (host.openwrt)
+          release
+          target
+          profile
+          packages
+          ;
+        files = runCommand "openwrt-${name}-files" { files = builtins.toJSON host.openwrt.files; } ''
+          mkdir -p $out
+          for path in $(echo "$files" | ${o11nInputs.nixpkgs.legacyPackages.x86_64-linux.jq}/bin/jq -r 'keys[]'); do
+            mkdir -p "$out$(dirname "$path")"
+            echo "$files" | ${o11nInputs.nixpkgs.legacyPackages.x86_64-linux.jq}/bin/jq -j --arg path "$path" '.[$path]' > "$out$path"
+          done
+        '';
+      }
+    ) (lib.filterAttrs (_: host: host.openwrt != null) context.org.host);
 
   mkNixosConfigurations =
     context:

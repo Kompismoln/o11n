@@ -27,6 +27,8 @@ roles = []
 vpns = ["wg0", "wg1"]
 system = "x86_64-linux"
 stateVersion = "26.05"
+behind = "windsor"
+network.eth = { interface = "eth0", mode = "dhcp", suffix = "::a", mac = "02:00:00:00:00:01", address4 = "192.168.1.11" }
 
 [host.beta]
 id = 2
@@ -35,6 +37,8 @@ roles = []
 vpns = ["wg0", "wg1"]
 system = "x86_64-linux"
 stateVersion = "26.05"
+behind = "windsor"
+network.eth = { interface = "eth0", mode = "dhcp", suffix = "::b", mac = "02:00:00:00:00:02", address4 = "192.168.1.12" }
 
 [host.gamma]
 id = 3
@@ -51,6 +55,41 @@ roles = []
 vpns = ["wg1"]
 system = "x86_64-linux"
 stateVersion = "26.05"
+
+[host.windsor]
+id = 5
+roles = []
+vpns = []
+system = "mips-linux"
+keys.wifi-key = "passphrase"
+
+[host.windsor.openwrt]
+release = "25.12.6"
+target = "ath79/generic"
+profile = "netgear_wndr3700"
+packages = ["-ppp", "-ppp-mod-pppoe"]
+dmz = "beta"
+
+[host.windsor.openwrt.uci.system.system]
+_type = "system"
+hostname = "OpenWrt"
+zonename = "UTC"
+
+[host.windsor.openwrt.uci.network.lan]
+_type = "interface"
+device = "br-lan"
+proto = "static"
+ipaddr = ["192.168.1.1/24"]
+ip6assign = 60
+
+[host.windsor.openwrt.uci.wireless.default_radio0]
+_type = "wifi-iface"
+device = "radio0"
+network = "lan"
+mode = "ap"
+ssid = "windsor"
+encryption = "psk2"
+key = { secret = "wifi-key" }
 
 [root.1]
 

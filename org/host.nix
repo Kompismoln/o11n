@@ -61,6 +61,21 @@ in
       default = null;
       type = with lib.types; nullOr str;
     };
+    behind = lib.mkOption {
+      description = "the router whose NAT the host is behind, a host with `openwrt`, which forwards to it the ports it listens on for its vpns, or null";
+      type = lib.types.nullOr context.types.host.ref;
+      default = null;
+      apply =
+        router:
+        lib.throwIf (router != null && org.host.${router}.openwrt == null)
+          "host.${config.name}.behind: ${router} is no router: give it openwrt, or set behind to one that has it."
+          router;
+    };
+    openwrt = lib.mkOption {
+      description = "the OpenWrt the host runs, as a router, or null";
+      type = lib.types.nullOr (context.types.openwrt.module config);
+      default = null;
+    };
     vpns = lib.mkOption {
       description = "list of interface names for vpns";
       type = lib.types.listOf context.types.vpn.ref;
@@ -170,7 +185,8 @@ in
     nixos = lib.mkOption {
       description = "whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes";
       type = lib.types.bool;
-      default = true;
+      default = config.openwrt == null;
+      defaultText = lib.literalExpression "openwrt == null";
     };
   };
   config = {

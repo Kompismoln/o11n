@@ -111,7 +111,8 @@ VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks:
   wg0 with `zhost`, a replica of the user's. `tests/vm/allotment-sync/` holds its Syncthing keys, decrypted.
 - `mesh`: `alpha` and `beta`, with endpoints, and `gamma`, without, on `wg0`, a hub through `alpha`, and on `wg1`, a
   mesh, with `delta`, without an endpoint, which `gamma` doesn't peer with; `gamma` has a dhcp network with a suffix and
-  one without. Its tests alter its spec for what would fail evaluation.
+  one without. `windsor` is an OpenWrt router that `alpha` and `beta` are behind, with `beta` its dmz. Its tests alter
+  its spec for what would fail evaluation.
 - `sample`: a cluster meant to use every role. It has `gw` (wg0 gateway and DNS, rescue mode, grub) and `web`, both with
   the nixos, peer and server roles, and an admin user with a cinnamon-office home on `web`.
 

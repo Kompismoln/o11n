@@ -74,6 +74,12 @@ layer = "domain"
 doc = "docs/parts/networks.md"
 code = ["nixos/org/networking.nix", "org/network.nix"]
 
+[parts.openwrt]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/openwrt.md"
+code = ["org/openwrt.nix"]
+
 [parts.vpns]
 stage = "drafted"
 layer = "domain"

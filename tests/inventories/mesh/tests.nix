@@ -338,6 +338,148 @@ in
     ];
   };
 
+  # Policy: what a host behind the router listens on for its vpns is forwarded to it on IPv4 and let in on IPv6 by its
+  # suffix, ahead of the dmz.
+  test_router_firewall = {
+    expr =
+      let
+        file = outputs.org.host.windsor.openwrt.files."/etc/config/firewall";
+      in
+      lib.filter (line: lib.hasPrefix "config " line || lib.hasInfix "dest_" line) (
+        lib.splitString "\n" file
+      );
+    expected = [
+      "config redirect 'o11n_alpha_wg0'"
+      "\toption dest_ip '192.168.1.11'"
+      "\toption dest_port '51820'"
+      "config rule 'o11n_alpha_wg0_6'"
+      "\toption dest_ip '::a/::ffff:ffff:ffff:ffff'"
+      "\toption dest_port '51820'"
+      "config redirect 'o11n_alpha_wg1'"
+      "\toption dest_ip '192.168.1.11'"
+      "\toption dest_port '52101'"
+      "config rule 'o11n_alpha_wg1_6'"
+      "\toption dest_ip '::a/::ffff:ffff:ffff:ffff'"
+      "\toption dest_port '52101'"
+      "config redirect 'o11n_beta_wg1'"
+      "\toption dest_ip '192.168.1.12'"
+      "\toption dest_port '52102'"
+      "config rule 'o11n_beta_wg1_6'"
+      "\toption dest_ip '::b/::ffff:ffff:ffff:ffff'"
+      "\toption dest_port '52102'"
+      "config redirect 'o11n_dmz'"
+      "\toption dest_ip '192.168.1.12'"
+    ];
+  };
+
+  test_router_files = {
+    expr = {
+      paths = lib.attrNames outputs.org.host.windsor.openwrt.files;
+      inherit (outputs.org.host.windsor.openwrt.files)
+        "/etc/config/dhcp"
+        "/etc/config/system"
+        "/etc/config/wireless"
+        ;
+      nixos = outputs.nixosConfigurations ? windsor;
+    };
+    expected = {
+      paths = [
+        "/etc/config/dhcp"
+        "/etc/config/dropbear"
+        "/etc/config/firewall"
+        "/etc/config/network"
+        "/etc/config/system"
+        "/etc/config/wireless"
+        "/etc/dropbear/authorized_keys"
+      ];
+      "/etc/config/dhcp" = ''
+        config host 'o11n_alpha'
+        ''\toption ip '192.168.1.11'
+        ''\toption mac '02:00:00:00:00:01'
+        ''\toption name 'alpha'
+
+        config host 'o11n_beta'
+        ''\toption ip '192.168.1.12'
+        ''\toption mac '02:00:00:00:00:02'
+        ''\toption name 'beta'
+      '';
+      "/etc/config/system" = ''
+        config system 'system'
+        ''\toption hostname 'windsor'
+        ''\toption zonename 'UTC'
+      '';
+      "/etc/config/wireless" = ''
+        config wifi-iface 'default_radio0'
+        ''\toption device 'radio0'
+        ''\toption encryption 'psk2'
+        ''\toption key '@o11n-secret:wifi-key@'
+        ''\toption mode 'ap'
+        ''\toption network 'lan'
+        ''\toption ssid 'windsor'
+      '';
+      nixos = false;
+    };
+  };
+
+  test_router_refuses = {
+    expr =
+      let
+        throws =
+          change: path:
+          !(builtins.tryEval (builtins.deepSeq (lib.attrByPath path null (alter change).org) true)).success;
+      in
+      {
+        notRouter = throws { host.gamma.behind = "alpha"; } [
+          "host"
+          "gamma"
+          "behind"
+        ];
+        noLan = throws { host.gamma.behind = "windsor"; } [
+          "host"
+          "windsor"
+          "openwrt"
+          "files"
+        ];
+        ownName =
+          throws
+            {
+              host.windsor.openwrt.uci.firewall.o11n_mine = {
+                _type = "rule";
+              };
+            }
+            [
+              "host"
+              "windsor"
+              "openwrt"
+              "files"
+            ];
+        foreignSecret =
+          throws
+            {
+              host.windsor.openwrt.uci.wireless.default_radio0.key.secret = "nothing";
+            }
+            [
+              "host"
+              "windsor"
+              "openwrt"
+              "files"
+            ];
+        passes = throws { } [
+          "host"
+          "windsor"
+          "openwrt"
+          "files"
+        ];
+      };
+    expected = {
+      notRouter = true;
+      noLan = true;
+      ownName = true;
+      foreignSecret = true;
+      passes = false;
+    };
+  };
+
   test_hub_with_gateway = {
     expr = failing { vpn.wg0.gateway = null; } "beta";
     expected = [
