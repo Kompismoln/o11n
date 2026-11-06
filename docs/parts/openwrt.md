@@ -32,7 +32,7 @@ key = { secret = "wifi-key" }
 
 [host.pelle]
 behind = "windsor"
-network.eth = { interface = "enp5s0", mode = "dhcp", suffix = "::fba", mac = "02:00:00:00:00:09", address4 = "192.168.1.109" }
+network.eth = { interface = "enp5s0", mode = "dhcp", suffix = "::fba", address4 = "192.168.1.19" }
 ```
 
 ## Files
@@ -48,9 +48,10 @@ o11n derives:
 - `system.system`'s `hostname`, the host's name, and `dropbear.main`'s login by key alone, over the options `uci` gives
   them
 - `/etc/dropbear/authorized_keys`, the ssh-keys of the host's `users`
-- for each host behind it, the network it reaches it on, its one network with a `suffix`, which has a `mac` and an
-  `address4`, or evaluation fails (`docs/parts/networks.md`):
-  - a DHCP reservation of its `address4` for its `mac`, `dhcp.o11n_<host>`
+- for each host behind it, the network it reaches it on, its one network with a `suffix`, which has an `address4`, or
+  evaluation fails (`docs/parts/networks.md`):
+  - a DHCP reservation of its `address4`, `dhcp.o11n_<host>`, for its `mac`, or without one for the name it asks with,
+    which networkd sends as the host's
   - for each port it listens on for its vpns (`docs/parts/vpns.md`), a redirect of the port on IPv4 to its `address4`,
     `firewall.o11n_<host>_<vpn>`, and a rule that lets it in on IPv6 to its suffix in whatever prefix,
     `firewall.o11n_<host>_<vpn>_6`

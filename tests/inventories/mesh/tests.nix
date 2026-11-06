@@ -400,7 +400,6 @@ in
 
         config host 'o11n_beta'
         ''\toption ip '192.168.1.12'
-        ''\toption mac '02:00:00:00:00:02'
         ''\toption name 'beta'
       '';
       "/etc/config/system" = ''

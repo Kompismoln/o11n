@@ -38,7 +38,7 @@ vpns = ["wg0", "wg1"]
 system = "x86_64-linux"
 stateVersion = "26.05"
 behind = "windsor"
-network.eth = { interface = "eth0", mode = "dhcp", suffix = "::b", mac = "02:00:00:00:00:02", address4 = "192.168.1.12" }
+network.eth = { interface = "eth0", mode = "dhcp", suffix = "::b", address4 = "192.168.1.12" }
 
 [host.gamma]
 id = 3

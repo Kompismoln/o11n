@@ -15,11 +15,8 @@ let
     let
       suffixed = lib.filter (network: network.suffix != null) (lib.attrValues other.network);
     in
-    lib.throwIfNot
-      (
-        lib.length suffixed == 1 && (lib.head suffixed).mac != null && (lib.head suffixed).address4 != null
-      )
-      "${other.name} is behind ${host.name}, which reaches it on its one network with a suffix: give one network a suffix, a mac and an address4."
+    lib.throwIfNot (lib.length suffixed == 1 && (lib.head suffixed).address4 != null)
+      "${other.name} is behind ${host.name}, which reaches it on its one network with a suffix: give one network a suffix and an address4."
       (lib.head suffixed);
 
   # Policy: a section is its name, its type and its options, in the order the file has them, as fw4 matches redirects.
@@ -97,13 +94,16 @@ let
         Port = 22;
       })
     ];
+    # Policy: a reservation without a mac goes by the name the host asks with, which networkd sends.
     dhcp = map (
       other:
-      section "o11n_${other.name}" "host" {
-        inherit (other) name;
-        inherit (lan other) mac;
-        ip = (lan other).address4;
-      }
+      section "o11n_${other.name}" "host" (
+        {
+          inherit (other) name;
+          ip = (lan other).address4;
+        }
+        // lib.optionalAttrs ((lan other).mac != null) { inherit (lan other) mac; }
+      )
     ) behind;
     firewall =
       lib.concatMap (forward: [
