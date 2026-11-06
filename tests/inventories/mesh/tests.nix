@@ -36,7 +36,11 @@ let
       lib.filter (
         assertion:
         !assertion.assertion
-        && (lib.hasPrefix "vpn." assertion.message || lib.hasInfix "a mesh" assertion.message)
+        && (
+          lib.hasPrefix "vpn." assertion.message
+          || lib.hasInfix "a mesh" assertion.message
+          || lib.hasInfix "suffix" assertion.message
+        )
       ) config.assertions
     );
 
@@ -259,6 +263,54 @@ in
     expected = [
       "vpn.wg1 is a mesh, which has no gateway to forward or proxy through: remove its gateway and proxy, or set topology = \"hub\"."
     ];
+  };
+
+  # Policy: a network with a suffix takes its ipv6 address from the router's prefix and the suffix, and asks the router
+  # for none; one without asks as before.
+  test_suffix = {
+    expr = lib.mapAttrs (_: network: {
+      inherit (network.networkConfig) DHCP;
+      ra = network.ipv6AcceptRAConfig or { };
+    }) (lib.filterAttrs (name: _: lib.hasPrefix "10-" name) gamma.config.systemd.network.networks);
+    expected = {
+      "10-eth0" = {
+        DHCP = "ipv4";
+        ra = {
+          Token = "static:::fba";
+          DHCPv6Client = "no";
+        };
+      };
+      "10-wlan0" = {
+        DHCP = "yes";
+        ra = { };
+      };
+    };
+  };
+
+  test_suffix_unique = {
+    expr = {
+      host = failing { host.gamma.network.wifi.suffix = "::fba"; } "gamma";
+      org = failing {
+        host.delta.network.eth = {
+          interface = "eth0";
+          mode = "dhcp";
+          suffix = "::fba";
+        };
+      } "delta";
+      static = failing { host.gamma.network.eth.mode = "static"; } "gamma";
+    };
+    expected = {
+      host = [
+        "gamma's network eth has the suffix ::fba, as another network does, which could share its link and prefix: give each its own."
+        "gamma's network wifi has the suffix ::fba, as another network does, which could share its link and prefix: give each its own."
+      ];
+      org = [
+        "delta's network eth has the suffix ::fba, as another network does, which could share its link and prefix: give each its own."
+      ];
+      static = [
+        "gamma's network eth has a suffix, which only a dhcp network takes: remove it, or set mode = \"dhcp\"."
+      ];
+    };
   };
 
   test_hub_with_gateway = {

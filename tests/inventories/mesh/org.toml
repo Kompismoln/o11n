@@ -42,6 +42,8 @@ roles = []
 vpns = ["wg0", "wg1"]
 system = "x86_64-linux"
 stateVersion = "26.05"
+network.eth = { interface = "eth0", mode = "dhcp", suffix = "::fba" }
+network.wifi = { interface = "wlan0", mode = "dhcp" }
 
 [host.delta]
 id = 4

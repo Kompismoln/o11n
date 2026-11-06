@@ -19,12 +19,18 @@ let
       RouteMetric = network.metric4;
     };
     networkConfig = {
-      DHCP = "yes";
+      DHCP = if network.suffix == null then "yes" else "ipv4";
     }
     // lib.optionalAttrs (network.privacy != null) {
       IPv6PrivacyExtensions = if network.privacy then "kernel" else "no";
     };
+    ipv6AcceptRAConfig = lib.mkIf (network.suffix != null) {
+      Token = "static:${network.suffix}";
+      DHCPv6Client = "no";
+    };
   };
+
+  suffixed = lib.filter (network: network.suffix != null) (lib.attrValues host.network);
 
   mkStatic = network: {
     matchConfig.Name = network.interface;
@@ -76,6 +82,23 @@ in
       logRefusedConnections = false;
     };
   };
+  assertions = lib.concatMap (network: [
+    {
+      assertion = network.mode == "dhcp";
+      message = "${host.name}'s network ${network.type} has a suffix, which only a dhcp network takes: remove it, or set mode = \"dhcp\".";
+    }
+    {
+      assertion =
+        lib.count (other: other.suffix == network.suffix) suffixed == 1
+        && lib.all (
+          other:
+          other.name == host.name
+          || lib.all (theirs: theirs.suffix != network.suffix) (lib.attrValues other.network)
+        ) (lib.attrValues org.host);
+      message = "${host.name}'s network ${network.type} has the suffix ${network.suffix}, as another network does, which could share its link and prefix: give each its own.";
+    }
+  ]) suffixed;
+
   systemd.network = {
     enable = true;
     networks = lib.listToAttrs (
