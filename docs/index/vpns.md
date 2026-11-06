@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 # `vpns`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
@@ -243,3 +245,4 @@ the endpoint of either
 `org/vpn.nix` · boolean
 
 disable firewalls on this vpn
+>>>>>>> @stamp
