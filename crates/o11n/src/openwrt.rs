@@ -106,12 +106,13 @@ fn writes(files: &BTreeMap<String, Written>, root: &str) -> Result<String, Error
 }
 
 /// Runs `restore` after `delay` unless `armed` is gone by then, and `reload` either way, both detached from the session.
+// Fact: OpenWrt's busybox has no nohup; an ignored SIGHUP outlasts exec, so sh -c keeps ignoring the session's end.
 fn arm(delay: u64, reload: &str) -> String {
     format!(
         "touch \"$backup/armed\"\n\
-         nohup sh -c 'sleep {delay}; if [ -e \"$0/armed\" ]; then sh \"$0/restore\"; rm -f \"$0/armed\"; \
-         touch \"$0/rolled-back\"; {reload}; fi' \"$backup\" >/dev/null 2>&1 &\n\
-         nohup sh -c 'sleep 1; {reload}' >/dev/null 2>&1 &\n"
+         ( trap '' HUP; sh -c 'sleep {delay}; if [ -e \"$0/armed\" ]; then sh \"$0/restore\"; rm -f \"$0/armed\"; \
+         touch \"$0/rolled-back\"; {reload}; fi' \"$backup\" ) </dev/null >/dev/null 2>&1 &\n\
+         ( trap '' HUP; sh -c 'sleep 1; {reload}' ) </dev/null >/dev/null 2>&1 &\n"
     )
 }
 
@@ -277,6 +278,35 @@ mod tests {
         assert!(Command::new("sh").arg(&restore).status().unwrap().success());
         assert_eq!(read("/etc/config/network"), "old\n");
         assert!(!Path::new(&format!("{root}/etc/dropbear/authorized_keys")).exists());
+    }
+
+    #[test]
+    fn an_armed_router_puts_back_what_it_had() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().display().to_string();
+        std::fs::create_dir_all(format!("{root}/etc/config")).unwrap();
+        std::fs::write(format!("{root}/etc/config/network"), "old\n").unwrap();
+        let files = BTreeMap::from([(
+            "/etc/config/network".to_owned(),
+            Written {
+                contents: "new\n".to_owned(),
+                private: false,
+            },
+        )]);
+        let script = writes(&files, &root).unwrap() + &arm(1, "echo >> reloaded");
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(&script)
+            .current_dir(&root)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let read = |path: &str| std::fs::read_to_string(format!("{root}{path}")).unwrap();
+        assert_eq!(read("/etc/config/network"), "new\n");
+        std::thread::sleep(Duration::from_millis(2500));
+        assert_eq!(read("/etc/config/network"), "old\n");
+        assert_eq!(read("/reloaded"), "\n\n");
+        assert!(Path::new(&format!("{root}{BACKUP}/rolled-back")).exists());
     }
 
     #[test]
