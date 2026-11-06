@@ -51,7 +51,7 @@ in
       example = "40G";
     };
     replicas = lib.mkOption {
-      description = "the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over the first vpn they share";
+      description = "the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over the first vpn they share, on which they reach each other";
       type = lib.types.listOf context.types.host.ref;
       default = [ ];
       apply = map (
@@ -64,7 +64,14 @@ in
               (
                 lib.throwIf (org.host.${replica}.reach.${config.host} == null)
                   "allotment.\"${name}\": ${replica} shares no vpn with ${config.host}, which it would sync with: put both on one."
-                  replica
+                  (
+                    lib.throwIfNot
+                      (lib.elem config.host org.vpn.${org.host.${replica}.shares.${config.host}}.reaches.${replica})
+                      "allotment.\"${name}\": ${replica} would sync with ${config.host} over ${
+                        org.host.${replica}.shares.${config.host}
+                      }, a mesh on which neither has an endpoint to be dialed at: give one of them an endpoint, or put both first on another vpn."
+                      replica
+                  )
               )
           )
       );

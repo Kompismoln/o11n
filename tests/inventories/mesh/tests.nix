@@ -1,88 +1,94 @@
 {
-  pkgs,
   lib,
+  o11nLib,
   outputs,
 }:
 let
-  inherit (outputs) org;
-  inherit (outputs.nixosConfigurations) alpha beta gamma;
+  inherit (outputs.nixosConfigurations)
+    alpha
+    beta
+    gamma
+    delta
+    ;
 
   key = host: vpn: builtins.readFile ./public-keys/host-${host}-${vpn}-key.pub;
 
   peers = host: vpn: host.config.systemd.network.netdevs."20-${vpn}".wireguardPeers;
 
-  # Accommodating for the org, which is evaluated once: the module alone is evaluated against an altered copy of it.
+  # Accommodating for the inventory, which has to evaluate: what would fail is evaluated from an altered copy of its spec.
+  alter =
+    change:
+    o11nLib.evalContext {
+      path = ./.;
+      flake = {
+        outPath = ./.;
+        inputs = { };
+      };
+      spec = lib.recursiveUpdate outputs.context.spec change;
+    };
+
   failing =
-    alter: name:
+    change: name:
     let
-      altered = alter org;
-      inherit
-        (import "${pkgs.path}/nixos/lib/eval-config.nix" {
-          inherit pkgs lib;
-          inherit (pkgs.stdenv.hostPlatform) system;
-          specialArgs = {
-            org = altered;
-            host = altered.host.${name};
-          };
-          modules = [
-            ../../../nixos/org/wireguard.nix
-            {
-              options.sops.secrets = lib.mkOption { type = lib.types.attrsOf lib.types.anything; };
-              config.system.stateVersion = lib.trivial.release;
-            }
-          ];
-        })
-        config
-        ;
+      inherit ((o11nLib.mkNixosConfigurations (alter change)).${name}) config;
     in
     map (assertion: assertion.message) (
       lib.filter (
-        assertion: !assertion.assertion && lib.hasPrefix "vpn." assertion.message
+        assertion:
+        !assertion.assertion
+        && (lib.hasPrefix "vpn." assertion.message || lib.hasInfix "a mesh" assertion.message)
       ) config.assertions
     );
 
-  updateHost =
-    name: change: org:
-    org
-    // {
-      host = org.host // {
-        ${name} = org.host.${name} // change;
-      };
+  replicates =
+    change: allotment:
+    (builtins.tryEval (builtins.deepSeq (alter change).org.allotment.${allotment}.replicas true))
+    .success;
+
+  carol = hosts: {
+    user.carol = {
+      id = 0;
+      principal.hasPasswd = false;
+      principal.hasPublicKey = false;
     };
-  updateVpn =
-    name: change: org:
-    org
-    // {
-      vpn = org.vpn // {
-        ${name} = org.vpn.${name} // change;
-      };
+    host = lib.genAttrs hosts (_: {
+      users = [ "carol" ];
+    });
+  };
+
+  archive = lib.recursiveUpdate (carol [ "delta" ]) {
+    user.carol.principal.state.archives = [ "gamma" ];
+    host.gamma.roles = [ "archive" ];
+    role.archive = {
+      services = [ "archive" ];
+      stores = [ "archives" ];
     };
+    service.archive = {
+      id = 11;
+      vpn = "wg1";
+      principal.hasPublicKey = false;
+    };
+    store.archives = {
+      id = 0;
+      principal.hasPublicKey = false;
+      principal.hasSFTP = false;
+    };
+  };
 in
 {
   # Policy: on the mesh each host peers with each, at its own addresses, dialing those with an endpoint, and keeping
-  # the connection open where it has none itself.
+  # the connection open where it has none itself; two without one don't peer.
   test_mesh_peers = {
     expr = {
-      alpha = peers alpha "wg1";
+      alpha = map (peer: peer.PublicKey) (peers alpha "wg1");
       gamma = peers gamma "wg1";
+      delta = map (peer: peer.PublicKey) (peers delta "wg1");
     };
     expected = {
       alpha = [
-        {
-          PublicKey = key "beta" "wg1";
-          AllowedIPs = [
-            "fd12:3456:7890:0001::0002/128"
-            "10.0.1.2/32"
-          ];
-          Endpoint = "beta.example.com:51821";
-        }
-        {
-          PublicKey = key "gamma" "wg1";
-          AllowedIPs = [
-            "fd12:3456:7890:0001::0003/128"
-            "10.0.1.3/32"
-          ];
-        }
+        (key "beta" "wg1")
+        (key "delta" "wg1")
+        (key "gamma" "wg1")
       ];
       gamma = [
         {
@@ -104,6 +110,50 @@ in
           PersistentKeepalive = 25;
         }
       ];
+      delta = [
+        (key "alpha" "wg1")
+        (key "beta" "wg1")
+      ];
+    };
+  };
+
+  test_reaches = {
+    expr = lib.mapAttrs (_: vpn: vpn.reaches) outputs.org.vpn;
+    expected = {
+      wg0 = {
+        alpha = [
+          "beta"
+          "gamma"
+        ];
+        beta = [
+          "alpha"
+          "gamma"
+        ];
+        gamma = [
+          "alpha"
+          "beta"
+        ];
+      };
+      wg1 = {
+        alpha = [
+          "beta"
+          "delta"
+          "gamma"
+        ];
+        beta = [
+          "alpha"
+          "delta"
+          "gamma"
+        ];
+        delta = [
+          "alpha"
+          "beta"
+        ];
+        gamma = [
+          "alpha"
+          "beta"
+        ];
+      };
     };
   };
 
@@ -157,40 +207,62 @@ in
   };
 
   test_passes = {
-    expr = map (name: failing (org: org) name) [
+    expr = map (name: failing { } name) [
       "alpha"
       "beta"
       "gamma"
+      "delta"
     ];
     expected = [
+      [ ]
       [ ]
       [ ]
       [ ]
     ];
   };
 
-  test_unreachable_pair = {
-    expr = map (failing (updateHost "beta" { endpoint = null; })) [
-      "alpha"
-      "gamma"
-    ];
-    expected = [
-      [ ]
-      [
-        "vpn.wg1 is a mesh, where one of each pair of hosts dials the other at its endpoint: gamma and beta have none, so give one of each pair an endpoint, or take one of them off wg1."
-      ]
-    ];
+  # Policy: a replica syncs with the allotment's host over the first vpn they share, which it has to reach it on.
+  test_allotment_reach = {
+    expr = {
+      dialed = replicates (lib.recursiveUpdate (carol [
+        "alpha"
+        "gamma"
+      ]) { allotment."user-carol@gamma".replicas = [ "alpha" ]; }) "user-carol@gamma";
+      unreachable = replicates (lib.recursiveUpdate (carol [
+        "gamma"
+        "delta"
+      ]) { allotment."user-carol@gamma".replicas = [ "delta" ]; }) "user-carol@gamma";
+    };
+    expected = {
+      dialed = true;
+      unreachable = false;
+    };
+  };
+
+  test_archive_reach = {
+    expr = {
+      unreachable = failing archive "delta";
+      dialed = failing (lib.recursiveUpdate archive {
+        host.gamma.endpoint = "gamma.example.com";
+      }) "delta";
+    };
+    expected = {
+      unreachable = [
+        "user-carol archives to gamma on wg1, a mesh on which neither delta nor gamma has an endpoint to be dialed at: give one of them an endpoint, or fix principal.state.archives."
+      ];
+      dialed = [ ];
+    };
   };
 
   test_mesh_without_gateway = {
-    expr = failing (updateVpn "wg1" { gateway = "alpha"; }) "beta";
+    expr = failing { vpn.wg1.gateway = "alpha"; } "beta";
     expected = [
       "vpn.wg1 is a mesh, which has no gateway to forward or proxy through: remove its gateway and proxy, or set topology = \"hub\"."
     ];
   };
 
   test_hub_with_gateway = {
-    expr = failing (updateVpn "wg0" { gateway = null; }) "beta";
+    expr = failing { vpn.wg0.gateway = null; } "beta";
     expected = [
       "vpn.wg0 is a hub, whose hosts peer through its gateway: set its gateway to a host on it."
     ];

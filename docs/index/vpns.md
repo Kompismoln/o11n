@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # `vpns`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
@@ -175,6 +173,15 @@ name of the vpn
 
 top domain in the vpns
 
+### `vpn.<name>.peers`
+
+`org/vpn.nix` · attribute set of list of string
+
+Default: each host whose `vpns` has the vpn, by the others it has a tunnel with, as `topology` has it
+
+each host on the vpn, by the hosts it has a tunnel with: on a hub, the gateway with each other and each other with the
+gateway; on a mesh, each with each other, but for a pair of which neither has an endpoint
+
 ### `vpn.<name>.port`
 
 `org/vpn.nix` · 16 bit unsigned integer; between 0 and 65535 (both inclusive)
@@ -223,6 +230,14 @@ Default: `false`
 
 Whether to enable ipv6 proxy through gateway.
 
+### `vpn.<name>.reaches`
+
+`org/vpn.nix` · attribute set of list of string
+
+Default: `peers` on a mesh, and on a hub each host by each other
+
+each host on the vpn, by the hosts it reaches on it: on a hub each other, through the gateway; on a mesh its peers
+
 ### `vpn.<name>.resetOnRebuild`
 
 `org/vpn.nix` · boolean
@@ -238,11 +253,10 @@ destroy and recreate network device post rebuild
 Default: `"hub"`
 
 how the vpn's hosts peer: `hub`, each with the gateway alone, which forwards between them, or `mesh`, each with each, at
-the endpoint of either
+the endpoint of either, so that two without one don't reach each other
 
 ### `vpn.<name>.trusted`
 
 `org/vpn.nix` · boolean
 
 disable firewalls on this vpn
->>>>>>> @stamp

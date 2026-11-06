@@ -112,7 +112,8 @@ VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks:
 <<<<<<< signed
 =======
 - `mesh`: `alpha` and `beta`, with endpoints, and `gamma`, without, on `wg0`, a hub through `alpha`, and on `wg1`, a
-  mesh.
+  mesh, with `delta`, without an endpoint, which `gamma` doesn't peer with. Its tests alter its spec for what would fail
+  evaluation.
 >>>>>>> @stamp
 - `sample`: a cluster meant to use every role. It has `gw` (wg0 gateway and DNS, rescue mode, grub) and `web`, both with
   the nixos, peer and server roles, and an admin user with a cinnamon-office home on `web`.

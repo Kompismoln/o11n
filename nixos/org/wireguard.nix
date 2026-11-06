@@ -14,7 +14,7 @@ let
 
   mesh = vpn: vpn.topology == "mesh";
 
-  peers =
+  resolved =
     vpn:
     lib.filter (
       peer:
@@ -65,7 +65,7 @@ in
                 )
               ) (onHost vpn peer)
             )
-          ) (peers vpn)
+          ) (resolved vpn)
         ) dnsFor
       )}
     '';
@@ -117,7 +117,6 @@ in
     vpn:
     let
       named = lib.optional (vpn.gateway != null) vpn.gateway ++ vpn.dns;
-      unreachable = lib.filter (peer: peer.name != host.name && peer.endpoint == null) (peers vpn);
     in
     [
       {
@@ -133,12 +132,6 @@ in
       {
         assertion = mesh vpn || vpn.gateway != null;
         message = "vpn.${vpn.name} is a hub, whose hosts peer through its gateway: set its gateway to a host on it.";
-      }
-      {
-        assertion = mesh vpn && host.endpoint == null -> unreachable == [ ];
-        message = "vpn.${vpn.name} is a mesh, where one of each pair of hosts dials the other at its endpoint: ${host.name} and ${
-          lib.concatMapStringsSep ", " (peer: peer.name) unreachable
-        } have none, so give one of each pair an endpoint, or take one of them off ${vpn.name}.";
       }
     ]
   ) vpns;
@@ -207,7 +200,7 @@ in
             // lib.optionalAttrs (host.endpoint == null) clientConfig
           else
             base // (if peer.name == vpn.gateway then serverConfig else clientConfig)
-        ) (lib.filter (peer: peer.name != host.name) (peers vpn));
+        ) (map (peer: org.host.${peer}) vpn.peers.${host.name});
       }
     );
 

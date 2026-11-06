@@ -43,6 +43,13 @@ vpns = ["wg0", "wg1"]
 system = "x86_64-linux"
 stateVersion = "26.05"
 
+[host.delta]
+id = 4
+roles = []
+vpns = ["wg1"]
+system = "x86_64-linux"
+stateVersion = "26.05"
+
 [root.1]
 
 # Fact: every class needs a table, even when empty.

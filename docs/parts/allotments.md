@@ -24,8 +24,9 @@ home, login or password.
 ## Replicas
 
 An allotment's `replicas` are the hosts that keep a copy of it for its principal, which has to be on each, and to share
-a vpn with the allotment's host. Syncthing syncs each with the allotment, both ways, as `allotment-sync@<id>`, `<id>`
-being `<handle>.<host>` (`nixos/allotment-sync.nix`, `nixos/org/allotments.nix`):
+a vpn with the allotment's host, and reach it on the first they share (`docs/parts/vpns.md`). Syncthing syncs each with
+the allotment, both ways, as `allotment-sync@<id>`, `<id>` being `<handle>.<host>` (`nixos/allotment-sync.nix`,
+`nixos/org/allotments.nix`):
 
 - each side is a device of its own, with a `syncthing-<id>` key of its host's, whose public key is the device's ID
   (`crates/o11n/src/keys.rs`): `o11n secret generate host-<host> syncthing-<id>` makes it, and a host without it fails

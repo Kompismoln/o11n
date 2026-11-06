@@ -101,6 +101,8 @@ in
         name:
         let
           archiveHost = org.host.${name} or null;
+          vpn = org.service.archive.vpn or null;
+          onVpn = lib.attrNames (org.vpn.${vpn}.peers or { });
         in
         [
           {
@@ -113,6 +115,16 @@ in
             message = "${id} archives to ${name} on ${
               toString (org.service.archive.vpn or null)
             }, which ${host.name} isn't on: fix principal.state.archives or ${host.name}'s vpns.";
+          }
+          {
+            assertion =
+              vpn == null
+              || org.vpn.${vpn}.topology != "mesh"
+              || !lib.elem host.name onVpn
+              || !lib.elem name onVpn
+              || name == host.name
+              || lib.elem name org.vpn.${vpn}.reaches.${host.name};
+            message = "${id} archives to ${name} on ${toString vpn}, a mesh on which neither ${host.name} nor ${name} has an endpoint to be dialed at: give one of them an endpoint, or fix principal.state.archives.";
           }
         ]
       ) (lib.attrNames (archives entity))

@@ -18,8 +18,8 @@ nix eval --json --impure --expr "(builtins.getFlake \"git+file://$(cd ../../.. &
 mkdir -p enc keys public-keys
 
 o11n identity create root-1
-for host in alpha beta gamma; do
+for host in alpha beta gamma delta; do
     o11n identity create "host-$host"
-    o11n secret generate "host-$host" wg0-key
+    [[ $host == delta ]] || o11n secret generate "host-$host" wg0-key
     o11n secret generate "host-$host" wg1-key
 done

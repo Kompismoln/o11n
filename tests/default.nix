@@ -9,7 +9,12 @@ let
   inherit (import ./lib.nix { inherit pkgs; }) callTests mkCheck evalNixosModule;
 
   args = {
-    inherit pkgs lib evalNixosModule;
+    inherit
+      pkgs
+      lib
+      o11nLib
+      evalNixosModule
+      ;
   };
 
   entries = dir: type: lib.attrNames (lib.filterAttrs (_: t: t == type) (builtins.readDir dir));
