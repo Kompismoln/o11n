@@ -6,9 +6,10 @@ it at `<prefix>::<host id>` and `<prefix4>.<host id>`, and its `topology` says h
 
 ## Hub
 
-A hub, the default, has a `gateway`, the one host each other peers with, and which forwards between them, so that
-everything one sends another goes through the gateway. It's what access to the hosts is meant to go over: a gateway that
-has `proxy` also carries the IPv6 of the others, and its `dns` resolve their names.
+A hub, the default, has a `gateway`, the one host each other peers with, at the vpn's `port`, by default `51820 + id`,
+and which forwards between them, so that everything one sends another goes through the gateway. It's what access to the
+hosts is meant to go over: a gateway that has `proxy` also carries the IPv6 of the others, and its `dns` resolve their
+names.
 
 ```toml
 [vpn.wg0]
@@ -33,10 +34,14 @@ namespace = "data"
 dns = []
 ```
 
-- a host with an `endpoint` listens on the vpn's port there, and is dialed at it
+- a host with an `endpoint` listens there, and is dialed at it, on a port of its own: the vpn's `port`, by default
+  `52000 + 100 * id`, plus its id, so that hosts behind one NAT, which share its IPv4 address, can each have theirs
+  forwarded
 - a host without one dials the others, and keeps each connection open, so that the NAT it's behind lets their replies in
 - two hosts without an endpoint don't peer, and don't reach each other
 - nothing forwards, and a mesh with a `gateway` or `proxy` fails evaluation.
+
+A host that would listen on one port for two of its vpns fails evaluation.
 
 The vpn's `peers` has, for each host on it, the hosts it has a tunnel with, and its `reaches` those it reaches: on a hub
 each other, on a mesh its `peers`. What has to go between two hosts fails evaluation where they don't reach each other

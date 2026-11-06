@@ -113,8 +113,8 @@ the key each host on the vpn has for it, its wireguard key
 `org/vpn.nix` · attribute set of (submodule)
 
 Default: each host whose `vpns` has the vpn, at `<prefix>::<host id>` and `<prefix4>.<host id>` as `<host>.<namespace>`,
-and each service whose `vpn` it is, on each of those hosts it's on, at `<prefix>:ffff:<host id>:<uid>:<id>` as
-`<service>-<host>.<namespace>`
+listening on `port` if it's a hub's gateway and on `port` plus its id on a mesh, and each service whose `vpn` it is, on
+each of those hosts it's on, at `<prefix>:ffff:<host id>:<uid>:<id>` as `<service>-<host>.<namespace>`
 
 what has an address in the vpn, by its name there: each host on it, and each service that serves on it, on each of those
 hosts it's on
@@ -159,6 +159,14 @@ Default: `null`
 
 the member's own wireguard key, which only a host has
 
+### `vpn.<name>.members.<name>.port`
+
+`org/vpn.nix` · null or 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+Default: `null`
+
+the port the member listens on, which only a hub's gateway and each host on a mesh has
+
 ### `vpn.<name>.name`
 
 `org/vpn.nix` · string
@@ -186,9 +194,10 @@ gateway; on a mesh, each with each other, but for a pair of which neither has an
 
 `org/vpn.nix` · 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 
-Default: `51820 + id`
+Default: `if topology == "mesh" then 52000 + 100 * id else 51820 + id`
 
-port allocated for the vpn
+the port the vpn listens on: on a hub the gateway's, on a mesh the first of its range, whose host with id n listens on
+the port plus n, so that hosts behind one NAT listen on ports of their own
 
 ### `vpn.<name>.prefix`
 

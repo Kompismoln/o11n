@@ -40,6 +40,7 @@ let
           lib.hasPrefix "vpn." assertion.message
           || lib.hasInfix "a mesh" assertion.message
           || lib.hasInfix "suffix" assertion.message
+          || lib.hasInfix "listens on" assertion.message
         )
       ) config.assertions
     );
@@ -101,7 +102,7 @@ in
             "fd12:3456:7890:0001::0001/128"
             "10.0.1.1/32"
           ];
-          Endpoint = "alpha.example.com:51821";
+          Endpoint = "alpha.example.com:52101";
           PersistentKeepalive = 25;
         }
         {
@@ -110,7 +111,7 @@ in
             "fd12:3456:7890:0001::0002/128"
             "10.0.1.2/32"
           ];
-          Endpoint = "beta.example.com:51821";
+          Endpoint = "beta.example.com:52102";
           PersistentKeepalive = 25;
         }
       ];
@@ -166,7 +167,7 @@ in
     expected = [ (key "alpha" "wg0") ];
   };
 
-  # Policy: on the mesh a host listens where it can be dialed, and forwards nothing.
+  # Policy: on the mesh a host listens where it can be dialed, on a port of its own, and forwards nothing.
   test_mesh_listens = {
     expr =
       map
@@ -182,16 +183,16 @@ in
         ];
     expected = [
       {
-        port = 51821;
+        port = 52101;
         firewall = [
           51820
-          51821
+          52101
         ];
         forwards = 1;
       }
       {
-        port = 51821;
-        firewall = [ 51821 ];
+        port = 52102;
+        firewall = [ 52102 ];
         forwards = 0;
       }
       {
@@ -311,6 +312,30 @@ in
         "gamma's network eth has a suffix, which only a dhcp network takes: remove it, or set mode = \"dhcp\"."
       ];
     };
+  };
+
+  test_ports = {
+    expr = lib.mapAttrs (_: member: member.port) outputs.org.vpn.wg1.members // {
+      hub = lib.mapAttrs (_: member: member.port) outputs.org.vpn.wg0.members;
+    };
+    expected = {
+      alpha = 52101;
+      beta = 52102;
+      gamma = 52103;
+      delta = 52104;
+      hub = {
+        alpha = 51820;
+        beta = null;
+        gamma = null;
+      };
+    };
+  };
+
+  test_ports_apart = {
+    expr = failing { vpn.wg0.port = 52101; } "alpha";
+    expected = [
+      "alpha listens on 52101 for more than one of its vpns: set the port of one of them apart."
+    ];
   };
 
   test_hub_with_gateway = {
