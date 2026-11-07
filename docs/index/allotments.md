@@ -38,6 +38,14 @@ Default: `"syncthing-${id}"`
 
 the key each host that syncs the allotment, the one that has it and each replica, has of its own
 
+### `allotment.<name>.networks`
+
+`org/allotment.nix` · lazy attribute set of raw value
+
+Default: for each replica, the host's network on `vpn`, or on the first vpn the replica shares with it
+
+for each replica, the host's network it syncs with the host on
+
 ### `allotment.<name>.path`
 
 `org/allotment.nix` · string
@@ -60,11 +68,20 @@ the port the allotment's host listens on for its replicas
 
 Default: `[ ]`
 
-the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over the first
-vpn they share, on which they reach each other
+the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over `vpn`, on
+which they reach each other
 
 ### `allotment.<name>.size`
 
 `org/allotment.nix` · string matching the pattern [1-9][0-9]*[KMGTP]
 
 the most the allotment holds, as a ZFS size, of what's in it and not of its snapshots
+
+### `allotment.<name>.vpn`
+
+`org/allotment.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the vpn the allotment syncs over, which its host and each replica are on, or null for the first vpn each replica shares
+with the host

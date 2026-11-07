@@ -100,6 +100,13 @@ let
       openwrt = {
         inherit (entity.openwrt) files;
       };
+    }
+    // lib.optionalAttrs (entity.class == "host" && entity.router != null) {
+      router = {
+        inherit (entity.router) address4;
+        lan = lib.mapAttrs (_: network: { inherit (network) address4 suffix mac; }) entity.router.lan;
+        records = if entity.router.glesys == null then [ ] else entity.router.glesys.records;
+      };
     };
 
   root = name: {

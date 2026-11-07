@@ -11,7 +11,9 @@ An entity has the keys something reads, and no others: every entity an age-key; 
 `principal.hasPublicKey`, as `nixos/org/principals.nix` reads them; service-rescue a `passwd` and an `ssh-key`,
 service-locksmith and service-nix-remote an `ssh-key`. A host's `ssh-key` has a public key and no secret. What an org
 holds of a key it no longer has stays in its sops file, as `o11n status`'s `secrets` and `o11n secret extra` tell, until
-`o11n secret edit` takes it out.
+`o11n secret edit` takes it out, or `o11n secret rename <id> <old> <new>` moves it to a key the entity has, as after the
+key's name changes with what it's named by: it stores and validates it as that key, writes its public key and removes
+the old, for a key without slots.
 
 A key's type says how it's generated and validated, and whether it has a public key, in `public-keys/`: each type has
 one but `passphrase`, `luks` and `file`. A `luks` key has slots, as the luks device it opens does.

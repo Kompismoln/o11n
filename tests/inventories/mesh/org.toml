@@ -64,31 +64,25 @@ system = "mips-linux"
 keys.wifi-key = "passphrase"
 keys.glesys-key = "passphrase"
 
+[host.windsor.router]
+dmz = "beta"
+glesys = { account = "CL12345" }
+
 [host.windsor.openwrt]
 release = "25.12.6"
 target = "ath79/generic"
 profile = "netgear_wndr3700"
 packages = ["-ppp", "-ppp-mod-pppoe"]
-dmz = "beta"
-glesys = { account = "CL12345" }
 
-[host.windsor.openwrt.uci.system.system]
-_type = "system"
-hostname = "OpenWrt"
+[host.windsor.openwrt.uci.system."@system[0]"]
 zonename = "UTC"
 
-[host.windsor.openwrt.uci.network.lan]
-_type = "interface"
-device = "br-lan"
-proto = "static"
-ipaddr = ["192.168.1.1/24"]
-ip6assign = 60
+[host.windsor.openwrt.uci.wireless.radio0]
+_type = "wifi-device"
+disabled = 0
 
 [host.windsor.openwrt.uci.wireless.default_radio0]
 _type = "wifi-iface"
-device = "radio0"
-network = "lan"
-mode = "ap"
 ssid = "windsor"
 encryption = "psk2"
 key = { secret = "wifi-key" }

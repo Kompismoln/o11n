@@ -312,6 +312,9 @@ enum SecretCommand {
         #[command(flatten)]
         key: KeyArgs,
     },
+    /// Moves a secret to another of the entity's keys, which it stores and writes the public key of, and removes it
+    /// from the key it was under, which may be one the entity no longer has.
+    Rename { id: String, from: String, to: String },
     /// Edits the entity's sops file in sops' editor.
     Edit { id: String },
     /// What the sops files of the groups' members hold that isn't one of their keys, a line `<id> <path>` each, the
@@ -517,6 +520,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             SecretCommand::Generate { key, from } => org.generate_secret(key.secret(), from.read()?)?,
             SecretCommand::Show { key } => print!("{}", org.show_secret(key.secret())?),
             SecretCommand::Remove { key } => org.remove_secret(key.secret())?,
+            SecretCommand::Rename { id, from, to } => org.rename_secret(&id, &from, &to)?,
             SecretCommand::Edit { id } => org.edit_secrets(&id)?,
             SecretCommand::Extra { groups } => org.print_extra_secrets(&groups)?,
             SecretCommand::Hash { id, key } => println!("{}", org.hash_password(&id, &key)?),

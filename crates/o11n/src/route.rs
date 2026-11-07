@@ -34,11 +34,18 @@ impl Export {
             return Ok(name.to_owned());
         }
         // Optimization: a dotted name, likely a fqdn, is tried as it is before the namespaces.
+        // Policy: a router, which may be on no vpn, is tried last at its address on its lan.
         let candidates = name
             .contains('.')
             .then(|| name.to_owned())
             .into_iter()
-            .chain(self.namespaces.iter().map(|namespace| format!("{name}.{namespace}")));
+            .chain(self.namespaces.iter().map(|namespace| format!("{name}.{namespace}")))
+            .chain(
+                self.entities
+                    .get(&format!("host-{name}"))
+                    .and_then(|entity| entity.router.as_ref())
+                    .map(|router| router.address4.clone()),
+            );
         for candidate in candidates {
             if answers(&candidate, port) {
                 log(format!("{candidate}:{port} is up"));

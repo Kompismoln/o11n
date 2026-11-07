@@ -358,7 +358,7 @@ the allotments on the host
 
 Default: `null`
 
-the router whose NAT the host is behind, a host with `openwrt`, which forwards to it the ports it listens on for its
+the router whose NAT the host is behind, a host with `router`, which forwards to it the ports it listens on for its
 vpns, or null
 
 ### `host.<name>.boot`
@@ -555,7 +555,7 @@ whether o11n builds the host's NixOS system, rather than only its keys, vpns and
 
 Default: `null`
 
-the OpenWrt the host runs, as a router, or null
+the OpenWrt the host runs, or null
 
 ### `host.<name>.principals`
 
@@ -597,6 +597,14 @@ Whether to enable insecure rescue mode..
 Default: `[ ]`
 
 roles that this host has
+
+### `host.<name>.router`
+
+`org/host.nix` · null or (submodule)
+
+Default: `null`
+
+the router the host is, for the hosts behind it, or null
 
 ### `host.<name>.services`
 

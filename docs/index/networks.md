@@ -176,3 +176,75 @@ advertises, rather than asking the router for one; null leaves it to the kernel 
 Default: `"‹name›"`
 
 network type
+
+### `host.<name>.router.address4`
+
+`org/router.nix` · string matching the pattern ^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}$
+
+Default: `"192.168.1.1"`
+
+the router's IPv4 address on its lan, which o11n reaches it at where its name doesn't answer
+
+### `host.<name>.router.dmz`
+
+`org/router.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the host behind the router that what isn't forwarded otherwise is forwarded to on IPv4, or null
+
+### `host.<name>.router.forwards`
+
+`org/router.nix` · list of raw value
+
+Default: each port that a host whose `behind` is the router listens on for its `vpns`, in the order of the hosts' names
+and their vpns
+
+the ports the router forwards, each `{ host, vpn, port }`: each port a host behind it listens on for its vpns
+
+### `host.<name>.router.glesys`
+
+`org/router.nix` · null or (submodule)
+
+Default: `null`
+
+the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, or null
+
+### `host.<name>.router.glesys.account`
+
+`org/router.nix` · string
+
+the account, as GleSYS names it
+
+### `host.<name>.router.glesys.key`
+
+`org/router.nix` · string
+
+Default: `"glesys-key"`
+
+the host's secret that is the account's API key, which may update its DNS records
+
+### `host.<name>.router.glesys.records`
+
+`org/router.nix` · list of string matching the pattern [a-z0-9-]+\.[a-z0-9.-]+
+
+Default: the `endpoint` of each host behind the router that has one
+
+the names whose A record is the router's WAN address, each `<name>.<domain>` of a domain of the account's
+
+### `host.<name>.router.lan`
+
+`org/router.nix` · lazy attribute set of raw value
+
+Default: for each host whose `behind` is the router, its one network with a `suffix`
+
+for each host behind the router, the network the router reaches it on: its one network with a `suffix`, which has an
+`address4`
+
+### `host.<name>.router.prefixLength4`
+
+`org/router.nix` · integer between 8 and 30 (both inclusive)
+
+Default: `24`
+
+the prefix length of the router's lan, which each host behind it has its address4 in

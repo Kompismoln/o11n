@@ -9,6 +9,9 @@ let
   inherit (context) org;
 
   parts = builtins.match "([a-z0-9-]+)@([a-z0-9-]+)" name;
+
+  over =
+    replica: if config.vpn != null then config.vpn else org.host.${replica}.shares.${config.host};
 in
 {
   options = {
@@ -50,8 +53,20 @@ in
       type = lib.types.strMatching "[1-9][0-9]*[KMGTP]";
       example = "40G";
     };
+    vpn = lib.mkOption {
+      description = "the vpn the allotment syncs over, which its host and each replica are on, or null for the first vpn each replica shares with the host";
+      type = lib.types.nullOr context.types.vpn.ref;
+      default = null;
+    };
+    networks = lib.mkOption {
+      description = "for each replica, the host's network it syncs with the host on";
+      type = lib.types.lazyAttrsOf lib.types.raw;
+      readOnly = true;
+      default = lib.genAttrs config.replicas (replica: org.host.${config.host}.network.${over replica});
+      defaultText = lib.literalMD "for each replica, the host's network on `vpn`, or on the first vpn the replica shares with it";
+    };
     replicas = lib.mkOption {
-      description = "the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over the first vpn they share, on which they reach each other";
+      description = "the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over `vpn`, on which they reach each other";
       type = lib.types.listOf context.types.host.ref;
       default = [ ];
       apply = map (
@@ -62,15 +77,20 @@ in
             lib.throwIfNot (lib.any (entity: entity.handle == config.entity) org.host.${replica}.principals)
               "allotment.\"${name}\": ${config.entity} isn't on ${replica}, which would keep its replica: put it there, or drop ${replica} from replicas."
               (
-                lib.throwIf (org.host.${replica}.reach.${config.host} == null)
+                lib.throwIf (config.vpn == null && org.host.${replica}.reach.${config.host} == null)
                   "allotment.\"${name}\": ${replica} shares no vpn with ${config.host}, which it would sync with: put both on one."
                   (
                     lib.throwIfNot
-                      (lib.elem config.host org.vpn.${org.host.${replica}.shares.${config.host}}.reaches.${replica})
-                      "allotment.\"${name}\": ${replica} would sync with ${config.host} over ${
-                        org.host.${replica}.shares.${config.host}
-                      }, a mesh on which neither has an endpoint to be dialed at: give one of them an endpoint, or put both first on another vpn."
-                      replica
+                      (lib.all (host: lib.elem (over replica) org.host.${host}.vpns) [
+                        replica
+                        config.host
+                      ])
+                      "allotment.\"${name}\": ${replica} would sync with ${config.host} over ${over replica}, which both aren't on: put both on it, or set the allotment's vpn to one they are."
+                      (
+                        lib.throwIfNot (lib.elem config.host org.vpn.${over replica}.reaches.${replica})
+                          "allotment.\"${name}\": ${replica} would sync with ${config.host} over ${over replica}, a mesh on which neither has an endpoint to be dialed at: give one of them an endpoint, or set the allotment's vpn to another."
+                          replica
+                      )
                   )
               )
           )

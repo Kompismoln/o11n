@@ -1,4 +1,3 @@
-# nixos/org/allotments.nix
 {
   config,
   host,
@@ -43,7 +42,7 @@ let
     let
       entity = org.entities.${allotment.entity};
       inherit (entity) principal;
-      reached = map (replica: org.host.${replica}.reach.${host.name}) allotment.replicas;
+      reached = lib.attrValues allotment.networks;
       interfaces = lib.unique (map (network: network.interface) reached);
       state = config.o11n.preserve.onStorage "/var/lib/allotment-sync/${allotment.id}";
     in
@@ -105,7 +104,7 @@ let
           {
             id = deviceId allotment.host allotment;
             name = allotment.host;
-            addresses = [ (dial host.reach.${allotment.host} allotment.port) ];
+            addresses = [ (dial allotment.networks.${host.name} allotment.port) ];
           }
         ];
       };

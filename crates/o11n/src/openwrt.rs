@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs::File;
+use std::net::Ipv6Addr;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -8,6 +9,10 @@ use std::time::{Duration, Instant};
 use clap::Subcommand;
 
 use crate::Error;
+use crate::acting::Acting;
+use crate::dns;
+use crate::export::Entity;
+use crate::status::{Outcome, needs};
 use crate::store::{Org, Secret};
 use crate::util::{exited, flake, log, run};
 
@@ -17,12 +22,17 @@ const MARKER: &str = "@o11n-secret:";
 // Dependency: the script below keeps what it replaced here, which a reboot drops.
 const BACKUP: &str = "/tmp/o11n-rollback";
 
+// Dependency: org/openwrt.nix writes the script that changes the router's UCI here.
+const UCI: &str = "/etc/o11n/uci";
+
+const RESCUE: &str = "service-rescue";
+
 const ROLLBACK: Duration = Duration::from_secs(90);
 
 #[derive(Subcommand)]
 pub enum OpenwrtCommand {
-    /// Writes the router's files, its secrets in them, and reloads its configuration; unless o11n gets back in within
-    /// 90 seconds, the router puts back what it had and reloads that.
+    /// Writes the router's files, its secrets in them, changes its UCI with them, and reloads its configuration; unless
+    /// o11n gets back in within 90 seconds, the router puts back what it had and reloads that.
     Apply { host: String },
     /// Builds the router's sysupgrade image, which holds its files but those with a secret, and prints it.
     Image { host: String },
@@ -105,6 +115,16 @@ fn writes(files: &BTreeMap<String, Written>, root: &str) -> Result<String, Error
     Ok(out)
 }
 
+/// Keeps the router's UCI with what `restore` puts back, and runs the script that changes it, restoring at once if it
+/// fails.
+fn configure(script: &str, root: &str) -> String {
+    format!(
+        "cp -a '{root}/etc/config' \"$backup/config\"\n\
+         echo \"rm -rf '{root}/tmp/.uci' '{root}/etc/config'; cp -a '$backup/config' '{root}/etc/config'\" >> \"$backup/restore\"\n\
+         if ! sh '{root}{script}'; then sh \"$backup/restore\"; exit 1; fi\n"
+    )
+}
+
 /// Runs `restore` after `delay` unless `armed` is gone by then, and `reload` either way, both detached from the session.
 // Fact: OpenWrt's busybox has no nohup; an ignored SIGHUP outlasts exec, so sh -c keeps ignoring the session's end.
 fn arm(delay: u64, reload: &str) -> String {
@@ -114,6 +134,39 @@ fn arm(delay: u64, reload: &str) -> String {
          touch \"$0/rolled-back\"; {reload}; fi' \"$backup\" ) </dev/null >/dev/null 2>&1 &\n\
          ( trap '' HUP; sh -c 'sleep 1; {reload}' ) </dev/null >/dev/null 2>&1 &\n"
     )
+}
+
+/// The MAC and name dnsmasq leases the address to, by its lease file's lines: `<expiry> <mac> <ip> <name> <client id>`.
+fn leased<'a>(leases: &'a str, address4: &str) -> Option<(&'a str, &'a str)> {
+    leases.lines().find_map(|line| {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        (fields.get(2) == Some(&address4)).then(|| (fields[1], fields.get(3).copied().unwrap_or("*")))
+    })
+}
+
+/// The suffix in each /64 of the global addresses `ip -o -6 addr` lists, as a host forms its own from what the router
+/// advertises.
+fn suffixed(addresses: &str, suffix: &str) -> Result<Vec<Ipv6Addr>, Error> {
+    let suffix: Ipv6Addr = suffix
+        .parse()
+        .map_err(|e| Error::new(format!("the suffix {suffix}: {e}")))?;
+    let mut targets = Vec::new();
+    for word in addresses.split_whitespace() {
+        let Some(address) = word
+            .split_once('/')
+            .and_then(|(address, _)| address.parse::<Ipv6Addr>().ok())
+        else {
+            continue;
+        };
+        let (prefix, suffix) = (address.segments(), suffix.segments());
+        let target = Ipv6Addr::new(
+            prefix[0], prefix[1], prefix[2], prefix[3], suffix[4], suffix[5], suffix[6], suffix[7],
+        );
+        if !targets.contains(&target) {
+            targets.push(target);
+        }
+    }
+    Ok(targets)
 }
 
 impl Org {
@@ -128,9 +181,159 @@ impl Org {
         Ok((id, files))
     }
 
-    fn operator_id(&self) -> Result<String, Error> {
-        self.acting_as()?
-            .ok_or_else(|| Error::new("the operator's identity is none of the org's, whose ssh-key would log in"))
+    /// What the script prints on the router, as root, skipped where the router is out of reach as a host without an
+    /// endpoint is, or o11n has no ssh-key root takes.
+    fn on_router(&self, id: &str, entity: &Entity, script: &str) -> Result<String, Outcome> {
+        self.reachable(entity)?;
+        let acting = needs(self.router_acting())?;
+        let mut ssh = self
+            .pinned_ssh(id, "root", acting.command("ssh"))
+            .map_err(|error| Outcome::Fail(error.to_string()))?;
+        run(ssh.command.arg(script), None).map_err(|error| Outcome::Fail(error.to_string()))
+    }
+
+    pub fn openwrt_outcome(&self, id: &str, entity: &Entity) -> Result<Outcome, Outcome> {
+        let script = entity
+            .openwrt
+            .as_ref()
+            .and_then(|openwrt| openwrt.files.get(UCI))
+            .ok_or_else(|| Outcome::Fail(format!("{id}'s files have no {UCI}")))?;
+        let expected = needs(filled(script, |key| self.required(Secret { id, key, slot: 0 })))?;
+        let said = self.on_router(
+            id,
+            entity,
+            &format!("cat {UCI} 2>/dev/null; echo o11n-changes; uci changes"),
+        )?;
+        let (applied, changes) = said.rsplit_once("o11n-changes\n").unwrap_or((&said, ""));
+        let host = &entity.name;
+        if applied.trim_end() != expected.trim_end() {
+            return Ok(Outcome::Fail(format!(
+                "{UCI} isn't the org's, so the router has other changes than it says: o11n openwrt apply {host}"
+            )));
+        }
+        if !changes.trim().is_empty() {
+            return Ok(Outcome::Fail(format!(
+                "the router has changes it hasn't committed, which o11n openwrt apply {host} would commit with its \
+                 own: {}",
+                changes.trim().replace('\n', ", ")
+            )));
+        }
+        Ok(Outcome::Ok)
+    }
+
+    // Policy: the reservation holds where the host has its address4 leased and answers at it, and at its suffix in
+    // each prefix the router advertises.
+    pub fn lan_outcome(&self, id: &str, entity: &Entity, host: &str) -> Result<Outcome, Outcome> {
+        let lan = entity
+            .router
+            .as_ref()
+            .and_then(|router| router.lan.get(host))
+            .ok_or_else(|| Outcome::Fail(format!("{host} isn't behind {}", entity.name)))?;
+        let behind = self
+            .entity(&format!("host-{host}"))
+            .map_err(|error| Outcome::Fail(error.to_string()))?;
+        let absent = |why: String| {
+            if behind.endpoint.is_some() {
+                Outcome::Fail(why)
+            } else {
+                Outcome::Skip(format!("{why}, and {host} has no endpoint"))
+            }
+        };
+        // Dependency: OpenWrt's dnsmasq keeps its leases in /tmp/dhcp.leases, and ifstatus names the lan's device.
+        let said = self.on_router(
+            id,
+            entity,
+            "cat /tmp/dhcp.leases; echo o11n-addresses; \
+             ip -o -6 addr show dev \"$(ifstatus lan | jsonfilter -e '@.l3_device')\" scope global",
+        )?;
+        let (leases, addresses) = said.split_once("o11n-addresses\n").unwrap_or((&said, ""));
+        let Some((mac, name)) = leased(leases, &lan.address4) else {
+            return Err(absent(format!("the router has leased {} to no one", lan.address4)));
+        };
+        let holder = match &lan.mac {
+            Some(own) => mac.eq_ignore_ascii_case(own),
+            None => name == host,
+        };
+        if !holder {
+            return Ok(Outcome::Fail(format!(
+                "the router has leased {} to {mac} {name}, not {host}",
+                lan.address4
+            )));
+        }
+        let targets = suffixed(addresses, &lan.suffix).map_err(|error| Outcome::Fail(error.to_string()))?;
+        if targets.is_empty() {
+            return Ok(Outcome::Fail("the router's lan has no global IPv6 prefix".into()));
+        }
+        let mut ping = String::new();
+        for target in std::iter::once(lan.address4.clone()).chain(targets.iter().map(ToString::to_string)) {
+            let _ = write!(ping, "ping -c 1 -W 2 {target} >/dev/null 2>&1 || echo {target}; ");
+        }
+        let silent = self.on_router(id, entity, &ping)?;
+        if silent.trim().is_empty() {
+            Ok(Outcome::Ok)
+        } else {
+            Err(absent(format!(
+                "{host} doesn't answer the router at {}",
+                silent.split_whitespace().collect::<Vec<_>>().join(", ")
+            )))
+        }
+    }
+
+    // Policy: the record is the router's WAN address as a public resolver has it, or the updater's last word says why
+    // not.
+    pub fn glesys_outcome(&self, id: &str, entity: &Entity, record: &str) -> Result<Outcome, Outcome> {
+        let said = self.on_router(
+            id,
+            entity,
+            "ifstatus wan | jsonfilter -e '@[\"ipv4-address\"][0].address'; echo o11n-log; \
+             logread -e o11n-glesys | tail -n 1",
+        )?;
+        let (wan, last) = said.split_once("o11n-log\n").unwrap_or((&said, ""));
+        let (wan, last) = (wan.trim(), last.trim());
+        if wan.is_empty() {
+            return Ok(Outcome::Fail("the router has no WAN address".into()));
+        }
+        let records = dns::lookup(record, dns::Type::A).map_err(|error| Outcome::Fail(error.to_string()))?;
+        if records.iter().any(|address| address == wan) {
+            return Ok(Outcome::Ok);
+        }
+        Ok(Outcome::Fail(format!(
+            "{record} is {}, not the router's WAN address {wan}; o11n-glesys last logged: {}",
+            if records.is_empty() {
+                "nothing".to_owned()
+            } else {
+                records.join(", ")
+            },
+            if last.is_empty() { "nothing" } else { last }
+        )))
+    }
+
+    // Policy: root on a router takes service-rescue's ssh-key, as on a NixOS host, and its users', which an operator
+    // who can't act as service-rescue logs in with, as one whose router hasn't had service-rescue's yet.
+    fn router_acting(&self) -> Result<Acting, Error> {
+        let operator = self.acting_as()?;
+        let own = |operator: &str| {
+            self.required(Secret {
+                id: operator,
+                key: "ssh-key",
+                slot: 0,
+            })
+        };
+        match self.acting(RESCUE) {
+            Ok(acting) => {
+                if let Some(key) = operator.as_deref().and_then(|operator| own(operator).ok()) {
+                    acting.add(&key)?;
+                }
+                Ok(acting)
+            }
+            Err(error) => match operator {
+                Some(operator) if self.entity(&operator)?.keys.contains_key("ssh-key") => self.acting(&operator),
+                _ => Err(Error::new(format!(
+                    "{}, and the operator is none of the org's with an ssh-key",
+                    error.to_string().lines().next().unwrap_or_default()
+                ))),
+            },
+        }
     }
 
     pub fn openwrt(&self, command: OpenwrtCommand) -> Result<(), Error> {
@@ -175,8 +378,13 @@ impl Org {
         } else {
             "reload_config"
         };
-        let script = writes(&written, "")? + &arm(ROLLBACK.as_secs(), reload);
-        let acting = self.acting(&self.operator_id()?)?;
+        if !written.contains_key(UCI) {
+            return Err(Error::new(format!(
+                "{host}'s files have no {UCI}, which o11n changes its UCI with"
+            )));
+        }
+        let script = writes(&written, "")? + &configure(UCI, "") + &arm(ROLLBACK.as_secs(), reload);
+        let acting = self.router_acting()?;
 
         log(format!("writing {} files on {host}", written.len()));
         let mut ssh = self.pinned_ssh(&id, "root", acting.command("ssh"))?;
@@ -205,7 +413,7 @@ impl Org {
 
     fn openwrt_flash(&self, host: &str, image: &Path) -> Result<(), Error> {
         let (id, _) = self.router(host)?;
-        let acting = self.acting(&self.operator_id()?)?;
+        let acting = self.router_acting()?;
         let file = File::open(image).map_err(|e| Error::new(format!("{}: {e}", image.display())))?;
 
         log(format!("copying {} to {host}", image.display()));
@@ -307,6 +515,64 @@ mod tests {
         assert_eq!(read("/etc/config/network"), "old\n");
         assert_eq!(read("/reloaded"), "\n\n");
         assert!(Path::new(&format!("{root}{BACKUP}/rolled-back")).exists());
+    }
+
+    #[test]
+    fn a_failing_change_puts_back_the_uci() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().display().to_string();
+        std::fs::create_dir_all(format!("{root}/etc/config")).unwrap();
+        std::fs::write(format!("{root}/etc/config/network"), "old\n").unwrap();
+        let read = |path: &str| std::fs::read_to_string(format!("{root}{path}")).unwrap();
+        let apply = |change: &str| {
+            let files = BTreeMap::from([(
+                UCI.to_owned(),
+                Written {
+                    contents: format!("echo new > '{root}/etc/config/network'\n{change}\n"),
+                    private: true,
+                },
+            )]);
+            let script = writes(&files, &root).unwrap() + &configure(UCI, &root);
+            Command::new("sh").arg("-c").arg(&script).status().unwrap().success()
+        };
+
+        assert!(!apply("exit 1"));
+        assert_eq!(read("/etc/config/network"), "old\n");
+        assert!(!Path::new(&format!("{root}{UCI}")).exists());
+
+        assert!(apply("true"));
+        assert_eq!(read("/etc/config/network"), "new\n");
+        assert!(
+            Command::new("sh")
+                .arg(format!("{root}{BACKUP}/restore"))
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert_eq!(read("/etc/config/network"), "old\n");
+    }
+
+    #[test]
+    fn a_lease_is_found_by_its_address() {
+        let leases = "1794050000 02:00:00:00:00:01 192.168.1.11 alpha 01:02:00:00:00:00:01\n\
+                      1794050000 02:00:00:00:00:02 192.168.1.120 * 01:02:00:00:00:00:02\n";
+        assert_eq!(leased(leases, "192.168.1.11"), Some(("02:00:00:00:00:01", "alpha")));
+        assert_eq!(leased(leases, "192.168.1.120"), Some(("02:00:00:00:00:02", "*")));
+        assert_eq!(leased(leases, "192.168.1.1"), None);
+    }
+
+    #[test]
+    fn the_suffix_goes_in_each_prefix() {
+        let addresses = "6: br-lan    inet6 2001:db8:1:20::1/60 scope global dynamic noprefixroute\\       valid_lft\n\
+                         6: br-lan    inet6 fd30:3eca:536c::1/60 scope global noprefixroute\\       valid_lft\n\
+                         6: br-lan    inet6 2001:db8:1:20::1/64 scope global\n";
+        assert_eq!(
+            suffixed(addresses, "::ade").unwrap(),
+            vec![
+                "2001:db8:1:20::ade".parse::<Ipv6Addr>().unwrap(),
+                "fd30:3eca:536c::ade".parse().unwrap()
+            ]
+        );
     }
 
     #[test]

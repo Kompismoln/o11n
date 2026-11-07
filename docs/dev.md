@@ -39,8 +39,8 @@ entries for it are alike.
 
 - `stages` names, in order, how far a part has come: felt, implied, mentioned, named, itemized, planned, drafted,
   solidified, cemented and protected.
-- `layers` names the layers a part can be of: `domain`, `ux`, what an org's operator works with, and `dx`, what o11n's
-  developers work with.
+- `layers` names the layers a part can be of: `domain`, `ux`, what an org's operator works with, `dx`, what o11n's
+  developers work with, and `platform`, what o11n configures a kind of host on for what the domain says of it.
 
 ## Index
 

@@ -93,6 +93,94 @@ let
         touch $out
       '';
 
+  # Policy: a router is checked by what o11n has it run, and what it derives from the hosts behind it.
+  o11nChecks.eval-o11n-mesh =
+    pkgs.runCommand "eval-o11n-mesh"
+      {
+        nativeBuildInputs = [ o11n ];
+        export = builtins.toFile "export.json" (builtins.toJSON inventories.mesh.org.export);
+        org = ./inventories/mesh;
+      }
+      ''
+        export O11N_EXPORT=$export O11N_ORG_ROOT=$org
+        diff <(o11n status --list host-windsor | grep -Ev ' (identity|recipients|secrets|public-key .*|secret .*)$') - <<EOF
+        org o11n
+        host-windsor openwrt
+        host-windsor lan alpha
+        host-windsor lan beta
+        host-windsor glesys alpha.example.com
+        host-windsor glesys beta.example.com
+        EOF
+        touch $out
+      '';
+
+  # Policy: the router's script, run twice on a router's own UCI, changes what the org says, keeps the rest, and puts
+  # o11n's sections after the router's own, in place of those it named before.
+  openwrtChecks.eval-openwrt-mesh =
+    pkgs.runCommand "eval-openwrt-mesh"
+      {
+        nativeBuildInputs = [ pkgs.uci ];
+        script = inventories.mesh.org.host.windsor.openwrt.files."/etc/o11n/uci";
+      }
+      ''
+        mkdir -p bin config delta
+        printf '#!/bin/sh\nexec %s -c %s -t %s "$@"\n' "$(command -v uci)" "$PWD/config" "$PWD/delta" > bin/uci
+        chmod +x bin/uci
+        export PATH=$PWD/bin:$PATH
+        printf "config system\n\toption hostname 'OpenWrt'\n\toption timezone 'GMT0'\n" > config/system
+        printf "config dropbear\n\toption PasswordAuth 'on'\n" > config/dropbear
+        printf "config dnsmasq\n\toption domain 'lan'\n\nconfig host 'o11n_gone'\n\toption ip '192.168.1.9'\n" > config/dhcp
+        printf "config defaults\n\toption input 'REJECT'\n\nconfig redirect 'o11n_dmz'\n\toption dest_ip '192.168.1.9'\n\nconfig zone\n\toption name 'wan'\n" > config/firewall
+        printf "config interface 'lan'\n\toption device 'br-lan'\n\tlist ipaddr '192.168.2.1/24'\n" > config/network
+        printf "config wifi-device 'radio0'\n\toption disabled '1'\n\nconfig wifi-iface 'default_radio0'\n\toption ssid 'OpenWrt'\n\toption encryption 'none'\n" > config/wireless
+        sed 's/@o11n-secret:wifi-key@/swordfish/' <<<"$script" > apply
+        sh apply
+        cp -r config once
+        sh apply
+        diff -r once config
+        diff <(uci show dhcp; uci show dropbear; uci show network; uci show system; uci show wireless) - <<'EOF'
+        dhcp.@dnsmasq[0]=dnsmasq
+        dhcp.@dnsmasq[0].domain='lan'
+        dhcp.o11n_alpha=host
+        dhcp.o11n_alpha.ip='192.168.1.11'
+        dhcp.o11n_alpha.mac='02:00:00:00:00:01'
+        dhcp.o11n_alpha.name='alpha'
+        dhcp.o11n_beta=host
+        dhcp.o11n_beta.ip='192.168.1.12'
+        dhcp.o11n_beta.name='beta'
+        dropbear.@dropbear[0]=dropbear
+        dropbear.@dropbear[0].PasswordAuth='0'
+        dropbear.@dropbear[0].Port='22'
+        dropbear.@dropbear[0].RootPasswordAuth='0'
+        network.lan=interface
+        network.lan.device='br-lan'
+        network.lan.ipaddr='192.168.1.1/24'
+        system.@system[0]=system
+        system.@system[0].hostname='windsor'
+        system.@system[0].timezone='GMT0'
+        system.@system[0].zonename='UTC'
+        wireless.radio0=wifi-device
+        wireless.radio0.disabled='0'
+        wireless.default_radio0=wifi-iface
+        wireless.default_radio0.ssid='windsor'
+        wireless.default_radio0.encryption='psk2'
+        wireless.default_radio0.key='swordfish'
+        EOF
+        diff <(uci show firewall | grep -E '^firewall\.[^.]+=') - <<'EOF'
+        firewall.@defaults[0]=defaults
+        firewall.@zone[0]=zone
+        firewall.o11n_alpha_wg0=redirect
+        firewall.o11n_alpha_wg0_6=rule
+        firewall.o11n_alpha_wg1=redirect
+        firewall.o11n_alpha_wg1_6=rule
+        firewall.o11n_beta_wg1=redirect
+        firewall.o11n_beta_wg1_6=rule
+        firewall.o11n_dmz=redirect
+        EOF
+        grep -qx "$(printf "\tlist ipaddr '192.168.1.1/24'")" config/network
+        touch $out
+      '';
+
   leakPatterns = [
     "kompismoln"
     "ahbk"
@@ -142,7 +230,7 @@ let
       '';
 in
 {
-  eval = nixosChecks // inventoryChecks // homeChecks // o11nChecks;
+  eval = nixosChecks // inventoryChecks // homeChecks // o11nChecks // openwrtChecks;
   leaks = hostChecks // rescueUsbChecks;
 }
 // lib.mapAttrs (name: check: { ${name} = check; }) (

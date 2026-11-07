@@ -73,6 +73,23 @@ pub struct Entity {
     pub keycloak: Option<Keycloak>,
     #[serde(default)]
     pub openwrt: Option<Openwrt>,
+    #[serde(default)]
+    pub router: Option<Router>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Router {
+    pub address4: String,
+    pub lan: BTreeMap<String, Lan>,
+    pub records: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Lan {
+    pub address4: String,
+    pub suffix: String,
+    #[serde(default)]
+    pub mac: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

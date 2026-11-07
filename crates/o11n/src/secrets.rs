@@ -141,6 +141,14 @@ impl Org {
         self.unset(secret)
     }
 
+    // Policy: the key moved from needn't be the entity's any more, as after the org renames what it's named by.
+    pub fn rename_secret(&self, id: &str, from: &str, to: &str) -> Result<(), Error> {
+        let old = Secret { id, key: from, slot: 0 };
+        let value = self.required(old)?;
+        self.generate_secret(Secret { id, key: to, slot: 0 }, Some(value))?;
+        self.unset(old)
+    }
+
     fn derivable(&self, id: &str, key: &str) -> Result<(Kind, String), Error> {
         let secret = Secret { id, key, slot: 0 };
         let kind = self.kind(secret)?;

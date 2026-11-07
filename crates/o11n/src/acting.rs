@@ -67,6 +67,10 @@ pub struct Acting {
 }
 
 impl Acting {
+    pub fn add(&self, ssh_key: &str) -> Result<(), Error> {
+        self.agent.add(ssh_key)
+    }
+
     pub fn command(&self, program: &str) -> Command {
         let mut command = self.agent.command(program);
         command.env("SOPS_AGE_KEY_FILE", &self.identity);

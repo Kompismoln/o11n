@@ -10,8 +10,13 @@ let
   inherit (lib)
     optionalString
     ;
-  vpn = org.vpn.wg0;
-  hostname = host.network.wg0.fqdn;
+  # Policy: nginx tells its status on the host's first vpn, to that vpn alone.
+  first =
+    lib.throwIf (host.vpns == [ ])
+      "host.${host.name}: nginx tells its status on the host's first vpn, and it has none: give it vpns."
+      (lib.head host.vpns);
+  vpn = org.vpn.${first};
+  hostname = host.network.${first}.fqdn;
 in
 {
 

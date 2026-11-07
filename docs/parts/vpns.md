@@ -41,13 +41,17 @@ dns = []
 - two hosts without an endpoint don't peer, and don't reach each other
 - nothing forwards, and a mesh with a `gateway` or `proxy` fails evaluation.
 
+On a vpn without `dns`, as a mesh, each host has in `/etc/hosts` the names on it of itself and of those it reaches,
+their services' included (`nixos/org/wireguard.nix`).
+
 A host that would listen on one port for two of its vpns fails evaluation.
 
 The vpn's `peers` has, for each host on it, the hosts it has a tunnel with, and its `reaches` those it reaches: on a hub
 each other, on a mesh its `peers`. What has to go between two hosts fails evaluation where they don't reach each other
 on the vpn it would go over:
 
-- an allotment's replica and its host, on the first vpn they share (`org/allotment.nix`, `docs/parts/allotments.md`)
+- an allotment's replica and its host, on the allotment's `vpn`, or the first vpn they share (`org/allotment.nix`,
+  `docs/parts/allotments.md`)
 - a host that archives a principal and the archive's host, on `service.archive.vpn` (`nixos/org/state-archive.nix`,
   `docs/parts/state.md`).
 

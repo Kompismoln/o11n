@@ -6,62 +6,35 @@ place in that.
 
 ## Options
 
-### `host.<name>.openwrt.dmz`
+### `host.<name>.openwrt.changes`
 
-`org/openwrt.nix` · null or impossible (empty enum)
+`org/openwrt.nix` · attribute set of string
 
-Default: `null`
+Default: for each file of `uci`, and `system`, `dropbear`, `dhcp` and `firewall`, the commands of `uci` and of the
+sections o11n derives
 
-the host behind the router that what isn't forwarded otherwise is forwarded to on IPv4, or null
+for each UCI file, the commands that change it: the host's `uci`, in the order of its sections' names, then o11n's,
+which removes the sections it named before
 
 ### `host.<name>.openwrt.files`
 
 `org/openwrt.nix` · attribute set of string
 
-Default: each file of `uci`, and `system`, `dropbear` and those o11n derives sections of, rendered, and
-`/etc/dropbear/authorized_keys` from the ssh-keys of the host's users, and with `glesys` its updater
+Default: `/etc/o11n/uci` from `changes`, `/etc/dropbear/authorized_keys` from the ssh-keys of the host's users and
+service-rescue, and with a router's `glesys` its updater
 
-the files o11n writes on the router, by path: each `/etc/config/` file whole, the router's own sections first, in the
-order of their names, and those o11n derives after, in its order
-
-### `host.<name>.openwrt.glesys`
-
-`org/openwrt.nix` · null or (submodule)
-
-Default: `null`
-
-the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, or null
-
-### `host.<name>.openwrt.glesys.account`
-
-`org/openwrt.nix` · string
-
-the account, as GleSYS names it
-
-### `host.<name>.openwrt.glesys.key`
-
-`org/openwrt.nix` · string
-
-Default: `"glesys-key"`
-
-the host's secret that is the account's API key, which may update its DNS records
-
-### `host.<name>.openwrt.glesys.records`
-
-`org/openwrt.nix` · list of string matching the pattern [a-z0-9-]+\.[a-z0-9.-]+
-
-Default: the `endpoint` of each host behind the router that has one
-
-the names whose A record is the router's WAN address, each `<name>.<domain>` of a domain of the account's
+the files o11n writes on the router, by path: `/etc/o11n/uci`, a script that makes all `changes` and commits them, the
+ssh-keys root takes, its users' and service-rescue's, and with a router's `glesys` its updater
 
 ### `host.<name>.openwrt.imageFiles`
 
 `org/openwrt.nix` · attribute set of string
 
-Default: its `files` without a secret in them
+Default: its `files` without a secret in them or `/etc/o11n/uci`, and `/etc/uci-defaults/99-o11n` with the `changes`
+that have none
 
-the files the router's image holds: its `files` but those with a secret, which it has OpenWrt's own of until they're
-applied
+the files the router's image holds: its `files` but those with a secret, and instead of `/etc/o11n/uci`,
+`/etc/uci-defaults/99-o11n`, which makes the changes of each file without a secret at first boot
 
 ### `host.<name>.openwrt.packages`
 
@@ -95,6 +68,6 @@ the router's OpenWrt target, as its downloads name it
 
 Default: `{ }`
 
-the router's own UCI, by file, by section name, with the section's type as `_type`: a list is a `list`, and
-`{ secret = <key> }` a key of the host's, which is written in when applied; o11n adds the sections it derives, whose
-names start with `o11n_`, and its options to the sections `system.system` and `dropbear.main`
+what the host changes of OpenWrt's own UCI, by file, by section, a section's name or @<type>[<index>], with a named
+section's type as `_type`, or `_delete = true` to delete it: a list is set anew, and `{ secret = <key> }` is a key of
+the host's, which is written in when applied; o11n adds the sections it derives, whose names start with `o11n_`

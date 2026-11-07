@@ -1,9 +1,9 @@
 # OpenWrt
 
-A host with `openwrt` is a router that runs OpenWrt (`org/openwrt.nix`), and no NixOS, as its `nixos` is false. Its
-`release`, `target`, `profile` and `packages` say what its image is, its `uci` its own configuration, and o11n derives
-the rest from the hosts `behind` it (`org/host.nix`), into `openwrt.files`, the files written on it, which
-`openwrtConfigurations.<host>.files` has as a tree (`lib/default.nix`).
+A host with `openwrt` runs OpenWrt (`org/openwrt.nix`), and no NixOS, as its `nixos` is false. Its `release`, `target`,
+`profile` and `packages` say what its image is, and its `uci` what it changes of OpenWrt's own configuration. o11n adds
+what it derives, from the host and, for a `router`, from what `docs/parts/networks.md` says of it, into `openwrt.files`,
+the files written on it, which `openwrtConfigurations.<host>.files` has as a tree (`lib/default.nix`).
 
 ```toml
 [host.windsor]
@@ -14,89 +14,87 @@ system = "mips-linux"
 users = ["admin"]
 keys.wifi-key = "passphrase"
 
+[host.windsor.router]
+dmz = "pelle"
+
 [host.windsor.openwrt]
 release = "25.12.6"
 target = "ath79/generic"
 profile = "netgear_wndr3700"
 packages = ["-ppp", "-ppp-mod-pppoe"]
-dmz = "stationary"
+
+[host.windsor.openwrt.uci.wireless.radio0]
+_type = "wifi-device"
+disabled = 0
 
 [host.windsor.openwrt.uci.wireless.default_radio0]
 _type = "wifi-iface"
-device = "radio0"
-network = "lan"
-mode = "ap"
 ssid = "windsor"
 encryption = "psk2"
 key = { secret = "wifi-key" }
-
-[host.pelle]
-behind = "windsor"
-network.eth = { interface = "enp5s0", mode = "dhcp", suffix = "::fba", address4 = "192.168.1.19" }
 ```
 
-## Files
+## Changes
 
-Each `/etc/config/` file is written whole: the sections of `uci`, in the order of their names, and after them those o11n
-derives, in its order, so that a file `uci` leaves out holds only those. A section is `uci.<file>.<name>`, its type
-`_type`, a list a `list`, and `{ secret = <key> }` a key the host has, written as `@o11n-secret:<key>@`, for its value
-to take its place when the files are applied. o11n names the sections it derives `o11n_<...>`, and one of `uci` named so
-fails evaluation.
+`uci.<file>.<section>` changes a section of `/etc/config/<file>`, and leaves the rest of what OpenWrt has there as it
+is. A section is its name, with its type as `_type`, which creates it or keeps the options it has, or
+`@<type>[<index>]`, one the router has, as OpenWrt leaves many unnamed, without `_type`. Each option is set, a list
+anew, and `{ secret = <key> }` is a key the host has, written as `@o11n-secret:<key>@`, for its value to take its place
+when the changes are applied. `_delete = true`, alone, deletes the section. A section or option left out of `uci` keeps
+what it has on the router, until the router is flashed.
+
+`openwrt.changes.<file>` is a file's changes as `uci` commands, the sections of `uci` in the order of their names, then
+o11n's: of `system`, `dropbear`, `dhcp` and `firewall`, whether `uci` has them or not. o11n names the sections it
+derives `o11n_<...>`, removes those it named before, and adds them anew after the router's own, in its order, as fw4
+matches redirects in order. One of `uci` named so, a section that is neither, a named one without `_type` and an index
+with it fail evaluation.
 
 o11n derives:
 
-- `system.system`'s `hostname`, the host's name, and `dropbear.main`'s login by key alone, over the options `uci` gives
-  them
-- `/etc/dropbear/authorized_keys`, the ssh-keys of the host's `users`
-- for each host behind it, the network it reaches it on, its one network with a `suffix`, which has an `address4`, or
-  evaluation fails (`docs/parts/networks.md`):
-  - a DHCP reservation of its `address4`, `dhcp.o11n_<host>`, for its `mac`, or without one for the name it asks with,
-    which networkd sends as the host's
-  - for each port it listens on for its vpns (`docs/parts/vpns.md`), a redirect of the port on IPv4 to its `address4`,
-    `firewall.o11n_<host>_<vpn>`, and a rule that lets it in on IPv6 to its suffix in whatever prefix,
+- `@system[0]`'s `hostname`, the host's name, and `@dropbear[0]`'s login by key alone, over what `uci` sets of them
+- `/etc/dropbear/authorized_keys`, the ssh-keys of the host's `users` and service-rescue's, as root on a NixOS host
+  takes
+- for a `router`, from its `address4`, `prefixLength4`, `lan`, `forwards` and `dmz`:
+  - `network.lan`'s address, `ipaddr`
+  - a DHCP reservation, `dhcp.o11n_<host>`, for the host's `mac`, or without one for the name it asks with, which
+    networkd sends as the host's
+  - for each forward, a redirect on IPv4, `firewall.o11n_<host>_<vpn>`, and a rule on IPv6,
     `firewall.o11n_<host>_<vpn>_6`
-- with a `dmz`, a redirect of all else on IPv4 to the dmz's `address4`, `firewall.o11n_dmz`, after the others.
+  - with a `dmz`, its redirect, `firewall.o11n_dmz`, after the others.
 
-A host whose `behind` has no `openwrt` fails evaluation.
+`/etc/o11n/uci` is a script that makes all of the changes, stops at the first that fails, and commits them.
 
 ## Image
 
 `openwrtConfigurations.<host>.image` is the router's sysupgrade image, built by OpenWrt's ImageBuilder as the flake
 input `openwrt-imagebuilder` wraps it (`lib/default.nix`), with the profile's packages and `packages`, and
-`openwrt.imageFiles`: its `files` but those with a secret, which the image leaves to OpenWrt's own until they're
-applied, as a `wireless` whose radios are off. The input reads the release's package index from downloads.openwrt.org as
-the image is evaluated, so only a machine that reaches it evaluates the image, and no check does. It holds the hashes of
-each series' latest release alone, so `release` is that of the input's revision.
+`openwrt.imageFiles`: its `files` but those with a secret, and instead of `/etc/o11n/uci`, `/etc/uci-defaults/99-o11n`,
+which OpenWrt runs at first boot, with the changes of each file that has no secret. A file with one stays OpenWrt's own
+until the changes are applied, as a `wireless` whose radios are off. The input reads the release's package index from
+downloads.openwrt.org as the image is evaluated, so only a machine that reaches it evaluates the image, and no check
+does. It holds the hashes of each series' latest release alone, so `release` is that of the input's revision.
 
 `o11n openwrt image <host>` builds it and prints it, and `o11n openwrt flash <host> <image>` copies it to the router as
-root with the operator's ssh-key, has `sysupgrade -T` check it there, and flashes it with `sysupgrade -n`, which keeps
-nothing of what the router had (`crates/o11n/src/openwrt.rs`). The router comes up with a new ssh-key, which
-`o11n host pull-ssh-key host-<host>` takes, and without the files with secrets, which `o11n openwrt apply` writes.
+root, as `o11n openwrt apply` logs in, has `sysupgrade -T` check it there, and flashes it with `sysupgrade -n`, which
+keeps nothing of what the router had (`crates/o11n/src/openwrt.rs`). The router comes up with a new ssh-key, which
+`o11n host pull-ssh-key host-<host>` takes, and without the changes with secrets, which `o11n openwrt apply` makes.
 
 ## Apply
 
 `o11n openwrt apply <host>` writes the router's `files`, each secret's marker replaced with the host's secret, as root
-with the operator's ssh-key, reached as `o11n` reaches any host, by `O11N_ROUTES` or its name in a namespace. A file
-with a secret, and `authorized_keys`, are root's alone. It keeps what it replaces in `/tmp/o11n-rollback`, and runs
-`reload_config`, which restarts what the files changed. Unless `o11n` logs in again within 90 seconds, the router puts
-back what it kept and reloads that, so that files that lock `o11n` out undo themselves.
+with service-rescue's ssh-key, and the operator's, if it has one, or, for an operator who can't act as service-rescue,
+the operator's alone, as on a router that doesn't take service-rescue's yet. It reaches the router as `o11n` reaches any
+host, by `O11N_ROUTES` or its name in a namespace, or else at a router's `address4`, and runs `/etc/o11n/uci`. A file
+with a secret, and `authorized_keys`, are root's alone. It keeps what it replaces, and `/etc/config`, in
+`/tmp/o11n-rollback`, puts that back at once if a change fails, with `uci`'s own error, and otherwise runs
+`reload_config`, which restarts what the changes touched. Unless `o11n` logs in again within 90 seconds, the router puts
+back what it kept and reloads that, so that changes that lock `o11n` out undo themselves.
 
 ## GleSYS
 
-A router with `glesys` keeps its WAN address in the account's DNS, as the A record of each of its `records`, by default
-the `endpoint` of each host behind it that has one, as the hosts behind its NAT share its address:
-
-```toml
-[host.windsor]
-keys.glesys-key = "passphrase"
-
-[host.windsor.openwrt]
-glesys = { account = "CL12345" }
-```
-
-o11n derives `/etc/o11n/glesys`, which lists the records of each domain of `records` once, with the API key, the host's
-secret `key`, and updates the A record that isn't the WAN address, and says so, or why it couldn't, to the router's log
-as `o11n-glesys`. It runs once the WAN is up, by `/etc/hotplug.d/iface/90-o11n-glesys`, and every 15 minutes, by
-`/etc/crontabs/root`, which `o11n openwrt apply` has cron read anew. It sends the key as a Basic `Authorization` header,
-which `ucode` encodes. As the address changes, the API key has to let any address in, and needs nothing but the domain
-API. The image leaves the script out, as it holds the key, until it's applied.
+For a router's `glesys` (`docs/parts/networks.md`), o11n derives `/etc/o11n/glesys`, which lists the records of each
+domain of `records` once, with the API key, and updates the A record that isn't the WAN address, and says so, or why it
+couldn't, to the router's log as `o11n-glesys`. It runs once the WAN is up, by `/etc/hotplug.d/iface/90-o11n-glesys`,
+and every 15 minutes, by `/etc/crontabs/root`, which `o11n openwrt apply` has cron read anew. It sends the key as a
+Basic `Authorization` header, which `ucode` encodes. The image leaves the script out, as it holds the key, until it's
+applied.

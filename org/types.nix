@@ -87,6 +87,15 @@ entities
       };
     };
 
+  router.module =
+    host:
+    lib.types.submoduleWith {
+      modules = [ ./router.nix ];
+      specialArgs = {
+        inherit context host;
+      };
+    };
+
   openwrt.module =
     host:
     lib.types.submoduleWith {

@@ -77,6 +77,24 @@ in
   );
 
   networking = {
+    # Policy: on a vpn without name servers, as a mesh, a host has in /etc/hosts itself and what it reaches there.
+    hosts = lib.mkMerge (
+      lib.concatMap (
+        vpn:
+        lib.concatMap (
+          peer:
+          lib.concatMap (
+            member:
+            map (address: { ${address} = [ member.fqdn ]; }) (
+              lib.filter (address: address != null) [
+                member.address
+                member.address4
+              ]
+            )
+          ) (onHost vpn org.host.${peer})
+        ) ([ host.name ] ++ vpn.reaches.${host.name})
+      ) (lib.filter (vpn: vpn.dns == [ ]) vpns)
+    );
     wireguard.enable = true;
     networkmanager.unmanaged = map (interface: "interface-name:${interface}") host.vpns;
 

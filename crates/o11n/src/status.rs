@@ -45,6 +45,9 @@ pub enum Check {
     Dkim(String),
     Dmarc(String),
     KeycloakMail(String),
+    Openwrt,
+    Lan(String),
+    Glesys(String),
 }
 
 impl Check {
@@ -74,6 +77,9 @@ impl Check {
             Self::Dkim(domain) => format!("dkim {domain}"),
             Self::Dmarc(domain) => format!("dmarc {domain}"),
             Self::KeycloakMail(realm) => format!("keycloak-mail {realm}"),
+            Self::Openwrt => "openwrt".into(),
+            Self::Lan(host) => format!("lan {host}"),
+            Self::Glesys(record) => format!("glesys {record}"),
         }
     }
 }
@@ -209,6 +215,13 @@ impl Org {
                     }
                     checks.push(Check::AllotmentConflicts(allotment.id.clone()));
                 }
+            }
+            if entity.openwrt.is_some() {
+                checks.push(Check::Openwrt);
+            }
+            if let Some(router) = &entity.router {
+                checks.extend(router.lan.keys().map(|host| Check::Lan(host.clone())));
+                checks.extend(router.records.iter().map(|record| Check::Glesys(record.clone())));
             }
             if entity
                 .services
@@ -387,6 +400,9 @@ impl Org {
             Check::Dkim(domain) => fails(self.dkim(domain)),
             Check::Dmarc(domain) => fails(Self::dmarc(domain)),
             Check::KeycloakMail(realm) => self.keycloak_mail(id, entity, realm)?,
+            Check::Openwrt => self.openwrt_outcome(id, entity)?,
+            Check::Lan(host) => self.lan_outcome(id, entity, host)?,
+            Check::Glesys(record) => self.glesys_outcome(id, entity, record)?,
         })
     }
 

@@ -23,17 +23,17 @@ home, login or password.
 
 ## Replicas
 
-An allotment's `replicas` are the hosts that keep a copy of it for its principal, which has to be on each, and to share
-a vpn with the allotment's host, and reach it on the first they share (`docs/parts/vpns.md`). Syncthing syncs each with
-the allotment, both ways, as `allotment-sync@<id>`, `<id>` being `<handle>.<host>` (`nixos/allotment-sync.nix`,
-`nixos/org/allotments.nix`):
+An allotment's `replicas` are the hosts that keep a copy of it for its principal, which has to be on each, and reach the
+allotment's host on its `vpn`, which both have to be on, or without one on the first vpn they share
+(`docs/parts/vpns.md`). Syncthing syncs each with the allotment, both ways, as `allotment-sync@<id>`, `<id>` being
+`<handle>.<host>` (`nixos/allotment-sync.nix`, `nixos/org/allotments.nix`):
 
 - each side is a device of its own, with a `syncthing-<id>` key of its host's, whose public key is the device's ID
   (`crates/o11n/src/keys.rs`): `o11n secret generate host-<host> syncthing-<id>` makes it, and a host without it fails
   evaluation
-- the allotment's host listens on its address on the first vpn each replica shares with it, once networkd has brought
-  that vpn's interface up, on port 22000 plus the principal's uid, open on that vpn alone, and runs Syncthing as the
-  principal, its state in `/var/lib/allotment-sync/<id>` where the host keeps it
+- the allotment's host listens on its address on that vpn, for each replica, once networkd has brought that vpn's
+  interface up, on port 22000 plus the principal's uid, open on that vpn alone, and runs Syncthing as the principal, its
+  state in `/var/lib/allotment-sync/<id>` where the host keeps it
 - a replica dials it there, and keeps the copy at `~/.o11n/allotments/<host>` in the principal's home, and Syncthing's
   state at `~/.o11n/syncthing/<host>`, running as the principal
 - Syncthing knows nothing but its configuration, which each start writes anew: no discovery, relays, NAT traversal,

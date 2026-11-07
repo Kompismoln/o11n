@@ -244,6 +244,61 @@ in
     };
   };
 
+  # Policy: an allotment's vpn, where it has one, is what it syncs over, which its host and replicas have to be on.
+  test_allotment_vpn = {
+    expr =
+      let
+        allotment =
+          change:
+          (alter (
+            lib.recursiveUpdate (carol [
+              "alpha"
+              "gamma"
+              "delta"
+            ]) { allotment."user-carol@gamma" = change; }
+          )).org.allotment."user-carol@gamma";
+        interface = change: (allotment change).networks.alpha.interface;
+        syncs = change: (builtins.tryEval (builtins.deepSeq (allotment change).replicas true)).success;
+      in
+      {
+        first = interface { replicas = [ "alpha" ]; };
+        mesh = interface {
+          replicas = [ "alpha" ];
+          vpn = "wg1";
+        };
+        notOn = syncs {
+          replicas = [ "delta" ];
+          vpn = "wg0";
+        };
+      };
+    expected = {
+      first = "wg0";
+      mesh = "wg1";
+      notOn = false;
+    };
+  };
+
+  # Policy: on a vpn without name servers a host names in /etc/hosts itself and those it reaches, and on one with
+  # them, none.
+  test_mesh_hosts = {
+    expr =
+      let
+        names = lib.concatLists (lib.attrValues gamma.config.networking.hosts);
+      in
+      {
+        inherit (gamma.config.networking.hosts) "fd12:3456:7890:0001::0001";
+        own = lib.elem "gamma.data" names;
+        unreached = lib.elem "delta.data" names;
+        hub = lib.any (lib.hasSuffix ".access") names;
+      };
+    expected = {
+      "fd12:3456:7890:0001::0001" = [ "alpha.data" ];
+      own = true;
+      unreached = false;
+      hub = false;
+    };
+  };
+
   test_archive_reach = {
     expr = {
       unreachable = failing archive "delta";
@@ -338,102 +393,126 @@ in
     ];
   };
 
-  # Policy: what a host behind the router listens on for its vpns is forwarded to it on IPv4 and let in on IPv6 by its
-  # suffix, ahead of the dmz.
+  # Policy: what a host behind the router listens on for its vpns is forwarded to it, on the network it reaches it on.
+  test_router_forwards = {
+    expr = {
+      inherit (outputs.org.host.windsor.router) forwards;
+      lan = lib.mapAttrs (_: network: network.address4) outputs.org.host.windsor.router.lan;
+    };
+    expected = {
+      forwards = [
+        {
+          host = "alpha";
+          vpn = "wg0";
+          port = 51820;
+        }
+        {
+          host = "alpha";
+          vpn = "wg1";
+          port = 52101;
+        }
+        {
+          host = "beta";
+          vpn = "wg1";
+          port = 52102;
+        }
+      ];
+      lan = {
+        alpha = "192.168.1.11";
+        beta = "192.168.1.12";
+      };
+    };
+  };
+
+  # Policy: OpenWrt forwards on IPv4 and lets in on IPv6 by the suffix, ahead of the dmz.
   test_router_firewall = {
-    expr =
-      let
-        file = outputs.org.host.windsor.openwrt.files."/etc/config/firewall";
-      in
-      lib.filter (line: lib.hasPrefix "config " line || lib.hasInfix "dest_" line) (
-        lib.splitString "\n" file
-      );
+    expr = lib.filter (
+      line: lib.hasInfix "=redirect" line || lib.hasInfix "=rule" line || lib.hasInfix "dest_ip" line
+    ) (lib.splitString "\n" outputs.org.host.windsor.openwrt.changes.firewall);
     expected = [
-      "config redirect 'o11n_alpha_wg0'"
-      "\toption dest_ip '192.168.1.11'"
-      "\toption dest_port '51820'"
-      "config rule 'o11n_alpha_wg0_6'"
-      "\toption dest_ip '::a/::ffff:ffff:ffff:ffff'"
-      "\toption dest_port '51820'"
-      "config redirect 'o11n_alpha_wg1'"
-      "\toption dest_ip '192.168.1.11'"
-      "\toption dest_port '52101'"
-      "config rule 'o11n_alpha_wg1_6'"
-      "\toption dest_ip '::a/::ffff:ffff:ffff:ffff'"
-      "\toption dest_port '52101'"
-      "config redirect 'o11n_beta_wg1'"
-      "\toption dest_ip '192.168.1.12'"
-      "\toption dest_port '52102'"
-      "config rule 'o11n_beta_wg1_6'"
-      "\toption dest_ip '::b/::ffff:ffff:ffff:ffff'"
-      "\toption dest_port '52102'"
-      "config redirect 'o11n_dmz'"
-      "\toption dest_ip '192.168.1.12'"
+      "uci set 'firewall.o11n_alpha_wg0=redirect'"
+      "uci set 'firewall.o11n_alpha_wg0.dest_ip=192.168.1.11'"
+      "uci set 'firewall.o11n_alpha_wg0_6=rule'"
+      "uci set 'firewall.o11n_alpha_wg0_6.dest_ip=::a/::ffff:ffff:ffff:ffff'"
+      "uci set 'firewall.o11n_alpha_wg1=redirect'"
+      "uci set 'firewall.o11n_alpha_wg1.dest_ip=192.168.1.11'"
+      "uci set 'firewall.o11n_alpha_wg1_6=rule'"
+      "uci set 'firewall.o11n_alpha_wg1_6.dest_ip=::a/::ffff:ffff:ffff:ffff'"
+      "uci set 'firewall.o11n_beta_wg1=redirect'"
+      "uci set 'firewall.o11n_beta_wg1.dest_ip=192.168.1.12'"
+      "uci set 'firewall.o11n_beta_wg1_6=rule'"
+      "uci set 'firewall.o11n_beta_wg1_6.dest_ip=::b/::ffff:ffff:ffff:ffff'"
+      "uci set 'firewall.o11n_dmz=redirect'"
+      "uci set 'firewall.o11n_dmz.dest_ip=192.168.1.12'"
     ];
   };
 
-  test_router_files = {
+  test_router_changes = {
     expr = {
       paths = lib.attrNames outputs.org.host.windsor.openwrt.files;
-      inherit (outputs.org.host.windsor.openwrt.files)
-        "/etc/config/dhcp"
-        "/etc/config/system"
-        "/etc/config/wireless"
+      inherit (outputs.org.host.windsor.openwrt.changes)
+        dhcp
+        network
+        system
+        wireless
         ;
       nixos = outputs.nixosConfigurations ? windsor;
     };
     expected = {
       paths = [
-        "/etc/config/dhcp"
-        "/etc/config/dropbear"
-        "/etc/config/firewall"
-        "/etc/config/network"
-        "/etc/config/system"
-        "/etc/config/wireless"
         "/etc/crontabs/root"
         "/etc/dropbear/authorized_keys"
         "/etc/hotplug.d/iface/90-o11n-glesys"
         "/etc/o11n/glesys"
+        "/etc/o11n/uci"
       ];
-      "/etc/config/dhcp" = ''
-        config host 'o11n_alpha'
-        ''\toption ip '192.168.1.11'
-        ''\toption mac '02:00:00:00:00:01'
-        ''\toption name 'alpha'
-
-        config host 'o11n_beta'
-        ''\toption ip '192.168.1.12'
-        ''\toption name 'beta'
+      dhcp = ''
+        for section in $(uci -q show dhcp | sed -n 's/^dhcp\.\(o11n_[A-Za-z0-9_]*\)=.*/\1/p'); do
+        ''\tuci delete "dhcp.$section"
+        done
+        uci set 'dhcp.o11n_alpha=host'
+        uci set 'dhcp.o11n_alpha.ip=192.168.1.11'
+        uci set 'dhcp.o11n_alpha.mac=02:00:00:00:00:01'
+        uci set 'dhcp.o11n_alpha.name=alpha'
+        uci set 'dhcp.o11n_beta=host'
+        uci set 'dhcp.o11n_beta.ip=192.168.1.12'
+        uci set 'dhcp.o11n_beta.name=beta'
       '';
-      "/etc/config/system" = ''
-        config system 'system'
-        ''\toption hostname 'windsor'
-        ''\toption zonename 'UTC'
+      network = ''
+        uci set 'network.lan=interface'
+        uci -q delete network.lan.ipaddr || :
+        uci add_list 'network.lan.ipaddr=192.168.1.1/24'
       '';
-      "/etc/config/wireless" = ''
-        config wifi-iface 'default_radio0'
-        ''\toption device 'radio0'
-        ''\toption encryption 'psk2'
-        ''\toption key '@o11n-secret:wifi-key@'
-        ''\toption mode 'ap'
-        ''\toption network 'lan'
-        ''\toption ssid 'windsor'
+      system = ''
+        uci set 'system.@system[0].zonename=UTC'
+        uci set 'system.@system[0].hostname=windsor'
+      '';
+      wireless = ''
+        uci set 'wireless.default_radio0=wifi-iface'
+        uci set 'wireless.default_radio0.encryption=psk2'
+        uci set 'wireless.default_radio0.key=@o11n-secret:wifi-key@'
+        uci set 'wireless.default_radio0.ssid=windsor'
+        uci set 'wireless.radio0=wifi-device'
+        uci set 'wireless.radio0.disabled=0'
       '';
       nixos = false;
     };
   };
 
   # Policy: the router updates the A records of the hosts behind it that have an endpoint, with a key the image leaves
-  # out, as it does any file with a secret.
-  test_router_glesys = {
+  # out, as it does any file with a secret, and the changes to a UCI file with one.
+  test_router_image = {
     expr =
       let
-        inherit (outputs.org.host.windsor) openwrt;
+        inherit (outputs.org.host.windsor) openwrt router;
+        firstBoot = openwrt.imageFiles."/etc/uci-defaults/99-o11n";
       in
       {
-        inherit (openwrt.glesys) records;
+        inherit (router.glesys) records;
         key = lib.hasInfix "key='@o11n-secret:glesys-key@'" openwrt.files."/etc/o11n/glesys";
         image = lib.attrNames openwrt.imageFiles;
+        dhcp = lib.hasInfix "dhcp.o11n_alpha=host" firstBoot;
+        wireless = lib.hasInfix "wireless." firstBoot;
       };
     expected = {
       records = [
@@ -442,16 +521,43 @@ in
       ];
       key = true;
       image = [
-        "/etc/config/dhcp"
-        "/etc/config/dropbear"
-        "/etc/config/firewall"
-        "/etc/config/network"
-        "/etc/config/system"
         "/etc/crontabs/root"
         "/etc/dropbear/authorized_keys"
         "/etc/hotplug.d/iface/90-o11n-glesys"
+        "/etc/uci-defaults/99-o11n"
       ];
+      dhcp = true;
+      wireless = false;
     };
+  };
+
+  # Policy: what o11n names its sections by, as a host's name, has whatever UCI doesn't take in its place.
+  test_router_names = {
+    expr =
+      let
+        inherit
+          ((alter {
+            host.epsilon-one = {
+              id = 6;
+              roles = [ ];
+              vpns = [ ];
+              users = [ ];
+              system = "x86_64-linux";
+              behind = "windsor";
+              network.eth = {
+                interface = "eth0";
+                mode = "dhcp";
+                suffix = "::e";
+                address4 = "192.168.1.16";
+              };
+            };
+          }).org.host.windsor.openwrt.changes
+          )
+          dhcp
+          ;
+      in
+      lib.hasInfix "uci set 'dhcp.o11n_epsilon_one=host'" dhcp;
+    expected = true;
   };
 
   test_router_refuses = {
@@ -460,6 +566,12 @@ in
         throws =
           change: path:
           !(builtins.tryEval (builtins.deepSeq (lib.attrByPath path null (alter change).org) true)).success;
+        changes = [
+          "host"
+          "windsor"
+          "openwrt"
+          "changes"
+        ];
       in
       {
         notRouter = throws { host.gamma.behind = "alpha"; } [
@@ -467,48 +579,39 @@ in
           "gamma"
           "behind"
         ];
-        noLan = throws { host.gamma.behind = "windsor"; } [
+        noOpenwrt = throws { host.alpha.router = { }; } [
+          "host"
+          "alpha"
+          "router"
+        ];
+        noLan = throws { host.gamma.behind = "windsor"; } changes;
+        outsideLan = throws { host.windsor.router.prefixLength4 = 30; } changes;
+        dmzAhead = throws { host.windsor.router.dmz = "gamma"; } [
           "host"
           "windsor"
-          "openwrt"
-          "files"
+          "router"
+          "dmz"
         ];
-        ownName =
-          throws
-            {
-              host.windsor.openwrt.uci.firewall.o11n_mine = {
-                _type = "rule";
-              };
-            }
-            [
-              "host"
-              "windsor"
-              "openwrt"
-              "files"
-            ];
-        foreignSecret =
-          throws
-            {
-              host.windsor.openwrt.uci.wireless.default_radio0.key.secret = "nothing";
-            }
-            [
-              "host"
-              "windsor"
-              "openwrt"
-              "files"
-            ];
-        passes = throws { } [
-          "host"
-          "windsor"
-          "openwrt"
-          "files"
-        ];
+        ownName = throws { host.windsor.openwrt.uci.firewall.o11n_mine._type = "rule"; } changes;
+        foreignSecret = throws {
+          host.windsor.openwrt.uci.wireless.default_radio0.key.secret = "nothing";
+        } changes;
+        untyped = throws { host.windsor.openwrt.uci.network.wan.proto = "dhcp"; } changes;
+        typedIndex = throws { host.windsor.openwrt.uci.system."@system[0]"._type = "system"; } changes;
+        notSection = throws { host.windsor.openwrt.uci.network."wan.6"._type = "interface"; } changes;
+        passes = throws { } changes;
       };
     expected = {
       notRouter = true;
+      noOpenwrt = true;
       noLan = true;
+      outsideLan = true;
+      dmzAhead = true;
       ownName = true;
       foreignSecret = true;
+      untyped = true;
+      typedIndex = true;
+      notSection = true;
       passes = false;
     };
   };

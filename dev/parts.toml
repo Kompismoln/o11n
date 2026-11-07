@@ -15,6 +15,7 @@ layers = [
   "domain",
   "ux",
   "dx",
+  "platform",
 ]
 
 [parts.org]
@@ -72,11 +73,11 @@ code = [
 stage = "drafted"
 layer = "domain"
 doc = "docs/parts/networks.md"
-code = ["nixos/org/networking.nix", "org/network.nix"]
+code = ["nixos/org/networking.nix", "org/network.nix", "org/router.nix"]
 
 [parts.openwrt]
 stage = "drafted"
-layer = "domain"
+layer = "platform"
 doc = "docs/parts/openwrt.md"
 code = ["crates/o11n/src/openwrt.rs", "org/openwrt.nix"]
 

@@ -62,17 +62,27 @@ in
       type = with lib.types; nullOr str;
     };
     behind = lib.mkOption {
-      description = "the router whose NAT the host is behind, a host with `openwrt`, which forwards to it the ports it listens on for its vpns, or null";
+      description = "the router whose NAT the host is behind, a host with `router`, which forwards to it the ports it listens on for its vpns, or null";
       type = lib.types.nullOr context.types.host.ref;
       default = null;
       apply =
         router:
-        lib.throwIf (router != null && org.host.${router}.openwrt == null)
-          "host.${config.name}.behind: ${router} is no router: give it openwrt, or set behind to one that has it."
+        lib.throwIf (router != null && org.host.${router}.router == null)
+          "host.${config.name}.behind: ${router} is no router: give it router, or set behind to one that has it."
+          router;
+    };
+    router = lib.mkOption {
+      description = "the router the host is, for the hosts behind it, or null";
+      type = lib.types.nullOr (context.types.router.module config);
+      default = null;
+      apply =
+        router:
+        lib.throwIf (router != null && config.openwrt == null)
+          "host.${config.name}.router: ${config.name} runs no OpenWrt, the one system o11n configures a router on: give it openwrt."
           router;
     };
     openwrt = lib.mkOption {
-      description = "the OpenWrt the host runs, as a router, or null";
+      description = "the OpenWrt the host runs, or null";
       type = lib.types.nullOr (context.types.openwrt.module config);
       default = null;
     };
