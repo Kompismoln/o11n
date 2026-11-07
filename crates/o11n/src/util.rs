@@ -48,7 +48,22 @@ pub fn exited(status: ExitStatus) -> Result<(), Error> {
     match (status.code(), status.signal()) {
         (Some(0), _) => Ok(()),
         (Some(code), _) => Err(Error::status(code)),
-        (None, signal) => Err(Error::status(128 + signal.unwrap_or(0))),
+        // Policy: a command a signal killed said nothing of it, as the kernel's out-of-memory killer's SIGKILL leaves it
+        // no chance to.
+        (None, signal) => {
+            let signal = signal.unwrap_or(0);
+            Err(Error {
+                message: Some(format!(
+                    "killed by signal {signal}{}",
+                    if signal == 9 {
+                        ", as the kernel kills what has run out of memory"
+                    } else {
+                        ""
+                    }
+                )),
+                status: u8::try_from(128 + signal).unwrap_or(1),
+            })
+        }
     }
 }
 
@@ -125,5 +140,18 @@ impl TempDir {
 impl Drop for TempDir {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_command_a_signal_killed_says_so() {
+        let killed = exited(ExitStatus::from_raw(9)).unwrap_err();
+        assert_eq!(killed.status, 137);
+        assert!(killed.to_string().starts_with("killed by signal 9, "));
+        assert_eq!(exited(ExitStatus::from_raw(1 << 8)).unwrap_err().message, None);
     }
 }
