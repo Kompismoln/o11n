@@ -39,8 +39,6 @@ allotment's host on its `vpn`, which both have to be on, or without one on the f
 - Syncthing knows nothing but its configuration, which each start writes anew: no discovery, relays, NAT traversal,
   reporting, and its API only on a socket in its state, `api.sock`.
 
-<<<<<<< signed
-=======
 ## Over SFTP
 
 An allotment's `sftp` are the apps and hosts that reach it over SFTP as its principal, from each host they're on, an
@@ -81,40 +79,11 @@ alice.files = { sftp = { host = "files.example.com", login = "archive", root = "
   (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
   would take it on its command line.
 - Nextcloud reaches an allotment at its host's IPv4 address on the vpn, as it keeps the host keys it knows as
-  `host::key` lines, split at the first `::`. It keeps the host key it first sees, and checks for changes as a folder
-  is opened.
+  `host::key` lines, split at the first `::`. It keeps the host key it first sees, and checks for changes as a folder is
+  opened.
 - An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
 
->>>>>>> @stamp
 ## Status
-<<<<<<< signed
-=======
-=======
-## In Nextcloud
-
-A nextcloud's `allotments` are the allotments it mounts as external storage for the user each is for, the nextcloud user
-of its name, at `/<host>`, its host's name (`org/apps/nextcloud.nix`):
-
-```toml
-[app.cloud.nextcloud]
-allotments = ["user-alice@web"]
-```
-
-Nextcloud reaches each over SFTP, on the allotment's `vpn`, or without one on the first vpn the host it runs on shares
-with the allotment's host, as a replica would, and logs in as the principal with an RSA key, the app's `sftp-key`, as
-nextcloud's SFTP has no other kind; `o11n secret generate app-<name> sftp-key` makes it, and an allotment's host without
-its public key fails evaluation. An allotment that isn't a user's, or a host that runs nextcloud and has the allotment,
-fail evaluation too.
-
-- The allotment's host lets the key in as the principal from nextcloud's host's address on that vpn alone, and gives it
-  nothing but sftp, jailed to the allotments' directory, `/srv/allotments`, and starting in the allotment
-  (`nixos/org/allotments.nix`). What nextcloud writes there is the principal's, as if a replica had synced it.
-- In nextcloud's container, `nextcloud-allotments`, a oneshot after `nextcloud-setup`, enables `files_external` and
-  imports each mount, applicable to its user alone, unless one is there as declared, which it replaces otherwise
-  (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
-  would take it on its command line.
-- Nextcloud keeps the host key it first sees, on the vpn, and checks for changes as a folder is opened.
->>>>>>> @stamp
 
 On the allotment's host, `allotment-sync-status` (`nixos/allotment-sync.nix`) says, as JSON, how each allotment it
 serves syncs, from Syncthing's API, which `switch-system allotments` runs for `o11n status`
