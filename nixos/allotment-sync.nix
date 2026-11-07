@@ -71,6 +71,25 @@ let
         type = with lib.types; listOf str;
         default = [ ];
       };
+      desktop = lib.mkOption {
+        description = "a link to the folder on its user's Desktop, with a badge of how it syncs, or null";
+        type = lib.types.nullOr (
+          lib.types.submodule {
+            options = {
+              name = lib.mkOption {
+                description = "the link's name";
+                type = lib.types.str;
+              };
+              icon = lib.mkOption {
+                description = "the link's icon, or null for the folder's";
+                type = with lib.types; nullOr path;
+                default = null;
+              };
+            };
+          }
+        );
+        default = null;
+      };
     };
   };
 
@@ -160,7 +179,8 @@ let
     };
   };
 
-  # Dependency: crates/o11n/src/allotments.rs reads what this says, as JSON: for each allotment, the folder's state, its
+  # Dependency: crates/o11n/src/allotments.rs reads what this says, as JSON: for each allotment, or the one its argument
+  # names, the folder's state, its
   # errors, its conflicting copies, and for each peer whether it's connected, when it was last seen, and how much of the
   # folder it has; or else the error that kept it from saying.
   status = pkgs.writeShellApplication {
@@ -175,6 +195,7 @@ let
       said='{}'
       ${lib.concatStrings (
         lib.mapAttrsToList (id: sync: ''
+          if [[ -z ''${1:-} || $1 == ${lib.escapeShellArg id} ]]; then
           api() {
             curl -sS --fail-with-body --max-time 10 --unix-socket ${lib.escapeShellArg (socket sync)} \
               -H ${lib.escapeShellArg "X-API-Key: ${apiKey id}"} "http://localhost/rest/$1"
@@ -211,11 +232,60 @@ let
           else
             said=$(jq --arg id ${lib.escapeShellArg id} --arg error "$status" '.[$id] = { error: $error }' <<<"$said")
           fi
+          fi
         '') cfg
       )}
       echo "$said"
     '';
   };
+
+  # Policy: the link is made where nothing is, and else left as it is; its badge is one of the icon theme's emblems:
+  # synced, syncing, offline, or an error or a conflicting copy.
+  desktopUnit =
+    id: sync:
+    let
+      link = "$HOME/Desktop/${sync.desktop.name}";
+    in
+    {
+      description = "the desktop link to the allotment ${id}, and its badge of how it syncs";
+      wantedBy = [ "default.target" ];
+      unitConfig.ConditionUser = sync.user;
+      path = [
+        pkgs.coreutils
+        pkgs.glib
+        pkgs.jq
+        status
+      ];
+      serviceConfig = {
+        Restart = "always";
+        RestartSec = 10;
+      };
+      script = ''
+        link="${link}"
+        mkdir -p "$HOME/Desktop"
+        if [[ ! -e $link && ! -L $link ]]; then
+          ln -s ${lib.escapeShellArg sync.folder} "$link"
+        fi
+        ${lib.optionalString (sync.desktop.icon != null) ''
+          gio set -n "$link" metadata::custom-icon ${lib.escapeShellArg "file://${sync.desktop.icon}"}
+        ''}
+        shown=
+        while true; do
+          badge=$(allotment-sync-status ${lib.escapeShellArg id} | jq -r --arg id ${lib.escapeShellArg id} '.[$id]
+            | if .error or (.errors | length > 0) or .conflicts > 0 then "emblem-important"
+              elif (.peers | all(.connected) | not) then "emblem-unreadable"
+              elif .state != "idle" or (.peers | any(.completion < 100)) then "emblem-synchronizing"
+              else "emblem-default" end')
+          if [[ $badge != "$shown" ]]; then
+            gio set -n -t stringv "$link" metadata::emblems "$badge"
+            # Accommodating for Nemo, which redraws an icon as the file changes, and not as its metadata does.
+            touch -h "$link"
+            shown=$badge
+          fi
+          sleep 5
+        done
+      '';
+    };
 in
 {
   options.o11n.allotment-sync = lib.mkOption {
@@ -230,5 +300,9 @@ in
     systemd.services = lib.mapAttrs' (
       id: sync: lib.nameValuePair "allotment-sync@${id}" (unit id sync)
     ) cfg;
+
+    systemd.user.services = lib.mapAttrs' (
+      id: sync: lib.nameValuePair "allotment-desktop@${id}" (desktopUnit id sync)
+    ) (lib.filterAttrs (_: sync: sync.desktop != null) cfg);
   };
 }

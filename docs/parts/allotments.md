@@ -39,6 +39,19 @@ allotment's host on its `vpn`, which both have to be on, or without one on the f
 - Syncthing knows nothing but its configuration, which each start writes anew: no discovery, relays, NAT traversal,
   reporting, and its API only on a socket in its state, `api.sock`.
 
+### On the desktop
+
+Where Cinnamon runs, a replica is on its principal's Desktop as a link named after the org, or after the org and the
+allotment's host where the principal keeps more than one there, with the org's `theme.logo` as its icon
+(`nixos/org/allotments.nix`). `allotment-desktop@<id>`, a user service of the principal's, makes the link where nothing
+is, and every 5 seconds badges it with an emblem of how it syncs, from `allotment-sync-status <id>`
+(`nixos/allotment-sync.nix`):
+
+- `emblem-default`: the allotment's host is connected and has all of it
+- `emblem-synchronizing`: connected, and either side still syncing
+- `emblem-unreadable`: the allotment's host isn't connected
+- `emblem-important`: an error, or a `*.sync-conflict-*` copy in the replica.
+
 ## Over SFTP
 
 An allotment's `sftp` are the apps and hosts that reach it over SFTP as its principal, from each host they're on, an
@@ -85,8 +98,8 @@ alice.files = { sftp = { host = "files.example.com", login = "archive", root = "
 
 ## Status
 
-On the allotment's host, `allotment-sync-status` (`nixos/allotment-sync.nix`) says, as JSON, how each allotment it
-serves syncs, from Syncthing's API, which `switch-system allotments` runs for `o11n status`
+On the allotment's host, `allotment-sync-status [id]` (`nixos/allotment-sync.nix`) says, as JSON, how each allotment it
+serves syncs, or the one named, from Syncthing's API, which `switch-system allotments` runs for `o11n status`
 (`crates/o11n/src/allotments.rs`):
 
 - `allotment-sync <id> <replica>`: ok when the replica is connected and has all of the allotment, with no errors;

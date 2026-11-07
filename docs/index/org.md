@@ -950,6 +950,14 @@ font name
 
 font package
 
+### `theme.logo`
+
+`org/theme.nix` · null or string
+
+Default: `null`
+
+the org's logo, by its path in the org, as the icon of what o11n puts on a desktop, or null
+
 ### `theme.vim-colorscheme`
 
 `org/theme.nix` · null or string

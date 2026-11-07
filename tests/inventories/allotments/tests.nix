@@ -118,6 +118,7 @@ in
     };
     expected = {
       zhost."user-alice.zhost" = {
+        desktop = null;
         folder = "/srv/allotments/user-alice";
         state = "/srv/storage/var/lib/allotment-sync/user-alice.zhost";
         user = "alice";
@@ -140,6 +141,7 @@ in
         wants = [ "systemd-networkd-wait-online@wg0.service" ];
       };
       laptop."user-alice.zhost" = {
+        desktop = null;
         folder = "/home/alice/.o11n/allotments/zhost";
         state = "/home/alice/.o11n/syncthing/zhost";
         user = "alice";
@@ -333,4 +335,53 @@ in
     expr = outputs.org.app.cloud.keys.sftp-key;
     expected = "ssh-rsa";
   };
+
+  # Policy: where Cinnamon runs, a replica is on its principal's Desktop as the org, by its logo, badged as it syncs.
+  test_replica_on_the_desktop =
+    let
+      cinnamon = {
+        services.xserver.desktopManager.cinnamon.enable = true;
+      };
+      themed =
+        (o11nLib.mkNixosConfigurations (alter {
+          theme = {
+            wallpaper = "assets/wallpaper.jpg";
+            logo = "assets/logo.svg";
+            fonts = { };
+          };
+        })).laptop.extendModules
+          { modules = [ cinnamon ]; };
+      plain = laptop.extendModules { modules = [ cinnamon ]; };
+      unit = themed.config.systemd.user.services."allotment-desktop@user-alice.zhost";
+    in
+    {
+      expr = {
+        themed = themed.config.o11n.allotment-sync."user-alice.zhost".desktop.name;
+        icon = lib.hasSuffix "/assets/logo.svg" (
+          toString themed.config.o11n.allotment-sync."user-alice.zhost".desktop.icon
+        );
+        plain = plain.config.o11n.allotment-sync."user-alice.zhost".desktop;
+        withoutCinnamon = laptop.config.o11n.allotment-sync."user-alice.zhost".desktop;
+        inherit (unit) wantedBy;
+        user = unit.unitConfig.ConditionUser;
+        script = lib.all (part: lib.hasInfix part unit.script) [
+          ''link="$HOME/Desktop/Test AB"''
+          "ln -s /home/alice/.o11n/allotments/zhost"
+          "metadata::custom-icon"
+          "allotment-sync-status user-alice.zhost"
+        ];
+      };
+      expected = {
+        themed = "Test AB";
+        icon = true;
+        plain = {
+          name = "Test AB";
+          icon = null;
+        };
+        withoutCinnamon = null;
+        wantedBy = [ "default.target" ];
+        user = "alice";
+        script = true;
+      };
+    };
 }

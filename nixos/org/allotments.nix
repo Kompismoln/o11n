@@ -82,7 +82,7 @@ let
     };
 
   # Policy: a replica is in the principal's home, under .o11n/, which nothing else there names, and it dials the
-  # host that has the allotment.
+  # host that has the allotment; where Cinnamon runs, it's on the principal's Desktop as the org, by its logo.
   replicate =
     allotment:
     let
@@ -91,6 +91,14 @@ let
     in
     {
       o11n.allotment-sync.${allotment.id} = {
+        desktop = lib.mkIf config.services.xserver.desktopManager.cinnamon.enable {
+          name =
+            if lib.length (lib.filter (other: other.entity == allotment.entity) host.replicas) > 1 then
+              "${org.name} (${allotment.host})"
+            else
+              org.name;
+          icon = lib.mapNullable (logo: "${org.storePath}/${logo}") (org.theme.logo or null);
+        };
         folder = "${home}/.o11n/allotments/${allotment.host}";
         state = "${home}/.o11n/syncthing/${allotment.host}";
         user = entity.name;
