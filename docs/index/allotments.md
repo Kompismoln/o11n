@@ -61,11 +61,7 @@ the port the allotment's host listens on for its replicas
 Default: `[ ]`
 
 the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over the first
-<<<<<<< signed
-vpn they share
-=======
 vpn they share, on which they reach each other
->>>>>>> @stamp
 
 ### `allotment.<name>.size`
 

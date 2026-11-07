@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # Networks
 
 A host's `network.<name>` is an interface it configures with networkd (`org/network.nix`, `nixos/org/networking.nix`),
@@ -19,4 +17,3 @@ network.wifi = { interface = "wlp4s0", mode = "dhcp" }
 
 It still takes its IPv4 address by DHCP. A network that isn't dhcp, or has a suffix another network of the org has,
 which could be on its link, fails evaluation.
->>>>>>> @stamp

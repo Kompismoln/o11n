@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # OpenWrt
 
 A host with `openwrt` is a router that runs OpenWrt (`org/openwrt.nix`), and no NixOS, as its `nixos` is false. Its
@@ -102,4 +100,3 @@ as `o11n-glesys`. It runs once the WAN is up, by `/etc/hotplug.d/iface/90-o11n-g
 `/etc/crontabs/root`, which `o11n openwrt apply` has cron read anew. It sends the key as a Basic `Authorization` header,
 which `ucode` encodes. As the address changes, the API key has to let any address in, and needs nothing but the domain
 API. The image leaves the script out, as it holds the key, until it's applied.
->>>>>>> @stamp
