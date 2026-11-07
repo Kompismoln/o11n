@@ -220,6 +220,8 @@ Default: `null`
 
 the collabora app whose endpoint nextcloud's office uses, or null
 
+<<<<<<< signed
+=======
 ### `app.<name>.nextcloud.external`
 
 `org/apps/nextcloud.nix` · attribute set of (submodule)
@@ -278,6 +280,7 @@ whether the user can share from the mount, nextcloud's enable_sharing
 
 the nextcloud user the mount is for, the one it applies to
 
+>>>>>>> @stamp
 ### `app.<name>.nextcloud.keycloak`
 
 `org/apps/nextcloud.nix` · null or impossible (empty enum)
@@ -1061,14 +1064,24 @@ entity id in various formats
 
 ### `<entity>.keys`
 
+<<<<<<< signed
+`org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "syncthing", "password",
+"htpasswd", "luks", "passphrase", "file")
+=======
 `org/entity.nix` · attribute set of (one of "age", "ssh", "ssh-rsa", "wireguard", "nix-sign", "tls-cert", "syncthing",
 "password", "htpasswd", "luks", "passphrase", "file")
+>>>>>>> @stamp
 
 Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's
 `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
+<<<<<<< signed
+`tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, and the keys
+o11n's modules read of the services they name
+=======
 `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key`
 for an app or host an allotment's `sftp` has, and the keys o11n's modules read of the services they name
+>>>>>>> @stamp
 
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 

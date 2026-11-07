@@ -40,7 +40,6 @@ allotment's host on its `vpn`, which both have to be on, or without one on the f
   reporting, and its API only on a socket in its state, `api.sock`.
 
 <<<<<<< signed
-## Status
 =======
 ## Over SFTP
 
@@ -80,7 +79,10 @@ files = { user = "alice", sftp = { host = "files.example.com", login = "archive"
 - Nextcloud keeps the host key it first sees, and checks for changes as a folder is opened.
 - An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
 
+>>>>>>> @stamp
 ## Status
+<<<<<<< signed
+=======
 =======
 ## In Nextcloud
 

@@ -38,6 +38,8 @@ Default: `"syncthing-${id}"`
 
 the key each host that syncs the allotment, the one that has it and each replica, has of its own
 
+<<<<<<< signed
+=======
 ### `allotment.<name>.logins`
 
 `org/allotment.nix` · lazy attribute set of lazy attribute set of raw value
@@ -47,6 +49,7 @@ Default: for each of `sftp`, by each host it's on, how it reaches the allotment
 for each of `sftp`, by each host it's on, how it logs in: the allotment's host's address and its own on the vpn, the
 principal's name, the directory sftp is jailed to and the allotment's root in it, and the public key of its `sftp-key`
 
+>>>>>>> @stamp
 ### `allotment.<name>.networks`
 
 `org/allotment.nix` · lazy attribute set of raw value
@@ -79,6 +82,8 @@ Default: `[ ]`
 
 the hosts that keep a replica of the allotment for its principal, which has to be on each, synced with it over `vpn`, on
 which they reach each other
+<<<<<<< signed
+=======
 
 ### `allotment.<name>.sftp`
 
@@ -88,6 +93,7 @@ Default: `[ ]`
 
 the apps and hosts, by handle, that reach the allotment over SFTP, as its principal, from each host they're on, over
 `vpn`, or without one over the first vpn that host shares with the allotment's
+>>>>>>> @stamp
 
 ### `allotment.<name>.size`
 
