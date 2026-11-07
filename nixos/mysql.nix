@@ -44,6 +44,8 @@ in
       enable = true;
       package = pkgs.mariadb;
       dataDir = config.o11n.preserve.onDatabase "/var/lib/mysql";
+      # Policy: a database's clients are on its host, over its socket.
+      settings.mysqld.bind-address = "127.0.0.1";
     };
 
     o11n.dumps = lib.mapAttrs' (

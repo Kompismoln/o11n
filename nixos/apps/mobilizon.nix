@@ -1,4 +1,3 @@
-# nixos/apps/mobilizon.nix
 {
   app,
   config,
@@ -156,10 +155,17 @@ in
 
             environment.systemPackages = [ postgresqlPackage ];
 
+            # Policy: no Erlang distribution, which would listen on every network the host has, with epmd, for
+            # whoever has the cookie; it stops on SIGTERM, and mobilizon_ctl evaluates rather than calls the node.
             systemd.services.mobilizon = {
               path = [ postgresqlPackage ];
-              serviceConfig.EnvironmentFile = lib.mkIf mail.send "/run/o11n-mail.env";
+              environment.RELEASE_DISTRIBUTION = "none";
+              serviceConfig = {
+                EnvironmentFile = lib.mkIf mail.send "/run/o11n-mail.env";
+                ExecStop = lib.mkForce "";
+              };
             };
+            environment.variables.MOBILIZON_CTL_RPC_DISABLED = "true";
 
             services.postgresql = {
               enable = lib.mkForce false;

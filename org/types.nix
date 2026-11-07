@@ -119,6 +119,15 @@ entities
     };
   };
 
+  # Policy: a file the org names by its path in the org is one, or the org fails to evaluate where it's read.
+  orgFile =
+    lib.types.coercedTo lib.types.str (file: context.path + "/${file}") (
+      lib.types.addCheck lib.types.path builtins.pathExists
+    )
+    // {
+      description = "path of a file in the org";
+    };
+
   allotment.module = lib.types.submoduleWith {
     modules = [ ./allotment.nix ];
     specialArgs = {

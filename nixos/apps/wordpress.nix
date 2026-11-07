@@ -1,4 +1,3 @@
-# nixos/apps/wordpress.nix
 {
   app,
   config,
@@ -73,6 +72,29 @@ in
       "L+ ${cfg.home}/wp-config-override.php - - - - ${wpConfig}"
     ];
 
+    # Policy: a failed login is a POST to wp-login.php that it answers with anything but a redirect, as the form again
+    # or a 503 under load, and a POST to xmlrpc.php, which nginx denies, is one tried.
+    # Dependency: nixos/nginx.nix logs each request as JSON with these fields first, in this order.
+    services.fail2ban.jails."wordpress-${cfg.name}" = {
+      filter.Definition.failregex =
+        let
+          post =
+            status: path:
+            ''^\{"time_iso8601": "[^"]*", "status": "${status}", "remote_addr": "<ADDR>", "remote_user": "[^"]*", "request_method": "POST", "request_uri": "/+${path}(?:\?[^"]*)?", "server_protocol": "[^"]*", "host": "${lib.escapeRegex cfg.endpoint}",'';
+        in
+        lib.concatStringsSep "\n  " [
+          (post "(?!302)\\d+" "wp-login\\.php")
+          (post "\\d+" "xmlrpc\\.php")
+        ];
+      settings = {
+        backend = "auto";
+        logpath = "/var/log/nginx/access.log";
+        port = "http,https";
+        maxretry = 5;
+        findtime = "1h";
+      };
+    };
+
     services.nginx.virtualHosts = {
       ${cfg.endpoint} = {
         forceSSL = cfg.ssl;
@@ -122,6 +144,11 @@ in
               fastcgi_buffer_size 16k;
               fastcgi_buffers 4 16k;
             '';
+          };
+
+          "= /xmlrpc.php" = {
+            priority = 100;
+            extraConfig = "deny all;";
           };
 
           "~ /\\." = {

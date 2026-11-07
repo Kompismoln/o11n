@@ -38,6 +38,7 @@ in
       recommendedProxySettings = true;
       recommendedTlsSettings = true;
 
+      # Dependency: nixos/apps/wordpress.nix's jail reads the fields up to host as they are here.
       commonHttpConfig = ''
         log_format main escape=json '{'
           '"time_iso8601": "$time_iso8601", '
@@ -85,6 +86,7 @@ in
 
     services.prometheus.exporters.nginx = {
       enable = true;
+      listenAddress = "127.0.0.1";
       scrapeUri = "http://${hostname}/nginx_status";
     };
     services.nginx.virtualHosts = {

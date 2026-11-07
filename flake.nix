@@ -138,6 +138,8 @@
 
               legacyPackages.vmTests.snapshot = import ./tests/vm/snapshot.nix { inherit pkgs; };
 
+              legacyPackages.vmTests.logs = import ./tests/vm/logs.nix { inherit pkgs; };
+
               legacyPackages.vmTests.allotments = import ./tests/vm/allotments.nix { inherit pkgs; };
 
               legacyPackages.vmTests.allotment-sync = import ./tests/vm/allotment-sync.nix { inherit pkgs; };

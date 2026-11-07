@@ -76,43 +76,32 @@ snapshot or an archive.
 
 ## Setting up: an archive at pelle for klimatkalendern at helsinki
 
-Kompismoln/org already has an archive at pelle, short of anyone archiving to it:
-
 - `[role.archive]` has the `archive` service and the `archives` store, and pelle has the role.
-- `[service.archive]` has an `id` and `vpn = "wg0"`, which helsinki is on too, and serves as `archive-pelle.km`.
-- `[service.domain-km]` grants the km namespace's tls-cert to `host:archive`, as the archive serves with it.
+- `[service.archive]` has an `id`, `vpn = "wg-data"`, which helsinki is on too, and serves as
+  `archive-pelle.data.int.kompismoln.se`; it sends mail, granted `host:mailserver`, to tell of its own failures.
+- `[service."domain-data.int.kompismoln.se"]` grants the namespace's tls-cert to `host:archive`, as the archive serves
+  with it.
 - `[store.archives]` has an `id`, `principal.hasSFTP = false` and `principal.hasPublicKey = false`.
 
-It takes the org on o11n as it is here, with klimatkalendern as a `mobilizon` app (`org/apps/mobilizon.nix`), whose
-database `nixos/apps/mobilizon.nix` declares, and so dumps.
+  ```toml
+  principal.state.archives.pelle.schedule = "daily"
+  principal.state.archives.pelle.prune = { keep-daily = 7, keep-weekly = 5, keep-monthly = 12, keep-yearly = 1 }
+  ```
 
-1. Archive klimatkalendern's state to pelle, daily, say what `o11n state prune` keeps, and have it send mail, as it
-   tells of a failed archive, under `[app.klimatkalendern]` in `org.toml`:
+  Until it has an `archive-passwd`'s htpasswd, the org fails to evaluate and says what to generate.
 
-   ```toml
-   principal.mail.send = true
-   principal.state.archives.pelle.schedule = "daily"
-   principal.state.archives.pelle.prune = { keep-daily = 7, keep-weekly = 5, keep-monthly = 12, keep-yearly = 1 }
-   ```
-
-   The archive service tells of its own failures as `archive@kompismoln.se`: under `[service.archive]`, set
-   `principal.mail.send = true` and `grants = ["host:archive", "host:mailserver"]`.
-
-2. Generate klimatkalendern's `archive-passwd`, its `restic-key` if `o11n secret show app-klimatkalendern restic-key`
-   has none, and the `mail` of each:
+2. Generate klimatkalendern's `archive-passwd`, and its `restic-key` if `o11n status app-klimatkalendern` says it has
+   none, then commit the htpasswd and the sops file:
 
    ```sh
    o11n secret generate app-klimatkalendern archive-passwd
    o11n secret generate app-klimatkalendern restic-key
-   o11n secret generate app-klimatkalendern mail
-   o11n identity create service-archive
-   o11n secret generate service-archive mail
    ```
 
    The `restic-key` encrypts the archive: lose it, and the archive is lost with it.
 
-3. Apply pelle first, whose rest-server lets klimatkalendern in once it has its `archive-passwd`'s htpasswd, then
-   helsinki, the mail server too, which gets `state-archive@app-klimatkalendern:pelle` and its timer:
+3. Apply pelle first, whose rest-server lets klimatkalendern in once it has the htpasswd, then helsinki, which gets
+   `state-archive@app-klimatkalendern:pelle` and its timer:
 
    ```sh
    o11n apply pelle
@@ -124,11 +113,12 @@ database `nixos/apps/mobilizon.nix` declares, and so dumps.
    ```sh
    o11n ssh service-rescue helsinki --user root systemctl start state-archive@app-klimatkalendern:pelle
    o11n state snapshots app-klimatkalendern
+   o11n status app-klimatkalendern
    ```
 
    It runs `klimatkalendern-pgsql-dump` first, into `/var/lib/klimatkalendern/dbdump.sql`, and the snapshot of
-   helsinki's btrfs storage after it. A snapshot that holds the dump can be restored as
-   `o11n state restore app-klimatkalendern --dir .`.
+   helsinki's btrfs storage after it; `o11n status` then has `archive pelle helsinki` ok. A snapshot that holds the dump
+   can be restored as `o11n state restore app-klimatkalendern --dir .`.
 
 5. Prune now and then: `o11n state prune app-klimatkalendern`.
 

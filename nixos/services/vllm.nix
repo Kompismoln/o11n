@@ -1,4 +1,3 @@
-# nixos/services/vllm.nix
 {
   config,
   host,
@@ -187,6 +186,13 @@ let
         --systemctl ${lib.getExe' config.systemd.package "systemctl"} \
         "$@"
     '';
+  loopback =
+    address:
+    lib.elem address [
+      "127.0.0.1"
+      "::1"
+      "localhost"
+    ];
 in
 {
   imports = [
@@ -195,6 +201,15 @@ in
   ];
 
   config = {
+    # Policy: a server or report that doesn't listen on loopback alone is the host's vpns'.
+    networking.firewall.interfaces = lib.genAttrs (map (vpn: org.vpn.${vpn}.interface) host.vpns) (_: {
+      allowedTCPPorts =
+        lib.mapAttrsToList (_: serverCfg: serverCfg.port) (
+          lib.filterAttrs (_: serverCfg: !loopback serverCfg.host) cfg.servers
+        )
+        ++ lib.optional (cfg.report.enable && !loopback cfg.report.host) cfg.report.port;
+    });
+
     # Policy: what a server reads must not change under it: no host paths, no moving revisions.
     assertions = lib.concatLists (
       lib.mapAttrsToList (server: serverCfg: [

@@ -999,3 +999,16 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   KEYCLOAK_REALM='{"realm": "example"}' run o11n status app-auth
   [[ $output == *"app-auth keycloak-mail example fail: realm example has no mail server"* ]]
 }
+
+@test "logs reads each host with the logs service, as the service, since the span given" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-logs
+  o11n secret generate service-logs ssh-key
+  run o11n logs --since 2d
+  succeeds
+  [[ $output == *"the logs of testhost.local since 2d"* ]]
+
+  run o11n logs "service-*"
+  fails "no host of service-* has the logs service"
+}

@@ -74,9 +74,7 @@ in
       };
       configurationFile = lib.mkOption {
         description = "the org's own configuration of the app, beside its kind's, or null";
-        type = lib.types.nullOr (
-          lib.types.coercedTo lib.types.str (s: context.path + "/${s}") lib.types.path
-        );
+        type = lib.types.nullOr context.types.orgFile;
         default =
           let
             relative = "apps/${config.name}.nix";

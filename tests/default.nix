@@ -181,6 +181,61 @@ let
         touch $out
       '';
 
+  # Policy: a WordPress jail's filter is checked against what nginx logs, run with the host's own log format: a failed
+  # login, one answered under load and a POST to xmlrpc.php, however many its slashes, are matched, a login, a GET and
+  # another app's requests aren't.
+  fail2banChecks.eval-fail2ban-wordpress =
+    let
+      inherit
+        (inventories.mail.nixosConfigurations.web.extendModules {
+          modules = [ { services.fail2ban.enable = true; } ];
+        })
+        config
+        ;
+    in
+    pkgs.runCommand "eval-fail2ban-wordpress"
+      {
+        nativeBuildInputs = [
+          pkgs.curl
+          pkgs.fail2ban
+          pkgs.nginx
+        ];
+        filter = config.environment.etc."fail2ban/filter.d/wordpress-blog.conf".source;
+        http = builtins.toFile "http.conf" config.services.nginx.commonHttpConfig;
+      }
+      ''
+        sed "s#/var/log/nginx/access.log#$PWD/access.log#" "$http" > http.conf
+        cat > nginx.conf <<EOF
+        pid $PWD/nginx.pid;
+        error_log $PWD/error.log;
+        events {}
+        http {
+          include $PWD/http.conf;
+          client_body_temp_path $PWD;
+          server {
+            listen 127.0.0.1:8080;
+            location = /wp-login.php {
+              if (\$arg_ok) { return 302 /; }
+              if (\$arg_busy) { return 503; }
+              return 200;
+            }
+            location = /xmlrpc.php { return 405; }
+          }
+        }
+        EOF
+        nginx -p "$PWD" -e "$PWD/error.log" -c "$PWD/nginx.conf"
+        request() { curl -s -o /dev/null -H "Host: $1" "''${@:3}" "http://127.0.0.1:8080$2"; }
+        request www.example.org /wp-login.php -d log=alice
+        request www.example.org '/wp-login.php?ok=1' -d log=alice
+        request www.example.org '/wp-login.php?busy=1' -d log=alice
+        request www.example.org //xmlrpc.php -d '<methodCall/>'
+        request www.example.org /wp-login.php
+        request example.net /wp-login.php -d log=alice
+        kill "$(cat nginx.pid)"
+        fail2ban-regex access.log "$filter" | grep -x 'Lines: 6 lines, 0 ignored, 3 matched, 3 missed'
+        touch $out
+      '';
+
   leakPatterns = [
     "kompismoln"
     "ahbk"
@@ -230,7 +285,8 @@ let
       '';
 in
 {
-  eval = nixosChecks // inventoryChecks // homeChecks // o11nChecks // openwrtChecks;
+  eval =
+    nixosChecks // inventoryChecks // homeChecks // o11nChecks // openwrtChecks // fail2banChecks;
   leaks = hostChecks // rescueUsbChecks;
 }
 // lib.mapAttrs (name: check: { ${name} = check; }) (

@@ -87,6 +87,12 @@ layer = "domain"
 doc = "docs/parts/vpns.md"
 code = ["nixos/org/wireguard.nix", "org/vpn.nix", "tests/inventories/mesh"]
 
+[parts.access]
+stage = "drafted"
+layer = "platform"
+doc = "docs/parts/access.md"
+code = ["nixos/org/fail2ban.nix", "nixos/org/ssh.nix"]
+
 [parts.mail]
 stage = "drafted"
 layer = "domain"

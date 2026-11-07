@@ -40,13 +40,13 @@ the app's settings as a collabora, which make it one
 
 `org/apps/collabora.nix` · list of string
 
-Default: `[ ]`
+Default: the `url` of each nextcloud app whose `nextcloud.collabora` is this one
 
-the hosts collabora accepts WOPI from
+the urls of the hosts collabora accepts WOPI from, and no other
 
 ### `app.<name>.configurationFile`
 
-`org/app.nix` · null or (absolute path or string convertible to it)
+`org/app.nix` · null or (path of a file in the org)
 
 Default: the org's `apps/<name>.nix`, if it exists
 
@@ -952,11 +952,11 @@ font package
 
 ### `theme.logo`
 
-`org/theme.nix` · null or string
+`org/theme.nix` · null or (path of a file in the org)
 
 Default: `null`
 
-the org's logo, by its path in the org, as the icon of what o11n puts on a desktop, or null
+the org's logo, by the path of a file in the org, as the icon of what o11n puts on a desktop, or null
 
 ### `theme.vim-colorscheme`
 
@@ -968,9 +968,9 @@ name of vim colorscheme to use (check nixvim for supported schemes)
 
 ### `theme.wallpaper`
 
-`org/theme.nix` · string
+`org/theme.nix` · path of a file in the org
 
-path to wallpaper
+the org's wallpaper, by the path of a file in the org
 
 ### `timezone`
 

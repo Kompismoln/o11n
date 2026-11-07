@@ -70,6 +70,8 @@ grants = [
 
 [service.mailserver]
 
+[service.logs]
+
 [service.nix-remote]
 
 [mailserver]
@@ -86,7 +88,7 @@ mailbox = false
 [role.testrole]
 
 [role.serving]
-services = ["locksmith", "mailserver", "nix-remote", "nix-switch"]
+services = ["locksmith", "logs", "mailserver", "nix-remote", "nix-switch"]
 
 [role.lorem]
 

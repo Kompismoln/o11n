@@ -1,4 +1,3 @@
-# nixos/org/reverse-tunnel.nix
 {
   config,
   host,
@@ -10,7 +9,7 @@
 let
   user = "reverse-tunnel";
 
-  # nixos/org/rescue-usb.nix knocks on port and forwards its sshd to forwardPort.
+  # Dependency: nixos/org/rescue-usb.nix knocks on port and forwards its sshd to forwardPort.
   port = 2602;
   forwardPort = 2603;
   openForMinutes = 60;
@@ -21,7 +20,7 @@ let
       config.services.openssh.hostKeys
     ).path;
 
-  # Separate from the host's sshd so that it can take a password and be stopped. It is stopped
+  # Policy: separate from the host's sshd so that it can take a password and be stopped. It is stopped
   # until opened, and the account it lets in is locked until then.
   sshdConfig = pkgs.writeText "reverse-tunnel-sshd.conf" ''
     Port ${toString port}
@@ -71,7 +70,7 @@ let
         exit 1
       }
 
-      # The caller types the code on a keyboard of unknown layout: digits are where they
+      # Policy: the caller types the code on a keyboard of unknown layout: digits are where they
       # always are, and spaces and dashes are dropped on both ends.
       normalize() {
         local code=''${1//[[:space:]-]/}
@@ -98,7 +97,7 @@ let
         printf '%s:%s\n' ${user} "$(mkpasswd --method=sha-512 --stdin <<<"$code")" | chpasswd --encrypted
         systemctl restart reverse-tunnel.service reverse-tunnel-expire.timer
         echo "open until $(date --date='${toString openForMinutes} minutes' +%H:%M), code: $(fold -w 4 <<<"$code" | paste -sd ' ')"
-        # A caller that doesn't know this host's key shows these words of the key it met.
+        # Policy: a caller that doesn't know this host's key shows these words of the key it met.
         echo "this host's key: $(ssh-keygen -l -B -f ${hostKey} | cut -d' ' -f2 | cut -d- -f1-4 | tr - ' ')"
         ;;
       expire)
@@ -149,12 +148,25 @@ in
 
   networking.firewall.allowedTCPPorts = [ port ];
 
+  # Policy: a caller who mistypes the code is banned from the tunnel for an hour, not from the host's sshd for a day;
+  # sshd's filter would otherwise match this sshd too, by its sshd-session.
+  services.fail2ban.jails = {
+    sshd.settings.journalmatch = "_SYSTEMD_UNIT=sshd.service";
+    reverse-tunnel.settings = {
+      filter = "sshd[mode=normal]";
+      journalmatch = "_SYSTEMD_UNIT=reverse-tunnel.service";
+      port = toString port;
+      maxretry = 5;
+      bantime = "1h";
+    };
+  };
+
   systemd.services.reverse-tunnel = {
     description = "sshd for stranded machines to call in through";
     after = [ "network.target" ];
     serviceConfig = {
       ExecStart = "${config.services.openssh.package}/bin/sshd -D -f ${sshdConfig}";
-      # Closing the door doesn't hang up on whoever came in through it.
+      # Policy: closing the door doesn't hang up on whoever came in through it.
       KillMode = "process";
     };
   };

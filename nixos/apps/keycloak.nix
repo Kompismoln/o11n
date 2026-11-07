@@ -183,6 +183,8 @@ in
       http-host = bindAddress;
       http-enabled = true;
       proxy-headers = "xforwarded";
+      # Policy: one keycloak an app, so no cluster to find over the host's networks.
+      cache = "local";
     };
     database = {
       host = "/run/postgresql";

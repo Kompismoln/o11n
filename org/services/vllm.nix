@@ -18,8 +18,8 @@ let
       own =
         path:
         builtins.path {
-          path = "${context.path}/${path}";
-          name = baseNameOf path;
+          inherit path;
+          name = builtins.unsafeDiscardStringContext (baseNameOf path);
         };
     in
     {
@@ -44,8 +44,8 @@ let
           defaultText = lib.literalMD "the org's `hosts/<host>/details/models--<org>--<name>/refs/main`, if it exists";
         };
         chatTemplate = lib.mkOption {
-          description = "the chat template the server uses for every request, as a path in the org";
-          type = lib.types.str;
+          description = "the chat template the server uses for every request, by the path of a file in the org";
+          type = context.types.orgFile;
           default = "${details}/chat_template.jinja";
           apply = own;
           defaultText = lib.literalMD "the org's `hosts/<host>/details/models--<org>--<name>/chat_template.jinja`";

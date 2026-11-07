@@ -68,6 +68,9 @@ nix-switch)
 	allotments) cat "$BATS_TEST_TMPDIR/allotments-$fqdn" 2>/dev/null || true ;;
 	esac
 	;;
+logs)
+	ssh-add -l >/dev/null && echo "the logs of $fqdn since $2"
+	;;
 testadmin | admin)
 	shift
 	ssh-add -l >/dev/null && echo "$name@$fqdn $*"

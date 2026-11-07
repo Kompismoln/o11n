@@ -1,4 +1,3 @@
-# nixos/apps/collabora.nix
 {
   app,
   lib,
@@ -7,7 +6,6 @@
 }:
 let
   port = 9980;
-  inherit (app.principal) bindAddress;
 
   dicts = [
     pkgs.hunspellDicts.sv_SE
@@ -32,7 +30,7 @@ in
 
   services.nginx.virtualHosts.${app.endpoint} =
     let
-      proxyPass = "http://[${bindAddress}]:${toString port}";
+      proxyPass = "http://[::1]:${toString port}";
     in
     {
       forceSSL = app.ssl;
@@ -90,7 +88,10 @@ in
   services.collabora-online = {
     enable = true;
     inherit port;
-    aliasGroups = app.collabora.allowedHosts;
+    # Policy: coolwsd serves the hosts it's told of alone; told of none, it would serve whichever asked first.
+    aliasGroups = map (url: {
+      host = "${url}:${if lib.hasPrefix "https://" url then "443" else "80"}";
+    }) app.collabora.allowedHosts;
 
     settings = {
       allowed_languages = "en_US sv_SE";
@@ -98,10 +99,12 @@ in
         enable = false;
         termination = true;
       };
+      # Fact: coolwsd listens on any or loopback, not on an address.
       net = {
         proto = "IPv6";
-        listen = bindAddress;
+        listen = "loopback";
       };
+      storage.wopi.alias_groups."@mode" = "groups";
     };
   };
 }

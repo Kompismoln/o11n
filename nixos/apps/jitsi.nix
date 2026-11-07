@@ -77,7 +77,16 @@ in
       enable = true;
     };
 
+    # Policy: prosody's clients, jicofo, the videobridge and nginx, are on its host.
     services.prosody = {
+      httpInterfaces = [
+        "127.0.0.1"
+        "::1"
+      ];
+      httpsInterfaces = [
+        "127.0.0.1"
+        "::1"
+      ];
       package = pkgs.prosody.override {
         withExtraLuaPackages = p: [
           p.basexx
@@ -145,6 +154,7 @@ in
         asap_accepted_audiences = { "account" }
         asap_require_room_claim = false;
         log = { { to = "syslog", levels = { min = "info" } } }
+        interfaces = { "127.0.0.1", "::1" }
         ssl = { cafile = "/etc/ssl/certs/ca-bundle.crt" }
       '';
 

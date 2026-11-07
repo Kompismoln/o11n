@@ -97,7 +97,7 @@ let
               "${org.name} (${allotment.host})"
             else
               org.name;
-          icon = lib.mapNullable (logo: "${org.storePath}/${logo}") (org.theme.logo or null);
+          icon = org.theme.logo or null;
         };
         folder = "${home}/.o11n/allotments/${allotment.host}";
         state = "${home}/.o11n/syncthing/${allotment.host}";

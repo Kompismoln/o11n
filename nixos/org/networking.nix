@@ -66,6 +66,9 @@ in
     interfaces = [ ];
   };
 
+  # Policy: names are the org's DNS's, not asked of a link.
+  services.resolved.settings.Resolve.LLMNR = "false";
+
   networking = {
     hostId = host.ids.hex8;
     localCommands = ''

@@ -2,12 +2,12 @@
 {
   options = {
     wallpaper = lib.mkOption {
-      description = "path to wallpaper";
-      type = lib.types.str;
+      description = "the org's wallpaper, by the path of a file in the org";
+      type = context.types.orgFile;
     };
     logo = lib.mkOption {
-      description = "the org's logo, by its path in the org, as the icon of what o11n puts on a desktop, or null";
-      type = with lib.types; nullOr str;
+      description = "the org's logo, by the path of a file in the org, as the icon of what o11n puts on a desktop, or null";
+      type = lib.types.nullOr context.types.orgFile;
       default = null;
       example = "assets/logo.svg";
     };

@@ -18,6 +18,8 @@
       // {
         # Dependency: crates/o11n/src/host.rs logs in to a host's locksmith with it.
         locksmith.ssh-key = "ssh";
+        # Dependency: crates/o11n/src/logs.rs logs in to a host's logs service with it.
+        logs.ssh-key = "ssh";
         nix-remote = {
           secret-key = "passphrase";
           ssh-key = "ssh";

@@ -8,6 +8,7 @@ mod groups;
 mod host;
 mod keycloak;
 mod keys;
+mod logs;
 mod openwrt;
 mod remote;
 mod route;
@@ -82,6 +83,15 @@ enum Command {
         /// Only the checks that fail.
         #[arg(long, conflicts_with = "list")]
         failed: bool,
+    },
+    /// What reached each host of the groups from outside, all of them by default, since the span given, as the logs
+    /// service's summary has it: the hosts without the service are left out.
+    Logs {
+        #[arg(default_value = "host-*")]
+        groups: Vec<String>,
+        /// How far back: a number and m, h, d or w.
+        #[arg(long, default_value = "7d")]
+        since: String,
     },
     /// The address the name answers at: as it is, if dotted, or in each of the org's namespaces in turn.
     Route {
@@ -564,6 +574,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
         Command::Openwrt(command) => org.openwrt(command)?,
         Command::State(command) => state(org, command)?,
         Command::Status { groups, list, failed } => org.status(&groups, list, failed)?,
+        Command::Logs { groups, since } => org.logs(&groups, &since)?,
         command => return query(&org.export, "", command),
     }
     Ok(())

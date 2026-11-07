@@ -335,7 +335,8 @@ in
     expected = "ssh-rsa";
   };
 
-  # Policy: where Cinnamon runs, a replica is on its principal's Desktop as the org, by its logo, badged as it syncs.
+  # Policy: where Cinnamon runs, a replica is on its principal's Desktop as the org, by its logo, badged as it syncs; a logo
+  # that isn't in the org fails evaluation.
   test_replica_on_the_desktop =
     let
       cinnamon = {
@@ -344,7 +345,7 @@ in
       themed =
         (o11nLib.mkNixosConfigurations (alter {
           theme = {
-            wallpaper = "assets/wallpaper.jpg";
+            wallpaper = "assets/logo.svg";
             logo = "assets/logo.svg";
             fonts = { };
           };
@@ -361,6 +362,16 @@ in
         );
         plain = plain.config.o11n.allotment-sync."user-alice.zhost".desktop;
         withoutCinnamon = laptop.config.o11n.allotment-sync."user-alice.zhost".desktop;
+        missing =
+          (builtins.tryEval
+            (alter {
+              theme = {
+                wallpaper = "assets/logo.svg";
+                logo = "assets/missing.svg";
+                fonts = { };
+              };
+            }).org.theme.logo
+          ).success;
         inherit (unit) wantedBy;
         user = unit.unitConfig.ConditionUser;
         script = lib.all (part: lib.hasInfix part unit.script) [
@@ -378,6 +389,7 @@ in
           icon = null;
         };
         withoutCinnamon = null;
+        missing = false;
         wantedBy = [ "default.target" ];
         user = "alice";
         script = true;

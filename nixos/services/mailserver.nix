@@ -1,4 +1,3 @@
-# nixos/services/mailserver.nix
 {
   config,
   host,
@@ -242,6 +241,23 @@ in
     };
 
     services.rspamd.localLuaRules = fromLogin;
+
+    # Policy: a password is tried on submission and imaps alone, where a principal's own client may mistype it.
+    services.fail2ban.jails =
+      let
+        login = filter: {
+          settings = {
+            inherit filter;
+            port = "submission,imaps";
+            maxretry = 5;
+            findtime = "1h";
+          };
+        };
+      in
+      {
+        postfix-sasl = login "postfix[mode=auth]";
+        dovecot = login "dovecot[mode=normal]";
+      };
 
     # Policy: nothing sends but a principal logged in as itself, on submission alone, whose sender restrictions smtp
     # lacks: no network is trusted to relay, and only root and dovecot, for sieve's redirects and replies, use

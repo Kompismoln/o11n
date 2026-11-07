@@ -1,4 +1,3 @@
-# home/hyprland.nix
 {
   home,
   lib,
@@ -80,7 +79,7 @@ in
       monitorv2 = host.monitors;
 
       exec-once = [
-        "${lib.getExe pkgs.swaybg} -i ${org.storePath}/${org.theme.wallpaper}}"
+        "${lib.getExe pkgs.swaybg} -i ${org.theme.wallpaper}"
         "${lib.getExe pkgs.waybar}"
       ];
 
