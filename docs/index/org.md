@@ -212,6 +212,15 @@ the org's input whose packages.<system> has the site's packages
 
 the nextcloud app whose files the site is built from, and whose user builds it
 
+### `app.<name>.nextcloud.allotments`
+
+`org/apps/nextcloud.nix` · list of impossible (empty enum)
+
+Default: `[ ]`
+
+the allotments, each as <handle>@<host>, nextcloud mounts as external storage, over SFTP, for the user each is for, at
+its host's name
+
 ### `app.<name>.nextcloud.collabora`
 
 `org/apps/nextcloud.nix` · null or impossible (empty enum)
@@ -1003,8 +1012,8 @@ entity id in various formats
 
 ### `<entity>.keys`
 
-`org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "syncthing", "password",
-"htpasswd", "luks", "passphrase", "file")
+`org/entity.nix` · attribute set of (one of "age", "ssh", "ssh-rsa", "wireguard", "nix-sign", "tls-cert", "syncthing",
+"password", "htpasswd", "luks", "passphrase", "file")
 
 Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's
 `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its

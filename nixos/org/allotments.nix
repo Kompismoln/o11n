@@ -114,6 +114,34 @@ let
       };
     };
 
+  # Policy: a nextcloud that mounts an allotment here logs in as its principal, with the app's sftp-key, from its host's
+  # address on the vpn it reaches it on alone, and gets sftp jailed to the allotments' directory, in its allotment.
+  mounted = lib.concatMap (
+    app:
+    lib.concatMap (
+      on:
+      map (mount: mount // { inherit app; }) (
+        lib.filter (mount: mount.host == host.name) app.nextcloud.mounts.${on}
+      )
+    ) app.run-on-hosts
+  ) (lib.filter (app: app.nextcloud != null) (lib.attrValues (org.app or { })));
+
+  sftpKey = app: app.publicKeys.sftp-key;
+
+  sftp = mount: {
+    users.users.${mount.user}.openssh.authorizedKeys.keys =
+      lib.optional (builtins.pathExists (sftpKey mount.app)) ''from="${mount.from}/128",restrict ${lib.trim (builtins.readFile (sftpKey mount.app))}'';
+    services.openssh.extraConfig = ''
+      Match User ${mount.user} Address ${mount.from}/128
+        ChrootDirectory ${mount.chroot}
+        ForceCommand internal-sftp -d ${mount.root}
+        AllowTcpForwarding no
+        X11Forwarding no
+        AllowAgentForwarding no
+        PermitTunnel no
+    '';
+  };
+
   synced =
     lib.concatMap (
       allotment:
@@ -158,7 +186,11 @@ in
           ++ map (allotment: {
             assertion = org.entities.${allotment.entity}.principal.home != "/var/empty";
             message = "allotment.\"${name allotment}\": ${allotment.entity} has no home on ${host.name} to keep its replica in: give it one, or drop ${host.name} from replicas.";
-          }) host.replicas;
+          }) host.replicas
+          ++ map (mount: {
+            assertion = builtins.pathExists (sftpKey mount.app);
+            message = "app.${mount.app.name}.nextcloud.allotments: ${mount.app.handle} has no sftp-key, which it logs in to ${host.name} with: o11n secret generate ${mount.app.handle} sftp-key.";
+          }) mounted;
 
         # Policy: a principal with an allotment on a host it isn't on has an account there that owns it, and nothing
         # else: no home, no login and no password.
@@ -201,5 +233,6 @@ in
     ]
     ++ map serve served
     ++ map replicate host.replicas
+    ++ map sftp mounted
   );
 }

@@ -105,6 +105,7 @@
         lib.types.enum [
           "age"
           "ssh"
+          "ssh-rsa"
           "wireguard"
           "nix-sign"
           "tls-cert"

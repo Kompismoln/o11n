@@ -36,6 +36,24 @@ let
     };
   };
 
+  # Fact: as org/apps/nextcloud.nix derives it for nextcloud.allotments = [ "user-alice@zhost" ], run on web.
+  mounts = lib.recursiveUpdate app {
+    publicKeys.sftp-key = ../inventories/allotments/public-keys/app-cloud-sftp-key.pub;
+    nextcloud.mounts.web = [
+      {
+        name = "user-alice@zhost";
+        entity = "user-alice";
+        host = "zhost";
+        user = "alice";
+        address = "fd12:3456:7890:0000::0001";
+        from = "fd12:3456:7890:0000::0002";
+        chroot = "/srv/allotments";
+        root = "/user-alice";
+        mountPoint = "/zhost";
+      }
+    ];
+  };
+
   evalApp =
     app: uid:
     evalNixosModule [
@@ -182,4 +200,53 @@ in
         after = [ "nextcloud-setup.service" ];
       };
     };
+
+  # Policy: a nextcloud with allotments keeps a mount of each, which logs in with the app's sftp-key.
+  test_nextcloud_mounts_allotments =
+    let
+      cfg = evalApp mounts app.principal.uid;
+      inner = cfg.containers.cloud.config;
+      unit = inner.systemd.services.nextcloud-allotments;
+    in
+    {
+      expr = {
+        apps = lib.attrNames inner.services.nextcloud.extraApps;
+        secret = {
+          inherit (cfg.containers.cloud.bindMounts."/run/secrets/sftp-key") hostPath isReadOnly;
+          inherit (cfg.sops.secrets."cloud/sftp-key") sopsFile owner;
+        };
+        inherit (unit) after;
+        declares = lib.all (part: lib.hasInfix part unit.script) [
+          "files_external:import -"
+          "--rawfile key /run/secrets/sftp-key"
+          ''"host":"[fd12:3456:7890:0000::0001]"''
+          ''"root":"/user-alice"''
+          ''"user":"alice"''
+          ''"applicable_users":["alice"]''
+          ''"mount_point":"/zhost"''
+        ];
+      };
+      expected = {
+        apps = [ "calendar" ];
+        secret = {
+          hostPath = "/run/secrets/cloud/sftp-key";
+          isReadOnly = true;
+          sopsFile = "/enc/app-cloud.yaml";
+          owner = "cloud";
+        };
+        after = [ "nextcloud-setup.service" ];
+        declares = true;
+      };
+    };
+
+  test_nextcloud_without_allotments_mounts_none = {
+    expr = {
+      unit = container.config.systemd.services ? nextcloud-allotments;
+      secret = container.bindMounts ? "/run/secrets/sftp-key";
+    };
+    expected = {
+      unit = false;
+      secret = false;
+    };
+  };
 }

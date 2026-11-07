@@ -155,4 +155,55 @@ in
       || outputs.org.host.zhost.keys ? "syncthing-store-files.zhost";
     expected = false;
   };
+
+  # Policy: nextcloud mounts a user's allotment at its host's name, reached over the vpn its host shares with it.
+  test_nextcloud_mounts = {
+    expr = outputs.org.app.cloud.nextcloud.mounts;
+    expected.laptop = [
+      {
+        name = "user-alice@zhost";
+        entity = "user-alice";
+        host = "zhost";
+        user = "alice";
+        address = "fd12:3456:7890:0000::0001";
+        from = "fd12:3456:7890:0000::0002";
+        chroot = "/srv/allotments";
+        root = "/user-alice";
+        mountPoint = "/zhost";
+      }
+    ];
+  };
+
+  # Policy: the allotment's host lets the app's sftp-key in as the principal from nextcloud's host alone, to sftp jailed
+  # to the allotments.
+  test_nextcloud_logs_in_by_sftp = {
+    expr = {
+      keys = zhost.config.users.users.alice.openssh.authorizedKeys.keys;
+      match =
+        lib.elem
+          ''
+            Match User alice Address fd12:3456:7890:0000::0002/128
+              ChrootDirectory /srv/allotments
+              ForceCommand internal-sftp -d /user-alice
+          ''
+          (
+            map (block: "Match ${lib.concatStringsSep "\n" (lib.take 3 (lib.splitString "\n" block))}\n") (
+              lib.splitString "Match " zhost.config.services.openssh.extraConfig
+            )
+          );
+      failing = failing zhost.config;
+    };
+    expected = {
+      keys = [
+        ''from="fd12:3456:7890:0000::0002/128",restrict ${lib.trim (builtins.readFile ./public-keys/app-cloud-sftp-key.pub)}''
+      ];
+      match = true;
+      failing = [ ];
+    };
+  };
+
+  test_nextcloud_has_an_sftp_key = {
+    expr = outputs.org.app.cloud.keys.sftp-key;
+    expected = "ssh-rsa";
+  };
 }

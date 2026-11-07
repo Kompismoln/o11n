@@ -48,8 +48,14 @@ replicas = ["laptop"]
 [allotment."store-files@zhost"]
 size = "1T"
 
+# Fact: a nextcloud that mounts alice's allotment, which laptop would run as an app-scheduler, and doesn't.
+[app.cloud]
+id = 0
+endpoint = "cloud.example.com"
+run-on-hosts = ["laptop"]
+nextcloud.allotments = ["user-alice@zhost"]
+
 [root.1]
 
 # Fact: every class needs a table, even when empty.
 [service]
-[app]
