@@ -1,4 +1,3 @@
-# nixos/wireguard.nix
 {
   config,
   host,
@@ -12,11 +11,18 @@ let
 
   vpns = builtins.filter (vpn: vpn.enable) (map (vpnName: org.vpn.${vpnName}) host.vpns);
 
-  peers =
+  mesh = vpn: vpn.topology == "mesh";
+
+  resolved =
     vpn:
     lib.filter (
-      peer: lib.elem vpn.name peer.vpns && (peer.name == vpn.gateway || host.name == vpn.gateway)
+      peer:
+      lib.elem vpn.name peer.vpns && (mesh vpn || peer.name == vpn.gateway || host.name == vpn.gateway)
     ) (lib.attrValues org.host);
+
+  routes = vpn: mesh vpn || host.name == vpn.gateway;
+
+  listens = vpn: if mesh vpn then host.endpoint != null else host.name == vpn.gateway;
 
   # Policy: the host first, then its principals by name.
   onHost =
@@ -26,7 +32,7 @@ let
       lib.filterAttrs (name: member: member.host == peer.name && name != peer.name) vpn.members
     );
 
-  isGateway = lib.any (vpn: host.name == vpn.gateway) vpns;
+  isGateway = lib.any (vpn: !mesh vpn && host.name == vpn.gateway) vpns;
   dnsFor = lib.filter (vpn: lib.elem host.name vpn.dns) vpns;
   proxyFor = lib.filter (vpn: host.name == vpn.gateway && vpn.proxy) vpns;
 in
@@ -58,7 +64,7 @@ in
                 )
               ) (onHost vpn peer)
             )
-          ) (peers vpn)
+          ) (resolved vpn)
         ) dnsFor
       )}
     '';
@@ -82,7 +88,7 @@ in
     };
 
     firewall = {
-      allowedUDPPorts = map (vpn: vpn.port) (lib.filter (vpn: host.name == vpn.gateway) vpns);
+      allowedUDPPorts = map (vpn: vpn.members.${host.name}.port) (lib.filter listens vpns);
       trustedInterfaces = map (vpn: vpn.interface) (builtins.filter (vpn: vpn.trusted) vpns);
       interfaces = lib.mkMerge [
         (lib.listToAttrs (
@@ -106,16 +112,44 @@ in
     };
   };
 
-  assertions = lib.concatMap (vpn: [
-    {
-      assertion = lib.all (other: lib.elem vpn.name org.host.${other}.vpns) ([ vpn.gateway ] ++ vpn.dns);
-      message = "vpn.${vpn.name}'s gateway and dns are hosts on it: add ${vpn.name} to the vpns of ${
-        lib.concatStringsSep ", " (
-          lib.filter (other: !lib.elem vpn.name org.host.${other}.vpns) ([ vpn.gateway ] ++ vpn.dns)
-        )
-      }.";
-    }
-  ]) vpns;
+  assertions =
+    lib.concatMap (
+      vpn:
+      let
+        named = lib.optional (vpn.gateway != null) vpn.gateway ++ vpn.dns;
+      in
+      [
+        {
+          assertion = lib.all (other: lib.elem vpn.name org.host.${other}.vpns) named;
+          message = "vpn.${vpn.name}'s gateway and dns are hosts on it: add ${vpn.name} to the vpns of ${
+            lib.concatStringsSep ", " (lib.filter (other: !lib.elem vpn.name org.host.${other}.vpns) named)
+          }.";
+        }
+        {
+          assertion = mesh vpn -> vpn.gateway == null && !vpn.proxy;
+          message = "vpn.${vpn.name} is a mesh, which has no gateway to forward or proxy through: remove its gateway and proxy, or set topology = \"hub\".";
+        }
+        {
+          assertion = mesh vpn || vpn.gateway != null;
+          message = "vpn.${vpn.name} is a hub, whose hosts peer through its gateway: set its gateway to a host on it.";
+        }
+      ]
+    ) vpns
+    ++ (
+      let
+        ports = map (vpn: vpn.members.${host.name}.port) (lib.filter listens vpns);
+      in
+      [
+        {
+          assertion = lib.allUnique ports;
+          message = "${host.name} listens on ${
+            lib.concatMapStringsSep ", " toString (
+              lib.unique (lib.filter (port: lib.count (other: other == port) ports > 1) ports)
+            )
+          } for more than one of its vpns: set the port of one of them apart.";
+        }
+      ]
+    );
 
   sops.secrets = lib.listToAttrs (
     map (
@@ -144,7 +178,7 @@ in
         };
         wireguardConfig = {
           PrivateKeyFile = config.sops.secrets.${vpn.key}.path;
-          ListenPort = lib.mkIf (host.name == vpn.gateway) vpn.port;
+          ListenPort = lib.mkIf (listens vpn) vpn.members.${host.name}.port;
         };
         wireguardPeers = map (
           peer:
@@ -167,14 +201,21 @@ in
                   );
             };
             serverConfig = {
-              Endpoint = "${peer.endpoint}:${toString vpn.port}";
+              Endpoint = "${peer.endpoint}:${toString vpn.members.${peer.name}.port}";
             };
             clientConfig = {
               PersistentKeepalive = vpn.keepalive;
             };
           in
-          base // (if peer.name == vpn.gateway then serverConfig else clientConfig)
-        ) (lib.filter (peer: peer.name != host.name) (peers vpn));
+          # Policy: on a mesh, a host without an endpoint dials each peer that has one and keeps its NAT's mapping open
+          # for the replies; a peer without one dials it.
+          if mesh vpn then
+            base
+            // lib.optionalAttrs (peer.endpoint != null) serverConfig
+            // lib.optionalAttrs (host.endpoint == null) clientConfig
+          else
+            base // (if peer.name == vpn.gateway then serverConfig else clientConfig)
+        ) (map (peer: org.host.${peer}) vpn.peers.${host.name});
       }
     );
 
@@ -191,7 +232,7 @@ in
         ];
         inherit (network) dns;
         routes =
-          (lib.optionals (host.name == vpn.gateway) [
+          (lib.optionals (routes vpn) [
             {
               Destination = network.destination;
             }
@@ -200,7 +241,7 @@ in
               Scope = "link";
             }
           ])
-          ++ (lib.optionals (vpn.proxy && host.name != vpn.gateway) [
+          ++ (lib.optionals (!mesh vpn && vpn.proxy && host.name != vpn.gateway) [
             {
               Gateway = org.host.${vpn.gateway}.network.${vpn.name}.address;
               Destination = "::/0";

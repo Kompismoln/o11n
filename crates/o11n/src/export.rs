@@ -71,6 +71,13 @@ pub struct Entity {
     pub allotments: Vec<Allotment>,
     #[serde(default)]
     pub keycloak: Option<Keycloak>,
+    #[serde(default)]
+    pub openwrt: Option<Openwrt>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Openwrt {
+    pub files: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]

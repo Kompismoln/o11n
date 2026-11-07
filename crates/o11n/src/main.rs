@@ -8,6 +8,7 @@ mod groups;
 mod host;
 mod keycloak;
 mod keys;
+mod openwrt;
 mod remote;
 mod route;
 mod secrets;
@@ -151,6 +152,9 @@ enum Command {
     },
     #[command(subcommand)]
     Remote(builder::RemoteCommand),
+    /// A router that runs `OpenWrt`.
+    #[command(subcommand)]
+    Openwrt(openwrt::OpenwrtCommand),
     /// Builds the host's system and prints it.
     Build {
         host: String,
@@ -553,6 +557,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
         } => org.unit(&unit, &host, from.as_deref(), inject)?,
         Command::Tunnel { server, action } => org.tunnel(&server, action)?,
         Command::Image { variant } => org.image(&variant)?,
+        Command::Openwrt(command) => org.openwrt(command)?,
         Command::State(command) => state(org, command)?,
         Command::Status { groups, list, failed } => org.status(&groups, list, failed)?,
         command => return query(&org.export, "", command),

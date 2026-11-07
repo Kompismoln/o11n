@@ -82,19 +82,28 @@
       type = lib.types.str;
     };
     port = lib.mkOption {
-      description = "port allocated for the vpn";
+      description = "the port the vpn listens on: on a hub the gateway's, on a mesh the first of its range, whose host with id n listens on the port plus n, so that hosts behind one NAT listen on ports of their own";
       type = lib.types.port;
-      default = 51820 + config.id;
-      defaultText = lib.literalExpression "51820 + id";
+      default = if config.topology == "mesh" then 52000 + 100 * config.id else 51820 + config.id;
+      defaultText = lib.literalExpression ''if topology == "mesh" then 52000 + 100 * id else 51820 + id'';
     };
     keepalive = lib.mkOption {
       description = "port allocated for the vpn";
       default = 25;
       type = lib.types.int;
     };
+    topology = lib.mkOption {
+      description = "how the vpn's hosts peer: `hub`, each with the gateway alone, which forwards between them, or `mesh`, each with each, at the endpoint of either, so that two without one don't reach each other";
+      type = lib.types.enum [
+        "hub"
+        "mesh"
+      ];
+      default = "hub";
+    };
     gateway = lib.mkOption {
-      description = "designated gateway host";
-      type = context.types.host.ref;
+      description = "designated gateway host, which a hub has and a mesh doesn't";
+      type = lib.types.nullOr context.types.host.ref;
+      default = null;
     };
     proxy = lib.mkEnableOption "ipv6 proxy through gateway";
     dns = lib.mkOption {
@@ -143,6 +152,10 @@
               description = "the member's own wireguard key, which only a host has";
               type = lib.types.nullOr lib.types.str;
             };
+            port = lib.mkOption {
+              description = "the port the member listens on, which only a hub's gateway and each host on a mesh has";
+              type = lib.types.nullOr lib.types.port;
+            };
           };
         }
       );
@@ -163,6 +176,13 @@
               address4 = "${config.prefix4}.${host.ids.str}";
               fqdn = "${host.name}.${config.namespace}";
               inherit (config) key;
+              port =
+                if config.topology == "mesh" then
+                  config.port + host.ids.int
+                else if host.name == config.gateway then
+                  config.port
+                else
+                  null;
             };
           }) hosts
           ++ lib.concatMap (
@@ -177,12 +197,48 @@
                   address4 = null;
                   fqdn = "${service.name}-${host.name}.${config.namespace}";
                   key = null;
+                  port = null;
                 };
               })
               (lib.filter (host: lib.any (principal: principal.handle == service.handle) host.principals) hosts)
           ) services
         );
-      defaultText = lib.literalMD "each host whose `vpns` has the vpn, at `<prefix>::<host id>` and `<prefix4>.<host id>` as `<host>.<namespace>`, and each service whose `vpn` it is, on each of those hosts it's on, at `<prefix>:ffff:<host id>:<uid>:<id>` as `<service>-<host>.<namespace>`";
+      defaultText = lib.literalMD "each host whose `vpns` has the vpn, at `<prefix>::<host id>` and `<prefix4>.<host id>` as `<host>.<namespace>`, listening on `port` if it's a hub's gateway and on `port` plus its id on a mesh, and each service whose `vpn` it is, on each of those hosts it's on, at `<prefix>:ffff:<host id>:<uid>:<id>` as `<service>-<host>.<namespace>`";
+    };
+    peers = lib.mkOption {
+      description = "each host on the vpn, by the hosts it has a tunnel with: on a hub, the gateway with each other and each other with the gateway; on a mesh, each with each other, but for a pair of which neither has an endpoint";
+      readOnly = true;
+      type = lib.types.attrsOf (lib.types.listOf lib.types.str);
+      default =
+        let
+          hosts = lib.filter (host: lib.elem config.name host.vpns) (lib.attrValues context.org.host);
+          tunnel =
+            host: peer:
+            host.name != peer.name
+            && (
+              if config.topology == "mesh" then
+                host.endpoint != null || peer.endpoint != null
+              else
+                host.name == config.gateway || peer.name == config.gateway
+            );
+        in
+        lib.listToAttrs (
+          map (
+            host: lib.nameValuePair host.name (map (peer: peer.name) (lib.filter (tunnel host) hosts))
+          ) hosts
+        );
+      defaultText = lib.literalMD "each host whose `vpns` has the vpn, by the others it has a tunnel with, as `topology` has it";
+    };
+    reaches = lib.mkOption {
+      description = "each host on the vpn, by the hosts it reaches on it: on a hub each other, through the gateway; on a mesh its peers";
+      readOnly = true;
+      type = lib.types.attrsOf (lib.types.listOf lib.types.str);
+      default =
+        if config.topology == "mesh" then
+          config.peers
+        else
+          lib.mapAttrs (name: _: lib.filter (other: other != name) (lib.attrNames config.peers)) config.peers;
+      defaultText = lib.literalMD "`peers` on a mesh, and on a hub each host by each other";
     };
     allowedTCPPorts = lib.mkOption {
       description = "force all peers to allow these tcp ports in the vpn";

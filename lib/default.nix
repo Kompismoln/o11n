@@ -44,7 +44,54 @@ rec {
     diskoConfigurations = mkDiskoConfigurations context;
     homeConfigurations = mkHomeConfigurations context;
     nixosConfigurations = mkNixosConfigurations context;
+    openwrtConfigurations = mkOpenwrtConfigurations context;
   };
+
+  # Policy: a router's configuration is the files o11n writes on it, as a tree, and its image, which holds those
+  # without a secret; the image is built on x86_64-linux, the only system OpenWrt's ImageBuilder runs on.
+  mkOpenwrtConfigurations =
+    context:
+    let
+      pkgs = o11nInputs.nixpkgs.legacyPackages.x86_64-linux;
+      tree =
+        name: files:
+        pkgs.runCommand name
+          {
+            nativeBuildInputs = [ pkgs.jq ];
+            files = builtins.toJSON files;
+          }
+          ''
+            mkdir -p $out
+            jq -r 'keys[]' <<<"$files" | while read -r path; do
+              mkdir -p "$out$(dirname "$path")"
+              jq -j --arg path "$path" '.[$path]' <<<"$files" > "$out$path"
+            done
+          '';
+    in
+    lib.mapAttrs (
+      name: host:
+      let
+        inherit (host) openwrt;
+        target = lib.splitString "/" openwrt.target;
+      in
+      {
+        inherit (openwrt)
+          release
+          target
+          profile
+          packages
+          ;
+        files = tree "openwrt-${name}-files" openwrt.files;
+        image = import "${o11nInputs.openwrt-imagebuilder}/builder.nix" {
+          inherit pkgs;
+          inherit (openwrt) release profile packages;
+          target = lib.head target;
+          variant = lib.last target;
+          files = tree "openwrt-${name}-image-files" openwrt.imageFiles;
+          extraImageName = name;
+        };
+      }
+    ) (lib.filterAttrs (_: host: host.openwrt != null) context.org.host);
 
   mkNixosConfigurations =
     context:

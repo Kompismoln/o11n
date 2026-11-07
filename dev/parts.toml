@@ -68,6 +68,24 @@ code = [
   "tests/vm/allotments.nix",
 ]
 
+[parts.networks]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/networks.md"
+code = ["nixos/org/networking.nix", "org/network.nix"]
+
+[parts.openwrt]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/openwrt.md"
+code = ["crates/o11n/src/openwrt.rs", "org/openwrt.nix"]
+
+[parts.vpns]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/vpns.md"
+code = ["nixos/org/wireguard.nix", "org/vpn.nix", "tests/inventories/mesh"]
+
 [parts.mail]
 stage = "drafted"
 layer = "domain"

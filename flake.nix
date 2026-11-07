@@ -21,6 +21,13 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
 
     preservation.url = "github:nix-community/preservation";
+
+    # Accommodating for the forges' archives, which sessions can't fetch: over git, and shallow, as its history is
+    # mostly its daily package hashes.
+    openwrt-imagebuilder = {
+      url = "git+https://github.com/astro/nix-openwrt-imagebuilder?shallow=1";
+      flake = false;
+    };
   };
 
   outputs =

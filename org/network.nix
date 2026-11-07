@@ -113,6 +113,12 @@
       type = with lib.types; nullOr bool;
       default = null;
     };
+    suffix = lib.mkOption {
+      description = "the ipv6 interface identifier, as ::fba, that a dhcp network forms its address with from the prefix its router advertises, rather than asking the router for one; null leaves it to the kernel and the router";
+      type = with lib.types; nullOr (strMatching "::[0-9a-f]{1,4}(:[0-9a-f]{1,4}){0,3}");
+      default = null;
+      example = "::fba";
+    };
     privacy = lib.mkEnableOption "ipv6 kernel address rotation" // {
       type = with lib.types; nullOr bool;
       default = null;

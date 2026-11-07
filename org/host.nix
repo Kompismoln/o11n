@@ -61,6 +61,21 @@ in
       default = null;
       type = with lib.types; nullOr str;
     };
+    behind = lib.mkOption {
+      description = "the router whose NAT the host is behind, a host with `openwrt`, which forwards to it the ports it listens on for its vpns, or null";
+      type = lib.types.nullOr context.types.host.ref;
+      default = null;
+      apply =
+        router:
+        lib.throwIf (router != null && org.host.${router}.openwrt == null)
+          "host.${config.name}.behind: ${router} is no router: give it openwrt, or set behind to one that has it."
+          router;
+    };
+    openwrt = lib.mkOption {
+      description = "the OpenWrt the host runs, as a router, or null";
+      type = lib.types.nullOr (context.types.openwrt.module config);
+      default = null;
+    };
     vpns = lib.mkOption {
       description = "list of interface names for vpns";
       type = lib.types.listOf context.types.vpn.ref;
@@ -94,16 +109,21 @@ in
       );
       defaultText = lib.literalMD "the host's `users`, the apps whose `run-on-hosts` has it, and the `services` and `stores` of its `roles`, but for those without a principal, in the order of their `handle`";
     };
+    shares = lib.mkOption {
+      description = "each host's first vpn it shares with this host, in the order of this host's vpns, or null";
+      type = lib.types.lazyAttrsOf (lib.types.nullOr lib.types.str);
+      readOnly = true;
+      default = lib.mapAttrs (
+        _: peer: lib.findFirst (vpn: lib.elem vpn peer.vpns) null config.vpns
+      ) org.host;
+      defaultText = lib.literalMD "for each host, the first of this host's `vpns` that is in its `vpns`, or `null`";
+    };
     reach = lib.mkOption {
       description = "each host's network on the first vpn it shares with this host, in the order of this host's vpns, or null";
       type = lib.types.lazyAttrsOf (lib.types.nullOr lib.types.raw);
       readOnly = true;
       default = lib.mapAttrs (
-        _: peer:
-        let
-          vpn = lib.findFirst (vpn: lib.elem vpn peer.vpns) null config.vpns;
-        in
-        if vpn == null then null else peer.network.${vpn}
+        name: peer: if config.shares.${name} == null then null else peer.network.${config.shares.${name}}
       ) org.host;
     };
     system = lib.mkOption {
@@ -165,7 +185,8 @@ in
     nixos = lib.mkOption {
       description = "whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes";
       type = lib.types.bool;
-      default = true;
+      default = config.openwrt == null;
+      defaultText = lib.literalExpression "openwrt == null";
     };
   };
   config = {
