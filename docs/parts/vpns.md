@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 # Vpns
 
 A vpn is a WireGuard network of the hosts whose `vpns` have it, `vpn.<name>` in `org.toml` (`org/vpn.nix`), each host on
@@ -52,3 +54,4 @@ on the vpn it would go over:
   `docs/parts/state.md`).
 
 An endpoint is dialed at what it resolves to, so a host on IPv6 alone is reached only from those that have IPv6.
+>>>>>>> @stamp

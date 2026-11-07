@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 # `openwrt`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
@@ -98,3 +100,4 @@ Default: `{ }`
 the router's own UCI, by file, by section name, with the section's type as `_type`: a list is a `list`, and
 `{ secret = <key> }` a key of the host's, which is written in when applied; o11n adds the sections it derives, whose
 names start with `o11n_`, and its options to the sections `system.system` and `dropbear.main`
+>>>>>>> @stamp

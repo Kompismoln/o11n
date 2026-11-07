@@ -352,6 +352,8 @@ Default: the org's `allotment`s whose `host` is the host, in the order of their 
 
 the allotments on the host
 
+<<<<<<< signed
+=======
 ### `host.<name>.behind`
 
 `org/host.nix` · null or impossible (empty enum)
@@ -361,6 +363,7 @@ Default: `null`
 the router whose NAT the host is behind, a host with `openwrt`, which forwards to it the ports it listens on for its
 vpns, or null
 
+>>>>>>> @stamp
 ### `host.<name>.boot`
 
 `org/host.nix` · one of "grub", "systemd"
@@ -541,21 +544,203 @@ Default: `{ }`
 
 networks to configure on host
 
+<<<<<<< signed
+### `host.<name>.network.<name>.address`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+ipv6 host address (not CIDR)
+
+### `host.<name>.network.<name>.address4`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+ipv4 host address
+
+### `host.<name>.network.<name>.destination`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+ipv6 destination
+
+### `host.<name>.network.<name>.destination4`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+ipv4 destination
+
+### `host.<name>.network.<name>.dns`
+
+`org/network.nix` · null or (list of string)
+
+Default: `null`
+
+name servers of the network
+
+### `host.<name>.network.<name>.fqdn`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+host's name in the network
+
+### `host.<name>.network.<name>.gateway`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+ipv6 gateway address
+
+### `host.<name>.network.<name>.gateway4`
+
+`org/network.nix` · null or string
+
+Default: `null`
+
+ipv4 gateway address
+
+### `host.<name>.network.<name>.gatewayOnLink`
+
+`org/network.nix` · null or boolean
+
+Default: `null`
+
+Whether to enable onlink for gateway.
+
+### `host.<name>.network.<name>.interface`
+
+`org/network.nix` · string
+
+interface associated with the network
+
+### `host.<name>.network.<name>.mac`
+
+`org/network.nix` · null or string matching the pattern ^[0-9a-f]{2}(:[0-9a-f]{2}){5}$
+
+Default: `null`
+
+mac address
+
+### `host.<name>.network.<name>.metric`
+
+`org/network.nix` · null or signed integer
+
+Default: `1024`
+
+ipv6 metric for routing: lower takes priority
+
+### `host.<name>.network.<name>.metric4`
+
+`org/network.nix` · null or signed integer
+
+Default: `1024`
+
+ipv4 metric for routing: lower takes priority
+
+### `host.<name>.network.<name>.mode`
+
+`org/network.nix` · null or one of "dhcp", "static"
+
+Default: `null`
+
+how the interface gets its address, statically or by dhcp; null leaves it unconfigured
+
+### `host.<name>.network.<name>.prefixLength`
+
+`org/network.nix` · null or signed integer
+
+Default: `null`
+
+ipv6 prefix length
+
+### `host.<name>.network.<name>.prefixLength4`
+
+`org/network.nix` · null or signed integer
+
+Default: `null`
+
+ipv4 prefix length
+
+### `host.<name>.network.<name>.principals`
+
+`org/network.nix` · attribute set of (submodule)
+
+Default: `{ }`
+
+the address and name of each principal that has one in the network on this host, by its id
+
+### `host.<name>.network.<name>.principals.<name>.address`
+
+`org/network.nix` · string
+
+the principal's ipv6 address on this host in the network
+=======
+### `host.<name>.nixos`
+>>>>>>> @stamp
+
+<<<<<<< signed
+### `host.<name>.network.<name>.principals.<name>.fqdn`
+=======
+`org/host.nix` · boolean
+>>>>>>> @stamp
+
+<<<<<<< signed
+`org/network.nix` · string
+=======
+Default: `openwrt == null`
+>>>>>>> @stamp
+
+<<<<<<< signed
+the principal's name on this host in the network
+=======
+whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes
+>>>>>>> @stamp
+
+<<<<<<< signed
+### `host.<name>.network.<name>.privacy`
+=======
+### `host.<name>.openwrt`
+>>>>>>> @stamp
+
+<<<<<<< signed
+`org/network.nix` · null or boolean
+=======
+`org/host.nix` · null or (submodule)
+>>>>>>> @stamp
+
+Default: `null`
+
+<<<<<<< signed
+Whether to enable ipv6 kernel address rotation.
+
+### `host.<name>.network.<name>.type`
+
+`org/network.nix` · string
+
+Default: `"‹name›"`
+
+network type
+
 ### `host.<name>.nixos`
 
 `org/host.nix` · boolean
 
-Default: `openwrt == null`
+Default: `true`
 
 whether o11n builds the host's NixOS system, rather than only its keys, vpns and homes
-
-### `host.<name>.openwrt`
-
-`org/host.nix` · null or (submodule)
-
-Default: `null`
-
+=======
 the OpenWrt the host runs, as a router, or null
+>>>>>>> @stamp
 
 ### `host.<name>.principals`
 
@@ -606,6 +791,8 @@ Default: the `services` of its `roles`, in the order of their name
 
 the services of the host's roles, whose configuration it imports
 
+<<<<<<< signed
+=======
 ### `host.<name>.shares`
 
 `org/host.nix` · lazy attribute set of (null or string)
@@ -614,6 +801,7 @@ Default: for each host, the first of this host's `vpns` that is in its `vpns`, o
 
 each host's first vpn it shares with this host, in the order of this host's vpns, or null
 
+>>>>>>> @stamp
 ### `host.<name>.stateVersion`
 
 `org/host.nix` · null or string
@@ -930,6 +1118,236 @@ user's email address
 Default: `{ }`
 
 attrset of vpn configurations
+<<<<<<< signed
+
+### `vpn.<name>.address`
+
+`org/vpn.nix` · string matching the pattern ^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}::/(64|128)$
+
+Default: `"${prefix}::/${toString prefixLength}"`
+
+ipv6 vpn address
+
+### `vpn.<name>.address4`
+
+`org/vpn.nix` · string matching the pattern ^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.0/(24|32)$
+
+Default: `"${prefix4}.0/${toString prefixLength4}"`
+
+ipv4 vpn address
+
+### `vpn.<name>.addressWithBrackets`
+
+`org/vpn.nix` · string matching the pattern ^[[][0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}::[]]/(64|128)$
+
+Default: `"[${prefix}::]/${toString prefixLength}"`
+
+ipv6 vpn address enclosed in square brackets
+
+### `vpn.<name>.allowedTCPPorts`
+
+`org/vpn.nix` · list of signed integer
+
+Default: `[ ]`
+
+force all peers to allow these tcp ports in the vpn
+
+### `vpn.<name>.allowedUDPPorts`
+
+`org/vpn.nix` · list of signed integer
+
+Default: `[ ]`
+
+force all peers to allow these udp ports in the vpn
+
+### `vpn.<name>.dns`
+
+`org/vpn.nix` · list of impossible (empty enum)
+
+Default: `[ ]`
+
+list of name servers
+
+### `vpn.<name>.enable`
+
+`org/vpn.nix` · boolean
+
+Default: `true`
+
+Whether to enable a wireguard vpn.
+
+### `vpn.<name>.gateway`
+
+`org/vpn.nix` · impossible (empty enum)
+
+designated gateway host
+
+### `vpn.<name>.id`
+
+`org/vpn.nix` · signed integer
+
+unique integer identifier for the vpn
+
+### `vpn.<name>.ids`
+
+`org/vpn.nix` · `<ids>`
+
+Default: `{ int = id; }`
+
+entity id in various formats
+
+### `vpn.<name>.interface`
+
+`org/vpn.nix` · string
+
+Default: `"‹name›"`
+
+interface for the vpn
+
+### `vpn.<name>.keepalive`
+
+`org/vpn.nix` · signed integer
+
+Default: `25`
+
+port allocated for the vpn
+
+### `vpn.<name>.key`
+
+`org/vpn.nix` · string
+
+Default: `"${name}-key"`
+
+the key each host on the vpn has for it, its wireguard key
+
+### `vpn.<name>.members`
+
+`org/vpn.nix` · attribute set of (submodule)
+
+Default: each host whose `vpns` has the vpn, at `<prefix>::<host id>` and `<prefix4>.<host id>` as `<host>.<namespace>`,
+and each service whose `vpn` it is, on each of those hosts it's on, at `<prefix>:ffff:<host id>:<uid>:<id>` as
+`<service>-<host>.<namespace>`
+
+what has an address in the vpn, by its name there: each host on it, and each service that serves on it, on each of those
+hosts it's on
+
+### `vpn.<name>.members.<name>.address`
+
+`org/vpn.nix` · string
+
+the member's ipv6 address
+
+### `vpn.<name>.members.<name>.address4`
+
+`org/vpn.nix` · null or string
+
+Default: `null`
+
+the member's ipv4 address, which only a host has
+
+### `vpn.<name>.members.<name>.fqdn`
+
+`org/vpn.nix` · string
+
+the member's name
+
+### `vpn.<name>.members.<name>.host`
+
+`org/vpn.nix` · string
+
+the host the member is on, whose wireguard key carries its traffic
+
+### `vpn.<name>.members.<name>.id`
+
+`org/vpn.nix` · string
+
+the member's entity
+
+### `vpn.<name>.members.<name>.key`
+
+`org/vpn.nix` · null or string
+
+Default: `null`
+
+the member's own wireguard key, which only a host has
+
+### `vpn.<name>.name`
+
+`org/vpn.nix` · string
+
+Default: `"‹name›"`
+
+name of the vpn
+
+### `vpn.<name>.namespace`
+
+`org/vpn.nix` · string
+
+top domain in the vpns
+
+### `vpn.<name>.port`
+
+`org/vpn.nix` · 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+Default: `51820 + id`
+
+port allocated for the vpn
+
+### `vpn.<name>.prefix`
+
+`org/vpn.nix` · string matching the pattern ^[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}$
+
+Default: `"${org.prefix}:${ids.hex4}"`
+
+ipv6 prefix for peers in vpn
+
+### `vpn.<name>.prefix4`
+
+`org/vpn.nix` · string matching the pattern ^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}$
+
+Default: `"${org.prefix4}.${toString id}"`
+
+ipv4 prefix for peers in vpn
+
+### `vpn.<name>.prefixLength`
+
+`org/vpn.nix` · signed integer
+
+Default: `64`
+
+ipv6 prefix length for peers in vpn
+
+### `vpn.<name>.prefixLength4`
+
+`org/vpn.nix` · signed integer
+
+Default: `24`
+
+ipv4 prefix length for peers in vpn
+
+### `vpn.<name>.proxy`
+
+`org/vpn.nix` · boolean
+
+Default: `false`
+
+Whether to enable ipv6 proxy through gateway.
+
+### `vpn.<name>.resetOnRebuild`
+
+`org/vpn.nix` · boolean
+
+Default: `true`
+
+destroy and recreate network device post rebuild
+
+### `vpn.<name>.trusted`
+
+`org/vpn.nix` · boolean
+
+disable firewalls on this vpn
+=======
+>>>>>>> @stamp
 
 ## Types
 

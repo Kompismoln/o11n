@@ -1,4 +1,3 @@
-# nixos/org/state-archive.nix
 {
   config,
   host,

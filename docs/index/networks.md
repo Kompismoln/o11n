@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 # `networks`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
@@ -176,3 +178,4 @@ advertises, rather than asking the router for one; null leaves it to the kernel 
 Default: `"‹name›"`
 
 network type
+>>>>>>> @stamp

@@ -1,4 +1,3 @@
-# nixos/wireguard.nix
 {
   config,
   host,

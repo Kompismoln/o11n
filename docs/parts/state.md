@@ -42,8 +42,11 @@ namespace's tls-cert. It keeps a repo for each principal, at `/<id>/` in the arc
 can reach alone, with its `archive-passwd`, whose htpasswd is public, so that the archive holds no secret of the
 principals it serves. It's append-only: a principal adds to its repo, and can't remove what it has added.
 
+<<<<<<< signed
+=======
 A host that archives a principal has to reach the archive's host on `service.archive.vpn` (`docs/parts/vpns.md`).
 
+>>>>>>> @stamp
 A principal with `state.archives` has an `archive-passwd` and a `restic-key`, whatever its class, and
 `o11n secret generate <id> <key>` makes each. On each host it's on, `state-archive@<id>:<archive>`
 (`nixos/org/state-archive.nix`) takes a snapshot, holds its lock, mounts it at the home in the unit's own namespace and
