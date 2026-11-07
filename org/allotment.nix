@@ -47,8 +47,11 @@ let
       fail "${on} would reach ${config.host} over ${vpn}, a mesh on which neither has an endpoint to be dialed at: give one of them an endpoint, or set the allotment's vpn to another."
     else
       {
-        address = org.host.${config.host}.network.${vpn}.address;
-        from = org.host.${on}.network.${vpn}.address;
+        inherit (org.host.${config.host}.network.${vpn}) address address4;
+        from = [
+          "${org.host.${on}.network.${vpn}.address}/128"
+          "${org.host.${on}.network.${vpn}.address4}/32"
+        ];
         login = org.entities.${config.entity}.name;
         chroot = dirOf config.path;
         root = "/${baseNameOf config.path}";
@@ -166,7 +169,7 @@ in
       example = [ "app-cloud" ];
     };
     logins = lib.mkOption {
-      description = "for each of `sftp`, by each host it's on, how it logs in: the allotment's host's address and its own on the vpn, the principal's name, the directory sftp is jailed to and the allotment's root in it, and the public key of its `sftp-key`";
+      description = "for each of `sftp`, by each host it's on, how it logs in: the allotment's host's addresses on the vpn, and its own as CIDRs, the principal's name, the directory sftp is jailed to and the allotment's root in it, and the public key of its `sftp-key`";
       type = lib.types.lazyAttrsOf (lib.types.lazyAttrsOf lib.types.raw);
       readOnly = true;
       default = lib.genAttrs config.sftp (handle: lib.genAttrs (clientHosts handle) (login handle));

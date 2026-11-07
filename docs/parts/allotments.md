@@ -54,9 +54,11 @@ sftp = ["app-cloud"]
 
 - Each logs in with its `sftp-key`, an RSA key, as nextcloud's SFTP takes no other kind:
   `o11n secret generate <handle> sftp-key` makes it, and the allotment's host without its public key fails evaluation.
-- The allotment's host lets the key in as the principal from that host's address on the vpn alone, and gives it nothing
-  but sftp, jailed to the allotments' directory, `/srv/allotments`, and starting in the allotment
+- The allotment's host lets the key in as the principal from that host's addresses on the vpn alone, and gives it
+  nothing but sftp, jailed to the allotments' directory, `/srv/allotments`, and starting in the allotment
   (`nixos/org/allotments.nix`). What it writes there is the principal's, as if a replica had synced it.
+- The allotment's host has an RSA host key besides its own, `/keys/ssh_host_rsa_key`, which sshd makes as it first
+  starts, as nextcloud's SFTP, phpseclib 2, verifies no other kind. OpenSSH's clients keep to the host's own.
 - A client on the allotment's host, or on one that doesn't reach it on a vpn, fails evaluation.
 
 ## In Nextcloud
@@ -77,7 +79,9 @@ alice.files = { sftp = { host = "files.example.com", login = "archive", root = "
   imports each, unless one is at its folder for its user as declared, which it replaces otherwise
   (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
   would take it on its command line.
-- Nextcloud keeps the host key it first sees, and checks for changes as a folder is opened.
+- Nextcloud reaches an allotment at its host's IPv4 address on the vpn, as it keeps the host keys it knows as
+  `host::key` lines, split at the first `::`. It keeps the host key it first sees, and checks for changes as a folder
+  is opened.
 - An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
 
 >>>>>>> @stamp

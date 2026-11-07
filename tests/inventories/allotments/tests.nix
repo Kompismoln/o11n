@@ -179,7 +179,11 @@ in
     ) outputs.org.allotment."user-alice@zhost".logins;
     expected.app-cloud.laptop = {
       address = "fd12:3456:7890:0000::0001";
-      from = "fd12:3456:7890:0000::0002";
+      address4 = "10.0.0.1";
+      from = [
+        "fd12:3456:7890:0000::0002/128"
+        "10.0.0.2/32"
+      ];
       login = "alice";
       chroot = "/srv/allotments";
       root = "/user-alice";
@@ -196,7 +200,7 @@ in
         user = "alice";
         sharing = true;
         server = {
-          host = "[fd12:3456:7890:0000::0001]";
+          host = "10.0.0.1";
           login = "alice";
           root = "/user-alice";
         };
@@ -254,7 +258,7 @@ in
           {
             mountPoint = "/zhost";
             user = "alice";
-            host = "[fd12:3456:7890:0000::0001]";
+            host = "10.0.0.1";
           }
           {
             mountPoint = "/zhost";
@@ -285,7 +289,7 @@ in
       match =
         lib.elem
           ''
-            Match User alice Address fd12:3456:7890:0000::0002/128
+            Match User alice Address fd12:3456:7890:0000::0002/128,10.0.0.2/32
               ChrootDirectory /srv/allotments
               ForceCommand internal-sftp -d /user-alice
           ''
@@ -295,13 +299,20 @@ in
             )
           );
       failing = failing zhost.config;
+      hostKeys = map (key: key.type) zhost.config.services.openssh.hostKeys;
+      elsewhere = map (key: key.type) laptop.config.services.openssh.hostKeys;
     };
     expected = {
       keys = [
-        ''from="fd12:3456:7890:0000::0002/128",restrict ${lib.trim (builtins.readFile ./public-keys/app-cloud-sftp-key.pub)}''
+        ''from="fd12:3456:7890:0000::0002/128,10.0.0.2/32",restrict ${lib.trim (builtins.readFile ./public-keys/app-cloud-sftp-key.pub)}''
       ];
       match = true;
       failing = [ ];
+      hostKeys = [
+        "ed25519"
+        "rsa"
+      ];
+      elsewhere = [ "ed25519" ];
     };
   };
 

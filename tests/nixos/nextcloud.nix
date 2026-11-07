@@ -45,7 +45,7 @@ let
         user = "alice";
         sharing = true;
         server = {
-          host = "[fd12:3456:7890:0000::0001]";
+          host = "10.0.0.1";
           login = "alice";
           root = "/user-alice";
         };
@@ -218,7 +218,7 @@ in
         declares = lib.all (part: lib.hasInfix part unit.script) [
           "files_external:import -"
           "--rawfile key /run/secrets/sftp-key"
-          ''"host":"[fd12:3456:7890:0000::0001]"''
+          ''"host":"10.0.0.1"''
           ''"root":"/user-alice"''
           ''"user":"alice"''
           ''"applicable_users":["alice"]''

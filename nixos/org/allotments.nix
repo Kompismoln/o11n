@@ -127,9 +127,17 @@ let
 
   sftp = login: {
     users.users.${login.login}.openssh.authorizedKeys.keys =
-      lib.optional (builtins.pathExists login.key) ''from="${login.from}/128",restrict ${lib.trim (builtins.readFile login.key)}'';
+      lib.optional (builtins.pathExists login.key) ''from="${lib.concatStringsSep "," login.from}",restrict ${lib.trim (builtins.readFile login.key)}'';
+    # Accommodating for nextcloud's SFTP, phpseclib 2, which verifies no host key but an RSA one.
+    services.openssh.hostKeys = lib.mkAfter [
+      {
+        path = "/keys/ssh_host_rsa_key";
+        type = "rsa";
+        bits = 4096;
+      }
+    ];
     services.openssh.extraConfig = ''
-      Match User ${login.login} Address ${login.from}/128
+      Match User ${login.login} Address ${lib.concatStringsSep "," login.from}
         ChrootDirectory ${login.chroot}
         ForceCommand internal-sftp -d ${login.root}
         AllowTcpForwarding no

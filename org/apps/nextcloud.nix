@@ -60,8 +60,9 @@ let
     else if !(allotment.logins ? ${app.handle}) then
       fail "${mount.allotment} lets ${app.handle} in by sftp only from its sftp: add it there."
     else
+      # Accommodating for nextcloud, which keeps the host keys it knows as host::key lines, split at the first ::.
       lib.mapAttrs (_: login: {
-        host = "[${login.address}]";
+        host = login.address4;
         inherit (login) login root;
       }) allotment.logins.${app.handle};
 in
