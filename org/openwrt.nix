@@ -85,37 +85,47 @@ let
 
   # Policy: the router, which alone knows when its WAN address changes, updates the A records that name it, once its
   # WAN is up and every 15 minutes after, and only those that differ.
+  byDomain = lib.optionalAttrs (config.glesys != null) (
+    lib.mapAttrs (_: fqdns: map (fqdn: lib.head (lib.splitString "." fqdn)) fqdns) (
+      lib.groupBy (
+        fqdn: lib.concatStringsSep "." (lib.tail (lib.splitString "." fqdn))
+      ) config.glesys.records
+    )
+  );
+
   glesys = lib.optionalAttrs (config.glesys != null) {
     "/etc/o11n/glesys" = ''
       #!/bin/sh
       set -u
-      account=${lib.escapeShellArg config.glesys.account}
       key='@o11n-secret:${config.glesys.key}@'
+      # Fact: GleSYS answers uclient-fetch's --user and --password with 401, and a Basic header with the same with 200.
+      auth=$(ucode -e 'print(b64enc(ARGV[0] + ":" + ARGV[1]))' -- ${lib.escapeShellArg config.glesys.account} "$key")
       ip=$(ifstatus wan | jsonfilter -e '@["ipv4-address"][0].address')
       [ -n "$ip" ] || exit 0
       api() {
-      	uclient-fetch -q -O - --user="$account" --password="$key" --header='Accept: application/json' \
+      	uclient-fetch -q -O - --header="Authorization: Basic $auth" --header='Accept: application/json' \
       		--post-data="$2" "https://api.glesys.com/domain/$1"
       }
-      for fqdn in ${lib.escapeShellArgs config.glesys.records}; do
-      	name=''${fqdn%%.*}
-      	domain=''${fqdn#*.}
-      	records=$(api listrecords "domainname=$domain") || {
-      		logger -t o11n-glesys "can't list the records of $domain: the API key has to let any address in, as the router's changes, and use the domain API"
-      		continue
-      	}
-      	record="@.response.records[@.host=\"$name\" && @.type=\"A\"]"
-      	id=$(echo "$records" | jsonfilter -e "$record.recordid")
-      	data=$(echo "$records" | jsonfilter -e "$record.data")
-      	if [ -z "$id" ]; then
-      		logger -t o11n-glesys "$domain has no A record $name"
-      	elif [ "$data" != "$ip" ]; then
-      		api updaterecord "recordid=$id&data=$ip" >/dev/null &&
-      			logger -t o11n-glesys "$fqdn is $ip, was $data" ||
-      			logger -t o11n-glesys "can't update $fqdn to $ip"
-      	fi
-      done
-    '';
+      ${lib.concatStrings (
+        lib.mapAttrsToList (domain: names: ''
+          if records=$(api listrecords ${lib.escapeShellArg "domainname=${domain}"}); then
+          	for name in ${lib.escapeShellArgs names}; do
+          		record="@.response.records[@.host=\"$name\" && @.type=\"A\"]"
+          		id=$(echo "$records" | jsonfilter -e "$record.recordid")
+          		data=$(echo "$records" | jsonfilter -e "$record.data")
+          		if [ -z "$id" ]; then
+          			logger -t o11n-glesys "${domain} has no A record $name"
+          		elif [ "$data" != "$ip" ]; then
+          			api updaterecord "recordid=$id&data=$ip" >/dev/null &&
+          				logger -t o11n-glesys "$name.${domain} is $ip, was $data" ||
+          				logger -t o11n-glesys "updating $name.${domain} to $ip failed"
+          		fi
+          	done
+          else
+          	logger -t o11n-glesys "listing the records of ${domain} failed"
+          fi
+        '') byDomain
+      )}'';
     "/etc/hotplug.d/iface/90-o11n-glesys" = ''
       [ "$ACTION" = ifup ] && [ "$INTERFACE" = wan ] && sh /etc/o11n/glesys &
     '';

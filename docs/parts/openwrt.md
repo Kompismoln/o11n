@@ -94,9 +94,9 @@ keys.glesys-key = "passphrase"
 glesys = { account = "CL12345" }
 ```
 
-o11n derives `/etc/o11n/glesys`, which lists each record's domain's records with the API key, the host's secret `key`,
-and updates the A record that isn't the WAN address, and says so, or why it couldn't, to the router's log as
-`o11n-glesys`. It runs once the WAN is up, by `/etc/hotplug.d/iface/90-o11n-glesys`, and every 15 minutes, by
-`/etc/crontabs/root`, which `o11n openwrt apply` has cron read anew. As the address changes, the API key has to let any
-address in, and needs nothing but the domain API. The image leaves the script out, as it holds the key, until it's
-applied.
+o11n derives `/etc/o11n/glesys`, which lists the records of each domain of `records` once, with the API key, the host's
+secret `key`, and updates the A record that isn't the WAN address, and says so, or why it couldn't, to the router's log
+as `o11n-glesys`. It runs once the WAN is up, by `/etc/hotplug.d/iface/90-o11n-glesys`, and every 15 minutes, by
+`/etc/crontabs/root`, which `o11n openwrt apply` has cron read anew. It sends the key as a Basic `Authorization` header,
+which `ucode` encodes. As the address changes, the API key has to let any address in, and needs nothing but the domain
+API. The image leaves the script out, as it holds the key, until it's applied.
