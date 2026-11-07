@@ -12,6 +12,48 @@ let
 
   over =
     replica: if config.vpn != null then config.vpn else org.host.${replica}.shares.${config.host};
+
+  # Policy: a client reaches the allotment from each host it's on: an app from each it runs on, a host from itself.
+  clientHosts =
+    handle:
+    let
+      client = org.entities.${handle};
+    in
+    if client.class == "app" then
+      client.run-on-hosts
+    else if client.class == "host" then
+      [ client.name ]
+    else
+      throw "allotment.\"${name}\".sftp: ${handle} is no app or host, which would reach it from the hosts it's on.";
+
+  login =
+    handle: on:
+    let
+      vpn = over on;
+      fail = message: throw "allotment.\"${name}\".sftp: ${handle} on ${on}: ${message}";
+    in
+    if on == config.host then
+      fail "${on} has the allotment, which a client reaches over a vpn: grant it from another host."
+    else if vpn == null then
+      fail "${on} shares no vpn with ${config.host}: put both on one."
+    else if
+      !(lib.all (host: lib.elem vpn org.host.${host}.vpns) [
+        on
+        config.host
+      ])
+    then
+      fail "${on} would reach ${config.host} over ${vpn}, which both aren't on: put both on it, or set the allotment's vpn to one they are."
+    else if !(lib.elem config.host org.vpn.${vpn}.reaches.${on}) then
+      fail "${on} would reach ${config.host} over ${vpn}, a mesh on which neither has an endpoint to be dialed at: give one of them an endpoint, or set the allotment's vpn to another."
+    else
+      {
+        address = org.host.${config.host}.network.${vpn}.address;
+        from = org.host.${on}.network.${vpn}.address;
+        login = org.entities.${config.entity}.name;
+        chroot = dirOf config.path;
+        root = "/${baseNameOf config.path}";
+        key = org.entities.${handle}.publicKeys.sftp-key;
+      };
 in
 {
   options = {
@@ -116,6 +158,19 @@ in
       readOnly = true;
       default = 22000 + org.entities.${config.entity}.principal.uid;
       defaultText = lib.literalMD "22000 plus the principal's `uid`";
+    };
+    sftp = lib.mkOption {
+      description = "the apps and hosts, by handle, that reach the allotment over SFTP, as its principal, from each host they're on, over `vpn`, or without one over the first vpn that host shares with the allotment's";
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "app-cloud" ];
+    };
+    logins = lib.mkOption {
+      description = "for each of `sftp`, by each host it's on, how it logs in: the allotment's host's address and its own on the vpn, the principal's name, the directory sftp is jailed to and the allotment's root in it, and the public key of its `sftp-key`";
+      type = lib.types.lazyAttrsOf (lib.types.lazyAttrsOf lib.types.raw);
+      readOnly = true;
+      default = lib.genAttrs config.sftp (handle: lib.genAttrs (clientHosts handle) (login handle));
+      defaultText = lib.literalMD "for each of `sftp`, by each host it's on, how it reaches the allotment";
     };
     path = lib.mkOption {
       description = "where the allotment is on its host";

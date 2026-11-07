@@ -65,7 +65,7 @@ let
   # Policy: each start makes each mount as declared, replacing what is at its mount point for its user otherwise. It
   # imports rather than sets the mount, as the import reads the private key on stdin, and files_external:config would
   # take it on its command line, which any user on the host can read.
-  allotments =
+  external =
     { config, ... }:
     let
       occ = lib.getExe config.services.nextcloud.occ;
@@ -78,13 +78,13 @@ let
             storage = "\\OCA\\Files_External\\Lib\\Storage\\SFTP";
             authentication_type = "publickey::rsa";
             configuration = {
-              host = "[${mount.address}]";
-              inherit (mount) root user;
+              inherit (mount.server) host root;
+              user = mount.server.login;
               public_key = lib.optionalString (builtins.pathExists app.publicKeys.sftp-key) (
                 lib.trim (builtins.readFile app.publicKeys.sftp-key)
               );
             };
-            options = { };
+            options.enable_sharing = mount.sharing;
             applicable_users = [ mount.user ];
             applicable_groups = [ ];
           };
@@ -95,7 +95,8 @@ let
             '[.[] | select(.mount_point == $declared.mount_point and .applicable_users == $declared.applicable_users)]' \
             <<<"$mounts")
           if ! jq -e --argjson declared "$declared" \
-            'length == 1 and (.[0].configuration as $c | $declared.configuration | to_entries | all(.value == $c[.key]))' \
+            'length == 1 and (.[0] as $c | ["configuration", "options"]
+              | all(. as $part | $declared[$part] | to_entries | all(.value == $c[$part][.key])))' \
             <<<"$current" >/dev/null; then
             for id in $(jq -r '.[].mount_id' <<<"$current"); do
               ${occ} files_external:delete --yes "$id"
@@ -106,8 +107,8 @@ let
         '';
     in
     {
-      systemd.services.nextcloud-allotments = {
-        description = "keep nextcloud's mounts of the allotments it's given";
+      systemd.services.nextcloud-external = {
+        description = "keep nextcloud's external storages as declared";
         after = [ "nextcloud-setup.service" ];
         requires = [ "nextcloud-setup.service" ];
         wantedBy = [ "multi-user.target" ];
@@ -162,7 +163,7 @@ in
     ]
     ++ lib.optional (mounts != [ ]) {
       assertion = builtins.pathExists app.publicKeys.sftp-key;
-      message = "Nextcloud ${cfg.name} logs in to the allotments it mounts with ${app.handle}'s sftp-key, which it has none of: o11n secret generate ${app.handle} sftp-key.";
+      message = "Nextcloud ${cfg.name} logs in to its external storages with ${app.handle}'s sftp-key, which it has none of: o11n secret generate ${app.handle} sftp-key.";
     };
 
     o11n.postgresql = {
@@ -238,7 +239,7 @@ in
         };
 
         config = {
-          imports = lib.optional (client != null) oidc ++ lib.optional (mounts != [ ]) allotments;
+          imports = lib.optional (client != null) oidc ++ lib.optional (mounts != [ ]) external;
           system.stateVersion = config.system.stateVersion;
 
           users.users.nextcloud.uid = cfg.uid;

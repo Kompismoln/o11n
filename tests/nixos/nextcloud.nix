@@ -36,20 +36,19 @@ let
     };
   };
 
-  # Fact: as org/apps/nextcloud.nix derives it for nextcloud.allotments = [ "user-alice@zhost" ], run on web.
+  # Fact: as org/apps/nextcloud.nix derives it for an external zhost of alice's allotment there, run on web.
   mounts = lib.recursiveUpdate app {
     publicKeys.sftp-key = ../inventories/allotments/public-keys/app-cloud-sftp-key.pub;
     nextcloud.mounts.web = [
       {
-        name = "user-alice@zhost";
-        entity = "user-alice";
-        host = "zhost";
-        user = "alice";
-        address = "fd12:3456:7890:0000::0001";
-        from = "fd12:3456:7890:0000::0002";
-        chroot = "/srv/allotments";
-        root = "/user-alice";
         mountPoint = "/zhost";
+        user = "alice";
+        sharing = true;
+        server = {
+          host = "[fd12:3456:7890:0000::0001]";
+          login = "alice";
+          root = "/user-alice";
+        };
       }
     ];
   };
@@ -201,12 +200,12 @@ in
       };
     };
 
-  # Policy: a nextcloud with allotments keeps a mount of each, which logs in with the app's sftp-key.
-  test_nextcloud_mounts_allotments =
+  # Policy: a nextcloud keeps each of its external storages, which logs in with the app's sftp-key.
+  test_nextcloud_keeps_its_external_storages =
     let
       cfg = evalApp mounts app.principal.uid;
       inner = cfg.containers.cloud.config;
-      unit = inner.systemd.services.nextcloud-allotments;
+      unit = inner.systemd.services.nextcloud-external;
     in
     {
       expr = {
@@ -224,6 +223,7 @@ in
           ''"user":"alice"''
           ''"applicable_users":["alice"]''
           ''"mount_point":"/zhost"''
+          ''"options":{"enable_sharing":true}''
         ];
       };
       expected = {
@@ -239,9 +239,9 @@ in
       };
     };
 
-  test_nextcloud_without_allotments_mounts_none = {
+  test_nextcloud_without_external_storages_mounts_none = {
     expr = {
-      unit = container.config.systemd.services ? nextcloud-allotments;
+      unit = container.config.systemd.services ? nextcloud-external;
       secret = container.bindMounts ? "/run/secrets/sftp-key";
     };
     expected = {

@@ -42,6 +42,46 @@ allotment's host on its `vpn`, which both have to be on, or without one on the f
 <<<<<<< signed
 ## Status
 =======
+## Over SFTP
+
+An allotment's `sftp` are the apps and hosts that reach it over SFTP as its principal, from each host they're on, an
+app's `run-on-hosts` and a host itself, over its `vpn`, or without one over the first vpn that host shares with the
+allotment's, as a replica would. The allotment's `logins` say how each logs in from each host (`org/allotment.nix`):
+
+```toml
+[allotment."user-alice@web"]
+sftp = ["app-cloud"]
+```
+
+- Each logs in with its `sftp-key`, an RSA key, as nextcloud's SFTP takes no other kind:
+  `o11n secret generate <handle> sftp-key` makes it, and the allotment's host without its public key fails evaluation.
+- The allotment's host lets the key in as the principal from that host's address on the vpn alone, and gives it nothing
+  but sftp, jailed to the allotments' directory, `/srv/allotments`, and starting in the allotment
+  (`nixos/org/allotments.nix`). What it writes there is the principal's, as if a replica had synced it.
+- A client on the allotment's host, or on one that doesn't reach it on a vpn, fails evaluation.
+
+## In Nextcloud
+
+A nextcloud's `external` are its external storages over SFTP, each at its folder in its `user`'s files, applicable to
+that user alone, and logging in with the app's `sftp-key` (`org/apps/nextcloud.nix`). Each reaches an `allotment`, as
+its `logins` have it for the app, which has to be in its `sftp`, or an `sftp` server, one of them; with `sharing` its
+user can share from it:
+
+```toml
+[app.cloud.nextcloud.external]
+web = { user = "alice", allotment = "user-alice@web", sharing = true }
+files = { user = "alice", sftp = { host = "files.example.com", login = "archive", root = "/" } }
+```
+
+- In nextcloud's container, `nextcloud-external`, a oneshot after `nextcloud-setup`, enables `files_external` and
+  imports each, unless one is at its folder for its user as declared, which it replaces otherwise
+  (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
+  would take it on its command line.
+- Nextcloud keeps the host key it first sees, and checks for changes as a folder is opened.
+- An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
+
+## Status
+=======
 ## In Nextcloud
 
 A nextcloud's `allotments` are the allotments it mounts as external storage for the user each is for, the nextcloud user

@@ -1,9 +1,25 @@
-{ lib, outputs }:
+{
+  lib,
+  o11nLib,
+  outputs,
+}:
 let
   inherit (outputs.nixosConfigurations) zhost laptop;
 
   deviceId =
     host: lib.trim (builtins.readFile ./public-keys/host-${host}-syncthing-user-alice.zhost.pub);
+
+  # Accommodating for the inventory, which has to evaluate: what would fail is evaluated from an altered copy of its spec.
+  alter =
+    change:
+    o11nLib.evalContext {
+      path = ./.;
+      flake = {
+        outPath = ./.;
+        inputs = { };
+      };
+      spec = lib.recursiveUpdate outputs.context.spec change;
+    };
 
   failing =
     config:
@@ -156,27 +172,104 @@ in
     expected = false;
   };
 
-  # Policy: nextcloud mounts a user's allotment at its host's name, reached over the vpn its host shares with it.
+  # Policy: an allotment lets each of its sftp in from each host it's on, over the vpn that host shares with its own.
+  test_sftp_logins = {
+    expr = lib.mapAttrs (
+      _: lib.mapAttrs (_: login: login // { key = builtins.readFile login.key; })
+    ) outputs.org.allotment."user-alice@zhost".logins;
+    expected.app-cloud.laptop = {
+      address = "fd12:3456:7890:0000::0001";
+      from = "fd12:3456:7890:0000::0002";
+      login = "alice";
+      chroot = "/srv/allotments";
+      root = "/user-alice";
+      key = builtins.readFile ./public-keys/app-cloud-sftp-key.pub;
+    };
+  };
+
+  # Policy: nextcloud mounts an allotment at its folder, for its user, as the allotment's login for the app has it.
   test_nextcloud_mounts = {
     expr = outputs.org.app.cloud.nextcloud.mounts;
     expected.laptop = [
       {
-        name = "user-alice@zhost";
-        entity = "user-alice";
-        host = "zhost";
-        user = "alice";
-        address = "fd12:3456:7890:0000::0001";
-        from = "fd12:3456:7890:0000::0002";
-        chroot = "/srv/allotments";
-        root = "/user-alice";
         mountPoint = "/zhost";
+        user = "alice";
+        sharing = true;
+        server = {
+          host = "[fd12:3456:7890:0000::0001]";
+          login = "alice";
+          root = "/user-alice";
+        };
       }
     ];
   };
 
-  # Policy: the allotment's host lets the app's sftp-key in as the principal from nextcloud's host alone, to sftp jailed
-  # to the allotments.
-  test_nextcloud_logs_in_by_sftp = {
+  # Policy: an external storage reaches an allotment or any other sftp server, one of them.
+  test_nextcloud_mounts_any_sftp =
+    let
+      mounts =
+        external:
+        let
+          tried = builtins.tryEval (
+            builtins.deepSeq
+              (alter { app.cloud.nextcloud = { inherit external; }; }).org.app.cloud.nextcloud.mounts.laptop
+              (alter { app.cloud.nextcloud = { inherit external; }; }).org.app.cloud.nextcloud.mounts.laptop
+          );
+        in
+        if tried.success then map (mount: mount.server) tried.value else null;
+      sftp = {
+        host = "files.example.com";
+        login = "archive";
+      };
+    in
+    {
+      expr = {
+        other = mounts {
+          files = {
+            user = "alice";
+            inherit sftp;
+          };
+        };
+        both = mounts {
+          files = {
+            user = "alice";
+            allotment = "user-alice@zhost";
+            inherit sftp;
+          };
+        };
+        neither = mounts { files.user = "alice"; };
+      };
+      expected = {
+        other = [
+          {
+            host = "files.example.com";
+            login = "archive";
+            root = "/";
+          }
+          {
+            host = "[fd12:3456:7890:0000::0001]";
+            login = "alice";
+            root = "/user-alice";
+          }
+        ];
+        both = null;
+        neither = null;
+      };
+    };
+
+  test_nextcloud_reaches_an_allotment_by_its_sftp_alone = {
+    expr =
+      (builtins.tryEval (
+        builtins.deepSeq
+          (alter { allotment."user-alice@zhost".sftp = [ ]; }).org.app.cloud.nextcloud.mounts.laptop
+          true
+      )).success;
+    expected = false;
+  };
+
+  # Policy: the allotment's host lets the client's sftp-key in as the principal from the client's host alone, to sftp
+  # jailed to the allotments.
+  test_sftp_logs_in = {
     expr = {
       keys = zhost.config.users.users.alice.openssh.authorizedKeys.keys;
       match =
@@ -202,7 +295,7 @@ in
     };
   };
 
-  test_nextcloud_has_an_sftp_key = {
+  test_an_sftp_client_has_an_sftp_key = {
     expr = outputs.org.app.cloud.keys.sftp-key;
     expected = "ssh-rsa";
   };

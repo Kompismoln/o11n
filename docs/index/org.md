@@ -212,18 +212,6 @@ the org's input whose packages.<system> has the site's packages
 
 the nextcloud app whose files the site is built from, and whose user builds it
 
-<<<<<<< signed
-=======
-### `app.<name>.nextcloud.allotments`
-
-`org/apps/nextcloud.nix` · list of impossible (empty enum)
-
-Default: `[ ]`
-
-the allotments, each as <handle>@<host>, nextcloud mounts as external storage, over SFTP, for the user each is for, at
-its host's name
-
->>>>>>> @stamp
 ### `app.<name>.nextcloud.collabora`
 
 `org/apps/nextcloud.nix` · null or impossible (empty enum)
@@ -231,6 +219,64 @@ its host's name
 Default: `null`
 
 the collabora app whose endpoint nextcloud's office uses, or null
+
+### `app.<name>.nextcloud.external`
+
+`org/apps/nextcloud.nix` · attribute set of (submodule)
+
+Default: `{ }`
+
+nextcloud's external storages over SFTP, by the folder each is at, in its user's files
+
+### `app.<name>.nextcloud.external.<name>.allotment`
+
+`org/apps/nextcloud.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the allotment, as <handle>@<host>, the mount reaches over SFTP, whose `sftp` has to have the app, or null for `sftp`
+
+### `app.<name>.nextcloud.external.<name>.sftp`
+
+`org/apps/nextcloud.nix` · null or (submodule)
+
+Default: `null`
+
+the SFTP server the mount reaches without an `allotment`, logging in with the app's `sftp-key`, or null
+
+### `app.<name>.nextcloud.external.<name>.sftp.host`
+
+`org/apps/nextcloud.nix` · string
+
+the server, as nextcloud takes it: a name, or an IPv6 address in brackets
+
+### `app.<name>.nextcloud.external.<name>.sftp.login`
+
+`org/apps/nextcloud.nix` · string
+
+the user it logs in as
+
+### `app.<name>.nextcloud.external.<name>.sftp.root`
+
+`org/apps/nextcloud.nix` · string
+
+Default: `"/"`
+
+the directory on the server the mount is of
+
+### `app.<name>.nextcloud.external.<name>.sharing`
+
+`org/apps/nextcloud.nix` · boolean
+
+Default: `false`
+
+whether the user can share from the mount, nextcloud's enable_sharing
+
+### `app.<name>.nextcloud.external.<name>.user`
+
+`org/apps/nextcloud.nix` · string
+
+the nextcloud user the mount is for, the one it applies to
 
 ### `app.<name>.nextcloud.keycloak`
 
@@ -1015,19 +1061,14 @@ entity id in various formats
 
 ### `<entity>.keys`
 
-<<<<<<< signed
-`org/entity.nix` · attribute set of (one of "age", "ssh", "wireguard", "nix-sign", "tls-cert", "syncthing", "password",
-"htpasswd", "luks", "passphrase", "file")
-=======
 `org/entity.nix` · attribute set of (one of "age", "ssh", "ssh-rsa", "wireguard", "nix-sign", "tls-cert", "syncthing",
 "password", "htpasswd", "luks", "passphrase", "file")
->>>>>>> @stamp
 
 Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's
 `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
-`tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, and the keys
-o11n's modules read of the services they name
+`tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key`
+for an app or host an allotment's `sftp` has, and the keys o11n's modules read of the services they name
 
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 

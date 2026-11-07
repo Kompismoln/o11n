@@ -44,6 +44,7 @@ stateVersion = "26.05"
 [allotment."user-alice@zhost"]
 size = "40G"
 replicas = ["laptop"]
+sftp = ["app-cloud"]
 
 [allotment."store-files@zhost"]
 size = "1T"
@@ -53,7 +54,7 @@ size = "1T"
 id = 0
 endpoint = "cloud.example.com"
 run-on-hosts = ["laptop"]
-nextcloud.allotments = ["user-alice@zhost"]
+nextcloud.external.zhost = { user = "alice", allotment = "user-alice@zhost", sharing = true }
 
 [root.1]
 

@@ -8,58 +8,96 @@
 let
   inherit (context) org;
 
-  # Policy: nextcloud reaches an allotment over its vpn, or without one over the first vpn the host that runs nextcloud
-  # shares with the allotment's host, as a replica does, and mounts it as the user it's for, at its host's name.
-  mount =
-    on: name:
-    let
-      allotment = org.allotment.${name};
-      entity = org.entities.${allotment.entity};
-      vpn = if allotment.vpn != null then allotment.vpn else org.host.${on}.shares.${allotment.host};
-      fail = message: throw "app.${app.name}.nextcloud.allotments: ${name}: ${message}";
-    in
-    if entity.class != "user" then
-      fail "${allotment.entity} is no user, whose nextcloud account would have it: mount only a user's allotment."
-    else if on == allotment.host then
-      fail "${on} runs ${app.name} and has the allotment, which nextcloud reaches over a vpn: run it on another host."
-    else if vpn == null then
-      fail "${on}, which runs ${app.name}, shares no vpn with ${allotment.host}: put both on one."
-    else if
-      !(lib.all (host: lib.elem vpn org.host.${host}.vpns) [
-        on
-        allotment.host
-      ])
-    then
-      fail "${on}, which runs ${app.name}, would reach ${allotment.host} over ${vpn}, which both aren't on: put both on it, or set the allotment's vpn to one they are."
-    else if !(lib.elem allotment.host org.vpn.${vpn}.reaches.${on}) then
-      fail "${on}, which runs ${app.name}, would reach ${allotment.host} over ${vpn}, a mesh on which neither has an endpoint to be dialed at: give one of them an endpoint, or set the allotment's vpn to another."
-    else
-      {
-        inherit name;
-        inherit (allotment) entity host;
-        user = entity.name;
-        address = org.host.${allotment.host}.network.${vpn}.address;
-        from = org.host.${on}.network.${vpn}.address;
-        chroot = dirOf allotment.path;
-        root = "/${baseNameOf allotment.path}";
-        mountPoint = "/${allotment.host}";
+  external =
+    { config, name, ... }:
+    {
+      options = {
+        user = lib.mkOption {
+          description = "the nextcloud user the mount is for, the one it applies to";
+          type = lib.types.str;
+        };
+        allotment = lib.mkOption {
+          description = "the allotment, as <handle>@<host>, the mount reaches over SFTP, whose `sftp` has to have the app, or null for `sftp`";
+          type = lib.types.nullOr (lib.types.enum (lib.attrNames (context.spec.allotment or { })));
+          default = null;
+        };
+        sftp = lib.mkOption {
+          description = "the SFTP server the mount reaches without an `allotment`, logging in with the app's `sftp-key`, or null";
+          type = lib.types.nullOr (
+            lib.types.submodule {
+              options = {
+                host = lib.mkOption {
+                  description = "the server, as nextcloud takes it: a name, or an IPv6 address in brackets";
+                  type = lib.types.str;
+                };
+                login = lib.mkOption {
+                  description = "the user it logs in as";
+                  type = lib.types.str;
+                };
+                root = lib.mkOption {
+                  description = "the directory on the server the mount is of";
+                  type = lib.types.str;
+                  default = "/";
+                };
+              };
+            }
+          );
+          default = null;
+        };
+        sharing = lib.mkOption {
+          description = "whether the user can share from the mount, nextcloud's enable_sharing";
+          type = lib.types.bool;
+          default = false;
+        };
+        # Policy: an allotment is reached from each host the app runs on as the allotment's logins have it.
+        servers = lib.mkOption {
+          description = "for each host the app runs on, the server the mount reaches: its host, login and root";
+          internal = true;
+          readOnly = true;
+          type = lib.types.lazyAttrsOf lib.types.raw;
+          default =
+            let
+              fail = message: throw "app.${app.name}.nextcloud.external.${name}: ${message}";
+              allotment = org.allotment.${config.allotment};
+            in
+            if (config.allotment == null) == (config.sftp == null) then
+              fail "it reaches an allotment or an sftp server: set one of them."
+            else if config.sftp != null then
+              lib.genAttrs app.run-on-hosts (_: config.sftp)
+            else if !(allotment.logins ? ${app.handle}) then
+              fail "${config.allotment} lets ${app.handle} in by sftp only from its sftp: add it there."
+            else
+              lib.mapAttrs (_: login: {
+                host = "[${login.address}]";
+                inherit (login) login root;
+              }) allotment.logins.${app.handle};
+          defaultText = lib.literalMD "for each of the app's `run-on-hosts`, `sftp`, or the `allotment`'s login for the app";
+        };
       };
+    };
 in
 {
   options = {
-    allotments = lib.mkOption {
-      description = "the allotments, each as <handle>@<host>, nextcloud mounts as external storage, over SFTP, for the user each is for, at its host's name";
-      type = lib.types.listOf (lib.types.enum (lib.attrNames (context.spec.allotment or { })));
-      default = [ ];
-      example = [ "user-alice@web" ];
+    external = lib.mkOption {
+      description = "nextcloud's external storages over SFTP, by the folder each is at, in its user's files";
+      type = lib.types.attrsOf (lib.types.submodule external);
+      default = { };
+      example = lib.literalExpression ''{ web = { user = "alice"; allotment = "user-alice@web"; }; }'';
     };
     mounts = lib.mkOption {
-      description = "for each host the app runs on, the allotments it mounts: each with its user, its host's address and the host's own on the vpn it's reached on, and its root within the directory sftp is jailed to";
+      description = "for each host the app runs on, its external storages: each at its folder, for its user, with the server it reaches there and whether it can be shared from";
       internal = true;
       readOnly = true;
       type = lib.types.lazyAttrsOf lib.types.raw;
-      default = lib.genAttrs app.run-on-hosts (on: map (mount on) config.allotments);
-      defaultText = lib.literalMD "for each of the app's `run-on-hosts`, each of `allotments`, reached over its `vpn` or the first vpn the host shares with the allotment's";
+      default = lib.genAttrs app.run-on-hosts (
+        on:
+        lib.mapAttrsToList (folder: mount: {
+          mountPoint = "/${folder}";
+          inherit (mount) user sharing;
+          server = mount.servers.${on};
+        }) config.external
+      );
+      defaultText = lib.literalMD "for each of the app's `run-on-hosts`, each of `external` with its server there";
     };
     collabora = lib.mkOption {
       description = "the collabora app whose endpoint nextcloud's office uses, or null";
