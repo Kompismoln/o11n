@@ -16,9 +16,13 @@ key's name changes with what it's named by: it stores and validates it as that k
 the old, for a key without slots.
 
 A key's type says how it's generated and validated, and whether it has a public key, in `public-keys/`: each type has
+<<<<<<< signed
+one but `passphrase`, `luks` and `file`. A `luks` key has slots, as the luks device it opens does.
+=======
 one but `passphrase`, `luks` and `file`. A `luks` key has slots, as the luks device it opens does. An `ssh` key is
 Ed25519 and an `ssh-rsa` key RSA, for what logs in with RSA alone, as nextcloud's SFTP does
 (`docs/parts/allotments.md`).
+>>>>>>> @stamp
 
 ## Where they're kept
 

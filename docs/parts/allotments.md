@@ -39,6 +39,9 @@ allotment's host on its `vpn`, which both have to be on, or without one on the f
 - Syncthing knows nothing but its configuration, which each start writes anew: no discovery, relays, NAT traversal,
   reporting, and its API only on a socket in its state, `api.sock`.
 
+<<<<<<< signed
+## Status
+=======
 ## In Nextcloud
 
 A nextcloud's `allotments` are the allotments it mounts as external storage for the user each is for, the nextcloud user
@@ -63,6 +66,7 @@ fail evaluation too.
   (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
   would take it on its command line.
 - Nextcloud keeps the host key it first sees, on the vpn, and checks for changes as a folder is opened.
+>>>>>>> @stamp
 
 On the allotment's host, `allotment-sync-status` (`nixos/allotment-sync.nix`) says, as JSON, how each allotment it
 serves syncs, from Syncthing's API, which `switch-system allotments` runs for `o11n status`
