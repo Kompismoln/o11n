@@ -1,4 +1,3 @@
-# nixos/org/sops.nix
 {
   o11nInputs,
   host,
@@ -15,5 +14,6 @@
       keyFile = host.secrets.decryptionKey;
       sshKeyPaths = [ ];
     };
+    gnupg.sshKeyPaths = [ ];
   };
 }

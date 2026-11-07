@@ -9,6 +9,7 @@ let
     size = "1G";
     path = "/srv/allotments/user-alice";
     replicas = [ ];
+    logins = { };
   };
 
   # Accommodating for the module's shape, which follows from `host`: it comes as a specialArg, as o11n passes it.

@@ -5,6 +5,12 @@
       description = "path to wallpaper";
       type = lib.types.str;
     };
+    logo = lib.mkOption {
+      description = "the org's logo, by its path in the org, as the icon of what o11n puts on a desktop, or null";
+      type = with lib.types; nullOr str;
+      default = null;
+      example = "assets/logo.svg";
+    };
     vim-colorscheme = lib.mkOption {
       description = "name of vim colorscheme to use (check nixvim for supported schemes)";
       type = with lib.types; nullOr str;

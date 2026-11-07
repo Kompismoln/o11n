@@ -82,7 +82,7 @@ let
     };
 
   # Policy: a replica is in the principal's home, under .o11n/, which nothing else there names, and it dials the
-  # host that has the allotment.
+  # host that has the allotment; where Cinnamon runs, it's on the principal's Desktop as the org, by its logo.
   replicate =
     allotment:
     let
@@ -91,6 +91,14 @@ let
     in
     {
       o11n.allotment-sync.${allotment.id} = {
+        desktop = lib.mkIf config.services.xserver.desktopManager.cinnamon.enable {
+          name =
+            if lib.length (lib.filter (other: other.entity == allotment.entity) host.replicas) > 1 then
+              "${org.name} (${allotment.host})"
+            else
+              org.name;
+          icon = lib.mapNullable (logo: "${org.storePath}/${logo}") (org.theme.logo or null);
+        };
         folder = "${home}/.o11n/allotments/${allotment.host}";
         state = "${home}/.o11n/syncthing/${allotment.host}";
         user = entity.name;
@@ -113,6 +121,31 @@ let
         group = entity.name;
       };
     };
+
+  # Policy: a client of an allotment's sftp logs in as its principal, with its sftp-key, from its host's addresses on the
+  # vpn it reaches it on alone, and gets sftp jailed to the allotments' directory, in its allotment.
+  logins = lib.concatMap (
+    allotment:
+    lib.concatLists (
+      lib.mapAttrsToList (
+        client: byHost: lib.mapAttrsToList (_: login: login // { inherit allotment client; }) byHost
+      ) allotment.logins
+    )
+  ) host.allotments;
+
+  sftp = login: {
+    users.users.${login.login}.openssh.authorizedKeys.keys =
+      lib.optional (builtins.pathExists login.key) ''from="${lib.concatStringsSep "," login.from}",restrict ${lib.trim (builtins.readFile login.key)}'';
+    services.openssh.extraConfig = ''
+      Match User ${login.login} Address ${lib.concatStringsSep "," login.from}
+        ChrootDirectory ${login.chroot}
+        ForceCommand internal-sftp -d ${login.root}
+        AllowTcpForwarding no
+        X11Forwarding no
+        AllowAgentForwarding no
+        PermitTunnel no
+    '';
+  };
 
   synced =
     lib.concatMap (
@@ -158,7 +191,11 @@ in
           ++ map (allotment: {
             assertion = org.entities.${allotment.entity}.principal.home != "/var/empty";
             message = "allotment.\"${name allotment}\": ${allotment.entity} has no home on ${host.name} to keep its replica in: give it one, or drop ${host.name} from replicas.";
-          }) host.replicas;
+          }) host.replicas
+          ++ map (login: {
+            assertion = builtins.pathExists login.key;
+            message = "allotment.\"${name login.allotment}\".sftp: ${login.client} has no sftp-key, which it logs in to ${host.name} with: o11n secret generate ${login.client} sftp-key.";
+          }) logins;
 
         # Policy: a principal with an allotment on a host it isn't on has an account there that owns it, and nothing
         # else: no home, no login and no password.
@@ -201,5 +238,20 @@ in
     ]
     ++ map serve served
     ++ map replicate host.replicas
+    ++ map sftp logins
+    ++ [
+      # Accommodating for nextcloud's SFTP, phpseclib 2, which verifies no host key but an RSA one, and has no MAC of
+      # NixOS's, which are all encrypt-then-MAC.
+      (lib.mkIf (logins != [ ]) {
+        services.openssh.settings.Macs = lib.mkOptionDefault [ "hmac-sha2-256" ];
+        services.openssh.hostKeys = lib.mkAfter [
+          {
+            path = "/keys/ssh_host_rsa_key";
+            type = "rsa";
+            bits = 4096;
+          }
+        ];
+      })
+    ]
   );
 }

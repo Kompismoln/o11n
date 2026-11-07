@@ -39,10 +39,67 @@ allotment's host on its `vpn`, which both have to be on, or without one on the f
 - Syncthing knows nothing but its configuration, which each start writes anew: no discovery, relays, NAT traversal,
   reporting, and its API only on a socket in its state, `api.sock`.
 
+### On the desktop
+
+Where Cinnamon runs, a replica is on its principal's Desktop as a link named after the org, or after the org and the
+allotment's host where the principal keeps more than one there, with the org's `theme.logo` as its icon
+(`nixos/org/allotments.nix`). `allotment-desktop@<id>`, a user service of the principal's, makes the link where nothing
+is, and every 5 seconds badges it with an emblem of how it syncs, from `allotment-sync-status <id>`
+(`nixos/allotment-sync.nix`):
+
+- `emblem-default`: the allotment's host is connected and has all of it
+- `emblem-synchronizing`: connected, and either side still syncing
+- `emblem-unreadable`: the allotment's host isn't connected
+- `emblem-important`: an error, or a `*.sync-conflict-*` copy in the replica.
+
+## Over SFTP
+
+An allotment's `sftp` are the apps and hosts that reach it over SFTP as its principal, from each host they're on, an
+app's `run-on-hosts` and a host itself, over its `vpn`, or without one over the first vpn that host shares with the
+allotment's, as a replica would. The allotment's `logins` say how each logs in from each host (`org/allotment.nix`):
+
+```toml
+[allotment."user-alice@web"]
+sftp = ["app-cloud"]
+```
+
+- Each logs in with its `sftp-key`, an RSA key, as nextcloud's SFTP takes no other kind:
+  `o11n secret generate <handle> sftp-key` makes it, and the allotment's host without its public key fails evaluation.
+- The allotment's host lets the key in as the principal from that host's addresses on the vpn alone, and gives it
+  nothing but sftp, jailed to the allotments' directory, `/srv/allotments`, and starting in the allotment
+  (`nixos/org/allotments.nix`). What it writes there is the principal's, as if a replica had synced it.
+- The allotment's host has an RSA host key besides its own, `/keys/ssh_host_rsa_key`, which sshd makes as it first
+  starts, and takes `hmac-sha2-256` besides NixOS's MACs, as nextcloud's SFTP, phpseclib 2, verifies no other kind of
+  host key and has none of those MACs. OpenSSH's clients keep to the host's own key and NixOS's MACs.
+- A client on the allotment's host, or on one that doesn't reach it on a vpn, fails evaluation.
+
+## In Nextcloud
+
+A nextcloud's `external` are its external storages over SFTP, by the user each is for, then by its folder in their
+files, each applicable to that user alone, and logging in with the app's `sftp-key` (`org/apps/nextcloud.nix`). Each
+reaches an `allotment`, as its `logins` have it for the app, which has to be in its `sftp`, or an `sftp` server, one of
+them; with `sharing` its user can share from it, which is how others get to it:
+
+```toml
+[app.cloud.nextcloud.external]
+alice.web = { allotment = "user-alice@web", sharing = true }
+bob.web = { allotment = "user-bob@web" }
+alice.files = { sftp = { host = "files.example.com", login = "archive", root = "/" } }
+```
+
+- In nextcloud's container, `nextcloud-external`, a oneshot after `nextcloud-setup`, enables `files_external` and
+  imports each, unless one is at its folder for its user as declared, which it replaces otherwise
+  (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
+  would take it on its command line.
+- Nextcloud reaches an allotment at its host's IPv4 address on the vpn, as it keeps the host keys it knows as
+  `host::key` lines, split at the first `::`. It keeps the host key it first sees, and checks for changes as a folder is
+  opened.
+- An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
+
 ## Status
 
-On the allotment's host, `allotment-sync-status` (`nixos/allotment-sync.nix`) says, as JSON, how each allotment it
-serves syncs, from Syncthing's API, which `switch-system allotments` runs for `o11n status`
+On the allotment's host, `allotment-sync-status [id]` (`nixos/allotment-sync.nix`) says, as JSON, how each allotment it
+serves syncs, or the one named, from Syncthing's API, which `switch-system allotments` runs for `o11n status`
 (`crates/o11n/src/allotments.rs`):
 
 - `allotment-sync <id> <replica>`: ok when the replica is connected and has all of the allotment, with no errors;

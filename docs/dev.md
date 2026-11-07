@@ -26,10 +26,11 @@ failed, and in a git checkout logs each to `dev/state/logs/<stage>.log`, and how
 - `eval`, `leaks` and `bats`, which build `.#stages.<stage>`
 - `vm`, which builds `.#stages.vm` on the remote builder with the tree's own `o11n remote`.
 
-All of them take ~60s, and ~240s when bats runs, as after a change to `tools/` or `dev/`. The flake's `stages.stamps`,
-`stages.format` and `stages.lint` run the same stage in the sandbox (`tests/source.nix`). `o11n-dev files` gives
-`dev/check.sh` and `dev/write.sh` the same files to read: what git tracks or would, or in a directory without git, as in
-the sandbox, every file under it.
+All of them take ~60s, and ~240s when bats runs, as after a change to `tools/` or `dev/`. On a host with less than 24
+GB, `eval`, `leaks`, `bats` and `vm` take turns to evaluate, as nix's evaluations for them side by side would outgrow
+it, and build side by side. The flake's `stages.stamps`, `stages.format` and `stages.lint` run the same stage in the
+sandbox (`tests/source.nix`). `o11n-dev files` gives `dev/check.sh` and `dev/write.sh` the same files to read: what git
+tracks or would, or in a directory without git, as in the sandbox, every file under it.
 
 ## Parts
 

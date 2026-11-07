@@ -12,6 +12,7 @@ use crate::Error;
 pub enum Kind {
     Age,
     Ssh,
+    SshRsa,
     Wireguard,
     NixSign,
     TlsCert,
@@ -28,6 +29,7 @@ impl Kind {
         Ok(match kind {
             "age" => Self::Age,
             "ssh" => Self::Ssh,
+            "ssh-rsa" => Self::SshRsa,
             "wireguard" => Self::Wireguard,
             "nix-sign" => Self::NixSign,
             "tls-cert" => Self::TlsCert,
@@ -81,6 +83,15 @@ pub fn generate(kind: Kind, id: &str, domain: Option<&str>) -> Result<String, Er
             key.set_comment(id);
             key.to_openssh(ssh_key::LineEnding::LF)
                 .map_err(|e| Error::new(format!("ssh-key: {e}")))?
+                .to_string()
+        }
+        Kind::SshRsa => {
+            let keypair = ssh_key::private::RsaKeypair::random(&mut OsRng, 3072)
+                .map_err(|e| Error::new(format!("ssh-rsa: {e}")))?;
+            let mut key = ssh_key::PrivateKey::from(keypair);
+            key.set_comment(id);
+            key.to_openssh(ssh_key::LineEnding::LF)
+                .map_err(|e| Error::new(format!("ssh-rsa: {e}")))?
                 .to_string()
         }
         Kind::Wireguard => {
@@ -142,8 +153,11 @@ pub fn public(kind: Kind, key: &str, secret: &str, domain: Option<&str>) -> Resu
                 .map_err(|e| invalid(key, e))?;
             Ok(format!("{}\n", identity.to_public()))
         }
-        Kind::Ssh => {
+        Kind::Ssh | Kind::SshRsa => {
             let private = ssh_key::PrivateKey::from_openssh(secret).map_err(|e| invalid(key, e))?;
+            if kind == Kind::SshRsa && !matches!(private.algorithm(), ssh_key::Algorithm::Rsa { .. }) {
+                return Err(invalid(key, format!("a {} key, not an RSA key", private.algorithm())));
+            }
             let public = private.public_key().to_openssh().map_err(|e| invalid(key, e))?;
             Ok(format!("{public}\n"))
         }
@@ -329,6 +343,7 @@ mod tests {
         for (key, kind) in [
             ("age-key", "age"),
             ("ssh-key", "ssh"),
+            ("sftp-key", "ssh-rsa"),
             ("wg0-key", "wireguard"),
             ("nix-sign", "nix-sign"),
             ("tls-cert", "tls-cert"),
@@ -355,6 +370,18 @@ mod tests {
         // Fact: as `printf hunter22 | openssl sha1 -binary | base64` gives it.
         let sha = "{SHA}YLOvi/43NWI8fUpe90m7asGkQTo=\n";
         assert_eq!(public(Kind::Htpasswd, "archive-passwd", "hunter22", None).unwrap(), sha);
+    }
+
+    #[test]
+    fn an_ssh_rsa_key_is_rsa() {
+        let ed25519 = generate(Kind::Ssh, "app-cloud", None).unwrap();
+        assert!(validate(Kind::SshRsa, "sftp-key", &ed25519, None).is_err());
+        let rsa = generate(Kind::SshRsa, "app-cloud", None).unwrap();
+        assert!(
+            public(Kind::SshRsa, "sftp-key", &rsa, None)
+                .unwrap()
+                .starts_with("ssh-rsa ")
+        );
     }
 
     #[test]

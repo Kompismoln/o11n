@@ -42,6 +42,7 @@ let
   nextcloud =
     {
       config,
+      host,
       lib,
       org,
       pkgs,
@@ -51,6 +52,7 @@ let
       app = cloud;
       inherit
         config
+        host
         lib
         org
         pkgs

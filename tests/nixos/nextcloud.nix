@@ -36,6 +36,23 @@ let
     };
   };
 
+  # Fact: as org/apps/nextcloud.nix derives it for an external zhost of alice's allotment there, run on web.
+  mounts = lib.recursiveUpdate app {
+    publicKeys.sftp-key = ../inventories/allotments/public-keys/app-cloud-sftp-key.pub;
+    nextcloud.mounts.web = [
+      {
+        mountPoint = "/zhost";
+        user = "alice";
+        sharing = true;
+        server = {
+          host = "10.0.0.1";
+          login = "alice";
+          root = "/user-alice";
+        };
+      }
+    ];
+  };
+
   evalApp =
     app: uid:
     evalNixosModule [
@@ -182,4 +199,54 @@ in
         after = [ "nextcloud-setup.service" ];
       };
     };
+
+  # Policy: a nextcloud keeps each of its external storages, which logs in with the app's sftp-key.
+  test_nextcloud_keeps_its_external_storages =
+    let
+      cfg = evalApp mounts app.principal.uid;
+      inner = cfg.containers.cloud.config;
+      unit = inner.systemd.services.nextcloud-external;
+    in
+    {
+      expr = {
+        apps = lib.attrNames inner.services.nextcloud.extraApps;
+        secret = {
+          inherit (cfg.containers.cloud.bindMounts."/run/secrets/sftp-key") hostPath isReadOnly;
+          inherit (cfg.sops.secrets."cloud/sftp-key") sopsFile owner;
+        };
+        inherit (unit) after;
+        declares = lib.all (part: lib.hasInfix part unit.script) [
+          "files_external:import -"
+          "--rawfile key /run/secrets/sftp-key"
+          ''"host":"10.0.0.1"''
+          ''"root":"/user-alice"''
+          ''"user":"alice"''
+          ''"applicable_users":["alice"]''
+          ''"mount_point":"/zhost"''
+          ''"options":{"enable_sharing":true}''
+        ];
+      };
+      expected = {
+        apps = [ "calendar" ];
+        secret = {
+          hostPath = "/run/secrets/cloud/sftp-key";
+          isReadOnly = true;
+          sopsFile = "/enc/app-cloud.yaml";
+          owner = "cloud";
+        };
+        after = [ "nextcloud-setup.service" ];
+        declares = true;
+      };
+    };
+
+  test_nextcloud_without_external_storages_mounts_none = {
+    expr = {
+      unit = container.config.systemd.services ? nextcloud-external;
+      secret = container.bindMounts ? "/run/secrets/sftp-key";
+    };
+    expected = {
+      unit = false;
+      secret = false;
+    };
+  };
 }

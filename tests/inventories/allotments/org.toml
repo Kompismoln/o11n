@@ -44,12 +44,19 @@ stateVersion = "26.05"
 [allotment."user-alice@zhost"]
 size = "40G"
 replicas = ["laptop"]
+sftp = ["app-cloud"]
 
 [allotment."store-files@zhost"]
 size = "1T"
+
+# Fact: a nextcloud that mounts alice's allotment, which laptop would run as an app-scheduler, and doesn't.
+[app.cloud]
+id = 0
+endpoint = "cloud.example.com"
+run-on-hosts = ["laptop"]
+nextcloud.external.alice.zhost = { allotment = "user-alice@zhost", sharing = true }
 
 [root.1]
 
 # Fact: every class needs a table, even when empty.
 [service]
-[app]

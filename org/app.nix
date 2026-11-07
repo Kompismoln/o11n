@@ -33,6 +33,9 @@ in
       // lib.optionalAttrs (config.kind == "keycloak") { admin-client-secret = "passphrase"; }
       // lib.optionalAttrs (config.nextcloud != null && config.nextcloud.keycloak != null) {
         oidc-secret = "passphrase";
+      }
+      // lib.optionalAttrs (config.nextcloud != null && config.nextcloud.external != { }) {
+        sftp-key = "ssh-rsa";
       };
   };
 

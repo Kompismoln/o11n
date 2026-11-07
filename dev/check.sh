@@ -66,11 +66,27 @@ stage-bats() {
 }
 
 stage-vm() {
-    nix run --quiet --no-warn-dirty .#o11n -- remote build .#stages.vm
+    local drv
+    drv=$(evaluated vm)
+    nix run --quiet --no-warn-dirty .#o11n -- remote build "$drv^*"
 }
 
 built() {
-    nix build --no-link --quiet --no-warn-dirty ".#stages.$1"
+    local drv
+    drv=$(evaluated "$1")
+    nix build --no-link --quiet --no-warn-dirty "$drv^*"
+}
+
+# Accommodating for nix, whose evaluations for eval, leaks and vm peak at ~4, ~7 and ~6 GB, which side by side outgrow
+# a host with less than 24 GB, where the kernel kills one: there they take turns, and build side by side.
+evaluated() {
+    local total evaluate=(nix eval --raw --quiet --no-warn-dirty ".#stages.$1.drvPath")
+    total=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
+    if [[ -n ${TURNS:-} ]] && ((total < 24 * 1024 * 1024)); then
+        flock "$TURNS" "${evaluate[@]}"
+    else
+        "${evaluate[@]}"
+    fi
 }
 
 fail() {
@@ -114,6 +130,7 @@ exit "$rc"' EXIT
 fi
 said=$(mktemp -d)
 trap 'rm -rf "$said"' EXIT
+export TURNS=$said/turns
 for stage in "${stages[@]}"; do
     lane "$stage" &
 done

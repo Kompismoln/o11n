@@ -16,7 +16,11 @@
         // lib.optionalAttrs config.principal.hasPublicKey { ssh-key = "ssh"; }
         // config.principal.mail.keys
         // lib.optionalAttrs (config.principal.state != null) config.principal.state.keys
-      );
+      )
+      # Accommodating for nextcloud's SFTP, which logs in with an RSA key alone.
+      // lib.optionalAttrs (lib.any (allotment: lib.elem config.handle (allotment.sftp or [ ])) (
+        lib.attrValues (context.spec.allotment or { })
+      )) { sftp-key = "ssh-rsa"; };
     # Policy: a host's ssh-key is its own, which `o11n host pull-ssh-key` writes the public key of, and the org has no
     # secret of.
     publicKeys = lib.mapAttrs (
@@ -99,12 +103,13 @@
     };
     keys = lib.mkOption {
       description = "the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it";
-      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, and the keys o11n's modules read of the services they name";
+      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key` for an app or host an allotment's `sftp` has, and the keys o11n's modules read of the services they name";
       # Dependency: crates/o11n/src/keys.rs reads each of these types.
       type = lib.types.attrsOf (
         lib.types.enum [
           "age"
           "ssh"
+          "ssh-rsa"
           "wireguard"
           "nix-sign"
           "tls-cert"
