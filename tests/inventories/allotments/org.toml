@@ -54,7 +54,7 @@ size = "1T"
 id = 0
 endpoint = "cloud.example.com"
 run-on-hosts = ["laptop"]
-nextcloud.external.zhost = { user = "alice", allotment = "user-alice@zhost", sharing = true }
+nextcloud.external.alice.zhost = { allotment = "user-alice@zhost", sharing = true }
 
 [root.1]
 

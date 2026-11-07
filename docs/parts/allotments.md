@@ -61,15 +61,16 @@ sftp = ["app-cloud"]
 
 ## In Nextcloud
 
-A nextcloud's `external` are its external storages over SFTP, each at its folder in its `user`'s files, applicable to
-that user alone, and logging in with the app's `sftp-key` (`org/apps/nextcloud.nix`). Each reaches an `allotment`, as
-its `logins` have it for the app, which has to be in its `sftp`, or an `sftp` server, one of them; with `sharing` its
-user can share from it:
+A nextcloud's `external` are its external storages over SFTP, by the user each is for, then by its folder in their
+files, each applicable to that user alone, and logging in with the app's `sftp-key` (`org/apps/nextcloud.nix`). Each
+reaches an `allotment`, as its `logins` have it for the app, which has to be in its `sftp`, or an `sftp` server, one of
+them; with `sharing` its user can share from it, which is how others get to it:
 
 ```toml
 [app.cloud.nextcloud.external]
-web = { user = "alice", allotment = "user-alice@web", sharing = true }
-files = { user = "alice", sftp = { host = "files.example.com", login = "archive", root = "/" } }
+alice.web = { allotment = "user-alice@web", sharing = true }
+bob.web = { allotment = "user-bob@web" }
+alice.files = { sftp = { host = "files.example.com", login = "archive", root = "/" } }
 ```
 
 - In nextcloud's container, `nextcloud-external`, a oneshot after `nextcloud-setup`, enables `files_external` and

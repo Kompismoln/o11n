@@ -205,6 +205,8 @@ in
   };
 
   # Policy: an external storage reaches an allotment or any other sftp server, one of them.
+  # Policy: an external storage reaches an allotment or any other sftp server, one of them, and is at its folder for
+  # its user alone, so that another user can have a folder of the same name.
   test_nextcloud_mounts_any_sftp =
     let
       mounts =
@@ -216,7 +218,13 @@ in
               (alter { app.cloud.nextcloud = { inherit external; }; }).org.app.cloud.nextcloud.mounts.laptop
           );
         in
-        if tried.success then map (mount: mount.server) tried.value else null;
+        if tried.success then
+          map (mount: {
+            inherit (mount) mountPoint user;
+            inherit (mount.server) host;
+          }) tried.value
+        else
+          null;
       sftp = {
         host = "files.example.com";
         login = "archive";
@@ -225,31 +233,33 @@ in
     {
       expr = {
         other = mounts {
-          files = {
-            user = "alice";
-            inherit sftp;
-          };
+          alice.files = { inherit sftp; };
+          bob.zhost = { inherit sftp; };
         };
         both = mounts {
-          files = {
-            user = "alice";
+          alice.files = {
             allotment = "user-alice@zhost";
             inherit sftp;
           };
         };
-        neither = mounts { files.user = "alice"; };
+        neither = mounts { alice.files = { }; };
       };
       expected = {
         other = [
           {
+            mountPoint = "/files";
+            user = "alice";
             host = "files.example.com";
-            login = "archive";
-            root = "/";
           }
           {
+            mountPoint = "/zhost";
+            user = "alice";
             host = "[fd12:3456:7890:0000::0001]";
-            login = "alice";
-            root = "/user-alice";
+          }
+          {
+            mountPoint = "/zhost";
+            user = "bob";
+            host = "files.example.com";
           }
         ];
         both = null;
