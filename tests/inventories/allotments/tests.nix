@@ -301,6 +301,8 @@ in
       failing = failing zhost.config;
       hostKeys = map (key: key.type) zhost.config.services.openssh.hostKeys;
       elsewhere = map (key: key.type) laptop.config.services.openssh.hostKeys;
+      macs = zhost.config.services.openssh.settings.Macs;
+      macsElsewhere = laptop.config.services.openssh.settings.Macs;
     };
     expected = {
       keys = [
@@ -313,6 +315,17 @@ in
         "rsa"
       ];
       elsewhere = [ "ed25519" ];
+      macs = [
+        "hmac-sha2-512-etm@openssh.com"
+        "hmac-sha2-256-etm@openssh.com"
+        "umac-128-etm@openssh.com"
+        "hmac-sha2-256"
+      ];
+      macsElsewhere = [
+        "hmac-sha2-512-etm@openssh.com"
+        "hmac-sha2-256-etm@openssh.com"
+        "umac-128-etm@openssh.com"
+      ];
     };
   };
 

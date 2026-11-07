@@ -128,7 +128,9 @@ let
   sftp = login: {
     users.users.${login.login}.openssh.authorizedKeys.keys =
       lib.optional (builtins.pathExists login.key) ''from="${lib.concatStringsSep "," login.from}",restrict ${lib.trim (builtins.readFile login.key)}'';
-    # Accommodating for nextcloud's SFTP, phpseclib 2, which verifies no host key but an RSA one.
+    # Accommodating for nextcloud's SFTP, phpseclib 2, which verifies no host key but an RSA one, and has no MAC of
+    # NixOS's, which are all encrypt-then-MAC.
+    services.openssh.settings.Macs = lib.mkOptionDefault [ "hmac-sha2-256" ];
     services.openssh.hostKeys = lib.mkAfter [
       {
         path = "/keys/ssh_host_rsa_key";

@@ -58,7 +58,8 @@ sftp = ["app-cloud"]
   nothing but sftp, jailed to the allotments' directory, `/srv/allotments`, and starting in the allotment
   (`nixos/org/allotments.nix`). What it writes there is the principal's, as if a replica had synced it.
 - The allotment's host has an RSA host key besides its own, `/keys/ssh_host_rsa_key`, which sshd makes as it first
-  starts, as nextcloud's SFTP, phpseclib 2, verifies no other kind. OpenSSH's clients keep to the host's own.
+  starts, and takes `hmac-sha2-256` besides NixOS's MACs, as nextcloud's SFTP, phpseclib 2, verifies no other kind of
+  host key and has none of those MACs. OpenSSH's clients keep to the host's own key and NixOS's MACs.
 - A client on the allotment's host, or on one that doesn't reach it on a vpn, fails evaluation.
 
 ## In Nextcloud
