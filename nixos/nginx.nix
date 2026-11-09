@@ -70,9 +70,13 @@ in
       '';
     };
 
+    # Fact: logrotate runs hourly, so maxsize bounds what a flood writes to /var, and shortens the days kept. nginx
+    # reopens its log in postrotate, before compress, so nothing needs delaying.
     services.logrotate.settings.nginx = {
-      frequency = "weekly";
-      rotate = 0;
+      frequency = "daily";
+      rotate = 14;
+      maxsize = "100M";
+      delaycompress = false;
     };
 
     # Fact: request and response bodies too large for memory are buffered here.

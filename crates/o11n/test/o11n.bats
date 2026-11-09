@@ -1009,6 +1009,13 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   succeeds
   [[ $output == *"the logs of testhost.local since 2d"* ]]
 
+  touch "$BATS_TEST_TMPDIR/logs-unreachable"
+  run o11n logs
+  fails "couldn't read the logs of host-testhost"
+  [[ $output == *"===== testhost couldn't be read"* ]]
+  [[ $output == *"Connection refused"* ]]
+  rm "$BATS_TEST_TMPDIR/logs-unreachable"
+
   run o11n logs "service-*"
   fails "no host of service-* has the logs service"
 }

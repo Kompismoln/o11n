@@ -69,6 +69,10 @@ nix-switch)
 	esac
 	;;
 logs)
+	[[ ! -e $BATS_TEST_TMPDIR/logs-unreachable ]] || {
+		echo "ssh: connect to host $fqdn port 22: Connection refused" >&2
+		exit 255
+	}
 	ssh-add -l >/dev/null && echo "the logs of $fqdn since $2"
 	;;
 testadmin | admin)

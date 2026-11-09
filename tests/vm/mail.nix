@@ -27,6 +27,25 @@ let
       environment.systemPackages = [ pkgs.swaks ];
     };
 
+  # Fact: elsewhere.test, which the internet signs on its own port, as an operator of a domain with DANE would:
+  # its TLSA record names the key of its mail server's certificate.
+  dnssecPort = 5300;
+  zone =
+    internet:
+    pkgs.runCommand "${elsewhere}.zone" { nativeBuildInputs = [ pkgs.openssl ]; } ''
+      key=$(openssl x509 -in ${tls}/mail.crt -noout -pubkey | openssl pkey -pubin -outform DER | sha256sum | cut -d' ' -f1)
+      cat > $out <<EOF
+      \$ORIGIN ${elsewhere}.
+      \$TTL 60
+      @ SOA ns hostmaster 1 60 60 600 60
+      @ NS ns
+      ns A ${internet}
+      @ MX 10 mx
+      mx A ${internet}
+      _25._tcp.mx TLSA 3 1 1 $key
+      EOF
+    '';
+
   # Accommodating for the test's network, whose internet answers DNS.
   mailserver =
     { nodes, ... }:
@@ -69,17 +88,36 @@ pkgs.testers.runNixOSTest {
   node.specialArgs = { inherit org o11nInputs; };
 
   nodes = {
-    mx = {
-      imports = [
-        inventorySecrets
-        resolving
-        mailserver
-        ../../nixos/preserve.nix
-        ../../nixos/services/mailserver.nix
-      ];
-      _module.args.host = org.host.mx;
-      networking.firewall.allowedTCPPorts = [ 587 ];
-    };
+    mx =
+      { nodes, ... }:
+      let
+        internet = nodes.internet.networking.primaryIPAddress;
+      in
+      {
+        imports = [
+          inventorySecrets
+          resolving
+          shared.mailserver
+          ../../nixos/preserve.nix
+          ../../nixos/services/mailserver.nix
+        ];
+        _module.args.host = org.host.mx;
+        networking.firewall.allowedTCPPorts = [ 587 ];
+        # Accommodating for the test's network, which has no root to iterate from: kresd forwards, to elsewhere.test's
+        # signer what is in it and the rest to the internet's DNS, and trusts no key until the test gives it the
+        # signer's.
+        mailserver.localDnsResolver = lib.mkForce true;
+        services.resolved.enable = true;
+        services.kresd.extraConfig = ''
+          trust_anchors.remove('.')
+          policy.add(policy.suffix(policy.FORWARD('${internet}@${toString dnssecPort}'), {todname('${elsewhere}.')}))
+          policy.add(policy.all(policy.FORWARD('${internet}')))
+        '';
+        environment.systemPackages = [
+          pkgs.knot-dns
+          pkgs.socat
+        ];
+      };
 
     web = {
       imports = [
@@ -114,8 +152,28 @@ pkgs.testers.runNixOSTest {
         ];
         security.pki.certificateFiles = [ "${tls}/ca.crt" ];
         environment.systemPackages = [ pkgs.swaks ];
-        networking.firewall.allowedTCPPorts = [ 53 ];
-        networking.firewall.allowedUDPPorts = [ 53 ];
+        networking.firewall.allowedTCPPorts = [
+          53
+          dnssecPort
+        ];
+        networking.firewall.allowedUDPPorts = [
+          53
+          dnssecPort
+        ];
+
+        services.knot = {
+          enable = true;
+          settings = {
+            server.listen = [ "0.0.0.0@${toString dnssecPort}" ];
+            template.default = {
+              dnssec-signing = true;
+              zonefile-sync = -1;
+              zonefile-load = "difference";
+              journal-content = "changes";
+            };
+            zone.${elsewhere}.file = zone internet;
+          };
+        };
 
         mailserver = {
           enable = true;
@@ -210,6 +268,22 @@ pkgs.testers.runNixOSTest {
           internet.succeed("systemctl restart dnsmasq.service")
           internet.wait_for_unit("dnsmasq.service")
 
+      def kresd(command):
+          mx.succeed(f"echo {command!r} | socat - UNIX-CONNECT:/run/knot-resolver/control/1")
+
+      with subtest("the mail server validates a signed zone's answers, and delivers to it over DANE"):
+          internet.wait_for_unit("knot.service")
+          mx.wait_for_unit("kresd@1.service")
+          internet.wait_until_succeeds("kdig @127.0.0.1 -p ${toString dnssecPort} +dnssec ${elsewhere} SOA | grep -q RRSIG")
+          for record in internet.succeed("keymgr ${elsewhere}. ds").strip().splitlines():
+              kresd(f"trust_anchors.add('{record}')")
+          kresd("cache.clear()")
+          answer = mx.succeed("kdig +dnssec ${elsewhere} MX")
+          assert re.search(r"^;; Flags: [^;]*\bad\b", answer, re.M), answer
+          mx.succeed("printf 'Subject: over dane\\n\\nhello\\n' | sendmail carol@${elsewhere}")
+          received("over dane")
+          mx.succeed("journalctl -u postfix.service | grep -q 'Verified TLS connection established to ${receiver}'")
+
       with subtest("a principal without sendAs sends as its address, whatever the mail says"):
           web.succeed(
               "printf 'From: blog@${endpoint}\\nTo: carol@${elsewhere}\\nSubject: as alice\\n\\nhello\\n'"
@@ -269,5 +343,24 @@ pkgs.testers.runNixOSTest {
           headers = received("forged")
           assert re.search(r"\bspf=fail\b", headers), headers
           assert re.search(r"\bdmarc=fail\b", headers), headers
+
+      with subtest("a TLSA record that names another key keeps the mail from the receiver"):
+          owner = "_25._tcp.${receiver}."
+          internet.succeed(
+              "knotc zone-begin ${elsewhere}",
+              f"knotc zone-unset ${elsewhere} {owner} TLSA",
+              f"knotc zone-set ${elsewhere} {owner} 60 TLSA 3 1 1 {'0' * 64}",
+              "knotc zone-commit ${elsewhere}",
+          )
+          kresd("cache.clear()")
+          answer = mx.succeed(f"kdig +dnssec {owner} TLSA")
+          assert re.search(r"^;; Flags: [^;]*\bad\b", answer, re.M) and "0" * 64 in answer.replace(" ", ""), answer
+          # Fact: an smtp process keeps the TLSA records it looked up, and the earlier mails left one running.
+          mx.succeed("systemctl reload postfix.service")
+          mx.succeed("printf 'Subject: to another key\\n\\nhello\\n' | sendmail carol@${elsewhere}")
+          mx.wait_until_succeeds(
+              "journalctl -u postfix.service | grep -q 'status=deferred (Server certificate not verified)'", timeout=60
+          )
+          internet.fail("doveadm search -u carol@${elsewhere} header subject 'to another key' | grep -q .")
     '';
 }

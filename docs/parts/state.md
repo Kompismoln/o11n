@@ -15,6 +15,11 @@ What a host does with a principal's home follows from its `state`:
 Preserving what a host itself keeps, such as `/var/lib/nixos` or its machine-id, is the host's, in `nixos/preserve.nix`,
 not the state's.
 
+On a host with `o11n.preserve.enable`, `/var` outlasts a boot, on a volume of its own, 1G in the disk layouts, but what
+it holds is for the host to lose: purging it costs history, never what a host needs to run. It holds the journal and
+nginx's logs, 14 days of each within a budget (`nixos/preserve.nix`, `nixos/nginx.nix`), and fail2ban's bans, which a
+purge lifts and forgets, so that the next failure bans for a day, as a first one does.
+
 ## Persistence
 
 On a host with `o11n.preserve.enable`, a preserved home is a directory of `o11n.preserve.directories`, which

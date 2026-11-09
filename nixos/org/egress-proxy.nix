@@ -1,4 +1,3 @@
-# nixos/org/egress-proxy.nix
 {
   services.openssh.extraConfig = ''
     Match User egress-proxy

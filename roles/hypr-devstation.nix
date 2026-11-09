@@ -1,4 +1,3 @@
-# roles/hypr-devstation.nix
 {
   flake.homeModules.hypr-devstation = {
     imports = [
@@ -29,10 +28,6 @@
 
       config = {
         services = {
-          transmission = {
-            enable = true;
-            package = pkgs.transmission_4-qt;
-          };
           redis.servers."test".enable = true;
           postgresql = {
             enable = true;
@@ -43,9 +38,11 @@
                 pg_repack
               ];
           };
+          # Policy: the databases are for what is developed on the host, which reaches them on loopback.
           mysql = {
             enable = true;
             package = pkgs.mariadb;
+            settings.mysqld.bind-address = "127.0.0.1";
           };
         };
 

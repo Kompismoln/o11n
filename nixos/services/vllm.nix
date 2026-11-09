@@ -47,6 +47,26 @@ let
     repo = "/srv/models/huggingface";
   };
 
+  # Accommodating for openai-harmony, which gpt-oss's chat goes through: unless TIKTOKEN_ENCODINGS_BASE names a
+  # directory of them, it downloads tiktoken's encodings, which a container that reaches loopback alone can't. The
+  # hashes are tiktoken's own (tiktoken_ext/openai_public.py), which harmony checks the files against.
+  tiktokenEncodings =
+    serverPkgs:
+    serverPkgs.linkFarm "tiktoken-encodings" (
+      lib.mapAttrsToList
+        (name: sha256: {
+          name = "${name}.tiktoken";
+          path = serverPkgs.fetchurl {
+            url = "https://openaipublic.blob.core.windows.net/encodings/${name}.tiktoken";
+            inherit sha256;
+          };
+        })
+        {
+          cl100k_base = "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7";
+          o200k_base = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d";
+        }
+    );
+
   servicePath = serverPkgs: [
     serverPkgs.which
     serverPkgs.gcc
@@ -56,8 +76,6 @@ let
   hostUser = config.users.users.${cfg.user};
   hasHome = hostUser.home != "/var/empty";
 
-  # Policy: each server's home inside the container: its own directory in the user's home on the host,
-  # on storage where the host preserves.
   serverHome =
     server: config.o11n.preserve.onStorage "${hostUser.home}/${servers.${server}.container}";
 
@@ -83,7 +101,6 @@ let
       arg: lib.head (lib.splitString "=" (builtins.replaceStrings [ "_" ] [ "-" ] arg))
     ) serverCfg.extraArgs;
 
-  # Fact: the groups cfg.user is in on the host: its own, its extra ones and those listing it as a member.
   hostGroups = lib.unique (
     [ hostUser.group ]
     ++ hostUser.extraGroups
@@ -97,7 +114,7 @@ let
       (lib.getExe' serverCfg.package "vllm")
       "serve"
       (modelPath serverCfg)
-      "--host=${serverCfg.host}"
+      "--host=${bound serverCfg.host}"
       "--port=${toString serverCfg.port}"
     ]
     ++ lib.optional (serverCfg.revision != null) "--revision=${serverCfg.revision}"
@@ -111,6 +128,12 @@ let
       HF_HOME = huggingface.home;
       HF_HUB_CACHE = huggingface.repo;
       HF_HUB_OFFLINE = "1";
+      TIKTOKEN_ENCODINGS_BASE = "${tiktokenEncodings serverCfg.pkgs}";
+      # Dependency: the container reaches loopback alone (systemd.services."container@vllm-<server>"), so vLLM, torch and
+      # NCCL find each other there, rather than at an address of the host's.
+      VLLM_HOST_IP = "127.0.0.1";
+      NCCL_SOCKET_IFNAME = "lo";
+      GLOO_SOCKET_IFNAME = "lo";
       CUDA_VISIBLE_DEVICES = lib.concatMapStringsSep "," toString serverCfg.allowedGPUs;
       CUDA_HOME = "${serverCfg.pkgs.cudaPackages.cudatoolkit}";
       VLLM_USE_FLASHINFER_SAMPLER = "0";
@@ -123,7 +146,13 @@ let
     # host's nixpkgs or a server's name don't move it.
     runtime = serverCfg.pkgs.writeTextFile {
       name = "vllm-runtime";
-      text = lib.concatMapStrings (p: "${p}\n") ([ serverCfg.package ] ++ servicePath serverCfg.pkgs);
+      text = lib.concatMapStrings (p: "${p}\n") (
+        [
+          serverCfg.package
+          (tiktokenEncodings serverCfg.pkgs)
+        ]
+        ++ servicePath serverCfg.pkgs
+      );
     };
 
     devices = [
@@ -134,8 +163,6 @@ let
     ]
     ++ map (i: "/dev/nvidia${toString i}") serverCfg.allowedGPUs;
 
-    # Fact: what the server reads from the host outside the store: the driver's libraries
-    # and the Hugging Face cache.
     readOnlyPaths = [
       "/run/opengl-driver"
       huggingface.repo
@@ -156,8 +183,8 @@ let
         };
         runtime = "${servers.${server}.runtime}";
         inherit (servers.${server}) argv environment;
+        host = bound serverCfg.host;
         inherit (serverCfg)
-          host
           port
           model
           revision
@@ -193,24 +220,32 @@ let
       "::1"
       "localhost"
     ];
+
+  bound = address: if loopback address then address else "127.0.0.1";
+  proxy =
+    name: address: port:
+    lib.optionalAttrs (!loopback address) {
+      ${name} = {
+        inherit port;
+        to = "127.0.0.1:${toString port}";
+      };
+    };
 in
 {
   imports = [
     ../huggingface.nix
     ../preserve-paths.nix
+    ../org/vpn-proxy.nix
   ];
 
   config = {
-    # Policy: a server or report that doesn't listen on loopback alone is the host's vpns'.
-    networking.firewall.interfaces = lib.genAttrs (map (vpn: org.vpn.${vpn}.interface) host.vpns) (_: {
-      allowedTCPPorts =
-        lib.mapAttrsToList (_: serverCfg: serverCfg.port) (
-          lib.filterAttrs (_: serverCfg: !loopback serverCfg.host) cfg.servers
-        )
-        ++ lib.optional (cfg.report.enable && !loopback cfg.report.host) cfg.report.port;
-    });
+    o11n.vpnProxies = lib.mkMerge (
+      lib.mapAttrsToList (
+        server: serverCfg: proxy servers.${server}.container serverCfg.host serverCfg.port
+      ) cfg.servers
+      ++ lib.optional cfg.report.enable (proxy "vllm-report" cfg.report.host cfg.report.port)
+    );
 
-    # Policy: what a server reads must not change under it: no host paths, no moving revisions.
     assertions = lib.concatLists (
       lib.mapAttrsToList (server: serverCfg: [
         {
@@ -248,9 +283,13 @@ in
       lib.mapAttrs' (
         server: _:
         lib.nameValuePair "container@${servers.${server}.container}" {
+          # Policy: the container talks over loopback alone, so what vLLM listens on besides its server, as its engine's
+          # store on a port of its choosing and every address, no one else reaches.
           serviceConfig = {
             TimeoutStopSec = 10;
             KillMode = "mixed";
+            IPAddressAllow = "localhost";
+            IPAddressDeny = "any";
           };
         }
       ) cfg.servers
@@ -267,7 +306,7 @@ in
             ExecStart = lib.escapeShellArgs [
               (lib.getExe vllmReport)
               "--cache=/var/cache/vllm-report"
-              "--listen=${cfg.report.host}"
+              "--listen=${bound cfg.report.host}"
               "--port=${toString cfg.report.port}"
             ];
           };
@@ -279,7 +318,6 @@ in
       lib.nameValuePair servers.${server}.container {
         autoStart = true;
         ephemeral = true;
-        # Policy: the NixOS modules come from the same nixpkgs as the package set.
         nixpkgs = serverCfg.pkgs.path;
 
         allowedDevices = map (node: {

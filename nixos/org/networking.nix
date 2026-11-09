@@ -67,7 +67,10 @@ in
   };
 
   # Policy: names are the org's DNS's, not asked of a link.
-  services.resolved.settings.Resolve.LLMNR = "false";
+  services.resolved.settings.Resolve = {
+    LLMNR = "false";
+    MulticastDNS = "false";
+  };
 
   networking = {
     hostId = host.ids.hex8;

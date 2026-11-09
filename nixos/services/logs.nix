@@ -25,6 +25,10 @@ let
       pkgs.iproute2
       config.systemd.package
     ];
+    runtimeEnv = {
+      ORG_PREFIX6 = org.prefix;
+      ORG_PREFIX4 = org.prefix4;
+    };
     text = builtins.readFile ./logs.sh;
   };
 in

@@ -41,6 +41,14 @@ An app sends through its own account:
   container reads from a sops template bound into it, and sends from `mobilizon.from`, the app's address by default,
   which the app is to send as.
 
+## Resolving
+
+The mail server's `/etc/resolv.conf` names kresd on loopback, which validates (`nixos/services/mailserver.nix`), and
+postfix, its TLS policy and rspamd read it: postfix delivers over DANE to a receiver that publishes TLSA, and the
+blocklists rspamd asks see the server's own queries, not a shared resolver's, which they refuse. What looks up names
+through nss still asks resolved, which knows the vpns' name servers. On a host that is its vpns' name server too, kresd
+listens there as well.
+
 ## Failures
 
 `o11n.mail.failures` names the units on a host whose failure mails `admin`, each with the principal that tells of it,
@@ -58,6 +66,10 @@ login, over verified TLS, as their domains, and each passes SPF, DKIM and DMARC.
 another's address or domain in the envelope or From, a From of two addresses, mail without a login or on smtp, and a
 login with another principal's password. Mail as the org's domains from anywhere but the mail server fails SPF and
 DMARC.
+
+The internet signs `elsewhere.test` with knot, whose TLSA record names the receiver's key, and the mail server's kresd
+forwards to it and trusts its key: the server's resolver answers it validated, mail to it goes over DANE, and a TLSA
+record that names another key defers it.
 
 Neither WordPress nor mobilizon runs: what they write is theirs, and the server refuses what they may not send. That
 o11n configures mobilizon's mailer as its principal is evaluated in `tests/inventories/mail/tests.nix`.

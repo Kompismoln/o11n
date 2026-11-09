@@ -45,21 +45,24 @@ let
     }
     // attrs;
 
-  eval =
-    servers:
+  evalWith =
+    report: servers:
     evalNixosModule [
       ../../nixos/services/vllm.nix
       {
         _module.args = {
-          host.name = "testhost";
-          inputs = { inherit pin stub; };
-          org.service.vllm.hosts.testhost = {
-            report = {
-              enable = false;
-              host = "127.0.0.1";
-              port = 12008;
+          host = {
+            name = "testhost";
+            vpns = [ "wg0" ];
+            network.wg0 = {
+              address = "fd00::9";
+              address4 = "10.0.0.9";
             };
-            inherit servers;
+          };
+          inputs = { inherit pin stub; };
+          org = {
+            vpn.wg0.interface = "wg0";
+            service.vllm.hosts.testhost = { inherit report servers; };
           };
         };
 
@@ -88,10 +91,17 @@ let
         };
 
         hardware.nvidia.package = nvidia;
+        nixpkgs.config.allowUnfree = true;
 
         system.stateVersion = lib.trivial.release;
       }
     ];
+
+  eval = evalWith {
+    enable = false;
+    host = "127.0.0.1";
+    port = 12008;
+  };
 
   cfg = eval {
     chat = server {
@@ -138,6 +148,24 @@ let
       ];
     };
   };
+
+  # Fact: a server and a report for the host's vpns.
+  servedCfg =
+    evalWith
+      {
+        enable = true;
+        host = "::";
+        port = 12008;
+      }
+      {
+        chat = server {
+          host = "::";
+          port = 8000;
+          model = "Qwen/Qwen3-8B";
+          revision = commit;
+          chatTemplate = template;
+        };
+      };
 
   pinned = import pin { inherit (pkgs.stdenv.hostPlatform) system; };
   inherit (import stub { inherit (pkgs.stdenv.hostPlatform) system; }) vllm;
@@ -252,6 +280,62 @@ in
         huggingface = 3001;
       };
     };
+  };
+
+  # Policy: a server and report for the vpns listen on loopback, which the vpn proxies pass on to, and the container
+  # reaches nothing else.
+  test_vllm_on_vpns = {
+    expr = {
+      inherit (servedCfg.o11n) vpnProxies;
+      sockets = lib.mapAttrs (_: socket: socket.listenStreams) {
+        inherit (servedCfg.systemd.sockets) vllm-chat-vpn vllm-report-vpn;
+      };
+      ports = servedCfg.networking.firewall.interfaces.wg0.allowedTCPPorts;
+      server = lib.hasInfix "'--host=127.0.0.1'" servedCfg.containers.vllm-chat.config.systemd.services.vllm.serviceConfig.ExecStart;
+      container = {
+        inherit (servedCfg.systemd.services."container@vllm-chat".serviceConfig)
+          IPAddressAllow
+          IPAddressDeny
+          ;
+      };
+    };
+    expected = {
+      vpnProxies = {
+        vllm-chat = {
+          port = 8000;
+          to = "127.0.0.1:8000";
+        };
+        vllm-report = {
+          port = 12008;
+          to = "127.0.0.1:12008";
+        };
+      };
+      sockets = {
+        vllm-chat-vpn = [
+          "[fd00::9]:8000"
+          "10.0.0.9:8000"
+        ];
+        vllm-report-vpn = [
+          "[fd00::9]:12008"
+          "10.0.0.9:12008"
+        ];
+      };
+      ports = [
+        8000
+        12008
+      ];
+      server = true;
+      container = {
+        IPAddressAllow = "localhost";
+        IPAddressDeny = "any";
+      };
+    };
+  };
+
+  # Policy: the server reads tiktoken's encodings from the store, as it can't download them.
+  test_vllm_tiktoken_encodings = {
+    expr = lib.hasSuffix "-tiktoken-encodings" chat.config.systemd.services.vllm.environment.TIKTOKEN_ENCODINGS_BASE;
+    expected = true;
   };
 
   test_vllm_container_service = {

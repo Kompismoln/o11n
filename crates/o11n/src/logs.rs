@@ -50,6 +50,8 @@ impl Org {
             match said {
                 Ok(summary) => print!("{summary}"),
                 Err(error) => {
+                    let name = self.entity(id).map_or(id.as_str(), |entity| entity.name.as_str());
+                    println!("===== {name} couldn't be read");
                     util::log(format!("{id}: {error}"));
                     failed.push(id.as_str());
                 }

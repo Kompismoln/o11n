@@ -8,8 +8,6 @@
 let
   inherit (config.o11n.preserve) storage;
 
-  # Policy: an allotment is a dataset of its own under the dataset the host keeps its storage on, whose encryption it
-  # inherits, and mounted outside it, where preservation keeps nothing.
   parents = lib.concatLists (
     lib.mapAttrsToList (
       pool: zpool:

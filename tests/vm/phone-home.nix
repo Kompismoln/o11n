@@ -135,9 +135,11 @@ pkgs.testers.runNixOSTest {
           assert hostname == "rescue-usb", hostname
           hostname = operator.succeed(f"{ssh_stick_through_gw} hostname").strip()
           assert hostname == "rescue-usb", hostname
-          # Accommodating for fail2ban, which took the wrong code for an attack on sshd, all it guards.
-          banned = gw.succeed("fail2ban-client get sshd banned")
-          assert "${nodes.stick.networking.primaryIPAddress}" in banned, banned
+          for jail in ["sshd", "reverse-tunnel"]:
+              banned = gw.succeed(f"fail2ban-client get {jail} banned")
+              assert "${nodes.stick.networking.primaryIPAddress}" not in banned, f"{jail}: {banned}"
+          failed = gw.succeed("fail2ban-client status reverse-tunnel | sed -n 's/.*Total failed:\\s*//p'").strip()
+          assert int(failed) >= 1, failed
 
       with subtest("the line expires without hanging up"):
           gw.succeed("systemctl start reverse-tunnel-expire.service")

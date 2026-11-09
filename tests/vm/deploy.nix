@@ -60,23 +60,28 @@ let
     }
   );
 
-  peer =
-    hostName:
-    { nodes, ... }:
-    {
-      imports = [
-        ../../nixos/org/nix.nix
-        ../../nixos/services/nix-build.nix
-        ../../nixos/services/nix-push.nix
-        ../../nixos/services/nix-switch.nix
-      ];
-      _module.args.host = org.host.${hostName};
-      services.openssh.enable = true;
-      users.groups = lib.genAttrs [ "nix-build" "nix-switch" "nix-push" ] (_: { });
-      users.users = lib.genAttrs [ "nix-build" "nix-switch" "nix-push" ] deployUser;
-      networking.hosts.${nodes.gw.networking.primaryIPAddress} = [ "gw.sample" ];
-      virtualisation.memorySize = 2048;
-    };
+  peer = hostName: {
+    imports = [
+      ../../nixos/org/nix.nix
+      ../../nixos/services/nix-build.nix
+      ../../nixos/services/nix-push.nix
+      ../../nixos/services/nix-switch.nix
+    ];
+    _module.args.host = org.host.${hostName};
+    services.openssh.enable = true;
+    users.groups = lib.genAttrs [ "nix-build" "nix-switch" "nix-push" ] (_: { });
+    users.users = lib.genAttrs [ "nix-build" "nix-switch" "nix-push" ] deployUser;
+    # Accommodating for the test's network, which has no vpn: each peer takes its wg0 address on the test's link, where
+    # nix-serve is reached (nixos/org/vpn-proxy.nix).
+    networking.interfaces.eth1.ipv4.addresses = [
+      {
+        address = org.host.${hostName}.network.wg0.address4;
+        prefixLength = org.host.${hostName}.network.wg0.prefixLength4;
+      }
+    ];
+    networking.hosts.${org.host.gw.network.wg0.address4} = [ "gw.sample" ];
+    virtualisation.memorySize = 2048;
+  };
 in
 pkgs.testers.runNixOSTest {
   name = "o11n-deploy";

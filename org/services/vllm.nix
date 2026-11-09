@@ -56,7 +56,7 @@ let
           default = [ ];
         };
         host = lib.mkOption {
-          description = "the address the server binds to";
+          description = "the loopback address the server binds to, or any other to serve the host's vpns, on each of the host's addresses there";
           type = lib.types.str;
           default = "127.0.0.1";
         };
@@ -87,7 +87,7 @@ in
     report = {
       enable = lib.mkEnableOption "an HTTP endpoint reporting what each server runs";
       host = lib.mkOption {
-        description = "the address the report binds to";
+        description = "the loopback address the report binds to, or any other to serve the host's vpns, on each of the host's addresses there";
         type = lib.types.str;
         default = "127.0.0.1";
       };

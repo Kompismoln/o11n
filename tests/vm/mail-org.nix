@@ -49,7 +49,7 @@ rec {
     };
   };
 
-  # Accommodating for the test's network, which has no ACME server and no DNSSEC.
+  # Accommodating for the test's network, which has no ACME server and no root for kresd to iterate from.
   mailserver = {
     mailserver = {
       localDnsResolver = false;

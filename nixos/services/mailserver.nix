@@ -242,6 +242,23 @@ in
 
     services.rspamd.localLuaRules = fromLogin;
 
+    # Policy: what reads /etc/resolv.conf, as postfix, its TLS policy and rspamd do, asks kresd on loopback, which
+    # validates: DANE takes validated answers alone, and blocklists refuse a shared resolver's. What looks up names
+    # through nss still asks resolved, which knows the vpns' name servers.
+    services.kresd.listenPlain = lib.mkIf config.mailserver.localDnsResolver [
+      "[::1]:53"
+      "127.0.0.1:53"
+    ];
+    environment.etc."resolv.conf" = lib.mkIf config.mailserver.localDnsResolver (
+      lib.mkForce {
+        text = ''
+          nameserver 127.0.0.1
+          nameserver ::1
+          options edns0 trust-ad
+        '';
+      }
+    );
+
     # Policy: a password is tried on submission and imaps alone, where a principal's own client may mistype it.
     services.fail2ban.jails =
       let

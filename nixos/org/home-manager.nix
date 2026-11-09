@@ -1,4 +1,3 @@
-# nixos/org/home-manager.nix
 {
   host,
   inputs,

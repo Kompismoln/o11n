@@ -53,10 +53,12 @@ in
 
     environment.etc."machine-id".text = host.ids.hex32 + "\n";
 
+    # Fact: /var is 1G and nginx's logs share it (nixos/nginx.nix); a SystemKeepFree they can cross has journald vacuum
+    # its whole history.
     services.journald.settings.Journal = {
-      SystemMaxUse = "100M";
-      SystemKeepFree = "200M";
-      MaxRetentionSec = "1week";
+      SystemMaxUse = "256M";
+      SystemKeepFree = "100M";
+      MaxRetentionSec = "14d";
     };
   };
 }
