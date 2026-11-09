@@ -36,14 +36,9 @@ a peer that routes the org's addresses through the host reaches whatever listens
 included, as each host routes `org.loCidr` to its loopback. On one that isn't, a host opens what its peers reach it for,
 each module its own:
 
-<<<<<<< signed
-- `nixos/services/nix-serve.nix`: nix-serve's port on each of the host's vpns.
-- `nixos/services/vllm.nix`: each server's and the report's port, unless it listens on loopback.
-=======
 - `nixos/org/vpn-proxy.nix`: each of `o11n.vpnProxies`, a port on each of the host's addresses on its vpns, which
   `systemd-socket-proxyd` passes on to a server on loopback: nix-serve's (`nixos/services/nix-serve.nix`), and each vLLM
   server's and the report's, unless it's meant for the host alone (`nixos/services/vllm.nix`).
->>>>>>> @stamp
 - `nixos/services/archive.nix` and `nixos/org/allotments.nix`: the archive's and each allotment's port on its vpn.
 - `nixos/org/wireguard.nix`: DNS on the vpns the host resolves for, and each vpn's `allowedTCPPorts` and
   `allowedUDPPorts`.
@@ -60,16 +55,12 @@ What a host's peers have no need of listens on loopback, or not at all:
 - mobilizon runs without Erlang distribution (`nixos/apps/mobilizon.nix`), so neither epmd nor a node listens; it stops
   on SIGTERM, and `mobilizon_ctl` evaluates its commands rather than calling the node.
 - nginx's exporter on `127.0.0.1` (`nixos/nginx.nix`).
-<<<<<<< signed
-- resolved answers no LLMNR (`nixos/org/networking.nix`).
-=======
 - nix-serve, each vLLM server and the vLLM report on loopback, for `o11n.vpnProxies` to pass on.
 - a vLLM container talks over loopback alone (`nixos/services/vllm.nix`), so its engine's store, on a port of its own
   choosing and every address, answers no one else.
 - a `hypr-devstation`'s MariaDB on `127.0.0.1` (`roles/hypr-devstation.nix`), and it runs no transmission, which a
   `hypr-mediastation` does.
 - resolved answers neither LLMNR nor mDNS (`nixos/org/networking.nix`).
->>>>>>> @stamp
 
 ## Reading the logs
 
