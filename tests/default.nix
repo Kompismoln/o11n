@@ -236,6 +236,57 @@ let
         touch $out
       '';
 
+  # Policy: a mobilizon jail's filter is checked against what nginx logs, run with the host's own log format: a profile
+  # or a webfinger not found is matched, one found, a POST, another 404 and another app's requests aren't.
+  fail2banChecks.eval-fail2ban-mobilizon =
+    let
+      inherit
+        (inventories.mail.nixosConfigurations.web.extendModules {
+          modules = [ { services.fail2ban.enable = true; } ];
+        })
+        config
+        ;
+    in
+    pkgs.runCommand "eval-fail2ban-mobilizon"
+      {
+        nativeBuildInputs = [
+          pkgs.curl
+          pkgs.fail2ban
+          pkgs.nginx
+        ];
+        filter = config.environment.etc."fail2ban/filter.d/mobilizon-calendar.conf".source;
+        http = builtins.toFile "http.conf" config.services.nginx.commonHttpConfig;
+      }
+      ''
+        sed "s#/var/log/nginx/access.log#$PWD/access.log#" "$http" > http.conf
+        cat > nginx.conf <<EOF
+        pid $PWD/nginx.pid;
+        error_log $PWD/error.log;
+        events {}
+        http {
+          include $PWD/http.conf;
+          client_body_temp_path $PWD;
+          server {
+            listen 127.0.0.1:8080;
+            location = /@alice { return 200; }
+            location / { return 404; }
+          }
+        }
+        EOF
+        nginx -p "$PWD" -e "$PWD/error.log" -c "$PWD/nginx.conf"
+        request() { curl -s -o /dev/null -H "Host: $1" "''${@:3}" "http://127.0.0.1:8080$2"; }
+        request example.net /@bob
+        request example.net /@carol/events -I
+        request example.net '/.well-known/webfinger?resource=acct:dave@example.net'
+        request example.net /@alice
+        request example.net /@bob/inbox -d '{}'
+        request example.net /events/nobody
+        request www.example.org /@bob
+        kill "$(cat nginx.pid)"
+        fail2ban-regex access.log "$filter" | grep -x 'Lines: 7 lines, 0 ignored, 3 matched, 4 missed'
+        touch $out
+      '';
+
   leakPatterns = [
     "kompismoln"
     "ahbk"

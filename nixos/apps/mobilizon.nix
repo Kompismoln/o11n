@@ -59,6 +59,29 @@ in
       containers = [ cfg.name ];
     };
 
+    # Policy: a GET for a profile or a webfinger that it answers as not found is a name tried; a client that tries
+    # many in an hour is enumerating the instance's users.
+    # Dependency: nixos/nginx.nix logs each request as JSON with these fields first, in this order.
+    services.fail2ban.jails."mobilizon-${cfg.name}" = {
+      filter.Definition.failregex =
+        let
+          notFound =
+            path:
+            ''^\{"time_iso8601": "[^"]*", "status": "404", "remote_addr": "<ADDR>", "remote_user": "[^"]*", "request_method": "(?:GET|HEAD)", "request_uri": "${path}", "server_protocol": "[^"]*", "host": "${lib.escapeRegex cfg.endpoint}",'';
+        in
+        lib.concatStringsSep "\n  " [
+          (notFound "/@[^\"]*")
+          (notFound "/\\.well-known/webfinger\\?[^\"]*")
+        ];
+      settings = {
+        backend = "auto";
+        logpath = "/var/log/nginx/access.log";
+        port = "http,https";
+        maxretry = 10;
+        findtime = "1h";
+      };
+    };
+
     services.nginx.virtualHosts = {
       ${cfg.endpoint} =
         let
@@ -87,11 +110,8 @@ in
           };
           locations."/graphql_socket/websocket" = {
             inherit proxyPass;
+            proxyWebsockets = true;
             recommendedProxySettings = lib.mkDefault true;
-            extraConfig = ''
-              proxy_set_header Upgrade $http_upgrade;
-              proxy_set_header Connection "upgrade";
-            '';
           };
           locations."~ ^/(media|proxy)" = {
             inherit proxyPass;
@@ -105,6 +125,9 @@ in
           };
         };
     };
+
+    # Fact: nspawn refuses to start a container whose bind's host path is missing.
+    systemd.tmpfiles.rules = [ "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -" ];
 
     systemd.services = {
       "container@${cfg.name}" = {
@@ -163,6 +186,11 @@ in
               serviceConfig = {
                 EnvironmentFile = lib.mkIf mail.send "/run/o11n-mail.env";
                 ExecStop = lib.mkForce "";
+                # Policy: mobilizon logs warnings and errors alone, and to the console too, which nspawn writes to
+                # container@<app>'s journal on the host, where they outlive the container and the logs service reads
+                # them.
+                StandardOutput = "journal+console";
+                StandardError = "journal+console";
               };
             };
             environment.variables.MOBILIZON_CTL_RPC_DISABLED = "true";
@@ -180,6 +208,7 @@ in
                 enable = true;
                 inherit (cfg) package;
                 nginx.enable = false;
+                settings.":logger".":level" = elixirConf.lib.mkAtom ":warning";
                 settings.":mobilizon" = {
                   "Mobilizon.Web.Endpoint".http = {
                     inherit (cfg) port;

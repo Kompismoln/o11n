@@ -24,7 +24,11 @@ On 80 and 443:
 - keycloak locks a user out after failed logins (`bruteForceProtected`), and reads the client's address from nginx's
   headers.
 - nextcloud throttles failed logins itself.
-- mobilizon, the django apps and jitsi have no jail.
+- `mobilizon-<app>` (`nixos/apps/mobilizon.nix`): 10 names tried in an hour, GETs for a profile, `/@<name>` and what's
+  under it, or for a webfinger, that mobilizon answers as not found, as nginx logs them; `eval-fail2ban-mobilizon`
+  checks the filter as `eval-fail2ban-wordpress` does. A failed login is a GraphQL answer to a POST to `/api` like any
+  other, so nothing jails it.
+- the django apps and jitsi have no jail.
 
 sshd's filter matches each sshd's `sshd-session`, so the `sshd` jail reads `sshd.service` alone, and the reverse
 tunnel's has its own.
@@ -68,3 +72,7 @@ A host with the `logs` service (`nixos/services/logs.nix`) lets the service in w
 `o11n logs` reads (`docs/parts/o11n.md`), and nothing else: no shell, tty or forwarding. The service reads the journal
 as a member of `systemd-journal`, and nginx's logs by an ACL, without root. Each keeps 14 days, fewer if it outgrows its
 share of `/var` (`docs/parts/state.md`).
+
+A container's journal goes with it. mobilizon logs its warnings and errors alone, to its container's console too
+(`nixos/apps/mobilizon.nix`), which the host keeps as `container@<app>`'s, and the summary lists them by kind;
+`vmTests.mobilizon` has one fail on a request and checks that its error reaches the host and its routine doesn't.

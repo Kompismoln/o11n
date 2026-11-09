@@ -37,7 +37,21 @@ pkgs.testers.runNixOSTest {
     systemd.services.keycloak = {
       wantedBy = [ "multi-user.target" ];
       serviceConfig.Type = "oneshot";
-      script = "echo 'type=LOGIN_ERROR, ipAddress=0:0:0:0:0:0:0:1, error=invalid_user_credentials'";
+      script = ''
+        echo 'type=LOGIN_ERROR, ipAddress=0:0:0:0:0:0:0:1, error=invalid_user_credentials'
+        echo 'neural.lua:1234: user=<> from unknown[fd00:1:2::7] port 50000:11: Bye'
+      '';
+    };
+    systemd.services."container@calendar" = {
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig.Type = "oneshot";
+      script = ''
+        echo 'Welcome to NixOS'
+        echo 'calendar login: [   22.169908] mobilizon[450]: 17:44:59.395 request_id=GOZx [error] ** (FunctionClauseError) no function clause matching in Access.get/3'
+        echo '[   22.170136] mobilizon[450]:     (elixir 1.18.5) lib/access.ex:320: Access.get("https://elsewhere.test/notes/1", "id", nil)'
+        echo '[   23.000001] mobilizon_ctl[401]: 17:44:53.086 [info] == Running 20180109150000 Mobilizon.Repo.Migrations.Prerequites.up/0 forward'
+        echo '[   24.456000] mobilizon[450]: 17:45:02.456 [warning] Mobilizon.Federation: actor not found'
+      '';
     };
     systemd.services.crashing = {
       wantedBy = [ "multi-user.target" ];
@@ -52,6 +66,7 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("sshd.service")
     machine.wait_for_unit("nginx.service")
     machine.wait_until_succeeds("journalctl -u keycloak | grep -q LOGIN_ERROR")
+    machine.wait_until_succeeds("journalctl -u container@calendar | grep -q 'actor not found'")
     machine.succeed(
         "ssh-keygen -q -t ed25519 -N ''' -f /root/key",
         "install -d -m 700 -o logs -g logs /var/lib/logs/.ssh",
@@ -71,9 +86,17 @@ pkgs.testers.runNixOSTest {
                      "--- sshd: ", "Invalid user U", "--- sshd: users tried", "intruder",
                      "--- nginx: 2 requests", "localhost GET /wp-login.php",
                      "localhost GET /app upstream 502\n",
-                     "--- nginx: sources of 4xx, with the user agent they sent most"]:
+                     "neural.lua:1234: user=<> from unknown[IP] port N:11: Bye\n",
+                     "--- nginx: sources of 4xx, with the user agent they sent most",
+                     "--- container@calendar.service: warnings and errors, by kind\n",
+                     "[error] ** (FunctionClauseError) no function clause matching in Access.get/3\n",
+                     "[warning] Mobilizon.Federation: actor not found\n"]:
             assert part in summary, f"{part!r} isn't in:\n{summary}"
-        for pattern in [r"--- sshd: accepted, by user and source\n +1 logs \S+ \(this host\)\n",
+        for routine in ["Accepted publickey", "Server listening on", "session opened", "Welcome to NixOS",
+                        "lib/access.ex", "Migrations.Prerequites"]:
+            assert routine not in summary, f"{routine!r} is in:\n{summary}"
+        for pattern in [r"--- sshd: \d+ lines, [1-9]\d* of them routine; the rest by kind\n",
+                        r"--- sshd: accepted, by user and source\n +1 logs \S+ \(this host\)\n",
                         r"--- keycloak: sources of failures\n +1 ::1 \(this host\)\n",
                         r"\n +1 \S+ \(this host\) Scanner/1\.0\n"]:
             assert re.search(pattern, summary), f"{pattern!r} doesn't match:\n{summary}"

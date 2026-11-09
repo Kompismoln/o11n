@@ -38,7 +38,8 @@ in
       recommendedProxySettings = true;
       recommendedTlsSettings = true;
 
-      # Dependency: nixos/apps/wordpress.nix's jail reads the fields up to host as they are here.
+      # Dependency: the jails of nixos/apps/wordpress.nix and nixos/apps/mobilizon.nix read the fields up to host as
+      # they are here.
       commonHttpConfig = ''
         log_format main escape=json '{'
           '"time_iso8601": "$time_iso8601", '

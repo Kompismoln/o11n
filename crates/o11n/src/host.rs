@@ -48,7 +48,12 @@ impl Org {
 
     fn scanned_ssh_key(&self, id: &str) -> Result<String, Error> {
         let address = self.address(id)?;
-        let scan = run(Command::new("ssh-keyscan").arg("-q").arg(&address), None)?;
+        // Fact: a host has an ed25519 key alone (nixos/org/ssh.nix), and each other type ssh-keyscan asks for is a
+        // failed negotiation in its sshd's log.
+        let scan = run(
+            Command::new("ssh-keyscan").args(["-q", "-t", "ed25519"]).arg(&address),
+            None,
+        )?;
         let fields: Vec<&str> = scan.lines().next().unwrap_or_default().split_whitespace().collect();
         match fields.as_slice() {
             [_, kind, key, ..] => Ok(format!("{kind} {key}\n")),

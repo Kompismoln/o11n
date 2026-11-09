@@ -14,9 +14,9 @@ journal() { journalctl -q --since="${cutoff/T/ }" -o cat "$@" 2>/dev/null; }
 norm() {
 	sed -E 's/\b[0-9]{4}-[0-9]{2}-[0-9]{2}\b/D/g; s/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) +[0-9]{1,2}\b/D/g;
 		s/\b[0-9]{2}:[0-9]{2}:[0-9]{2}([.,][0-9]+)?\b/T/g;
-		s/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/IP/g; s/\[?[0-9a-f]{1,4}(:[0-9a-f]{0,4}){2,7}\]?/IP/g;
-		s/port [0-9]+/port N/g; s/\]:[0-9]+/]:N/g; s/(^|[^[:alpha:]])(username|user|for)( |=<?)[^ ,>]+/\1\2 U/g;
-		s/rip=[^ ,>]+/rip= U/g; s/#[0-9]+/#N/g; s/thread-[0-9]+/thread-N/g;
+		s/port [0-9]+/port N/g; s/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/IP/g; s/::ffff:IP\b/IP/g;
+		s/(^|[^[:alnum:]._:])([0-9a-f]{1,4}(:[0-9a-f]{0,4}){2,7}|::[0-9a-f]{1,4}(:[0-9a-f]{1,4}){0,6})/\1IP/g; s/\]:[0-9]+/]:N/g;
+		s/(^|[^[:alpha:]])(username|user|for)( |=<?)[^ ,<>]+/\1\2\3U/g; s/rip=[^ ,>]+/rip=IP/g; s/#[0-9]+/#N/g; s/thread-[0-9]+/thread-N/g;
 		s/\b[0-9]+(\.[0-9]+)?(s|ms)\b/T/g; s/[0-9A-F]{10,}/Q/g; s/session=<[^>]*>/session=<S>/g; s/^<[0-9a-z]{6}>; //'
 }
 own=" $(ip -o addr show 2>/dev/null | awk '{sub(/\/.*/, "", $4); printf "%s ", $4}')"
@@ -88,11 +88,17 @@ if [[ -r /var/log/nginx ]]; then
 fi
 
 echo "--- listening, but not on loopback, by unit"
-ss -Hltnu --cgroup | awk '$5 !~ /^(127\.|\[::1\]|\[::ffff:127\.)/ {
+listening=$(ss -Hltnu --cgroup 2>/dev/null)
+status=$?
+if ((status != 0)) || [[ -z $listening ]]; then
+	echo "ss --cgroup gave nothing, status $status: the units are unknown"
+	listening=$(ss -Hltnu)
+fi
+awk '$5 !~ /^(127\.|\[::1\]|\[::ffff:127\.)/ {
 	unit = "-"
-	for (i = 7; i <= NF; i++) if ($i ~ /^cgroup:/) { unit = $i; sub(/^cgroup:.*\//, "", unit) }
+	for (i = 7; i <= NF; i++) if ($i ~ /^cgroup:/) { unit = $i; sub(/^cgroup:(.*\/)?/, "", unit) }
 	print $1, $5, (unit == "" ? "-" : unit)
-}' | sort -u
+}' <<<"$listening" | sort -u
 
 echo "--- units failed now"
 systemctl --failed --plain --no-legend --no-pager 2>/dev/null | awk '{print $1}'
@@ -101,11 +107,23 @@ journal _PID=1 -g 'Scheduled restart job' | grep -oE '^[^ ]+: Scheduled' | sed '
 echo "--- out of memory, processes killed"
 journal -k -g 'Killed process' | grep -oE 'Killed process [0-9]+ \([^)]*\)' | sed -E 's/.*\((.*)\)$/\1/' | top 10
 
+# Policy: a line that says something went as it should is counted, not listed by kind: what restarted and who logged
+# in have sections of their own.
+lifecycle='^(Starting|Started|Stopping|Stopped|Finished|Reloading|Reloaded) |\.service: (Deactivated successfully|Consumed )'
+declare -A routine=(
+	[sshd]='^(Connection from .* rdomain|Accepted |Postponed publickey|pam_unix\(sshd:session\): session (opened|closed)|User child is on pid|Server listening on|Received signal 15)'
+	[postfix]='^(connect from |(Anonymous|Trusted|Verified) TLS connection established|[0-9A-Za-z]+: (client=|message-id=|removed$|from=<))'
+	[dovecot]='^lmtp\([0-9]+\): (Connect|Disconnect) from local'
+	[rspamd]='(^|; )(proxy; proxy_(accept_socket|milter_finish_handler)|map; http_map_finish: data is not modified|cfg; rspamd_worker_monitored_)'
+	[keycloak]='^[0-9-]+ [0-9:,.]+ (INFO|DEBUG) '
+)
 for unit in sshd reverse-tunnel postfix dovecot rspamd keycloak; do
 	log=$(journal -u "$unit" | grep -v '^statistics: ')
 	[[ -n $log ]] || continue
-	echo "--- $unit: $(wc -l <<<"$log") lines, by kind"
-	norm <<<"$log" | top 20
+	kinds=$(grep -vE "$lifecycle${routine[$unit]:+|${routine[$unit]}}" <<<"$log")
+	lines=$(grep -c . <<<"$log")
+	echo "--- $unit: $lines lines, $((lines - $(grep -c . <<<"$kinds"))) of them routine; the rest by kind"
+	grep . <<<"$kinds" | norm | top 20
 	failures=$(grep -iE 'invalid|fail|denied|reject|penalty|lost|NOQUEUE|LOGIN_ERROR|error|blocked' <<<"$log")
 	echo "--- $unit: failures, by kind"
 	grep . <<<"$failures" | norm | top 10
@@ -113,6 +131,16 @@ for unit in sshd reverse-tunnel postfix dovecot rspamd keycloak; do
 	[[ $unit == rspamd ]] && continue
 	echo "--- $unit: sources of failures"
 	sources 10 <<<"$failures"
+done
+
+# Dependency: nixos/apps/mobilizon.nix has its container's console carry mobilizon's warnings and errors, as journald
+# forwards them, after its uptime and the process, and Elixir writes them, after the time and metadata.
+# Fact: a container's getty can leave its prompt before a line.
+for unit in $(journalctl -q -F _SYSTEMD_UNIT 2>/dev/null | grep '^container@' | sort); do
+	log=$(journal -u "$unit" | sed -nE 's/^.*\[ *[0-9]+\.[0-9]+\] [^ ]+\[[0-9]+\]: [0-9:.]+ ([^ []+=[^ ]* )*\[(warning|error)\] /[\2] /p')
+	[[ -n $log ]] || continue
+	echo "--- $unit: warnings and errors, by kind"
+	sed -E 's/#PID<[0-9.]+>/#PID/g' <<<"$log" | norm | top 20
 done
 
 echo "--- sshd: users tried"
