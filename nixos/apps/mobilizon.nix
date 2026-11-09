@@ -186,6 +186,9 @@ in
               serviceConfig = {
                 EnvironmentFile = lib.mkIf mail.send "/run/o11n-mail.env";
                 ExecStop = lib.mkForce "";
+                # Fact: with SIGTERM to the whole cgroup, fast_html's workers exit before the BEAM closes their ports,
+                # and each pool logs the exit as an error.
+                KillMode = "mixed";
                 # Policy: mobilizon logs warnings and errors alone, and to the console too, which nspawn writes to
                 # container@<app>'s journal on the host, where they outlive the container and the logs service reads
                 # them.

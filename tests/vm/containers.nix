@@ -68,6 +68,7 @@ pkgs.testers.runNixOSTest {
         autoStart = true;
         bindMounts."/run/postgresql".isReadOnly = false;
       };
+      systemd.services."container@app".serviceConfig.TimeoutStopSec = 10;
 
       specialisation.wal.configuration.o11n.preserve.postgresqlWal = "/srv/wal";
     };
@@ -212,6 +213,43 @@ pkgs.testers.runNixOSTest {
         restarted(btrfs, before)
         reaches_postgresql()
         btrfs.succeed("test \"$(psql -h /run/postgresql -U postgres -tAc 'select x from kept')\" = 42")
+
+    with subtest("a database whose collation version changed is reindexed as postgresql starts"):
+        def probe():
+            said = btrfs.succeed("postgresql-collation-status")
+            [line] = [line.split(" ") for line in said.splitlines() if line.startswith("probe ")]
+            return line
+
+        btrfs.succeed(
+            "createdb -h /run/postgresql -U postgres probe",
+            "psql -h /run/postgresql -U postgres -c \"update pg_database set datcollversion = '0.0' where datname = 'probe'\"",
+        )
+        assert probe()[1] == "0.0", probe()
+        btrfs.succeed("systemctl restart postgresql.service")
+        btrfs.wait_until_succeeds(
+            "journalctl -u postgresql-collation.service | grep -q 'probe was made with collation version 0.0'"
+        )
+        btrfs.wait_for_unit("postgresql-collation.service")
+        _, made, now = probe()
+        assert made == now, (made, now)
+        reaches_postgresql()
+
+    with subtest("a restart that a root-login holds up past its timeout leaves a container to enter"):
+        def timeouts():
+            log = btrfs.succeed("journalctl -q -u container@app.service")
+            return log.count("'stop-sigterm' timed out")
+
+        before = timeouts()
+        # Fact: script keeps the shell on a pty, as an operator's is; the fifo, held open, keeps its stdin from ending it.
+        btrfs.succeed(
+            "mkfifo /tmp/login"
+            " && (setsid script -qfc 'nixos-container root-login app' /dev/null < /tmp/login > /dev/null 2>&1 &)"
+            " && (sleep infinity < /dev/null > /tmp/login 2>&1 &)"
+        )
+        btrfs.wait_until_succeeds("pgrep -x su")
+        btrfs.succeed("systemctl restart container@app.service")
+        assert timeouts() == before + 1, (before, timeouts())
+        reaches_postgresql()
 
     with subtest("zfs: the same, on a pool"):
         zfs.wait_for_unit("multi-user.target")

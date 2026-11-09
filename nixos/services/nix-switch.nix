@@ -53,8 +53,15 @@ let
           exec /run/current-system/sw/bin/allotment-sync-status
         fi
         exit 0
+      elif [[ $generation == databases ]]; then
+        # Dependency: nixos/postgresql.nix puts this on a host with a database, which a host without, or runs a system
+        # from before, says nothing for.
+        if [[ -x /run/current-system/sw/bin/postgresql-collation-status ]]; then
+          exec /run/current-system/sw/bin/postgresql-collation-status
+        fi
+        exit 0
       elif [[ -n $generation ]]; then
-        echo "usage: switch-system [store path | generation | status | allotments]" >&2
+        echo "usage: switch-system [store path | generation | status | allotments | databases]" >&2
         exit 1
       fi
 

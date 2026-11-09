@@ -974,6 +974,31 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   [[ $output == *"user-testuser archive testhost testhost fail: state-archive@user-testuser:testhost on testhost took no snapshot since its timer last started it, the latest being of 2026-11-06T03:00:12.123456789+01:00: journalctl -u state-archive@user-testuser:testhost on testhost"* ]]
 }
 
+@test "status tells whether an app's database has the collation version its host's postgresql has" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-nix-switch
+  local said=$BATS_TEST_TMPDIR/databases-testhost.local
+
+  run o11n status --list app-auth
+  [[ $output == *"app-auth collation testhost"* ]]
+
+  run o11n status app-auth
+  [[ $output == *"app-auth collation testhost skip: host-testhost runs a system that doesn't say its databases' collations"* ]]
+
+  printf '%s\n' 'postgres 2.40 2.40' 'auth 2.40 2.40' >"$said"
+  run o11n status app-auth
+  [[ $output == *"app-auth collation testhost ok"* ]]
+
+  printf '%s\n' 'postgres 2.40 2.42' 'auth 2.40 2.42' >"$said"
+  run o11n status app-auth
+  [[ $output == *"app-auth collation testhost fail: auth on host-testhost was made with collation version 2.40, and its postgresql has 2.42, so its indexes on text may be out of order: journalctl -u postgresql-collation on host-testhost"* ]]
+
+  echo 'postgres 2.42 2.42' >"$said"
+  run o11n status app-auth
+  [[ $output == *"app-auth collation testhost fail: host-testhost has no database auth: o11n apply host-testhost"* ]]
+}
+
 @test "status has Keycloak test each realm's mail, logged in as its o11n client with the app's admin-client-secret" {
   run o11n status --list app-auth
   [[ $output == *"app-auth keycloak-mail example"* ]]

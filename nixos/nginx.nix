@@ -71,11 +71,11 @@ in
       '';
     };
 
-    # Fact: logrotate runs hourly, so maxsize bounds what a flood writes to /var, and shortens the days kept. nginx
-    # reopens its log in postrotate, before compress, so nothing needs delaying.
+    # Fact: logrotate runs hourly, so maxsize bounds what a flood writes to /var. nginx reopens its log in postrotate,
+    # before compress, so nothing needs delaying.
+    # Dependency: nixos/org/log-retention.nix sets how many files stay and how old they get.
     services.logrotate.settings.nginx = {
       frequency = "daily";
-      rotate = 14;
       maxsize = "100M";
       delaycompress = false;
     };

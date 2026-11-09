@@ -135,6 +135,9 @@ in
           implicitFlowEnabled = false;
           directAccessGrantsEnabled = false;
           serviceAccountsEnabled = false;
+          # Policy: its tokens carry no roles, as it reads none, rather than every role, as Keycloak's full scope,
+          # which it deprecates, gives.
+          fullScopeAllowed = false;
           redirectUris = [
             "${app.url}/apps/user_oidc/code"
             "${app.url}/index.php/apps/user_oidc/code"

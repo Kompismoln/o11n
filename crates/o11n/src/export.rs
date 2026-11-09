@@ -72,6 +72,8 @@ pub struct Entity {
     #[serde(default)]
     pub keycloak: Option<Keycloak>,
     #[serde(default)]
+    pub database: Option<Database>,
+    #[serde(default)]
     pub openwrt: Option<Openwrt>,
     #[serde(default)]
     pub router: Option<Router>,
@@ -100,6 +102,12 @@ pub struct Openwrt {
 #[derive(Debug, Deserialize)]
 pub struct Keycloak {
     pub realms: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Database {
+    pub name: String,
+    pub hosts: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

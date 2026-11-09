@@ -117,8 +117,16 @@ let
         fi
       done
 
-      # Policy: Keycloak sends a realm's test mail to the account that asks, here the app's own inbox.
       id=$(api "${local}/admin/realms/master/clients?clientId=${client}" | jq -er '.[0].id')
+
+      # Policy: ${client} has the master realm's admin role in its scope alone, rather than every role, as Keycloak's
+      # full scope, which it deprecates, gives.
+      # Fact: Keycloak takes a client's scope as it stands at each request, so the role goes in before full scope goes.
+      api "${local}/admin/realms/master/roles/admin" | jq -c '[.]' |
+        api -X POST --data-binary @- "${local}/admin/realms/master/clients/$id/scope-mappings/realm"
+      api -X PUT --data-binary '{"fullScopeAllowed": false}' "${local}/admin/realms/master/clients/$id"
+
+      # Policy: Keycloak sends a realm's test mail to the account that asks, here the app's own inbox.
       user=$(api "${local}/admin/realms/master/clients/$id/service-account-user" | jq -er .id)
       jq -n --arg email ${lib.escapeShellArg mail.address} '{email: $email}' |
         api -X PUT "${local}/admin/realms/master/users/$user" --data-binary @-

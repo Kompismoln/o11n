@@ -95,7 +95,7 @@ services = ["locksmith", "logs", "mailserver", "nix-remote", "nix-switch"]
 [app.auth]
 id = 0
 endpoint = "auth.example.com"
-run-on-hosts = []
+run-on-hosts = ["testhost"]
 principal.mail = { inbox = true, send = true }
 keycloak.realms.example = {}
 

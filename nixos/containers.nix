@@ -12,9 +12,8 @@ let
   containersRoot = preserve.onStorage "/var/lib/${lib.optionalString (lib.versionAtLeast config.system.stateVersion "22.05") "nixos-"}containers";
   snapshotSuffix = lib.concatStrings (lib.replicate 16 "[0-9a-f]");
 
-  # nspawn runs an ephemeral container in a snapshot next to its root and removes it when the
-  # container stops, but it can't once the container has made /var/empty immutable, as NixOS
-  # does: the snapshot and its lock stay behind.
+  # Fact: nspawn runs an ephemeral container in a snapshot next to its root and removes it when the container stops,
+  # but it can't once the container has made /var/empty immutable, as NixOS does: the snapshot and its lock stay behind.
   removeSnapshots = name: ''
     for snapshot in ${containersRoot}/.#snapshot.${name}${snapshotSuffix}; do
       [ -e "$snapshot" ] || continue
@@ -25,28 +24,53 @@ let
     done
     rm -f -- ${containersRoot}/.#.#snapshot.${name}${snapshotSuffix}.lck
   '';
+
+  # Fact: an nspawn killed at the end of TimeoutStopSec, as when a `nixos-container root-login` shell holds up the
+  # container's shutdown, leaves its machine registered and its unix-export mounted. The next start fails on the
+  # mount, and the one after runs unregistered, as machined still has the old machine, whose dead leader
+  # `nixos-container` then enters.
+  forgetKilled = ''
+    busctl call org.freedesktop.machine1 /org/freedesktop/machine1 org.freedesktop.machine1.Manager \
+      UnregisterMachine s "$INSTANCE" 2> /dev/null || true
+    unixExport="''${RUNTIME_DIRECTORY:-/run/systemd/nspawn}/$INSTANCE/unix-export"
+    if mountpoint -q "$unixExport"; then
+      umount "$unixExport"
+    fi
+  '';
 in
 {
   imports = [
     ./preserve-paths.nix
   ];
 
-  config = lib.mkIf preserve.enable {
-    systemd.tmpfiles.rules = lib.optional (
-      config.containers != { }
-    ) "d ${containersRoot} 0700 root root - -";
+  config = lib.mkMerge [
+    {
+      systemd.services = lib.mapAttrs' (
+        name: _:
+        lib.nameValuePair "container@${name}" {
+          path = [ pkgs.util-linux ];
+          postStop = lib.mkBefore forgetKilled;
+        }
+      ) config.containers;
+    }
 
-    # Upstream keeps container roots on /var, and an ephemeral one's on /run.
-    systemd.services = lib.mapAttrs' (
-      name: container:
-      lib.nameValuePair "container@${name}" {
-        environment.root = lib.mkForce "${containersRoot}/%i";
-        unitConfig.RequiresMountsFor = [ "${containersRoot}/%i" ];
-        path = lib.mkIf container.ephemeral [ pkgs.e2fsprogs ];
-        # After every stop, and before a start in case the host went down with the container.
-        preStart = lib.mkIf container.ephemeral (lib.mkBefore (removeSnapshots name));
-        postStop = lib.mkIf container.ephemeral (removeSnapshots name);
-      }
-    ) config.containers;
-  };
+    (lib.mkIf preserve.enable {
+      systemd.tmpfiles.rules = lib.optional (
+        config.containers != { }
+      ) "d ${containersRoot} 0700 root root - -";
+
+      # Policy: container roots are on storage, where upstream keeps them on /var, and an ephemeral one's on /run.
+      systemd.services = lib.mapAttrs' (
+        name: container:
+        lib.nameValuePair "container@${name}" {
+          environment.root = lib.mkForce "${containersRoot}/%i";
+          unitConfig.RequiresMountsFor = [ "${containersRoot}/%i" ];
+          path = lib.mkIf container.ephemeral [ pkgs.e2fsprogs ];
+          # Policy: after every stop, and before a start in case the host went down with the container.
+          preStart = lib.mkIf container.ephemeral (lib.mkBefore (removeSnapshots name));
+          postStop = lib.mkIf container.ephemeral (removeSnapshots name);
+        }
+      ) config.containers;
+    })
+  ];
 }

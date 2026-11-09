@@ -35,6 +35,7 @@ pub enum Check {
     AllotmentSync(String, String),
     AllotmentConflicts(String),
     Archive(String, String),
+    Collation(String),
     Url(String),
     NixDaemon,
     NixStore,
@@ -67,6 +68,7 @@ impl Check {
             Self::AllotmentSync(allotment, replica) => format!("allotment-sync {allotment} {replica}"),
             Self::AllotmentConflicts(allotment) => format!("allotment-conflicts {allotment}"),
             Self::Archive(archive, host) => format!("archive {archive} {host}"),
+            Self::Collation(host) => format!("collation {host}"),
             Self::Url(url) => format!("url {url}"),
             Self::NixDaemon => "nix-daemon".into(),
             Self::NixStore => "nix-store".into(),
@@ -286,6 +288,9 @@ impl Org {
                 }
             }
         }
+        if let Some(database) = &entity.database {
+            checks.extend(database.hosts.iter().map(|host| Check::Collation(host.clone())));
+        }
         if let Some(url) = &entity.url {
             checks.push(Check::Url(url.clone()));
         }
@@ -360,6 +365,7 @@ impl Org {
             Check::AllotmentSync(allotment, replica) => self.allotment_sync(id, entity, allotment, replica)?,
             Check::AllotmentConflicts(allotment) => self.allotment_conflicts(id, entity, allotment)?,
             Check::Archive(archive, host) => self.archive_outcome(id, archive, host)?,
+            Check::Collation(host) => self.collation_outcome(id, entity, host)?,
             Check::Url(url) => fails(Self::answers(url)),
             Check::NixDaemon => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;

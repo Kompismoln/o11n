@@ -66,6 +66,7 @@ nix-switch)
 	case $2 in
 	status) cat "$BATS_TEST_TMPDIR/deployed-$fqdn" ;;
 	allotments) cat "$BATS_TEST_TMPDIR/allotments-$fqdn" 2>/dev/null || true ;;
+	databases) cat "$BATS_TEST_TMPDIR/databases-$fqdn" 2>/dev/null || true ;;
 	esac
 	;;
 logs)

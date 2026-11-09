@@ -182,8 +182,8 @@ let
       '';
 
   # Policy: a WordPress jail's filter is checked against what nginx logs, run with the host's own log format: a failed
-  # login, one answered under load and a POST to xmlrpc.php, however many its slashes, are matched, a login, a GET and
-  # another app's requests aren't.
+  # login, one answered under load, a POST to xmlrpc.php, however many its slashes, and a login at an altpoint are
+  # matched, a login, a GET and another app's requests aren't.
   fail2banChecks.eval-fail2ban-wordpress =
     let
       inherit
@@ -230,9 +230,71 @@ let
         request www.example.org '/wp-login.php?busy=1' -d log=alice
         request www.example.org //xmlrpc.php -d '<methodCall/>'
         request www.example.org /wp-login.php
+        request example.org /wp-login.php -d log=alice
         request example.net /wp-login.php -d log=alice
         kill "$(cat nginx.pid)"
-        fail2ban-regex access.log "$filter" | grep -x 'Lines: 6 lines, 0 ignored, 3 matched, 3 missed'
+        fail2ban-regex access.log "$filter" | grep -x 'Lines: 7 lines, 0 ignored, 4 matched, 3 missed'
+        touch $out
+      '';
+
+  # Policy: a WordPress site's server, as the host's nginx runs it, passes WordPress's entry points to PHP, which isn't
+  # there to answer (502), and denies PHP it only includes, PHP in uploads and dotfiles (403).
+  nginxChecks.eval-nginx-wordpress =
+    let
+      inherit (inventories.mail.nixosConfigurations.web) config;
+    in
+    pkgs.runCommand "eval-nginx-wordpress"
+      {
+        nativeBuildInputs = [
+          pkgs.curl
+          pkgs.nginx
+        ];
+        execStart = config.systemd.services.nginx.serviceConfig.ExecStart;
+      }
+      ''
+        conf=$(grep -o "/nix/store/[^']*-nginx.conf" <<<"$execStart")
+        awk '
+          /^    server \{$/ { block = ""; inside = 1 }
+          inside { block = block $0 "\n" }
+          inside && /^    }$/ { if (block ~ /server_name www\.example\.org;/) printf "%s", block; inside = 0 }
+        ' "$conf" |
+          sed -E "/^ *listen /d; s#^( *)server \{#\1server {\n\1    listen 127.0.0.1:8080;#; s#^( *)root [^;]*;#\1root $PWD/root;#" > server.conf
+        grep -q 'fastcgi_pass' server.conf
+        cat > nginx.conf <<EOF
+        pid $PWD/nginx.pid;
+        error_log $PWD/error.log;
+        events {}
+        http {
+          access_log off;
+          client_body_temp_path $PWD;
+          include $PWD/server.conf;
+        }
+        EOF
+        for file in index.php wp-login.php wp-admin/admin-ajax.php wp-includes/js/tinymce/wp-tinymce.php \
+          wp-content/plugins/plugin/plugin.php wp-config-sample.php wp-admin/includes/admin.php wp-includes/version.php \
+          wp-includes/theme-compat/header.php wp-content/themes/theme/functions.php wp-content/uploads/shell.php \
+          wp-content/uploads/2026/shell.PHP .shell.php; do
+          mkdir -p "root/$(dirname "$file")"
+          touch "root/$file"
+        done
+        nginx -p "$PWD" -e "$PWD/error.log" -c "$PWD/nginx.conf"
+        status() { curl -s -o /dev/null -w '%{http_code}' -H 'Host: www.example.org' "http://127.0.0.1:8080$1"; }
+        expect() {
+          local want=$1 path
+          shift
+          for path; do
+            got=$(status "$path")
+            [ "$got" = "$want" ] || { echo "$path: $got, not $want"; failed=1; }
+          done
+        }
+        failed=
+        expect 502 / /index.php /wp-login.php /wp-admin/admin-ajax.php /wp-includes/js/tinymce/wp-tinymce.php \
+          /wp-content/plugins/plugin/plugin.php
+        expect 403 /wp-config-sample.php /wp-admin/includes/admin.php /wp-includes/version.php \
+          /wp-includes/theme-compat/header.php /wp-content/themes/theme/functions.php /wp-content/uploads/shell.php \
+          /wp-content/uploads/2026/shell.PHP /.shell.php /xmlrpc.php
+        kill "$(cat nginx.pid)"
+        [ -z "$failed" ]
         touch $out
       '';
 
@@ -337,7 +399,13 @@ let
 in
 {
   eval =
-    nixosChecks // inventoryChecks // homeChecks // o11nChecks // openwrtChecks // fail2banChecks;
+    nixosChecks
+    // inventoryChecks
+    // homeChecks
+    // o11nChecks
+    // openwrtChecks
+    // fail2banChecks
+    // nginxChecks;
   leaks = hostChecks // rescueUsbChecks;
 }
 // lib.mapAttrs (name: check: { ${name} = check; }) (

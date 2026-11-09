@@ -17,6 +17,9 @@ included.
 - A realm mails as the app, which logs in to submission on `mail.<endpoint>` with its `mail` key, so an app with realms
   has `principal.mail = { inbox = true, send = true }`, or fails evaluation.
 - `o11n`'s account has the app's address, where Keycloak sends a realm's test mail.
+- No client has Keycloak's full scope, which it deprecates: `o11n` has the master realm's `admin` role in its scope
+  alone, which `keycloak-realms` maps before it turns full scope off, and jitsi's and nextcloud's clients none, as
+  neither reads a role.
 - An app whose kind derives a client, as jitsi does (`org/apps/jitsi.nix`), has it in the realm it names, of the
   keycloak it names, which keeps it as it keeps a realm: made when it's missing, and put over what it was, by its
   `clientId`, leaving what isn't declared of it be. The keycloak fails evaluation for a client in a realm it doesn't

@@ -11,6 +11,23 @@ let
   cfg = config.o11n.postgresql;
   inherit (config.services.postgresql) package dataDir;
   walDir = lib.mapNullable (wal: "${wal}/${package.psqlSchema}") config.o11n.preserve.postgresqlWal;
+  port = toString config.services.postgresql.settings.port;
+
+  # Fact: template0 takes no connections, so it can't be reindexed, and nothing creates a database from it.
+  collations = "select datname, coalesce(datcollversion, '-'), coalesce(pg_database_collation_actual_version(oid), '-') from pg_database where datallowconn";
+
+  # Dependency: crates/o11n/src/postgresql.rs reads this through switch-system databases, a line each:
+  # <database> <collation version it was made with> <collation version postgresql has now>.
+  collationStatus = pkgs.writeShellApplication {
+    name = "postgresql-collation-status";
+    runtimeInputs = [
+      package
+      pkgs.util-linux
+    ];
+    text = ''
+      PGPORT=${port} runuser -u postgres -- psql -d postgres -AtqX -F ' ' -v ON_ERROR_STOP=1 -c ${lib.escapeShellArg collations}
+    '';
+  };
 in
 {
   imports = [
@@ -84,6 +101,38 @@ in
             after = [ "postgresql.target" ];
           }
         ) cfg.databases;
+      }
+
+      {
+        # Policy: a database whose collation changed under it, as when glibc does, gets its indexes rebuilt, as text
+        # sorts differently than when they were built; postgresql restarts with a new glibc, and this with it.
+        systemd.services.postgresql-collation = {
+          description = "Reindex databases whose collation version changed";
+          requires = [ "postgresql-setup.service" ];
+          after = [ "postgresql-setup.service" ];
+          wantedBy = [ "postgresql.target" ];
+          path = [ package ];
+          environment.PGPORT = port;
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            User = "postgres";
+            Group = "postgres";
+          };
+          script = ''
+            said=$(psql -d postgres -AtqX -F ' ' -v ON_ERROR_STOP=1 -c ${lib.escapeShellArg collations})
+            while read -r database made now; do
+              [[ -n $database && $made != "$now" ]] || continue
+              echo "$database was made with collation version $made, and postgresql has $now: reindexing it"
+              psql -d "$database" -qX -v ON_ERROR_STOP=1 -v database="$database" <<'EOF'
+            REINDEX DATABASE :"database";
+            ALTER DATABASE :"database" REFRESH COLLATION VERSION;
+            EOF
+            done <<<"$said"
+          '';
+        };
+
+        environment.systemPackages = [ collationStatus ];
       }
 
       (lib.mkIf (walDir != null) {

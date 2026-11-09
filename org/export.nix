@@ -11,6 +11,15 @@ let
 
   stateful = entity: entity.principal != null && entity.principal.state != null;
 
+  # Dependency: nixos/apps/<kind>.nix keeps an app of these kinds' database, named its `database`, in its hosts'
+  # postgresql (nixos/postgresql.nix).
+  postgresqlKinds = [
+    "django"
+    "keycloak"
+    "mobilizon"
+    "nextcloud"
+  ];
+
   # Policy: a grant that names an entity names one of the org's, or o11n can't tell its recipients.
   grants =
     entity:
@@ -78,6 +87,12 @@ let
     }
     // lib.optionalAttrs (entity.class == "app") {
       inherit (entity) url;
+    }
+    // lib.optionalAttrs (entity.class == "app" && lib.elem entity.kind postgresqlKinds) {
+      database = {
+        name = entity.database;
+        hosts = entity.run-on-hosts;
+      };
     }
     // lib.optionalAttrs (entity.class == "app" && entity.keycloak != null) {
       keycloak.realms = lib.attrNames entity.keycloak.realms;

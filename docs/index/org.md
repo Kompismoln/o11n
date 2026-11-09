@@ -727,6 +727,15 @@ ULA reserved for host-local service addresses on lo
 
 default locale
 
+### `logRetention`
+
+`org/default.nix` · positive integer, meaning >0
+
+Default: `14`
+
+days each host keeps its logs, the journal and nginx's, and fail2ban its record of bans, by which a repeat offender's
+ban grows
+
 ### `mailserver`
 
 `org/default.nix` · null or (submodule)

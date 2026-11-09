@@ -11,7 +11,6 @@
 let
   cfg = config.o11n.preserve;
 
-  # Piggyback on preservation's options for files and directories
   preserveAtOptions = options.preservation.preserveAt.type.nestedTypes.elemType.getSubOptions [ ];
 in
 {
@@ -58,7 +57,6 @@ in
     services.journald.settings.Journal = {
       SystemMaxUse = "256M";
       SystemKeepFree = "100M";
-      MaxRetentionSec = "14d";
     };
   };
 }

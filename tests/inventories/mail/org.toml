@@ -52,6 +52,7 @@ grants = ["host-*"]
 [app.blog]
 id = 0
 endpoint = "www.example.org"
+altpoints = ["example.org"]
 ssl = false
 run-on-hosts = ["web"]
 grants = ["host:app-scheduler", "host:mailserver"]

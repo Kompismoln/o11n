@@ -110,6 +110,7 @@ rec {
             host.configurationFile
             ../nixos/org/boot.nix
             ../nixos/org/system.nix
+            ../nixos/org/log-retention.nix
             ../nixos/org/principals.nix
             ../nixos/org/ssh.nix
             ../nixos/org/networking.nix

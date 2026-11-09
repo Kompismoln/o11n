@@ -67,6 +67,24 @@ sources() {
 }
 top() { sort | uniq -c | sort -rn | head -"${1:-15}"; }
 field() { sed -nE "s/.*\"$1\": \"?([^\",]*)\"?.*/\1/p"; }
+# Fact: nginx logs a request whose line it can't parse without a method or protocol, and an HTTP/2 one it refuses for
+# its :path without a path; such a request is named for what it lacks.
+requests() {
+	awk -v fields="$*" '
+		function value(name, got) {
+			return match($0, "\"" name "\": \"((\\\\.|[^\"\\\\])*)\"", got) ? got[1] : ""
+		}
+		function or_dash(v) { return v == "" ? "-" : v }
+		{
+			method = value("request_method"); path = value("request_uri"); sub(/\?.*/, "", path)
+			if (method == "") request = "(no request line)"
+			else request = method " " (path == "" ? "(no path, " value("server_protocol") ")" : path)
+			line = or_dash(value("host")) " " request
+			n = split(fields, names, " ")
+			for (i = 1; i <= n; i++) line = line " " or_dash(value(names[i]))
+			print line
+		}'
+}
 reach() {
 	if [[ -z $2 ]]; then
 		echo "$1: nothing"
@@ -157,18 +175,11 @@ if [[ -r /var/log/nginx ]]; then
 	echo "--- nginx: by host"
 	field host <<<"$log" | top 20
 	echo "--- nginx: 4xx by host, method and path"
-	grep -aE '"status": "4' <<<"$log" |
-		sed -nE 's/.*"request_method": "([^"]*)", "request_uri": "([^"?]*)[^"]*".*"host": "([^"]*)".*/\3 \1 \2/p' | top 25
+	grep -aE '"status": "4' <<<"$log" | requests | top 25
 	echo "--- nginx: 5xx by host, method, path and upstream status"
-	grep -aE '"status": "5' <<<"$log" | awk '
-		function value(name, got) {
-			return match($0, "\"" name "\": \"((\\\\.|[^\"\\\\])*)\"", got) && got[1] != "" ? got[1] : "-"
-		}
-		{ uri = value("request_uri"); sub(/\?.*/, "", uri)
-		  print value("host"), value("request_method"), uri, "upstream " value("upstream_status") }' | top 20
-	echo "--- nginx: POSTs to logins, by host, path and status"
-	grep -a '"request_method": "POST"' <<<"$log" |
-		sed -nE 's/.*"status": "([0-9]+)".*"request_uri": "([^"?]*)[^"]*".*"host": "([^"]*)".*/\3 \2 \1/p' |
+	grep -aE '"status": "5' <<<"$log" | requests upstream_status | sed -E 's/ [^ ]+$/ upstream&/' | top 20
+	echo "--- nginx: POSTs to logins, by host, request and status"
+	grep -a '"request_method": "POST"' <<<"$log" | requests status |
 		grep -iE 'login|auth|token|xmlrpc|wp-|signin|session|admin|/api ' | top 20
 	echo "--- nginx: sources of 4xx, with the user agent they sent most"
 	grep -aE '"status": "4' <<<"$log" | awk '

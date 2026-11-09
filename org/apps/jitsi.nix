@@ -37,6 +37,9 @@ in
           implicitFlowEnabled = false;
           directAccessGrantsEnabled = false;
           serviceAccountsEnabled = false;
+          # Policy: its tokens carry no roles, as it reads none, rather than every role, as Keycloak's full scope,
+          # which it deprecates, gives.
+          fullScopeAllowed = false;
           redirectUris = [ "${url}/static/sso.html" ];
           webOrigins = [ url ];
           attributes = {

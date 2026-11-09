@@ -10,6 +10,7 @@ mod keycloak;
 mod keys;
 mod logs;
 mod openwrt;
+mod postgresql;
 mod remote;
 mod route;
 mod secrets;

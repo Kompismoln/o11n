@@ -42,6 +42,11 @@
       type = lib.types.strMatching "[0-9]+";
       example = "17";
     };
+    logRetention = lib.mkOption {
+      description = "days each host keeps its logs, the journal and nginx's, and fail2ban its record of bans, by which a repeat offender's ban grows";
+      type = lib.types.ints.positive;
+      default = 14;
+    };
     prefix = lib.mkOption {
       description = "ipv6 private prefix";
       type = context.types.globalPrefix6;

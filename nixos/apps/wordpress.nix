@@ -28,6 +28,7 @@ let
       ++ [
         imagick
         memcached
+        redis
       ];
     extraConfig = ''
       memory_limit = 256M
@@ -73,14 +74,16 @@ in
     ];
 
     # Policy: a failed login is a POST to wp-login.php that it answers with anything but a redirect, as the form again
-    # or a 503 under load, and a POST to xmlrpc.php, which nginx denies, is one tried.
+    # or a 503 under load, and a POST to xmlrpc.php, which nginx denies, is one tried; so is either at an altpoint,
+    # which only redirects, as no browser posts there.
     # Dependency: nixos/nginx.nix logs each request as JSON with these fields first, in this order.
     services.fail2ban.jails."wordpress-${cfg.name}" = {
       filter.Definition.failregex =
         let
           post =
             status: path:
-            ''^\{"time_iso8601": "[^"]*", "status": "${status}", "remote_addr": "<ADDR>", "remote_user": "[^"]*", "request_method": "POST", "request_uri": "/+${path}(?:\?[^"]*)?", "server_protocol": "[^"]*", "host": "${lib.escapeRegex cfg.endpoint}",'';
+            ''^\{"time_iso8601": "[^"]*", "status": "${status}", "remote_addr": "<ADDR>", "remote_user": "[^"]*", "request_method": "POST", "request_uri": "/+${path}(?:\?[^"]*)?", "server_protocol": "[^"]*", "host": "(?:${hosts})",'';
+          hosts = lib.concatMapStringsSep "|" lib.escapeRegex ([ cfg.endpoint ] ++ app.altpoints or [ ]);
         in
         lib.concatStringsSep "\n  " [
           (post "(?!302)\\d+" "wp-login\\.php")
@@ -151,20 +154,28 @@ in
             extraConfig = "deny all;";
           };
 
+          # Fact: nginx takes the first regex location that matches, so a deny of PHP comes before `~ \.php$`.
           "~ /\\." = {
-            priority = 800;
+            priority = 250;
             extraConfig = "deny all;";
           };
 
           "~ \\.(log|sql)$" = {
-            priority = 800;
+            priority = 250;
             extraConfig = "deny all;";
           };
 
           "~* /(?:uploads|files)/.*\\.php$" = {
-            priority = 900;
+            priority = 250;
             extraConfig = "deny all;";
           };
+
+          # Policy: PHP that WordPress only includes, which fails when requested on its own.
+          "~ ^/(?:wp-config-sample\\.php$|wp-admin/includes/|wp-includes/(?:[^/]+\\.php$|theme-compat/)|wp-content/themes/.*\\.php$)" =
+            {
+              priority = 250;
+              extraConfig = "deny all;";
+            };
 
           "~* \\.(js|css|png|jpg|jpeg|gif|ico)$" = {
             priority = 1000;
@@ -189,7 +200,6 @@ in
           display_errors = Off;
           log_errors = On;
           error_log = ${cfg.home}/error.log;
-          extension=${pkgs.phpExtensions.redis}/lib/php/extensions/redis.so
         ''
         # Dependency: nixos/org/mail.nix gives a principal that sends an msmtp account named by its id, which keeps the
         # From of a principal that sends as others too, and the mail server holds the envelope to it as to From.

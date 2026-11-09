@@ -199,6 +199,11 @@ pkgs.testers.runNixOSTest {
         account = admin(f"master/clients/{client['id']}/service-account-user")
         assert account["email"] == "${auth.principal.mail.address}", account
 
+    with subtest("the org's client has the master realm's admin role in its scope, and no full scope"):
+        assert not client["fullScopeAllowed"], client
+        scope = admin(f"master/clients/{client['id']}/scope-mappings/realm")
+        assert [role["name"] for role in scope] == ["admin"], scope
+
     with subtest("a declared realm is kept as declared, and mails as the app from the org's mail server"):
         settings = admin("${realm}")
         assert settings["displayName"] == "Example", settings
@@ -225,10 +230,12 @@ pkgs.testers.runNixOSTest {
         assert meet["publicClient"] and meet["standardFlowEnabled"] and not meet["directAccessGrantsEnabled"], meet
         assert meet["redirectUris"] == ["https://meet.example.com/static/sso.html"], meet
         assert meet["attributes"]["pkce.code.challenge.method"] == "S256", meet
+        assert not meet["fullScopeAllowed"], meet
 
     with subtest("a confidential client has its app's secret, which the keycloak's host decrypts"):
         cloud = client("cloud")
         assert not cloud["publicClient"], cloud
+        assert not cloud["fullScopeAllowed"], cloud
         assert cloud["redirectUris"] == [
             "${cloud.url}/apps/user_oidc/code",
             "${cloud.url}/index.php/apps/user_oidc/code",
