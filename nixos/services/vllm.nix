@@ -47,9 +47,10 @@ let
     repo = "/srv/models/huggingface";
   };
 
-  # Accommodating for openai-harmony, which gpt-oss's chat goes through: unless TIKTOKEN_ENCODINGS_BASE names a
+  # Accommodating for openai-harmony, which a Harmony server's chat goes through: unless TIKTOKEN_ENCODINGS_BASE names a
   # directory of them, it downloads tiktoken's encodings, which a container that reaches loopback alone can't. The
-  # hashes are tiktoken's own (tiktoken_ext/openai_public.py), which harmony checks the files against.
+  # hashes are tiktoken's own (tiktoken_ext/openai_public.py), which harmony checks the files against. Only a Harmony
+  # server has them, so they don't move another's runtime.
   tiktokenEncodings =
     serverPkgs:
     serverPkgs.linkFarm "tiktoken-encodings" (
@@ -107,8 +108,10 @@ let
     ++ lib.attrNames (lib.filterAttrs (_: group: lib.elem cfg.user group.members) config.users.groups)
   );
 
-  servers = lib.mapAttrs (_: serverCfg: {
+  servers = lib.mapAttrs (_: serverCfg: rec {
     container = "vllm-${serverCfg.name}";
+
+    encodings = lib.optional serverCfg.harmony (tiktokenEncodings serverCfg.pkgs);
 
     argv = [
       (lib.getExe' serverCfg.package "vllm")
@@ -128,7 +131,6 @@ let
       HF_HOME = huggingface.home;
       HF_HUB_CACHE = huggingface.repo;
       HF_HUB_OFFLINE = "1";
-      TIKTOKEN_ENCODINGS_BASE = "${tiktokenEncodings serverCfg.pkgs}";
       # Dependency: the container reaches loopback alone (systemd.services."container@vllm-<server>"), so vLLM, torch and
       # NCCL find each other there, rather than at an address of the host's.
       VLLM_HOST_IP = "127.0.0.1";
@@ -138,6 +140,7 @@ let
       CUDA_HOME = "${serverCfg.pkgs.cudaPackages.cudatoolkit}";
       VLLM_USE_FLASHINFER_SAMPLER = "0";
     }
+    // lib.optionalAttrs (encodings != [ ]) { TIKTOKEN_ENCODINGS_BASE = "${lib.head encodings}"; }
     // serverCfg.environment;
 
     # Policy: everything the server runs from the store: its path changes when any of it does,
@@ -147,11 +150,7 @@ let
     runtime = serverCfg.pkgs.writeTextFile {
       name = "vllm-runtime";
       text = lib.concatMapStrings (p: "${p}\n") (
-        [
-          serverCfg.package
-          (tiktokenEncodings serverCfg.pkgs)
-        ]
-        ++ servicePath serverCfg.pkgs
+        [ serverCfg.package ] ++ encodings ++ servicePath serverCfg.pkgs
       );
     };
 

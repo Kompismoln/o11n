@@ -50,6 +50,12 @@ let
           apply = own;
           defaultText = lib.literalMD "the org's `hosts/<host>/details/models--<org>--<name>/chat_template.jinja`";
         };
+        harmony = lib.mkOption {
+          description = "whether vLLM renders the model's chat with Harmony, which reads tiktoken's encodings, as it does gpt-oss's";
+          type = lib.types.bool;
+          default = lib.hasPrefix "openai/gpt-oss-" config.model;
+          defaultText = lib.literalMD "whether `model` is one of `openai/gpt-oss-*`";
+        };
         servedModelNames = lib.mkOption {
           description = "the names the server answers to";
           type = lib.types.listOf lib.types.str;

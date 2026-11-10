@@ -38,6 +38,7 @@ let
       nixpkgs = "stub";
       revision = null;
       servedModelNames = [ ];
+      harmony = false;
       host = "127.0.0.1";
       extraArgs = [ ];
       environment = { };
@@ -119,6 +120,17 @@ let
     };
   };
 
+  # Fact: a server whose chat goes through Harmony.
+  harmonyCfg = eval {
+    talk = server {
+      port = 8006;
+      model = "openai/gpt-oss-20b";
+      revision = commit;
+      chatTemplate = template;
+      harmony = true;
+    };
+  };
+
   # Fact: servers reading what can change under them.
   unpinnedCfg = eval {
     branch = server {
@@ -171,6 +183,7 @@ let
   inherit (import stub { inherit (pkgs.stdenv.hostPlatform) system; }) vllm;
   chat = cfg.containers.vllm-chat;
   local = cfg.containers.vllm-local;
+  talk = harmonyCfg.containers.vllm-talk;
 in
 {
 
@@ -332,10 +345,16 @@ in
     };
   };
 
-  # Policy: the server reads tiktoken's encodings from the store, as it can't download them.
+  # Policy: a Harmony server reads tiktoken's encodings from the store, as it can't download them, and another has none.
   test_vllm_tiktoken_encodings = {
-    expr = lib.hasSuffix "-tiktoken-encodings" chat.config.systemd.services.vllm.environment.TIKTOKEN_ENCODINGS_BASE;
-    expected = true;
+    expr = {
+      harmony = lib.hasSuffix "-tiktoken-encodings" talk.config.systemd.services.vllm.environment.TIKTOKEN_ENCODINGS_BASE;
+      other = chat.config.systemd.services.vllm.environment ? TIKTOKEN_ENCODINGS_BASE;
+    };
+    expected = {
+      harmony = true;
+      other = false;
+    };
   };
 
   test_vllm_container_service = {
