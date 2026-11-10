@@ -974,6 +974,35 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   [[ $output == *"user-testuser archive testhost testhost fail: state-archive@user-testuser:testhost on testhost took no snapshot since its timer last started it, the latest being of 2026-11-06T03:00:12.123456789+01:00: journalctl -u state-archive@user-testuser:testhost on testhost"* ]]
 }
 
+@test "status tells whether a nextcloud's homes and external storages are reachable on each of its hosts" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-nix-switch
+  local said=$BATS_TEST_TMPDIR/nextcloud-testhost.local
+
+  run o11n status --list app-cloud
+  [[ $output == *"app-cloud nextcloud-home carol testhost"* ]]
+  [[ $output == *"app-cloud nextcloud-external alice/files testhost"* ]]
+
+  run o11n status app-cloud
+  [[ $output == *"app-cloud nextcloud-home carol testhost skip: host-testhost runs a system that doesn't say how its nextclouds' storages are"* ]]
+
+  printf '%s\n' 'cloud home carol ok' 'cloud external alice/files ok' >"$said"
+  run o11n status app-cloud
+  [[ $output == *"app-cloud nextcloud-home carol testhost ok"* ]]
+  [[ $output == *"app-cloud nextcloud-external alice/files testhost ok"* ]]
+
+  printf '%s\n' 'cloud home carol /var/lib/cloud/nextcloud/data/carol isn'"'"'t mounted: systemctl status /var/lib/cloud/nextcloud/data/carol' \
+    'cloud external alice/files error: Error while connecting' >"$said"
+  run o11n status app-cloud
+  [[ $output == *"app-cloud nextcloud-home carol testhost fail: cloud's home carol on host-testhost: /var/lib/cloud/nextcloud/data/carol isn't mounted: systemctl status /var/lib/cloud/nextcloud/data/carol"* ]]
+  [[ $output == *"app-cloud nextcloud-external alice/files testhost fail: cloud's external alice/files on host-testhost: error: Error while connecting"* ]]
+
+  echo 'other home carol ok' >"$said"
+  run o11n status app-cloud
+  [[ $output == *"app-cloud nextcloud-home carol testhost fail: host-testhost says nothing of cloud's home carol: o11n apply host-testhost"* ]]
+}
+
 @test "status tells whether an app's database has the collation version its host's postgresql has" {
   mock-host testhost
   o11n host pull-ssh-key host-testhost

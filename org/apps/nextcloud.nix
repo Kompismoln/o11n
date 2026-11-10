@@ -16,7 +16,7 @@ let
         default = null;
       };
       sftp = lib.mkOption {
-        description = "the SFTP server the mount reaches without an `allotment`, logging in with the app's `sftp-key`, or null";
+        description = "the SFTP server the mount reaches without an `allotment`, or null";
         type = lib.types.nullOr (
           lib.types.submodule {
             options = {
@@ -33,6 +33,11 @@ let
                 type = lib.types.str;
                 default = "/";
               };
+              key = lib.mkOption {
+                description = "the entity, by its handle, whose sftp-key the mount logs in with, which has to grant the app's hosts, or null for the app's";
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+              };
             };
           }
         );
@@ -46,6 +51,32 @@ let
     };
   };
 
+  home = {
+    options = {
+      host = lib.mkOption {
+        description = "the SMB server";
+        type = lib.types.str;
+      };
+      share = lib.mkOption {
+        description = "the share on the server";
+        type = lib.types.str;
+      };
+      login = lib.mkOption {
+        description = "the user it logs in as";
+        type = lib.types.str;
+      };
+      key = lib.mkOption {
+        description = "the entity, by its handle, whose smb-password it logs in with, which has to grant the app's hosts";
+        type = lib.types.str;
+      };
+    };
+  };
+
+  entityOf =
+    option: handle:
+    org.entities.${handle}
+      or (throw "app.${app.name}.nextcloud.${option}: ${handle} is no entity of the org's.");
+
   servers =
     user: folder: mount:
     let
@@ -55,7 +86,9 @@ let
     if (mount.allotment == null) == (mount.sftp == null) then
       fail "it reaches an allotment or an sftp server: set one of them."
     else if mount.sftp != null then
-      lib.genAttrs app.run-on-hosts (_: mount.sftp)
+      lib.genAttrs app.run-on-hosts (_: {
+        inherit (mount.sftp) host login root;
+      })
     else if !(allotment.logins ? ${app.handle}) then
       fail "${mount.allotment} lets ${app.handle} in by sftp only from its sftp: add it there."
     else
@@ -64,17 +97,62 @@ let
         host = login.address4;
         inherit (login) login root;
       }) allotment.logins.${app.handle};
+
+  key =
+    user: folder: mount:
+    let
+      handle = if mount.sftp.key or null == null then app.handle else mount.sftp.key;
+      entity = entityOf "external.${user}.${folder}.sftp.key" handle;
+    in
+    {
+      inherit handle;
+      secret = {
+        name = "${entity.name}/sftp-key";
+        inherit (entity.secrets) sopsFile;
+      };
+      publicKey = entity.publicKeys.sftp-key;
+    };
 in
 {
   options = {
     external = lib.mkOption {
-      description = "nextcloud's external storages over SFTP, by the user each is for, the one it applies to, then by the folder it's at in their files";
+      description = "nextcloud's external storages over SFTP, by the Nextcloud user each is for, the one it applies to, then by the folder it's at in their files";
       type = lib.types.attrsOf (lib.types.attrsOf (lib.types.submodule external));
       default = { };
       example = lib.literalExpression ''{ alice.web.allotment = "user-alice@web"; }'';
     };
+    homes = lib.mkOption {
+      description = "the Nextcloud users whose data, their files, versions and trash, is an SMB share, which each of the app's hosts mounts where Nextcloud keeps it, by user";
+      type = lib.types.attrsOf (lib.types.submodule home);
+      default = { };
+      example = lib.literalExpression ''{ alice = { host = "box.example.com"; share = "alice"; login = "alice"; key = "store-box"; }; }'';
+    };
+    shares = lib.mkOption {
+      description = "each of `homes`, with its user and the key it logs in with";
+      internal = true;
+      readOnly = true;
+      type = lib.types.listOf lib.types.raw;
+      default = lib.mapAttrsToList (
+        user: home:
+        let
+          entity = entityOf "homes.${user}.key" home.key;
+        in
+        {
+          inherit user;
+          inherit (home) host share login;
+          key = {
+            handle = home.key;
+            secret = {
+              name = "${entity.name}/smb-password";
+              inherit (entity.secrets) sopsFile;
+            };
+          };
+        }
+      ) config.homes;
+      defaultText = lib.literalMD "each of `homes`, with its user and its `key`'s smb-password";
+    };
     mounts = lib.mkOption {
-      description = "for each host the app runs on, its external storages: each at its folder, for its user, with the server it reaches there and whether it can be shared from";
+      description = "for each host the app runs on, its external storages: each at its folder, for its user, with the server it reaches there, the key it logs in with and whether it can be shared from";
       internal = true;
       readOnly = true;
       type = lib.types.lazyAttrsOf lib.types.raw;
@@ -89,12 +167,13 @@ in
                 inherit user;
                 inherit (mount) sharing;
                 server = (servers user folder mount).${on};
+                key = key user folder mount;
               }
             )
           ) config.external
         )
       );
-      defaultText = lib.literalMD "for each of the app's `run-on-hosts`, each of `external` with its server there";
+      defaultText = lib.literalMD "for each of the app's `run-on-hosts`, each of `external` with its server there and its `sftp.key`'s sftp-key, or the app's";
     };
     collabora = lib.mkOption {
       description = "the collabora app whose endpoint nextcloud's office uses, or null";

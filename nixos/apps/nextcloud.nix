@@ -39,7 +39,7 @@ let
     in
     {
       services.nextcloud.extraApps = {
-        inherit (pkgs.nextcloud34Packages.apps) user_oidc;
+        inherit (pkgs.nextcloud35Packages.apps) user_oidc;
       };
       systemd.services.nextcloud-oidc = {
         description = "keep nextcloud's login with ${client.keycloak}'s realm ${client.realm}";
@@ -60,7 +60,75 @@ let
     };
 
   mounts = app.nextcloud.mounts.${host.name} or [ ];
-  sftpKey = "/run/secrets/sftp-key";
+  keys = lib.listToAttrs (map (mount: lib.nameValuePair mount.key.handle mount.key) mounts);
+  secretOf = handle: "${app.name}/${handle}/sftp-key";
+  sftpKey = handle: "/run/secrets/sftp-keys/${handle}";
+
+  shares = app.nextcloud.shares or [ ];
+  dataOf = user: "${cfg.home}/data/${user}";
+  passwordOf = handle: "${app.name}/${handle}/smb-password";
+  credentialsOf = user: "${app.name}/${user}-smb-credentials";
+
+  # Dependency: crates/o11n/src/nextcloud.rs reads this through switch-system nextcloud, a line each:
+  # <app> home <user> ok|<why not> and <app> external <user>/<folder> ok|<why not>.
+  status = pkgs.writeShellApplication {
+    name = "nextcloud-status-${cfg.name}";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.jq
+      pkgs.nixos-container
+      pkgs.util-linux
+    ];
+    text = ''
+      say() {
+        echo "${cfg.name} $1 $2 ''${3//$'\n'/ }"
+      }
+      occ() {
+        timeout 60 nixos-container run ${cfg.name} -- nextcloud-occ "$@"
+      }
+    ''
+    + lib.concatMapStrings (share: ''
+      path=${lib.escapeShellArg (dataOf share.user)}
+      if ! timeout 20 mountpoint -q "$path"; then
+        say home ${share.user} "$path isn't mounted: systemctl status $path"
+      elif ! timeout 20 runuser -u ${cfg.user} -- test -w "$path"; then
+        say home ${share.user} "$path isn't writable as ${cfg.user}"
+      else
+        say home ${share.user} ok
+      fi
+    '') shares
+    + lib.optionalString (mounts != [ ]) (
+      ''
+        listed=$(occ files_external:list --output=json 2>/dev/null) || listed=
+      ''
+      + lib.concatMapStrings (
+        mount:
+        let
+          name = "${mount.user}${mount.mountPoint}";
+        in
+        ''
+          if [[ -z $listed ]]; then
+            say external ${name} "files_external:list fails in ${cfg.name}'s container: machinectl status ${cfg.name}"
+          else
+            id=$(jq -r --arg point ${mount.mountPoint} --arg user ${mount.user} \
+              'first(.[] | select(.mount_point == $point and .applicable_users == [$user]) | .mount_id) // empty' \
+              <<<"$listed" 2>/dev/null) || id=
+            if [[ -z $id ]]; then
+              say external ${name} "${cfg.name} has no external storage ${mount.mountPoint} for ${mount.user}: journalctl -M ${cfg.name} -u nextcloud-external"
+            elif ! verified=$(occ files_external:verify "$id" --output=json 2>&1); then
+              say external ${name} "files_external:verify $id fails: $verified"
+            elif ! said=$(jq -er '"\(.status): \(.message)"' <<<"$verified" 2>/dev/null); then
+              say external ${name} "files_external:verify $id says: $verified"
+            elif [[ $said != "ok: "* ]]; then
+              say external ${name} "$said"
+            else
+              say external ${name} ok
+            fi
+          fi
+        ''
+      ) mounts
+    );
+  };
 
   # Policy: each start makes each mount as declared, replacing what is at its mount point for its user otherwise. It
   # imports rather than sets the mount, as the import reads the private key on stdin, and files_external:config would
@@ -80,8 +148,8 @@ let
             configuration = {
               inherit (mount.server) host root;
               user = mount.server.login;
-              public_key = lib.optionalString (builtins.pathExists app.publicKeys.sftp-key) (
-                lib.trim (builtins.readFile app.publicKeys.sftp-key)
+              public_key = lib.optionalString (builtins.pathExists mount.key.publicKey) (
+                lib.trim (builtins.readFile mount.key.publicKey)
               );
             };
             options.enable_sharing = mount.sharing;
@@ -101,7 +169,7 @@ let
             for id in $(jq -r '.[].mount_id' <<<"$current"); do
               ${occ} files_external:delete --yes "$id"
             done
-            jq --rawfile key ${sftpKey} '.configuration.private_key = $key' <<<"$declared" \
+            jq --rawfile key ${sftpKey mount.key.handle} '.configuration.private_key = $key' <<<"$declared" \
               | ${occ} files_external:import -
           fi
         '';
@@ -146,13 +214,63 @@ in
         group = app.name;
       };
     }
-    // lib.optionalAttrs (mounts != [ ]) {
-      "${app.name}/sftp-key" = {
-        inherit (app.secrets) sopsFile;
+    // lib.mapAttrs' (
+      handle: key:
+      lib.nameValuePair (secretOf handle) {
+        inherit (key.secret) sopsFile;
+        key = key.secret.name;
         owner = app.name;
         group = app.name;
-      };
-    };
+      }
+    ) keys
+    // lib.listToAttrs (
+      map (
+        share:
+        lib.nameValuePair (passwordOf share.key.handle) {
+          inherit (share.key.secret) sopsFile;
+          key = share.key.secret.name;
+        }
+      ) shares
+    );
+
+    sops.templates = lib.listToAttrs (
+      map (
+        share:
+        lib.nameValuePair (credentialsOf share.user) {
+          content = ''
+            username=${share.login}
+            password=${config.sops.placeholder.${passwordOf share.key.handle}}
+          '';
+        }
+      ) shares
+    );
+
+    # Policy: the share is mounted as the app's user, and the container starts only once it is, so that Nextcloud never
+    # writes the user's data to the directory beneath.
+    fileSystems = lib.listToAttrs (
+      map (
+        share:
+        lib.nameValuePair (dataOf share.user) {
+          device = "//${share.host}/${share.share}";
+          fsType = "cifs";
+          options = [
+            "credentials=${config.sops.templates.${credentialsOf share.user}.path}"
+            "uid=${toString cfg.uid}"
+            "gid=${toString cfg.gid}"
+            "dir_mode=0750"
+            "file_mode=0640"
+            "vers=3.1.1"
+            "seal"
+            "_netdev"
+            "nofail"
+            "x-systemd.after=network-online.target"
+            "x-systemd.requires=network-online.target"
+          ];
+        }
+      ) shares
+    );
+
+    environment.systemPackages = lib.optional (shares != [ ] || mounts != [ ]) status;
 
     # Policy: the container connects as the host user with its uid, by peer authentication.
     assertions = [
@@ -161,10 +279,10 @@ in
         message = "Nextcloud ${cfg.name} connects to postgresql as the host's user ${cfg.user}, whose uid has to be ${toString cfg.uid}.";
       }
     ]
-    ++ lib.optional (mounts != [ ]) {
-      assertion = builtins.pathExists app.publicKeys.sftp-key;
-      message = "Nextcloud ${cfg.name} logs in to its external storages with ${app.handle}'s sftp-key, which it has none of: o11n secret generate ${app.handle} sftp-key.";
-    };
+    ++ lib.mapAttrsToList (handle: key: {
+      assertion = builtins.pathExists key.publicKey;
+      message = "Nextcloud ${cfg.name} logs in to an external storage with ${handle}'s sftp-key, which it has none of: o11n secret generate ${handle} sftp-key.";
+    }) keys;
 
     o11n.postgresql = {
       databases = {
@@ -181,6 +299,7 @@ in
 
     systemd.services = {
       "container@${cfg.name}" = {
+        unitConfig.RequiresMountsFor = map (share: dataOf share.user) shares;
         serviceConfig = {
           TimeoutStopSec = 10;
           KillMode = "mixed";
@@ -231,12 +350,13 @@ in
             isReadOnly = true;
           };
         }
-        // lib.optionalAttrs (mounts != [ ]) {
-          ${sftpKey} = {
-            hostPath = config.sops.secrets."${app.name}/sftp-key".path;
+        // lib.mapAttrs' (
+          handle: _:
+          lib.nameValuePair (sftpKey handle) {
+            hostPath = config.sops.secrets.${secretOf handle}.path;
             isReadOnly = true;
-          };
-        };
+          }
+        ) keys;
 
         config = {
           imports = lib.optional (client != null) oidc ++ lib.optional (mounts != [ ]) external;
@@ -276,11 +396,11 @@ in
             enable = true;
             https = cfg.ssl;
             hostName = "localhost";
-            package = pkgs.nextcloud34;
+            package = pkgs.nextcloud35;
             appstoreEnable = true;
             maxUploadSize = "1G";
             extraApps = {
-              inherit (pkgs.nextcloud34Packages.apps) calendar;
+              inherit (pkgs.nextcloud35Packages.apps) calendar;
             };
             settings = {
               trusted_proxies = [

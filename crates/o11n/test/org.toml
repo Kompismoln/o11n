@@ -99,7 +99,14 @@ run-on-hosts = ["testhost"]
 principal.mail = { inbox = true, send = true }
 keycloak.realms.example = {}
 
-[store]
+[app.cloud]
+id = 1
+endpoint = "cloud.example.com"
+run-on-hosts = ["testhost"]
+nextcloud.homes.carol = { host = "box.example.com", share = "carol", login = "carol", key = "store-box" }
+nextcloud.external.alice.files = { sftp = { host = "files.example.com", login = "alice" } }
+
+[store.box]
 
 [vpn.wg0]
 id = 0

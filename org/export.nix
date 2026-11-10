@@ -94,6 +94,17 @@ let
         hosts = entity.run-on-hosts;
       };
     }
+    // lib.optionalAttrs (entity.class == "app" && entity.nextcloud != null) {
+      nextcloud = {
+        homes = lib.attrNames entity.nextcloud.homes;
+        external = lib.concatLists (
+          lib.mapAttrsToList (
+            user: folders: map (folder: "${user}/${folder}") (lib.attrNames folders)
+          ) entity.nextcloud.external
+        );
+        hosts = entity.run-on-hosts;
+      };
+    }
     // lib.optionalAttrs (entity.class == "app" && entity.keycloak != null) {
       keycloak.realms = lib.attrNames entity.keycloak.realms;
     }

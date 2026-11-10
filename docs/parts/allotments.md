@@ -75,18 +75,24 @@ sftp = ["app-cloud"]
 
 ## In Nextcloud
 
-A nextcloud's `external` are its external storages over SFTP, by the user each is for, then by its folder in their
-files, each applicable to that user alone, and logging in with the app's `sftp-key` (`org/apps/nextcloud.nix`). Each
-reaches an `allotment`, as its `logins` have it for the app, which has to be in its `sftp`, or an `sftp` server, one of
-them; with `sharing` its user can share from it, which is how others get to it:
+A nextcloud's `external` are its external storages over SFTP, by the Nextcloud user each is for, then by its folder in
+their files, each applicable to that user alone (`org/apps/nextcloud.nix`). The user needn't be one of the org's: a
+Keycloak account in the app's realm is a Nextcloud user of its own (`docs/parts/keycloak.md`). Each reaches an
+`allotment`, as its `logins` have it for the app, which has to be in its `sftp`, logging in with the app's `sftp-key`,
+or an `sftp` server, one of them; with `sharing` its user can share from it, which is how others get to it:
 
 ```toml
 [app.cloud.nextcloud.external]
 alice.web = { allotment = "user-alice@web", sharing = true }
 bob.web = { allotment = "user-bob@web" }
 alice.files = { sftp = { host = "files.example.com", login = "archive", root = "/" } }
+carol.box = { sftp = { host = "box.example.com", login = "carol", key = "store-box" } }
 ```
 
+- An `sftp` server's mount logs in with the app's `sftp-key`, or with that of the entity its `key` names, as a store
+  that owns a server outside the org: the entity has an `sftp-key` while a mount names it, and grants the app's hosts,
+  which decrypt it (`docs/parts/secrets.md`). A `key` that names no entity of the org's fails evaluation, as does a key
+  without its public key, on the app's host (`nixos/apps/nextcloud.nix`).
 - In nextcloud's container, `nextcloud-external`, a oneshot after `nextcloud-setup`, enables `files_external` and
   imports each, unless one is at its folder for its user as declared, which it replaces otherwise
   (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
@@ -95,6 +101,25 @@ alice.files = { sftp = { host = "files.example.com", login = "archive", root = "
   `host::key` lines, split at the first `::`. It keeps the host key it first sees, and checks for changes as a folder is
   opened.
 - An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
+
+### Homes
+
+A nextcloud's `homes` are the Nextcloud users whose data, their files, versions and trash alike, is an SMB share rather
+than the app's own storage, by user, each logging in as its `login` with the `smb-password` of the entity its `key`
+names, which has it while a home names it and grants the app's hosts (`org/apps/nextcloud.nix`):
+
+```toml
+[app.cloud.nextcloud.homes]
+carol = { host = "box.example.com", share = "carol", login = "carol", key = "store-box" }
+```
+
+- Each of the app's hosts mounts the share where Nextcloud keeps the user's data, `<home>/nextcloud/data/<user>` under
+  the app's home, which the container sees through its bind of that home, as the app's user, over SMB 3.1.1, encrypted,
+  with the credentials sops-nix renders from the password (`nixos/apps/nextcloud.nix`).
+- The container starts only once each share is mounted, so that Nextcloud never writes a user's data into the directory
+  beneath: a share that doesn't mount keeps the whole nextcloud down, and the host boots without it.
+- What changes on the share other than through Nextcloud, Nextcloud knows of after `occ files:scan <user>`.
+- The share is a file system of its own, which a snapshot of the app's state doesn't hold, nor an archive of it.
 
 ## Status
 
@@ -105,3 +130,10 @@ serves syncs, or the one named, from Syncthing's API, which `switch-system allot
 - `allotment-sync <id> <replica>`: ok when the replica is connected and has all of the allotment, with no errors;
   skipped when it isn't connected but was seen within a week, and failed after that, or when it never was
 - `allotment-conflicts <id>`: fails while the allotment holds a `*.sync-conflict-*` copy.
+
+On a host a nextcloud with `homes` or `external` runs on, `nextcloud-status-<app>` says how each is, which
+`switch-system nextcloud` runs for `o11n status` (`crates/o11n/src/nextcloud.rs`):
+
+- `nextcloud-home <user> <host>`: the share is mounted at the user's data, and the app's user can write to it
+- `nextcloud-external <user>/<folder> <host>`: Nextcloud has the external storage, and `files_external:verify` says it's
+  ok, or else fails with what it says.

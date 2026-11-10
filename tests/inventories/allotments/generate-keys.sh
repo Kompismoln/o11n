@@ -27,3 +27,5 @@ o11n secret generate host-zhost luks-key
 o11n identity create app-cloud
 o11n secret generate app-cloud ssh-key
 o11n secret generate app-cloud sftp-key
+o11n identity create store-files
+o11n secret generate store-files sftp-key

@@ -226,8 +226,8 @@ the collabora app whose endpoint nextcloud's office uses, or null
 
 Default: `{ }`
 
-nextcloud's external storages over SFTP, by the user each is for, the one it applies to, then by the folder it's at in
-their files
+nextcloud's external storages over SFTP, by the Nextcloud user each is for, the one it applies to, then by the folder
+it's at in their files
 
 ### `app.<name>.nextcloud.external.<name>.<name>.allotment`
 
@@ -243,13 +243,22 @@ the allotment, as <handle>@<host>, the mount reaches over SFTP, whose `sftp` has
 
 Default: `null`
 
-the SFTP server the mount reaches without an `allotment`, logging in with the app's `sftp-key`, or null
+the SFTP server the mount reaches without an `allotment`, or null
 
 ### `app.<name>.nextcloud.external.<name>.<name>.sftp.host`
 
 `org/apps/nextcloud.nix` · string
 
 the server, as nextcloud takes it: a name, or an IPv6 address in brackets
+
+### `app.<name>.nextcloud.external.<name>.<name>.sftp.key`
+
+`org/apps/nextcloud.nix` · null or string
+
+Default: `null`
+
+the entity, by its handle, whose sftp-key the mount logs in with, which has to grant the app's hosts, or null for the
+app's
 
 ### `app.<name>.nextcloud.external.<name>.<name>.sftp.login`
 
@@ -272,6 +281,39 @@ the directory on the server the mount is of
 Default: `false`
 
 whether the user can share from the mount, nextcloud's enable_sharing
+
+### `app.<name>.nextcloud.homes`
+
+`org/apps/nextcloud.nix` · attribute set of (submodule)
+
+Default: `{ }`
+
+the Nextcloud users whose data, their files, versions and trash, is an SMB share, which each of the app's hosts mounts
+where Nextcloud keeps it, by user
+
+### `app.<name>.nextcloud.homes.<name>.host`
+
+`org/apps/nextcloud.nix` · string
+
+the SMB server
+
+### `app.<name>.nextcloud.homes.<name>.key`
+
+`org/apps/nextcloud.nix` · string
+
+the entity, by its handle, whose smb-password it logs in with, which has to grant the app's hosts
+
+### `app.<name>.nextcloud.homes.<name>.login`
+
+`org/apps/nextcloud.nix` · string
+
+the user it logs in as
+
+### `app.<name>.nextcloud.homes.<name>.share`
+
+`org/apps/nextcloud.nix` · string
+
+the share on the server
 
 ### `app.<name>.nextcloud.keycloak`
 
@@ -1080,7 +1122,9 @@ Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and 
 `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
 `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key`
-for an app or host an allotment's `sftp` has, and the keys o11n's modules read of the services they name
+
+for an app or host an allotment's `sftp` has and for an entity a nextcloud's `sftp.key` names, an `smb-password` for one
+its `homes` name, and the keys o11n's modules read of the services they name
 
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 

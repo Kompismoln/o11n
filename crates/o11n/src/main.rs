@@ -9,6 +9,7 @@ mod host;
 mod keycloak;
 mod keys;
 mod logs;
+mod nextcloud;
 mod openwrt;
 mod postgresql;
 mod remote;

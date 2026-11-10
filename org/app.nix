@@ -34,9 +34,17 @@ in
       // lib.optionalAttrs (config.nextcloud != null && config.nextcloud.keycloak != null) {
         oidc-secret = "passphrase";
       }
-      // lib.optionalAttrs (config.nextcloud != null && config.nextcloud.external != { }) {
-        sftp-key = "ssh-rsa";
-      };
+      //
+        lib.optionalAttrs
+          (
+            config.nextcloud != null
+            && lib.any (mount: mount.allotment != null || mount.sftp.key or null == null) (
+              lib.concatMap lib.attrValues (lib.attrValues config.nextcloud.external)
+            )
+          )
+          {
+            sftp-key = "ssh-rsa";
+          };
   };
 
   options =

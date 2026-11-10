@@ -74,6 +74,8 @@ pub struct Entity {
     #[serde(default)]
     pub database: Option<Database>,
     #[serde(default)]
+    pub nextcloud: Option<Nextcloud>,
+    #[serde(default)]
     pub openwrt: Option<Openwrt>,
     #[serde(default)]
     pub router: Option<Router>,
@@ -102,6 +104,13 @@ pub struct Openwrt {
 #[derive(Debug, Deserialize)]
 pub struct Keycloak {
     pub realms: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Nextcloud {
+    pub homes: Vec<String>,
+    pub external: Vec<String>,
+    pub hosts: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

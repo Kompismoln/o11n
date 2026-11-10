@@ -1,4 +1,3 @@
-# nixos/services/nix-switch.nix
 {
   config,
   lib,
@@ -60,8 +59,17 @@ let
           exec /run/current-system/sw/bin/postgresql-collation-status
         fi
         exit 0
+      elif [[ $generation == nextcloud ]]; then
+        # Dependency: nixos/apps/nextcloud.nix puts one of these on a host for each nextcloud with a home or an external
+        # storage, which a host without, or runs a system from before, says nothing for.
+        for status in /run/current-system/sw/bin/nextcloud-status-*; do
+          if [[ -x $status ]]; then
+            "$status"
+          fi
+        done
+        exit 0
       elif [[ -n $generation ]]; then
-        echo "usage: switch-system [store path | generation | status | allotments | databases]" >&2
+        echo "usage: switch-system [store path | generation | status | allotments | databases | nextcloud]" >&2
         exit 1
       fi
 

@@ -193,9 +193,19 @@ in
     };
   };
 
-  # Policy: nextcloud mounts an allotment at its folder, for its user, as the allotment's login for the app has it.
+  # Policy: nextcloud mounts an allotment at its folder, for its user, as the allotment's login for the app has it, with
+  # the app's sftp-key, and an sftp server with its key's, for a user the org needn't have.
   test_nextcloud_mounts = {
-    expr = outputs.org.app.cloud.nextcloud.mounts;
+    expr = lib.mapAttrs (
+      _:
+      map (
+        mount:
+        lib.recursiveUpdate mount {
+          key.publicKey = builtins.readFile mount.key.publicKey;
+          key.secret.sopsFile = baseNameOf mount.key.secret.sopsFile;
+        }
+      )
+    ) outputs.org.app.cloud.nextcloud.mounts;
     expected.laptop = [
       {
         mountPoint = "/zhost";
@@ -206,9 +216,90 @@ in
           login = "alice";
           root = "/user-alice";
         };
+        key = {
+          handle = "app-cloud";
+          secret = {
+            name = "cloud/sftp-key";
+            sopsFile = "app-cloud.yaml";
+          };
+          publicKey = builtins.readFile ./public-keys/app-cloud-sftp-key.pub;
+        };
+      }
+      {
+        mountPoint = "/files";
+        user = "lisa";
+        sharing = false;
+        server = {
+          host = "files.example.com";
+          login = "lisa";
+          root = "/";
+        };
+        key = {
+          handle = "store-files";
+          secret = {
+            name = "files/sftp-key";
+            sopsFile = "store-files.yaml";
+          };
+          publicKey = builtins.readFile ./public-keys/store-files-sftp-key.pub;
+        };
       }
     ];
   };
+
+  # Policy: an entity has an sftp-key while a mount logs in with it, and the key names one of the org's entities.
+  test_nextcloud_sftp_keys =
+    let
+      sftp = {
+        host = "files.example.com";
+        login = "lisa";
+      };
+      evaluates =
+        external:
+        (builtins.tryEval (
+          builtins.deepSeq
+            (alter { app.cloud.nextcloud = { inherit external; }; }).org.app.cloud.nextcloud.mounts.laptop
+            true
+        )).success;
+    in
+    {
+      expr = {
+        store = outputs.org.store.files.keys.sftp-key or null;
+        app =
+          (o11nLib.evalContext {
+            path = ./.;
+            flake = {
+              outPath = ./.;
+              inputs = { };
+            };
+            spec =
+              let
+                inherit (outputs.context) spec;
+                inherit (spec.app) cloud;
+              in
+              lib.recursiveUpdate spec { allotment."user-alice@zhost".sftp = [ ]; }
+              // {
+                app = spec.app // {
+                  cloud = cloud // {
+                    nextcloud = cloud.nextcloud // {
+                      external = { inherit (cloud.nextcloud.external) lisa; };
+                    };
+                  };
+                };
+              };
+          }).org.app.cloud.keys
+            ? sftp-key;
+        unknown = evaluates {
+          lisa.files.sftp = sftp // {
+            key = "store-nobody";
+          };
+        };
+      };
+      expected = {
+        store = "ssh-rsa";
+        app = false;
+        unknown = false;
+      };
+    };
 
   # Policy: an external storage reaches an allotment or any other sftp server, one of them, and is at its folder for
   # its user alone, so that another user can have a folder of the same name.
@@ -264,6 +355,11 @@ in
           {
             mountPoint = "/zhost";
             user = "bob";
+            host = "files.example.com";
+          }
+          {
+            mountPoint = "/files";
+            user = "lisa";
             host = "files.example.com";
           }
         ];

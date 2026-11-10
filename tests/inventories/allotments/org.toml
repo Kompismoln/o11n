@@ -20,6 +20,7 @@ principal.hasPublicKey = false
 [store.files]
 id = 0
 principal.hasPublicKey = false
+grants = ["host-laptop"]
 
 [host.zhost]
 id = 1
@@ -55,6 +56,8 @@ id = 0
 endpoint = "cloud.example.com"
 run-on-hosts = ["laptop"]
 nextcloud.external.alice.zhost = { allotment = "user-alice@zhost", sharing = true }
+# Fact: lisa is a Nextcloud user alone, whose mount logs in with store-files' sftp-key.
+nextcloud.external.lisa.files = { sftp = { host = "files.example.com", login = "lisa", key = "store-files" } }
 
 [root.1]
 

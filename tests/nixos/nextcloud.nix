@@ -36,9 +36,9 @@ let
     };
   };
 
-  # Fact: as org/apps/nextcloud.nix derives it for an external zhost of alice's allotment there, run on web.
+  # Fact: as org/apps/nextcloud.nix derives it, run on web, for an external zhost of alice's allotment there, and an
+  # external files of bob's on an sftp server, logging in with store-files' sftp-key.
   mounts = lib.recursiveUpdate app {
-    publicKeys.sftp-key = ../inventories/allotments/public-keys/app-cloud-sftp-key.pub;
     nextcloud.mounts.web = [
       {
         mountPoint = "/zhost";
@@ -48,6 +48,52 @@ let
           host = "10.0.0.1";
           login = "alice";
           root = "/user-alice";
+        };
+        key = {
+          handle = "app-cloud";
+          secret = {
+            name = "cloud/sftp-key";
+            inherit (app.secrets) sopsFile;
+          };
+          publicKey = ../inventories/allotments/public-keys/app-cloud-sftp-key.pub;
+        };
+      }
+      {
+        mountPoint = "/files";
+        user = "bob";
+        sharing = false;
+        server = {
+          host = "files.example.com";
+          login = "archive";
+          root = "/";
+        };
+        key = {
+          handle = "store-files";
+          secret = {
+            name = "files/sftp-key";
+            sopsFile = "/enc/store-files.yaml";
+          };
+          publicKey = ../inventories/allotments/public-keys/store-files-sftp-key.pub;
+        };
+      }
+    ];
+  };
+
+  # Fact: as org/apps/nextcloud.nix derives it for a home of carol's on box.example.com, with store-box's
+  # smb-password.
+  homes = lib.recursiveUpdate app {
+    nextcloud.shares = [
+      {
+        user = "carol";
+        host = "box.example.com";
+        share = "carol";
+        login = "carol";
+        key = {
+          handle = "store-box";
+          secret = {
+            name = "box/smb-password";
+            sopsFile = "/enc/store-box.yaml";
+          };
         };
       }
     ];
@@ -72,6 +118,22 @@ let
           );
           default = { };
         };
+        options.sops.templates = lib.mkOption {
+          type = lib.types.attrsOf (
+            lib.types.submodule (
+              { name, ... }:
+              {
+                freeformType = lib.types.attrsOf lib.types.anything;
+                options.path = lib.mkOption { default = "/run/secrets/rendered/${name}"; };
+              }
+            )
+          );
+          default = { };
+        };
+        options.sops.placeholder = lib.mkOption {
+          type = lib.types.lazyAttrsOf lib.types.str;
+          default = { };
+        };
         options.o11n.preserve.directories = lib.mkOption {
           type = lib.types.listOf lib.types.anything;
           default = [ ];
@@ -91,6 +153,7 @@ let
             };
             host.name = "web";
           };
+          sops.placeholder."cloud/store-box/smb-password" = "<smb-password>";
           users.users.cloud = {
             isSystemUser = true;
             group = "cloud";
@@ -200,7 +263,7 @@ in
       };
     };
 
-  # Policy: a nextcloud keeps each of its external storages, which logs in with the app's sftp-key.
+  # Policy: a nextcloud keeps each of its external storages, which logs in with its key's sftp-key.
   test_nextcloud_keeps_its_external_storages =
     let
       cfg = evalApp mounts app.principal.uid;
@@ -210,43 +273,123 @@ in
     {
       expr = {
         apps = lib.attrNames inner.services.nextcloud.extraApps;
-        secret = {
-          inherit (cfg.containers.cloud.bindMounts."/run/secrets/sftp-key") hostPath isReadOnly;
-          inherit (cfg.sops.secrets."cloud/sftp-key") sopsFile owner;
-        };
+        secrets = lib.mapAttrs (handle: _: {
+          inherit (cfg.containers.cloud.bindMounts."/run/secrets/sftp-keys/${handle}") hostPath isReadOnly;
+          inherit (cfg.sops.secrets."cloud/${handle}/sftp-key") sopsFile key owner;
+        }) (lib.genAttrs [ "app-cloud" "store-files" ] lib.id);
         inherit (unit) after;
         declares = lib.all (part: lib.hasInfix part unit.script) [
           "files_external:import -"
-          "--rawfile key /run/secrets/sftp-key"
+          "--rawfile key /run/secrets/sftp-keys/app-cloud"
+          "--rawfile key /run/secrets/sftp-keys/store-files"
           ''"host":"10.0.0.1"''
           ''"root":"/user-alice"''
           ''"user":"alice"''
           ''"applicable_users":["alice"]''
           ''"mount_point":"/zhost"''
           ''"options":{"enable_sharing":true}''
+          ''"host":"files.example.com"''
+          ''"applicable_users":["bob"]''
+          ''"public_key":"${lib.trim (builtins.readFile ../inventories/allotments/public-keys/store-files-sftp-key.pub)}"''
         ];
+        failed = failed cfg;
       };
       expected = {
         apps = [ "calendar" ];
-        secret = {
-          hostPath = "/run/secrets/cloud/sftp-key";
-          isReadOnly = true;
-          sopsFile = "/enc/app-cloud.yaml";
-          owner = "cloud";
+        secrets = {
+          app-cloud = {
+            hostPath = "/run/secrets/cloud/app-cloud/sftp-key";
+            isReadOnly = true;
+            sopsFile = "/enc/app-cloud.yaml";
+            key = "cloud/sftp-key";
+            owner = "cloud";
+          };
+          store-files = {
+            hostPath = "/run/secrets/cloud/store-files/sftp-key";
+            isReadOnly = true;
+            sopsFile = "/enc/store-files.yaml";
+            key = "files/sftp-key";
+            owner = "cloud";
+          };
         };
         after = [ "nextcloud-setup.service" ];
         declares = true;
+        failed = [ ];
+      };
+    };
+
+  # Policy: a home is the share, which the host mounts as the app's user, with its key's smb-password, and the container
+  # starts only once it's mounted.
+  test_nextcloud_mounts_a_home =
+    let
+      cfg = evalApp homes app.principal.uid;
+      data = "/var/lib/cloud/nextcloud/data/carol";
+    in
+    {
+      expr = {
+        mount = {
+          inherit (cfg.fileSystems.${data}) device fsType;
+          options = lib.filter (
+            option:
+            lib.any (prefix: lib.hasPrefix prefix option) [
+              "credentials="
+              "uid="
+              "gid="
+              "seal"
+              "nofail"
+            ]
+          ) cfg.fileSystems.${data}.options;
+        };
+        credentials = cfg.sops.templates."cloud/carol-smb-credentials".content;
+        secret = {
+          inherit (cfg.sops.secrets."cloud/store-box/smb-password") sopsFile key;
+        };
+        requires = lib.elem data cfg.systemd.services."container@cloud".unitConfig.RequiresMountsFor;
+        status = map (package: package.name) (
+          lib.filter (
+            package: lib.hasPrefix "nextcloud-status-" (package.name or "")
+          ) cfg.environment.systemPackages
+        );
+      };
+      expected = {
+        mount = {
+          device = "//box.example.com/carol";
+          fsType = "cifs";
+          options = [
+            "credentials=/run/secrets/rendered/cloud/carol-smb-credentials"
+            "uid=3007"
+            "gid=3007"
+            "seal"
+            "nofail"
+          ];
+        };
+        credentials = ''
+          username=carol
+          password=<smb-password>
+        '';
+        secret = {
+          sopsFile = "/enc/store-box.yaml";
+          key = "box/smb-password";
+        };
+        requires = true;
+        status = [ "nextcloud-status-cloud" ];
       };
     };
 
   test_nextcloud_without_external_storages_mounts_none = {
     expr = {
       unit = container.config.systemd.services ? nextcloud-external;
-      secret = container.bindMounts ? "/run/secrets/sftp-key";
+      homes = lib.filter (lib.hasPrefix "/var/lib/cloud") (lib.attrNames cfg.fileSystems);
+      status = lib.any (
+        package: lib.hasPrefix "nextcloud-status-" (package.name or "")
+      ) cfg.environment.systemPackages;
+      secrets = lib.filter (lib.hasPrefix "/run/secrets/sftp-keys/") (lib.attrNames container.bindMounts);
     };
     expected = {
       unit = false;
-      secret = false;
+      homes = [ ];
+      status = false;
+      secrets = [ ];
     };
   };
 }
