@@ -72,6 +72,11 @@ sftp = ["app-cloud"]
   starts, and takes `hmac-sha2-256` besides NixOS's MACs, as nextcloud's SFTP, phpseclib 2, verifies no other kind of
   host key and has none of those MACs. OpenSSH's clients keep to the host's own key and NixOS's MACs.
 - A client on the allotment's host, or on one that doesn't reach it on a vpn, fails evaluation.
+- Of an allotment with replicas, a client follows what they change in it: `allotment-changes@<id>` records each batch
+  Syncthing finishes of their changes, from its `ItemFinished` events and not from what other writers change, in
+  `/run/allotment-changes/<id>` (`nixos/allotment-sync.nix`), and the key logs in as `allotment-changes` from the same
+  addresses, whose command says `changed` as it connects and as the record changes, for the allotment the client names
+  of those it reaches, and nothing else (`nixos/allotment-changes.nix`, as `nixos/org/allotments.nix` grants it).
 
 ## In Nextcloud
 
@@ -100,6 +105,18 @@ carol.box = { sftp = { host = "box.example.com", login = "carol", key = "store-b
 - Nextcloud reaches an allotment at its host's IPv4 address on the vpn, as it keeps the host keys it knows as
   `host::key` lines, split at the first `::`. It keeps the host key it first sees, and checks for changes as a folder is
   opened.
+- Each of its storages, its homes too, checks a folder for changes as it's opened, by its mtime, which a file added,
+  removed or renamed in it changes, as Syncthing does, and the change shows in that folder and the etags above it:
+  `filesystem_check_changes = 1` in its settings, as the import leaves out the mount option the web UI sets, without
+  which it would never check.
+- Of an allotment with replicas, whose clients sync by the etags from the top and wouldn't get what changes in a folder
+  no one opens, it follows what the replicas change: `nextcloud-changes-<user>-<folder>` in its container logs in as
+  `allotment-changes` to the allotment's host, with the mount's key, verifying the host's `ssh-key`, which the app's
+  host without fails evaluation, and scans the mount as it connects and once each batch of changes has been quiet for 5
+  seconds, reconnecting as the connection drops (`nixos/apps/nextcloud.nix`). A scan with errors, which `occ files:scan`
+  exits 0 with and counts in its summary alone, the listener restarts on, to connect and scan again; a storage it failed
+  to reach, nextcloud skips for 10 minutes, and one it failed to log in to for 30, so it catches up after them. Any
+  other mount it knows changes of as their folders are opened, or after `occ files:scan`.
 - An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
 
 ### Homes
@@ -137,3 +154,5 @@ On a host a nextcloud with `homes` or `external` runs on, `nextcloud-status-<app
 - `nextcloud-home <user> <host>`: the share is mounted at the user's data, and the app's user can write to it
 - `nextcloud-external <user>/<folder> <host>`: Nextcloud has the external storage, and `files_external:verify` says it's
   ok, or else fails with what it says.
+- `nextcloud-changes <user>/<folder> <host>`: of an allotment with replicas, `nextcloud-changes-<user>-<folder>` is
+  active, and has been for 20 seconds, as its ssh gives up connecting after 10 and it restarts.

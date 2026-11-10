@@ -106,6 +106,13 @@ run-on-hosts = ["testhost"]
 nextcloud.homes.carol = { host = "box.example.com", share = "carol", login = "carol", key = "store-box" }
 nextcloud.external.alice.files = { sftp = { host = "files.example.com", login = "alice" } }
 
+# Fact: a nextcloud that follows what the replicas of testuser's allotment on testhost change.
+[app.files]
+id = 2
+endpoint = "files.example.com"
+run-on-hosts = ["lorem"]
+nextcloud.external.testuser.testhost = { allotment = "user-testuser@testhost" }
+
 [store.box]
 
 [vpn.wg0]
@@ -155,6 +162,7 @@ stateVersion = "20.03"
 [allotment."user-testuser@testhost"]
 size = "1G"
 replicas = ["lorem"]
+sftp = ["app-files"]
 
 [host.ipsum]
 id = 3

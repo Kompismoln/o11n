@@ -88,6 +88,7 @@ let
     else if mount.sftp != null then
       lib.genAttrs app.run-on-hosts (_: {
         inherit (mount.sftp) host login root;
+        changes = null;
       })
     else if !(allotment.logins ? ${app.handle}) then
       fail "${mount.allotment} lets ${app.handle} in by sftp only from its sftp: add it there."
@@ -95,7 +96,7 @@ let
       # Accommodating for nextcloud, which keeps the host keys it knows as host::key lines, split at the first ::.
       lib.mapAttrs (_: login: {
         host = login.address4;
-        inherit (login) login root;
+        inherit (login) login root changes;
       }) allotment.logins.${app.handle};
 
   key =
@@ -152,7 +153,7 @@ in
       defaultText = lib.literalMD "each of `homes`, with its user and its `key`'s smb-password";
     };
     mounts = lib.mkOption {
-      description = "for each host the app runs on, its external storages: each at its folder, for its user, with the server it reaches there, the key it logs in with and whether it can be shared from";
+      description = "for each host the app runs on, its external storages: each at its folder, for its user, with the server it reaches there and how it follows what changes there, the key it logs in with and whether it can be shared from";
       internal = true;
       readOnly = true;
       type = lib.types.lazyAttrsOf lib.types.raw;

@@ -110,6 +110,7 @@ pub struct Keycloak {
 pub struct Nextcloud {
     pub homes: Vec<String>,
     pub external: Vec<String>,
+    pub changes: Vec<String>,
     pub hosts: Vec<String>,
 }
 

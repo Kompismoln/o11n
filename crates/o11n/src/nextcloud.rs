@@ -3,8 +3,8 @@ use crate::status::Outcome;
 use crate::store::Org;
 
 impl Org {
-    // Dependency: nixos/apps/nextcloud.nix has switch-system nextcloud say, a line each, <app> home <user> and
-    // <app> external <user>/<folder>, then ok or why not.
+    // Dependency: nixos/apps/nextcloud.nix has switch-system nextcloud say, a line each, <app> home <user>,
+    // <app> external <user>/<folder> and <app> changes <user>/<folder>, then ok or why not.
     pub fn nextcloud_outcome(&self, entity: &Entity, kind: &str, name: &str, host: &str) -> Result<Outcome, Outcome> {
         let host_id = format!("host-{host}");
         let host_entity = self

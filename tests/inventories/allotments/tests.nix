@@ -121,6 +121,7 @@ in
         desktop = null;
         folder = "/srv/allotments/user-alice";
         state = "/srv/storage/var/lib/allotment-sync/user-alice.zhost";
+        changes = "/run/allotment-changes/user-alice.zhost";
         user = "alice";
         group = "alice";
         secret = "/run/secrets/syncthing-user-alice.zhost";
@@ -144,6 +145,7 @@ in
         desktop = null;
         folder = "/home/alice/.o11n/allotments/zhost";
         state = "/home/alice/.o11n/syncthing/zhost";
+        changes = null;
         user = "alice";
         group = "alice";
         secret = "/run/secrets/syncthing-user-alice.zhost";
@@ -177,7 +179,17 @@ in
   # Policy: an allotment lets each of its sftp in from each host it's on, over the vpn that host shares with its own.
   test_sftp_logins = {
     expr = lib.mapAttrs (
-      _: lib.mapAttrs (_: login: login // { key = builtins.readFile login.key; })
+      _:
+      lib.mapAttrs (
+        _: login:
+        login
+        // {
+          key = builtins.readFile login.key;
+          changes = login.changes // {
+            hostKey = builtins.readFile login.changes.hostKey;
+          };
+        }
+      )
     ) outputs.org.allotment."user-alice@zhost".logins;
     expected.app-cloud.laptop = {
       address = "fd12:3456:7890:0000::0001";
@@ -190,8 +202,41 @@ in
       chroot = "/srv/allotments";
       root = "/user-alice";
       key = builtins.readFile ./public-keys/app-cloud-sftp-key.pub;
+      changes = {
+        login = "allotment-changes";
+        id = "user-alice.zhost";
+        hostKey = builtins.readFile ./public-keys/host-zhost-ssh-key.pub;
+      };
     };
   };
+
+  # Policy: the allotment's host records what its replicas change in it while a client of its sftp follows it, which
+  # logs in as allotment-changes with its sftp-key, from its host alone, to follow that and nothing else.
+  test_changes_followed =
+    let
+      inherit (zhost.config) o11n systemd users;
+      relay = systemd.services."allotment-changes@user-alice.zhost";
+    in
+    {
+      expr = {
+        inherit (o11n.allotment-sync."user-alice.zhost") changes;
+        inherit (relay) bindsTo;
+        inherit (relay.serviceConfig) User;
+        keys = map (builtins.match ''from="([^"]*)",restrict,command="[^ ]*/allotment-changes ([^"]*)" (.*)'') users.users.allotment-changes.openssh.authorizedKeys.keys;
+      };
+      expected = {
+        changes = "/run/allotment-changes/user-alice.zhost";
+        bindsTo = [ "allotment-sync@user-alice.zhost.service" ];
+        User = "alice";
+        keys = [
+          [
+            "fd12:3456:7890:0000::0002/128,10.0.0.2/32"
+            "user-alice.zhost"
+            (lib.trim (builtins.readFile ./public-keys/app-cloud-sftp-key.pub))
+          ]
+        ];
+      };
+    };
 
   # Policy: nextcloud mounts an allotment at its folder, for its user, as the allotment's login for the app has it, with
   # the app's sftp-key, and an sftp server with its key's, for a user the org needn't have.
@@ -204,6 +249,13 @@ in
           key.publicKey = builtins.readFile mount.key.publicKey;
           key.secret.sopsFile = baseNameOf mount.key.secret.sopsFile;
         }
+        // {
+          server = mount.server // {
+            changes = lib.mapNullable (
+              changes: changes // { hostKey = builtins.readFile changes.hostKey; }
+            ) mount.server.changes;
+          };
+        }
       )
     ) outputs.org.app.cloud.nextcloud.mounts;
     expected.laptop = [
@@ -215,6 +267,11 @@ in
           host = "10.0.0.1";
           login = "alice";
           root = "/user-alice";
+          changes = {
+            login = "allotment-changes";
+            id = "user-alice.zhost";
+            hostKey = builtins.readFile ./public-keys/host-zhost-ssh-key.pub;
+          };
         };
         key = {
           handle = "app-cloud";
@@ -233,6 +290,7 @@ in
           host = "files.example.com";
           login = "lisa";
           root = "/";
+          changes = null;
         };
         key = {
           handle = "store-files";

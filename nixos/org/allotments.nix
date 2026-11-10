@@ -60,6 +60,7 @@ let
           id = deviceId replica allotment;
           name = replica;
         }) allotment.replicas;
+        changes = lib.mkIf (allotment.logins != { }) (changesOf allotment.id);
         after = [ "allotment@${allotment.entity}.service" ];
         # Accommodating for Syncthing, which listens on an address that isn't there yet only once it retries, a minute
         # later.
@@ -145,6 +146,24 @@ let
     '';
   };
 
+  changesOf = id: "/run/allotment-changes/${id}";
+
+  # Policy: a client of a synced allotment's sftp follows what its replicas change with the same key, from the same
+  # addresses.
+  followers = lib.groupBy (login: login.client) (lib.filter (login: login.changes != null) logins);
+
+  changes = lib.mapAttrs (
+    _: followed:
+    let
+      first = lib.head followed;
+    in
+    {
+      key = lib.trim (builtins.readFile first.key);
+      from = lib.unique (lib.concatMap (login: login.from) followed);
+      ids = lib.unique (map (login: login.changes.id) followed);
+    }
+  ) (lib.filterAttrs (_: followed: builtins.pathExists (lib.head followed).key) followers);
+
   synced =
     lib.concatMap (
       allotment:
@@ -167,6 +186,7 @@ in
 {
   imports = [
     ../allotments.nix
+    ../allotment-changes.nix
     ../allotment-sync.nix
     ../preserve-paths.nix
   ];
@@ -237,6 +257,7 @@ in
     ++ map serve served
     ++ map replicate host.replicas
     ++ map sftp logins
+    ++ [ { o11n.allotment-changes = changes; } ]
     ++ [
       # Accommodating for nextcloud's SFTP, phpseclib 2, which verifies no host key but an RSA one, and has no MAC of
       # NixOS's, which are all encrypt-then-MAC.

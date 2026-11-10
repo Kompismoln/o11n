@@ -46,7 +46,8 @@ Default: for each of `sftp`, by each host it's on, how it reaches the allotment
 
 for each of `sftp`, by each host it's on, how it logs in: the allotment's host's addresses on the vpn, and its own as
 CIDRs, the principal's name, the directory sftp is jailed to and the allotment's root in it, and the public key of its
-`sftp-key`
+`sftp-key`, and, with `replicas`, the login it follows what they change in it by, the allotment's `id` and its host's
+ssh-key, or null
 
 ### `allotment.<name>.networks`
 

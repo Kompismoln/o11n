@@ -102,6 +102,14 @@ let
             user: folders: map (folder: "${user}/${folder}") (lib.attrNames folders)
           ) entity.nextcloud.external
         );
+        changes = lib.unique (
+          lib.concatMap (
+            mounts:
+            map (mount: "${mount.user}${mount.mountPoint}") (
+              lib.filter (mount: mount.server.changes != null) mounts
+            )
+          ) (lib.attrValues entity.nextcloud.mounts)
+        );
         hosts = entity.run-on-hosts;
       };
     }

@@ -1003,6 +1003,26 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   [[ $output == *"app-cloud nextcloud-home carol testhost fail: host-testhost says nothing of cloud's home carol: o11n apply host-testhost"* ]]
 }
 
+@test "status tells whether a nextcloud follows what the replicas of an allotment it mounts change" {
+  local routes="testhost=testhost.local lorem=lorem.local"
+  mock-host lorem
+  O11N_ROUTES=$routes o11n host pull-ssh-key host-lorem
+  o11n identity create service-nix-switch
+  local said=$BATS_TEST_TMPDIR/nextcloud-lorem.local
+
+  O11N_ROUTES=$routes run o11n status --list app-files
+  [[ $output == *"app-files nextcloud-changes testuser/testhost lorem"* ]]
+  [[ $output != *"app-cloud nextcloud-changes"* ]]
+
+  printf '%s\n' 'files external testuser/testhost ok' 'files changes testuser/testhost ok' >"$said"
+  O11N_ROUTES=$routes run o11n status app-files
+  [[ $output == *"app-files nextcloud-changes testuser/testhost lorem ok"* ]]
+
+  printf '%s\n' 'files changes testuser/testhost nextcloud-changes-testuser-testhost.service is activating: journalctl -M files -u nextcloud-changes-testuser-testhost.service' >"$said"
+  O11N_ROUTES=$routes run o11n status app-files
+  [[ $output == *"app-files nextcloud-changes testuser/testhost lorem fail: files's changes testuser/testhost on host-lorem: nextcloud-changes-testuser-testhost.service is activating"* ]]
+}
+
 @test "status tells whether an app's database has the collation version its host's postgresql has" {
   mock-host testhost
   o11n host pull-ssh-key host-testhost

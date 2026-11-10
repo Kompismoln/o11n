@@ -150,6 +150,12 @@
 
               legacyPackages.vmTests.allotment-sync = import ./tests/vm/allotment-sync.nix { inherit pkgs; };
 
+              legacyPackages.vmTests.nextcloud-changes = import ./tests/vm/nextcloud-changes.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/allotments; };
+              };
+
               # Policy: the dev shell runs each package's source as it is, with what the package runs,
               # bats, socat and libarchive for their tests, and cargo, rustc and clippy for o11n's crate.
               devShells.default = pkgs.mkShell {

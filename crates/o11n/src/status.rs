@@ -38,6 +38,7 @@ pub enum Check {
     Collation(String),
     NextcloudHome(String, String),
     NextcloudExternal(String, String),
+    NextcloudChanges(String, String),
     Url(String),
     NixDaemon,
     NixStore,
@@ -73,6 +74,7 @@ impl Check {
             Self::Collation(host) => format!("collation {host}"),
             Self::NextcloudHome(user, host) => format!("nextcloud-home {user} {host}"),
             Self::NextcloudExternal(mount, host) => format!("nextcloud-external {mount} {host}"),
+            Self::NextcloudChanges(mount, host) => format!("nextcloud-changes {mount} {host}"),
             Self::Url(url) => format!("url {url}"),
             Self::NixDaemon => "nix-daemon".into(),
             Self::NixStore => "nix-store".into(),
@@ -309,6 +311,12 @@ impl Org {
                         .iter()
                         .map(|mount| Check::NextcloudExternal(mount.clone(), host.clone())),
                 );
+                checks.extend(
+                    nextcloud
+                        .changes
+                        .iter()
+                        .map(|mount| Check::NextcloudChanges(mount.clone(), host.clone())),
+                );
             }
         }
         if let Some(url) = &entity.url {
@@ -388,6 +396,7 @@ impl Org {
             Check::Collation(host) => self.collation_outcome(id, entity, host)?,
             Check::NextcloudHome(user, host) => self.nextcloud_outcome(entity, "home", user, host)?,
             Check::NextcloudExternal(mount, host) => self.nextcloud_outcome(entity, "external", mount, host)?,
+            Check::NextcloudChanges(mount, host) => self.nextcloud_outcome(entity, "changes", mount, host)?,
             Check::Url(url) => fails(Self::answers(url)),
             Check::NixDaemon => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;

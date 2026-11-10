@@ -48,6 +48,11 @@ let
           host = "10.0.0.1";
           login = "alice";
           root = "/user-alice";
+          changes = {
+            login = "allotment-changes";
+            id = "user-alice.zhost";
+            hostKey = ../inventories/allotments/public-keys/host-zhost-ssh-key.pub;
+          };
         };
         key = {
           handle = "app-cloud";
@@ -66,6 +71,7 @@ let
           host = "files.example.com";
           login = "archive";
           root = "/";
+          changes = null;
         };
         key = {
           handle = "store-files";
@@ -376,9 +382,42 @@ in
       };
     };
 
+  # Policy: a nextcloud checks each storage for changes as a folder is opened, and scans a mount of an allotment with
+  # replicas as it follows what they change there, by ssh with the mount's key, verifying its host's ssh-key.
+  test_nextcloud_follows_changes =
+    let
+      inner = (evalApp mounts app.principal.uid).containers.cloud.config;
+      unit = inner.systemd.services.nextcloud-changes-alice-zhost;
+    in
+    {
+      expr = {
+        inherit (inner.services.nextcloud.settings) filesystem_check_changes;
+        inherit (unit) after;
+        inherit (unit.serviceConfig) User;
+        follows = lib.all (part: lib.hasInfix part unit.script) [
+          "files:scan --verbose --no-interaction --path=alice/files/zhost"
+          "-i /run/secrets/sftp-keys/app-cloud"
+          "-o StrictHostKeyChecking=yes"
+          "-o ConnectTimeout=10"
+          "allotment-changes@10.0.0.1 user-alice.zhost"
+        ];
+        others = lib.filter (lib.hasPrefix "nextcloud-changes-") (lib.attrNames inner.systemd.services);
+      };
+      expected = {
+        filesystem_check_changes = 1;
+        after = [ "nextcloud-external.service" ];
+        User = "nextcloud";
+        follows = true;
+        others = [ "nextcloud-changes-alice-zhost" ];
+      };
+    };
+
   test_nextcloud_without_external_storages_mounts_none = {
     expr = {
       unit = container.config.systemd.services ? nextcloud-external;
+      follows = lib.filter (lib.hasPrefix "nextcloud-changes-") (
+        lib.attrNames container.config.systemd.services
+      );
       homes = lib.filter (lib.hasPrefix "/var/lib/cloud") (lib.attrNames cfg.fileSystems);
       status = lib.any (
         package: lib.hasPrefix "nextcloud-status-" (package.name or "")
@@ -387,6 +426,7 @@ in
     };
     expected = {
       unit = false;
+      follows = [ ];
       homes = [ ];
       status = false;
       secrets = [ ];

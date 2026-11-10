@@ -60,6 +60,9 @@ let
     };
 
   mounts = app.nextcloud.mounts.${host.name} or [ ];
+  followed = lib.filter (mount: mount.server.changes or null != null) mounts;
+  changesOf =
+    mount: "nextcloud-changes-${mount.user}${lib.replaceStrings [ "/" ] [ "-" ] mount.mountPoint}";
   keys = lib.listToAttrs (map (mount: lib.nameValuePair mount.key.handle mount.key) mounts);
   secretOf = handle: "${app.name}/${handle}/sftp-key";
   sftpKey = handle: "/run/secrets/sftp-keys/${handle}";
@@ -70,7 +73,8 @@ let
   credentialsOf = user: "${app.name}/${user}-smb-credentials";
 
   # Dependency: crates/o11n/src/nextcloud.rs reads this through switch-system nextcloud, a line each:
-  # <app> home <user> ok|<why not> and <app> external <user>/<folder> ok|<why not>.
+  # <app> home <user> ok|<why not>, <app> external <user>/<folder> ok|<why not> and <app> changes <user>/<folder>
+  # ok|<why not>.
   status = pkgs.writeShellApplication {
     name = "nextcloud-status-${cfg.name}";
     runtimeInputs = [
@@ -127,7 +131,31 @@ let
           fi
         ''
       ) mounts
-    );
+    )
+    # Policy: a listener that can't connect is active for no more than its ssh's ConnectTimeout before it restarts, so
+    # one active for longer is connected.
+    + lib.concatMapStrings (
+      mount:
+      let
+        unit = "${changesOf mount}.service";
+      in
+      ''
+        if ! shown=$(timeout 20 nixos-container run ${cfg.name} -- \
+          systemctl show --timestamp=unix -P ActiveState -P ActiveEnterTimestamp ${unit} 2>&1); then
+          say changes ${mount.user}${mount.mountPoint} "systemctl show ${unit} fails in ${cfg.name}'s container: $shown"
+        else
+          { read -r state; read -r entered; } <<<"$shown"
+          since=$(($(date +%s) - ''${entered#@}))
+          if [[ $state != active ]]; then
+            say changes ${mount.user}${mount.mountPoint} "${unit} is $state: journalctl -M ${cfg.name} -u ${unit}"
+          elif ((since < 20)); then
+            say changes ${mount.user}${mount.mountPoint} "${unit} started ''${since}s ago, as it does each time it can't connect: journalctl -M ${cfg.name} -u ${unit}"
+          else
+            say changes ${mount.user}${mount.mountPoint} ok
+          fi
+        fi
+      ''
+    ) followed;
   };
 
   # Policy: each start makes each mount as declared, replacing what is at its mount point for its user otherwise. It
@@ -175,22 +203,66 @@ let
         '';
     in
     {
-      systemd.services.nextcloud-external = {
-        description = "keep nextcloud's external storages as declared";
-        after = [ "nextcloud-setup.service" ];
-        requires = [ "nextcloud-setup.service" ];
-        wantedBy = [ "multi-user.target" ];
-        path = [ pkgs.jq ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
+      systemd.services = {
+        nextcloud-external = {
+          description = "keep nextcloud's external storages as declared";
+          after = [ "nextcloud-setup.service" ];
+          requires = [ "nextcloud-setup.service" ];
+          wantedBy = [ "multi-user.target" ];
+          path = [ pkgs.jq ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          script = ''
+            ${occ} app:enable files_external
+            mounts=$(${occ} files_external:list --show-password --output=json)
+            ${lib.concatMapStrings keep mounts}
+          '';
         };
-        script = ''
-          ${occ} app:enable files_external
-          mounts=$(${occ} files_external:list --show-password --output=json)
-          ${lib.concatMapStrings keep mounts}
-        '';
-      };
+      }
+      # Policy: SFTP tells nextcloud nothing of what changes underneath, and the etags its clients sync by change only
+      # as it scans, so for a mount of an allotment with replicas it follows what they change, and scans the mount as
+      # it connects, to catch up, and as they change it, once they've been quiet for 5 seconds. files:scan exits 0
+      # with errors, which it counts in its summary alone, so the listener restarts on a scan with any, to scan again.
+      // lib.listToAttrs (
+        map (
+          mount:
+          let
+            inherit (mount.server) changes;
+            knownHosts = pkgs.writeText "known-hosts" "${mount.server.host} ${lib.trim (builtins.readFile changes.hostKey)}\n";
+          in
+          lib.nameValuePair (changesOf mount) {
+            description = "scan ${mount.user}'s ${mount.mountPoint} as its allotment's replicas change it";
+            after = [ "nextcloud-external.service" ];
+            requires = [ "nextcloud-external.service" ];
+            wantedBy = [ "multi-user.target" ];
+            path = [
+              pkgs.gawk
+              pkgs.openssh
+            ];
+            serviceConfig = {
+              User = "nextcloud";
+              Group = "nextcloud";
+              Restart = "always";
+              RestartSec = 10;
+            };
+            script = ''
+              while read -r _; do
+                while read -r -t 5 _; do :; done
+                scanned=$(${occ} files:scan --verbose --no-interaction --path=${lib.escapeShellArg "${mount.user}/files${mount.mountPoint}"})
+                if ! awk -F '|' '$7 ~ /^ *[0-9]+ *$/ { errors = $7 } END { exit errors + 0 > 0 }' <<<"$scanned"; then
+                  echo "$scanned" >&2
+                  exit 1
+                fi
+              done < <(ssh -T -i ${sftpKey mount.key.handle} -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=10 \
+                -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${knownHosts} \
+                -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+                ${changes.login}@${mount.server.host} ${changes.id})
+            '';
+          }
+        ) followed
+      );
     };
 
 in
@@ -279,6 +351,10 @@ in
         message = "Nextcloud ${cfg.name} connects to postgresql as the host's user ${cfg.user}, whose uid has to be ${toString cfg.uid}.";
       }
     ]
+    ++ map (mount: {
+      assertion = builtins.pathExists mount.server.changes.hostKey;
+      message = "Nextcloud ${cfg.name} follows what changes in ${mount.user}'s ${mount.mountPoint} on ${mount.server.host} by ssh, verifying its host's ssh-key, which it has none of: o11n host pull-ssh-key on that host.";
+    }) followed
     ++ lib.mapAttrsToList (handle: key: {
       assertion = builtins.pathExists key.publicKey;
       message = "Nextcloud ${cfg.name} logs in to an external storage with ${handle}'s sftp-key, which it has none of: o11n secret generate ${handle} sftp-key.";
@@ -414,6 +490,9 @@ in
               overwriteprotocol = app.scheme;
               forwarded_for_headers = [ "HTTP_X_FORWARDED_FOR" ];
               "simpleSignUpLink.shown" = false;
+              # Accommodating for files_external:import, which leaves out the mount option the web UI sets: each
+              # storage, a home on SMB too, checks a folder for changes as it's opened, rather than never.
+              filesystem_check_changes = 1;
             };
             phpOptions = {
               "opcache.interned_strings_buffer" = 23;

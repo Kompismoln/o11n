@@ -70,6 +70,11 @@ let
         type = with lib.types; listOf str;
         default = [ ];
       };
+      changes = lib.mkOption {
+        description = "a file rewritten as Syncthing finishes each batch of what its peers change in the folder, or null";
+        type = with lib.types; nullOr str;
+        default = null;
+      };
       desktop = lib.mkOption {
         description = "a link to the folder on its user's Desktop, with a badge of how it syncs, or null";
         type = lib.types.nullOr (
@@ -237,6 +242,39 @@ let
     '';
   };
 
+  # Policy: it follows ItemFinished alone, which Syncthing has as it applies a peer's change, and not
+  # LocalChangeDetected, which another writer to the folder makes.
+  changesUnit = id: sync: {
+    description = "the record of what the peers of the allotment ${id} change in it";
+    wantedBy = [ "allotment-sync@${id}.service" ];
+    bindsTo = [ "allotment-sync@${id}.service" ];
+    after = [ "allotment-sync@${id}.service" ];
+    path = [
+      pkgs.coreutils
+      pkgs.curl
+      pkgs.jq
+    ];
+    serviceConfig = {
+      User = sync.user;
+      Group = sync.group;
+      Restart = "always";
+      RestartSec = 5;
+    };
+    script = ''
+      since=0
+      while true; do
+        events=$(curl -sS --fail-with-body --max-time 90 --unix-socket ${lib.escapeShellArg (socket sync)} \
+          -H ${lib.escapeShellArg "X-API-Key: ${apiKey id}"} \
+          "http://localhost/rest/events?events=ItemFinished&timeout=60&since=$since")
+        since=$(jq --argjson since "$since" '.[-1].id // $since' <<<"$events")
+        if jq -e --arg folder ${lib.escapeShellArg id} 'any(.data.folder == $folder and .data.error == null)' \
+          <<<"$events" >/dev/null; then
+          date +%s.%N >${lib.escapeShellArg sync.changes}
+        fi
+      done
+    '';
+  };
+
   # Policy: the link is made where nothing is, and else left as it is; its badge is one of the icon theme's emblems:
   # synced, syncing, offline, or an error or a conflicting copy.
   desktopUnit =
@@ -295,9 +333,15 @@ in
   config = lib.mkIf (cfg != { }) {
     environment.systemPackages = [ status ];
 
-    systemd.services = lib.mapAttrs' (
-      id: sync: lib.nameValuePair "allotment-sync@${id}" (unit id sync)
-    ) cfg;
+    systemd.services =
+      lib.mapAttrs' (id: sync: lib.nameValuePair "allotment-sync@${id}" (unit id sync)) cfg
+      // lib.mapAttrs' (id: sync: lib.nameValuePair "allotment-changes@${id}" (changesUnit id sync)) (
+        lib.filterAttrs (_: sync: sync.changes != null) cfg
+      );
+
+    systemd.tmpfiles.rules = lib.mapAttrsToList (
+      _: sync: "f '${sync.changes}' 0644 ${sync.user} ${sync.group} - -"
+    ) (lib.filterAttrs (_: sync: sync.changes != null) cfg);
 
     systemd.user.services = lib.mapAttrs' (
       id: sync: lib.nameValuePair "allotment-desktop@${id}" (desktopUnit id sync)

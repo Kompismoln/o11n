@@ -1122,7 +1122,6 @@ Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and 
 `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
 `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key`
-
 for an app or host an allotment's `sftp` has and for an entity a nextcloud's `sftp.key` names, an `smb-password` for one
 its `homes` name, and the keys o11n's modules read of the services they name
 
