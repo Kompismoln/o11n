@@ -1093,3 +1093,59 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   run o11n logs "service-*"
   fails "no host of service-* has the logs service"
 }
+
+@test "torrent adds, lists and removes the server's torrents, as the service" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-torrent-server
+  o11n secret generate service-torrent-server ssh-key
+
+  run o11n torrent add 'magnet:?xt=urn:btih:0123&dn=lorem+ipsum' https://example.com/a.torrent
+  succeeds
+  [[ $output == *"transmission-remote 127.0.0.1:9091 --add magnet:?xt=urn:btih:0123&dn=lorem+ipsum"* ]]
+  [[ $output == *"transmission-remote 127.0.0.1:9091 --add https://example.com/a.torrent"* ]]
+
+  echo "the metainfo" >lorem.torrent
+  run o11n torrent add lorem.torrent
+  succeeds
+  [[ $output == *"--add /"*".torrent"*"the metainfo"* ]]
+
+  run o11n torrent list
+  succeeds
+  [[ $output == *"transmission-remote 127.0.0.1:9091 --list"* ]]
+
+  run o11n torrent remove 1 3
+  succeeds
+  [[ $output == *"transmission-remote 127.0.0.1:9091 --torrent 1,3 --remove"* ]]
+
+  run o11n torrent --host testhost remove --delete 2
+  succeeds
+  [[ $output == *"transmission-remote 127.0.0.1:9091 --torrent 2 --remove-and-delete"* ]]
+
+  run o11n torrent add 'magnet:?xt=urn:btih:0123&dn=lorem ipsum'
+  fails "a link has no whitespace in it"
+
+  run o11n torrent --host lorem list
+  fails "host-lorem has no torrent-server service"
+}
+
+@test "status checks the torrent server's list as the service, and the media server's health at its name on its vpn" {
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+
+  run o11n status --list host-testhost
+  [[ $output == *"host-testhost torrent-server"* ]]
+  [[ $output == *"host-testhost media-server media-server-testhost.local"* ]]
+
+  run o11n status host-testhost
+  [[ $output == *"host-testhost torrent-server skip: "* ]]
+  [[ $output == *"host-testhost media-server media-server-testhost.local ok"* ]]
+
+  o11n identity create service-torrent-server
+  o11n secret generate service-torrent-server ssh-key
+  run o11n status host-testhost
+  [[ $output == *"host-testhost torrent-server ok"* ]]
+
+  JELLYFIN_HEALTH=Unhealthy run o11n status host-testhost
+  [[ $output == *"host-testhost media-server media-server-testhost.local fail: http://media-server-testhost.local:8096/health answers Unhealthy"* ]]
+}

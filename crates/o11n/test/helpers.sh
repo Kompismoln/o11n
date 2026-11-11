@@ -10,6 +10,8 @@ setup-testenv() {
     root=$TESTROOT
     # Dependency: the ssh stub runs the other end of o11n's locksmith.
     export LOCKSMITH=$here/../../../nixos/services/locksmith.sh
+    # Dependency: the ssh stub runs the other end of o11n's torrent.
+    export TORRENT_SERVER=$here/../../../nixos/services/torrent-server.sh
     mkdir -p "$root"
     cp -a "$here/bin" "$here/org.toml" "$root"
     mkdir "$root/enc" "$root/keys" "$root/public-keys"

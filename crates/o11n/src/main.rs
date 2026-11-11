@@ -20,6 +20,7 @@ mod ssh;
 mod state;
 mod status;
 mod store;
+mod torrent;
 mod util;
 mod version;
 
@@ -94,6 +95,14 @@ enum Command {
         /// How far back: a number and m, h, d or w.
         #[arg(long, default_value = "7d")]
         since: String,
+    },
+    /// The torrents of the host with the torrent-server service, as the service.
+    Torrent {
+        /// The host, when more than one has the service.
+        #[arg(long)]
+        host: Option<String>,
+        #[command(subcommand)]
+        action: torrent::TorrentAction,
     },
     /// The address the name answers at: as it is, if dotted, or in each of the org's namespaces in turn.
     Route {
@@ -577,6 +586,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
         Command::State(command) => state(org, command)?,
         Command::Status { groups, list, failed } => org.status(&groups, list, failed)?,
         Command::Logs { groups, since } => org.logs(&groups, &since)?,
+        Command::Torrent { host, action } => org.torrent(host.as_deref(), &action)?,
         command => return query(&org.export, "", command),
     }
     Ok(())

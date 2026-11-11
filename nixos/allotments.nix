@@ -1,4 +1,3 @@
-# nixos/allotments.nix
 {
   config,
   lib,
@@ -29,6 +28,14 @@ let
         description = "the group of the allotment's root";
         type = lib.types.int;
       };
+      mode = lib.mkOption {
+        description = "the mode of the allotment's root";
+        type = lib.types.enum [
+          "0700"
+          "0750"
+        ];
+        default = "0700";
+      };
     };
   };
 
@@ -54,7 +61,7 @@ let
         zfs create -o refquota=${allotment.size} -o mountpoint=${lib.escapeShellArg allotment.path} "$dataset"
       fi
       chown ${toString allotment.uid}:${toString allotment.gid} ${lib.escapeShellArg allotment.path}
-      chmod 0700 ${lib.escapeShellArg allotment.path}
+      chmod ${allotment.mode} ${lib.escapeShellArg allotment.path}
     '';
   };
 in

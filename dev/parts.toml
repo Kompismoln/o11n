@@ -137,3 +137,21 @@ code = [
   "tests/nixos/keycloak.nix",
   "tests/vm/keycloak.nix",
 ]
+
+[parts.torrent]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/torrent.md"
+code = [
+  "crates/o11n/src/torrent.rs",
+  "nixos/services/torrent-server.nix",
+  "nixos/services/torrent-server.sh",
+  "org/services/torrent-server.nix",
+  "tests/vm/torrent-server.nix",
+]
+
+[parts.media]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/media.md"
+code = ["nixos/services/media-server.nix", "tests/vm/media-server.nix"]

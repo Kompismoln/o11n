@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+echo "transmission-remote $*"
+if [[ $2 == --add && -f $3 ]]; then
+	cat "$3"
+fi

@@ -28,6 +28,10 @@ case $url in
 	printf '%s\n200' "${KEYCLOAK_REALM:-$realm}"
 	exit
 	;;
+*:8096/health)
+	echo "${JELLYFIN_HEALTH:-Healthy}"
+	exit
+	;;
 esac
 name='' type=''
 while (($#)); do

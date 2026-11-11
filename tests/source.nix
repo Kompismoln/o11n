@@ -95,6 +95,7 @@ in
             ../.prettierrc.yaml
             ../dev
             ../nixos/services/locksmith.sh
+            ../nixos/services/torrent-server.sh
             ../crates/o11n/test
             ../settings.toml
           ]

@@ -18,8 +18,9 @@ preservation keeps, and it outlasts a boot as a dataset of its own does.
 
 `allotment@<handle>` (`nixos/allotments.nix`) makes the dataset, and its parent unmounted, when it's missing, and each
 time it runs sets its `refquota` to the `size`, which counts what's in it and not its snapshots, and its root to the
-principal's uid and gid, mode `0700`. A principal that isn't on the host has an account there that owns it, with no
-home, login or password.
+principal's uid and gid, mode `0700`, or `0750` for a principal with `members`, who read it as members of its group
+(`nixos/org/allotments.nix`). A principal that isn't on the host has an account there that owns it, with no home, login
+or password.
 
 ## Replicas
 

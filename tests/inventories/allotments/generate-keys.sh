@@ -29,3 +29,5 @@ o11n secret generate app-cloud ssh-key
 o11n secret generate app-cloud sftp-key
 o11n identity create store-files
 o11n secret generate store-files sftp-key
+o11n identity create service-torrent-server
+o11n secret generate service-torrent-server ssh-key

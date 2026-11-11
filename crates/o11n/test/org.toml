@@ -74,6 +74,12 @@ grants = [
 
 [service.nix-remote]
 
+[service.torrent-server]
+
+[service.media-server]
+vpn = "wg0"
+principal.hasPublicKey = false
+
 [mailserver]
 dkimSelector = "mail"
 
@@ -88,7 +94,7 @@ mailbox = false
 [role.testrole]
 
 [role.serving]
-services = ["locksmith", "logs", "mailserver", "nix-remote", "nix-switch"]
+services = ["locksmith", "logs", "mailserver", "nix-remote", "nix-switch", "torrent-server", "media-server"]
 
 [role.lorem]
 

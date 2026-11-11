@@ -52,6 +52,8 @@ pub enum Check {
     Openwrt,
     Lan(String),
     Glesys(String),
+    TorrentServer,
+    MediaServer(String),
 }
 
 impl Check {
@@ -88,6 +90,8 @@ impl Check {
             Self::Openwrt => "openwrt".into(),
             Self::Lan(host) => format!("lan {host}"),
             Self::Glesys(record) => format!("glesys {record}"),
+            Self::TorrentServer => "torrent-server".into(),
+            Self::MediaServer(name) => format!("media-server {name}"),
         }
     }
 }
@@ -224,6 +228,7 @@ impl Org {
                     checks.push(Check::AllotmentConflicts(allotment.id.clone()));
                 }
             }
+            checks.extend(Self::media_checks(entity, nixos));
             if entity.openwrt.is_some() {
                 checks.push(Check::Openwrt);
             }
@@ -283,6 +288,17 @@ impl Org {
             }
         }
         Ok(checks)
+    }
+
+    fn media_checks(entity: &Entity, nixos: bool) -> Vec<Check> {
+        let mut checks = Vec::new();
+        if nixos && entity.services.iter().any(|service| service == "torrent-server") {
+            checks.push(Check::TorrentServer);
+        }
+        if let Some(name) = entity.served.get("media-server") {
+            checks.push(Check::MediaServer(name.clone()));
+        }
+        checks
     }
 
     fn serving_checks(entity: &Entity) -> Vec<Check> {
@@ -398,6 +414,8 @@ impl Org {
             Check::NextcloudExternal(mount, host) => self.nextcloud_outcome(entity, "external", mount, host)?,
             Check::NextcloudChanges(mount, host) => self.nextcloud_outcome(entity, "changes", mount, host)?,
             Check::Url(url) => fails(Self::answers(url)),
+            Check::TorrentServer => self.torrent_server_outcome(id, entity)?,
+            Check::MediaServer(name) => self.media_server_outcome(entity, name)?,
             Check::NixDaemon => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;
                 // Fact: 401 is the builder's nginx refusing a request without the bearer, and 404 its gost, where a
@@ -797,6 +815,16 @@ impl Org {
             Ok(code) if code < 500 => Ok(()),
             _ => Err(Error::new(format!("{url} answers {}", code.trim()))),
         }
+    }
+
+    // Dependency: nixos/services/media-server.nix has Jellyfin answer at the service's name on its vpn, on 8096.
+    fn media_server_outcome(&self, entity: &Entity, name: &str) -> Result<Outcome, Outcome> {
+        self.reachable(entity)?;
+        let url = format!("http://{name}:8096/health");
+        Ok(fails(curled(curl().arg(&url)).and_then(|said| match said.trim() {
+            "Healthy" => Ok(()),
+            said => Err(Error::new(format!("{url} answers {said}"))),
+        })))
     }
 
     // Policy: NOOP after STARTTLS, and AUTH with a login, sends nothing.

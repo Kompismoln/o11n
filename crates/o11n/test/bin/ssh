@@ -77,6 +77,11 @@ logs)
 	}
 	ssh-add -l >/dev/null && echo "the logs of $fqdn since $2"
 	;;
+torrent-server)
+	shift
+	ssh-add -l >/dev/null || exit 255
+	SSH_ORIGINAL_COMMAND="$*" TRANSMISSION_RPC=127.0.0.1:9091 bash "$TORRENT_SERVER"
+	;;
 testadmin | admin)
 	shift
 	ssh-add -l >/dev/null && echo "$name@$fqdn $*"

@@ -40,6 +40,12 @@ in
         ;
     }) outputs.org.allotment;
     expected = {
+      "service-torrent-server@zhost" = {
+        entity = "service-torrent-server";
+        host = "zhost";
+        size = "500G";
+        path = "/srv/allotments/service-torrent-server";
+      };
       "store-files@zhost" = {
         entity = "store-files";
         host = "zhost";
@@ -59,12 +65,21 @@ in
   test_zfs_allotments = {
     expr = zhost.config.o11n.allotments;
     expected = {
+      service-torrent-server = {
+        dataset = "zroot/srv/storage/allotments/service-torrent-server";
+        size = "500G";
+        path = "/srv/allotments/service-torrent-server";
+        uid = 2000;
+        gid = 2000;
+        mode = "0750";
+      };
       store-files = {
         dataset = "zroot/srv/storage/allotments/store-files";
         size = "1T";
         path = "/srv/allotments/store-files";
         uid = 4000;
         gid = 4000;
+        mode = "0700";
       };
       user-alice = {
         dataset = "zroot/srv/storage/allotments/user-alice";
@@ -72,6 +87,7 @@ in
         path = "/srv/allotments/user-alice";
         uid = 1000;
         gid = 1000;
+        mode = "0700";
       };
     };
   };
@@ -79,6 +95,7 @@ in
   test_zfs_units = {
     expr = lib.filter (lib.hasPrefix "allotment@") (lib.attrNames zhost.config.systemd.services);
     expected = [
+      "allotment@service-torrent-server"
       "allotment@store-files"
       "allotment@user-alice"
     ];
@@ -114,7 +131,7 @@ in
     expr = {
       zhost = zhost.config.o11n.allotment-sync;
       laptop = laptop.config.o11n.allotment-sync;
-      firewall = zhost.config.networking.firewall.interfaces.wg0.allowedTCPPorts;
+      firewall = lib.elem 23000 zhost.config.networking.firewall.interfaces.wg0.allowedTCPPorts;
     };
     expected = {
       zhost."user-alice.zhost" = {
@@ -165,7 +182,7 @@ in
         after = [ ];
         wants = [ ];
       };
-      firewall = [ 23000 ];
+      firewall = true;
     };
   };
 
@@ -334,7 +351,10 @@ in
                 inherit (outputs.context) spec;
                 inherit (spec.app) cloud;
               in
-              lib.recursiveUpdate spec { allotment."user-alice@zhost".sftp = [ ]; }
+              lib.recursiveUpdate spec {
+                allotment."user-alice@zhost".sftp = [ ];
+                allotment."service-torrent-server@zhost".sftp = [ ];
+              }
               // {
                 app = spec.app // {
                   cloud = cloud // {
@@ -574,13 +594,145 @@ in
         sops = config.sops.gnupg.sshKeyPaths ++ config.sops.age.sshKeyPaths;
       };
       expected = {
-        logins = 2;
+        logins = 3;
         hostKeys = [
           "ed25519"
           "rsa"
         ];
         macs = 1;
         sops = [ ];
+      };
+    };
+
+  # Policy: the torrent server downloads into its allotment, once that's there, as the org limits it, and its ssh-key
+  # runs its control alone, while an sftp client of the allotment logs in as its own login has it.
+  test_torrent_server =
+    let
+      inherit (zhost.config) services systemd users;
+      inherit (services.transmission) settings;
+    in
+    {
+      expr = {
+        inherit (services.transmission) user home openPeerPorts;
+        settings = {
+          inherit (settings)
+            download-dir
+            incomplete-dir-enabled
+            peer-port
+            rpc-bind-address
+            speed-limit-up
+            speed-limit-up-enabled
+            speed-limit-down-enabled
+            ratio-limit
+            ratio-limit-enabled
+            ;
+        };
+        inherit (systemd.services.transmission) requires;
+        keys = map (
+          key:
+          let
+            control = builtins.match ''restrict,command="[^ ]*/bin/torrent-server" (.*)'' key;
+          in
+          if control == null then "sftp" else lib.head control
+        ) users.users.torrent-server.openssh.authorizedKeys.keys;
+        inherit (users.users.torrent-server.openssh.authorizedKeys) keyFiles;
+      };
+      expected = {
+        user = "torrent-server";
+        home = "/srv/storage/var/lib/torrent-server";
+        openPeerPorts = true;
+        settings = {
+          download-dir = "/srv/allotments/service-torrent-server";
+          incomplete-dir-enabled = false;
+          peer-port = 51413;
+          rpc-bind-address = "127.0.0.1";
+          speed-limit-up = 200;
+          speed-limit-up-enabled = true;
+          speed-limit-down-enabled = false;
+          ratio-limit = 2;
+          ratio-limit-enabled = true;
+        };
+        requires = [
+          "allotment@service-torrent-server.service"
+          "transmission-setup.service"
+        ];
+        keys = [
+          "sftp"
+          (lib.trim (builtins.readFile ./public-keys/service-torrent-server-ssh-key.pub))
+        ];
+        keyFiles = [ ];
+      };
+    };
+
+  # Policy: a host with the torrent server and no allotment for it fails evaluation, saying which to add.
+  test_torrent_server_needs_allotment =
+    let
+      inherit (outputs.context) spec;
+      config =
+        (o11nLib.mkNixosConfigurations (
+          o11nLib.evalContext {
+            path = ./.;
+            flake = {
+              outPath = ./.;
+              inputs = { };
+            };
+            spec = spec // {
+              allotment = removeAttrs spec.allotment [ "service-torrent-server@zhost" ];
+            };
+          }
+        )).zhost.config;
+    in
+    {
+      expr = {
+        failing = map (assertion: assertion.message) (
+          lib.filter (
+            assertion: !assertion.assertion && lib.hasPrefix "service.torrent-server" assertion.message
+          ) config.assertions
+        );
+        inherit (config.services.transmission) enable;
+      };
+      expected = {
+        failing = [
+          ''service.torrent-server on zhost: the server keeps what it downloads in an allotment of its own, and zhost has none: add allotment."service-torrent-server@zhost" with its size.''
+        ];
+        enable = false;
+      };
+    };
+
+  # Policy: the media server keeps its state where the host keeps it, reads the torrent server's allotment as a member of
+  # its group, and is reached at its own address on its vpn, on whose interface alone the firewall opens its port.
+  test_media_server =
+    let
+      inherit (zhost.config)
+        networking
+        services
+        systemd
+        users
+        ;
+      address = outputs.org.vpn.wg0.members.media-server-zhost.address;
+    in
+    {
+      expr = {
+        inherit (services.jellyfin) user dataDir;
+        members = users.groups.torrent-server.members;
+        inherit (systemd.sockets.media-server) listenStreams;
+        firewall = lib.mapAttrs (
+          _: interface: lib.elem 8096 interface.allowedTCPPorts
+        ) networking.firewall.interfaces;
+        open = lib.elem 8096 networking.firewall.allowedTCPPorts;
+        hosts = laptop.config.networking.hosts.${address};
+      };
+      expected = {
+        user = "media-server";
+        dataDir = "/srv/storage/var/lib/media-server";
+        members = [
+          "torrent-server"
+          "media-server"
+        ];
+        listenStreams = [ "[${address}]:8096" ];
+        firewall.wg0 = true;
+        open = false;
+        hosts = [ "media-server-zhost.allotments" ];
       };
     };
 }

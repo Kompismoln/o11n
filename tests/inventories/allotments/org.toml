@@ -25,7 +25,7 @@ grants = ["host-laptop"]
 [host.zhost]
 id = 1
 endpoint = "zhost.example.com"
-roles = []
+roles = ["torrent-server", "media-server"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -50,6 +50,10 @@ sftp = ["app-cloud"]
 [allotment."store-files@zhost"]
 size = "1T"
 
+[allotment."service-torrent-server@zhost"]
+size = "500G"
+sftp = ["app-cloud"]
+
 # Fact: a nextcloud that mounts alice's allotment, which laptop would run as an app-scheduler, and doesn't.
 [app.cloud]
 id = 0
@@ -61,5 +65,21 @@ nextcloud.external.lisa.files = { sftp = { host = "files.example.com", login = "
 
 [root.1]
 
-# Fact: every class needs a table, even when empty.
-[service]
+[service.torrent-server]
+id = 0
+principal.members = ["media-server"]
+
+[service.torrent-server.hosts.zhost]
+upload = 200
+ratio = 2
+
+[role.torrent-server]
+services = ["torrent-server"]
+
+[service.media-server]
+id = 1
+vpn = "wg0"
+principal.hasPublicKey = false
+
+[role.media-server]
+services = ["media-server"]

@@ -126,6 +126,13 @@ let
         nixos
         ;
       services = map (service: service.name) entity.services;
+      served = lib.listToAttrs (
+        map (
+          service:
+          lib.nameValuePair service.name
+            context.org.vpn.${service.vpn}.members."${service.name}-${entity.name}".fqdn
+        ) (lib.filter (service: service.vpn != null && service.principal != null) entity.services)
+      );
       allotments = map (allotment: {
         inherit (allotment) id path replicas;
       }) (lib.filter (allotment: allotment.replicas != [ ]) entity.allotments);

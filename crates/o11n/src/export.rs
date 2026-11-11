@@ -61,6 +61,9 @@ pub struct Entity {
     pub endpoint: Option<String>,
     #[serde(default)]
     pub services: Vec<String>,
+    // Dependency: org/export.nix gives a host's services that serve on a vpn their names there, by service.
+    #[serde(default)]
+    pub served: BTreeMap<String, String>,
     #[serde(default)]
     pub mail: Option<Mail>,
     #[serde(default)]

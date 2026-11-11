@@ -244,10 +244,15 @@ in
           lib.listToAttrs (
             map (
               allotment:
+              let
+                inherit (org.entities.${allotment.entity}) principal;
+              in
               lib.nameValuePair allotment.entity {
                 dataset = "${lib.head parents}/allotments/${allotment.entity}";
                 inherit (allotment) size path;
-                inherit (org.entities.${allotment.entity}.principal) uid gid;
+                inherit (principal) uid gid;
+                # Policy: the members of the principal's group read its allotment.
+                mode = if principal.members == [ ] then "0700" else "0750";
               }
             ) host.allotments
           )

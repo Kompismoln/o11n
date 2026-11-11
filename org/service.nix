@@ -25,6 +25,8 @@
           ssh-key = "ssh";
         };
         nix-serve.nix-sign = "nix-sign";
+        # Dependency: crates/o11n/src/torrent.rs logs in to a host's torrent-server with it.
+        torrent-server.ssh-key = "ssh";
         # Dependency: nixos/org/system.nix and nixos/org/rescue-usb.nix let root in with them, and o11n logs in with the
         # ssh-key as root.
         rescue = {

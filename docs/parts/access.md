@@ -62,8 +62,7 @@ What a host's peers have no need of listens on loopback, or not at all:
 - nix-serve, each vLLM server and the vLLM report on loopback, for `o11n.vpnProxies` to pass on.
 - a vLLM container talks over loopback alone (`nixos/services/vllm.nix`), so its engine's store, on a port of its own
   choosing and every address, answers no one else.
-- a `hypr-devstation`'s MariaDB on `127.0.0.1` (`roles/hypr-devstation.nix`), and it runs no transmission, which a
-  `hypr-mediastation` does.
+- a `hypr-devstation`'s MariaDB on `127.0.0.1` (`roles/hypr-devstation.nix`).
 - resolved answers neither LLMNR nor mDNS (`nixos/org/networking.nix`).
 
 ## Reading the logs

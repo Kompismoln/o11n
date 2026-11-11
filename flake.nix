@@ -148,6 +148,10 @@
 
               legacyPackages.vmTests.allotments = import ./tests/vm/allotments.nix { inherit pkgs; };
 
+              legacyPackages.vmTests.torrent-server = import ./tests/vm/torrent-server.nix { inherit pkgs; };
+
+              legacyPackages.vmTests.media-server = import ./tests/vm/media-server.nix { inherit pkgs; };
+
               legacyPackages.vmTests.allotment-sync = import ./tests/vm/allotment-sync.nix { inherit pkgs; };
 
               legacyPackages.vmTests.nextcloud-changes = import ./tests/vm/nextcloud-changes.nix {
