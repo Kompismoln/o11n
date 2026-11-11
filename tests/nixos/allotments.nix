@@ -9,6 +9,7 @@ let
     size = "1G";
     path = "/srv/allotments/user-alice";
     replicas = [ ];
+    torrent = false;
     logins = { };
   };
 

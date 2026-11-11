@@ -108,10 +108,10 @@ VM tests live in `tests/vm/` and are exposed as `vmTests.<name>`, not as checks:
 - `mail`: a mail server on `mx`, and on `web` a WordPress and a mobilizon that send as their own domains, whose mail
   `vmTests.mail` runs without either.
 - `allotments`: an allotment for a user and one for a store on `zhost`, whose disk layout is ZFS, and on `laptop`, on
-  wg0 with `zhost`, a replica of the user's; `zhost` has the torrent-server role, and its service an allotment there
-  that app-cloud reaches over sftp and the media-server, of `zhost`'s media-server role, reads as a member.
-  `tests/vm/allotment-sync/` holds its Syncthing keys, decrypted, and `tests/vm/nextcloud-changes/` app-cloud's sftp-key
-  and zhost's host key, whose public key is the inventory's.
+  wg0 with `zhost`, a replica of the user's; `zhost` has the torrent-server and media-server roles, and the media-server
+  an allotment there, its library, that the torrent-server downloads into. `tests/vm/allotment-sync/` holds its
+  Syncthing keys, decrypted, and `tests/vm/nextcloud-changes/` app-cloud's sftp-key and zhost's host key, whose public
+  key is the inventory's.
 - `mesh`: `alpha` and `beta`, with endpoints, and `gamma`, without, on `wg0`, a hub through `alpha`, and on `wg1`, a
   mesh, with `delta`, without an endpoint, which `gamma` doesn't peer with; `gamma` has a dhcp network with a suffix and
   one without. `windsor` is an OpenWrt router that `alpha` and `beta` are behind, with `beta` its dmz. Its tests alter

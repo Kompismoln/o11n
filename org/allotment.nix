@@ -177,6 +177,11 @@ in
       default = [ ];
       example = [ "app-cloud" ];
     };
+    torrent = lib.mkOption {
+      description = "whether the torrent-server on the allotment's host downloads into it, as its principal, where `o11n torrent add --to` names it";
+      type = lib.types.bool;
+      default = false;
+    };
     logins = lib.mkOption {
       description = "for each of `sftp`, by each host it's on, how it logs in: the allotment's host's addresses on the vpn, and its own as CIDRs, the principal's name, the directory sftp is jailed to and the allotment's root in it, and the public key of its `sftp-key`, and, with `replicas`, the login it follows what they change in it by, the allotment's `id` and its host's ssh-key, or null";
       type = lib.types.lazyAttrsOf (lib.types.lazyAttrsOf lib.types.raw);

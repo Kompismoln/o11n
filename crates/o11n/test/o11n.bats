@@ -1102,8 +1102,29 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
 
   run o11n torrent add 'magnet:?xt=urn:btih:0123&dn=lorem+ipsum' https://example.com/a.torrent
   succeeds
-  [[ $output == *"transmission-remote 127.0.0.1:9091 --add magnet:?xt=urn:btih:0123&dn=lorem+ipsum"* ]]
-  [[ $output == *"transmission-remote 127.0.0.1:9091 --add https://example.com/a.torrent"* ]]
+  [[ $output == *"transmission-remote 127.0.0.1:9091 --add magnet:?xt=urn:btih:0123&dn=lorem+ipsum --download-dir /srv/allotments/service-media-server/downloads"* ]]
+  [[ $output == *"transmission-remote 127.0.0.1:9091 --add https://example.com/a.torrent --download-dir /srv/allotments/service-media-server/downloads"* ]]
+
+  run o11n torrent add --to user-alice https://example.com/a.torrent
+  succeeds
+  [[ $output == *"--add https://example.com/a.torrent --download-dir /srv/allotments/user-alice"* ]]
+
+  run o11n torrent add --as movies https://example.com/a.torrent
+  succeeds
+  [[ $output == *"--add https://example.com/a.torrent --download-dir /srv/allotments/service-media-server/downloads/movies"* ]]
+
+  run o11n torrent add --to user-bob https://example.com/a.torrent
+  fails "--to names an allotment the server downloads into: "
+  [[ $output == *"service-media-server"* && $output == *"user-alice"* ]]
+
+  run o11n torrent add --as books https://example.com/a.torrent
+  fails "--as names a kind the server files a download by: movies"
+
+  run o11n torrent add --to user-alice --as movies https://example.com/a.torrent
+  fails "cannot be used with"
+
+  TORRENT_DEFAULT='' run o11n torrent add https://example.com/a.torrent
+  fails "the server has no allotment it downloads into by default: give --to "
 
   echo "the metainfo" >lorem.torrent
   run o11n torrent add lorem.torrent
@@ -1129,17 +1150,20 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   fails "host-lorem has no torrent-server service"
 }
 
-@test "status checks the torrent server's list as the service, and the media server's health at its name on its vpn" {
+@test "status checks the torrent server's list as the service, and the media server's health and its *arrs' at its name on its vpn" {
   mock-host testhost
   o11n host pull-ssh-key host-testhost
 
   run o11n status --list host-testhost
   [[ $output == *"host-testhost torrent-server"* ]]
   [[ $output == *"host-testhost media-server media-server-testhost.local"* ]]
+  [[ $output == *"host-testhost media-server media-server-testhost.local radarr"* ]]
+  [[ $output == *"host-testhost media-server media-server-testhost.local lidarr"* ]]
 
   run o11n status host-testhost
   [[ $output == *"host-testhost torrent-server skip: "* ]]
   [[ $output == *"host-testhost media-server media-server-testhost.local ok"* ]]
+  [[ $output == *"host-testhost media-server media-server-testhost.local sonarr ok"* ]]
 
   o11n identity create service-torrent-server
   o11n secret generate service-torrent-server ssh-key
@@ -1148,4 +1172,7 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
 
   JELLYFIN_HEALTH=Unhealthy run o11n status host-testhost
   [[ $output == *"host-testhost media-server media-server-testhost.local fail: http://media-server-testhost.local:8096/health answers Unhealthy"* ]]
+
+  ARR_PING='Bad Gateway' run o11n status host-testhost
+  [[ $output == *"host-testhost media-server media-server-testhost.local radarr fail: http://media-server-testhost.local:7878/ping answers Bad Gateway"* ]]
 }

@@ -16,6 +16,12 @@ pub enum TorrentAction {
     Add {
         #[arg(required = true)]
         links: Vec<String>,
+        /// The allotment, by its principal's handle, that it downloads into, of those the server downloads into.
+        #[arg(long, conflicts_with = "kind")]
+        to: Option<String>,
+        /// The kind it is, as the media-server's *arrs take it from where that goes: movies, tv or music.
+        #[arg(long = "as", value_name = "KIND")]
+        kind: Option<String>,
     },
     /// The server's torrents, each by the id the others take.
     List,
@@ -35,19 +41,32 @@ impl Org {
     pub fn torrent(&self, host: Option<&str>, action: &TorrentAction) -> Result<(), Error> {
         let id = self.torrent_server(host)?;
         let calls: Vec<(Vec<String>, Option<&Path>)> = match action {
-            TorrentAction::Add { links } => links
+            TorrentAction::Add { links, to, kind } => links
                 .iter()
                 .map(|link| {
+                    let mut args = vec!["add".to_owned()];
+                    for (option, value) in [("--to", to), ("--as", kind)] {
+                        if let Some(value) = value {
+                            if value.is_empty() || value.contains(char::is_whitespace) {
+                                return Err(Error::new(format!(
+                                    "{option} {value:?}: a name has no whitespace in it"
+                                )));
+                            }
+                            args.extend([option.to_owned(), value.clone()]);
+                        }
+                    }
                     let path = Path::new(link);
                     if path.is_file() {
-                        Ok((vec!["add".to_owned(), "-".to_owned()], Some(path)))
+                        args.push("-".to_owned());
+                        Ok((args, Some(path)))
                     } else if link.contains(char::is_whitespace) {
                         // Fact: ssh joins a command's arguments with spaces, and the server splits them there.
                         Err(Error::new(format!(
                             "{link}: a link has no whitespace in it, as a magnet link encodes it"
                         )))
                     } else {
-                        Ok((vec!["add".to_owned(), link.clone()], None))
+                        args.push(link.clone());
+                        Ok((args, None))
                     }
                 })
                 .collect::<Result<_, _>>()?,

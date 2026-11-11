@@ -32,6 +32,11 @@ case $url in
 	echo "${JELLYFIN_HEALTH:-Healthy}"
 	exit
 	;;
+*/ping)
+	ok='{"status": "OK"}'
+	echo "${ARR_PING:-$ok}"
+	exit
+	;;
 esac
 name='' type=''
 while (($#)); do

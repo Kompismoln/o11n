@@ -80,7 +80,10 @@ logs)
 torrent-server)
 	shift
 	ssh-add -l >/dev/null || exit 255
-	SSH_ORIGINAL_COMMAND="$*" TRANSMISSION_RPC=127.0.0.1:9091 bash "$TORRENT_SERVER"
+	SSH_ORIGINAL_COMMAND="$*" TRANSMISSION_RPC=127.0.0.1:9091 \
+		TORRENT_TO="service-media-server=/srv/allotments/service-media-server/downloads user-alice=/srv/allotments/user-alice" \
+		TORRENT_AS="movies=/srv/allotments/service-media-server/downloads/movies" \
+		TORRENT_DEFAULT="${TORRENT_DEFAULT-/srv/allotments/service-media-server/downloads}" bash "$TORRENT_SERVER"
 	;;
 testadmin | admin)
 	shift

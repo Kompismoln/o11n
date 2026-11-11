@@ -2,7 +2,7 @@
 let
   keys = import "${pkgs.path}/nixos/tests/ssh-keys.nix" pkgs;
   file = pkgs.hello.src;
-  allotment = "/srv/allotments/service-torrent-server";
+  allotment = "/srv/allotments/user-alice";
   seeding = "/var/lib/transmission/Downloads";
 in
 pkgs.testers.runNixOSTest {
@@ -53,12 +53,17 @@ pkgs.testers.runNixOSTest {
         };
         publicKeys.ssh-key = builtins.toFile "ssh-key.pub" keys.snakeOilEd25519PublicKey;
       };
+      org.entities.user-alice.principal = {
+        uid = 1000;
+        gid = 1000;
+      };
       host = {
         name = "server";
         allotments = [
           {
-            entity = "service-torrent-server";
+            entity = "user-alice";
             path = allotment;
+            torrent = true;
           }
         ];
       };
@@ -70,19 +75,26 @@ pkgs.testers.runNixOSTest {
       group = "torrent-server";
     };
     users.groups.torrent-server.gid = 2000;
+    users.users.alice = {
+      isNormalUser = true;
+      uid = 1000;
+      group = "alice";
+    };
+    users.groups.alice.gid = 1000;
 
     virtualisation.emptyDiskImages = [ 512 ];
     boot.supportedFilesystems = [ "zfs" ];
     # Fact: the test disk has no /dev/disk/by-id link, where zpool import looks by default.
     boot.zfs.devNodes = "/dev";
     networking.hostId = "8425e349";
-    o11n.allotments.service-torrent-server = {
-      dataset = "tank/storage/allotments/service-torrent-server";
+    o11n.allotments.user-alice = {
+      dataset = "tank/storage/allotments/user-alice";
       size = "64M";
       path = allotment;
-      uid = 2000;
-      gid = 2000;
+      uid = 1000;
+      gid = 1000;
     };
+    o11n.torrent-server.kinds.films = "${allotment}/films";
 
     services.transmission.settings.dht-enabled = false;
     services.openssh.enable = true;
@@ -100,13 +112,13 @@ pkgs.testers.runNixOSTest {
 
     start_all()
 
-    with subtest("the server starts once its allotment is there"):
+    with subtest("the server starts once the allotment it downloads into is there"):
         server.wait_for_unit("multi-user.target")
         server.fail("systemctl is-active transmission")
         server.succeed(
             "zpool create -O mountpoint=none tank /dev/vdb",
             "zfs create -o mountpoint=/srv/storage tank/storage",
-            "systemctl restart allotment@service-torrent-server",
+            "systemctl restart allotment@user-alice",
             "systemctl start transmission",
         )
         server.wait_for_unit("transmission")
@@ -118,7 +130,7 @@ pkgs.testers.runNixOSTest {
         assert "Default seed ratio limit: 2.00" in session, session
 
     with subtest("its ssh-key runs control alone"):
-        assert "add <link|->" in server.fail(
+        assert "torrent-server: add [--to <allotment>|--as <kind>] <link|->" in server.fail(
             "ssh -i /etc/operator/ssh-key -o StrictHostKeyChecking=no torrent-server@localhost id 2>&1"
         )
 
@@ -135,17 +147,32 @@ pkgs.testers.runNixOSTest {
         "transmission-remote --add /srv/www/hello.torrent --no-dht --download-dir ${seeding}",
     )
 
-    with subtest("a .torrent sent on stdin downloads into the allotment, as the service"):
+    with subtest("a .torrent sent on stdin downloads into the allotment, as its principal's"):
         server.succeed("curl -fsS http://tracker/hello.torrent -o /tmp/hello.torrent")
         control("add - < /tmp/hello.torrent")
         server.wait_for_file("${allotment}/hello.tar.gz")
         server.wait_until_succeeds("cmp ${allotment}/hello.tar.gz ${file}", timeout=120)
-        assert server.succeed("stat -c %u ${allotment}/hello.tar.gz").strip() == "2000"
+        assert server.succeed("stat -c %u:%g ${allotment}/hello.tar.gz").strip() == "1000:1000"
         assert "hello.tar.gz" in control("list")
 
+    with subtest("it seeds what it downloaded, and the principal owns it"):
+        server.wait_until_succeeds("transmission-remote 127.0.0.1:9091 --torrent 1 --info | grep -Eq 'State: (Seeding|Idle)'", timeout=60)
+        server.succeed("su alice -c 'ln ${allotment}/hello.tar.gz ${allotment}/linked.tar.gz'")
+        server.fail("su torrent-server -s /bin/sh -c 'cat ${allotment}/hello.tar.gz'")
+
+    with subtest("--as and --to file a download where they say, and nowhere else"):
+        assert "--to names an allotment the server downloads into: user-alice" in server.fail(
+            "ssh -i /etc/operator/ssh-key -o StrictHostKeyChecking=no torrent-server@localhost add --to user-bob - < /tmp/hello.torrent 2>&1"
+        )
+        control("remove 1")
+        control("add --as films - < /tmp/hello.torrent")
+        server.wait_until_succeeds("cmp ${allotment}/films/hello.tar.gz ${file}", timeout=120)
+        assert server.succeed("stat -c %u ${allotment}/films").strip() == "1000"
+
     with subtest("removed with --delete, what it downloaded goes too"):
-        control("remove --delete 1")
-        server.wait_until_fails("test -e ${allotment}/hello.tar.gz")
+        control("remove --delete 2")
+        server.wait_until_fails("test -e ${allotment}/films/hello.tar.gz")
         assert "hello.tar.gz" not in control("list")
+        server.succeed("test -e ${allotment}/hello.tar.gz")
   '';
 }

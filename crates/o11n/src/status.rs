@@ -18,6 +18,9 @@ const SUBMISSION: u16 = 587;
 // the host's endpoint.
 const BUILDERS: [&str; 2] = ["nix-remote", "remote-builder-relay"];
 
+// Dependency: nixos/services/media-server.nix serves each *arr on the media-server's address, on these ports.
+const ARRS: [(&str, u16); 3] = [("radarr", 7878), ("sonarr", 8989), ("lidarr", 8686)];
+
 const WORKERS: usize = 8;
 
 pub enum Check {
@@ -54,6 +57,7 @@ pub enum Check {
     Glesys(String),
     TorrentServer,
     MediaServer(String),
+    MediaArr(String, &'static str),
 }
 
 impl Check {
@@ -92,6 +96,7 @@ impl Check {
             Self::Glesys(record) => format!("glesys {record}"),
             Self::TorrentServer => "torrent-server".into(),
             Self::MediaServer(name) => format!("media-server {name}"),
+            Self::MediaArr(name, app) => format!("media-server {name} {app}"),
         }
     }
 }
@@ -297,6 +302,7 @@ impl Org {
         }
         if let Some(name) = entity.served.get("media-server") {
             checks.push(Check::MediaServer(name.clone()));
+            checks.extend(ARRS.iter().map(|(app, _)| Check::MediaArr(name.clone(), app)));
         }
         checks
     }
@@ -416,6 +422,7 @@ impl Org {
             Check::Url(url) => fails(Self::answers(url)),
             Check::TorrentServer => self.torrent_server_outcome(id, entity)?,
             Check::MediaServer(name) => self.media_server_outcome(entity, name)?,
+            Check::MediaArr(name, app) => self.media_arr_outcome(entity, name, app)?,
             Check::NixDaemon => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;
                 // Fact: 401 is the builder's nginx refusing a request without the bearer, and 404 its gost, where a
@@ -824,6 +831,19 @@ impl Org {
         Ok(fails(curled(curl().arg(&url)).and_then(|said| match said.trim() {
             "Healthy" => Ok(()),
             said => Err(Error::new(format!("{url} answers {said}"))),
+        })))
+    }
+
+    fn media_arr_outcome(&self, entity: &Entity, name: &str, app: &str) -> Result<Outcome, Outcome> {
+        self.reachable(entity)?;
+        let port = ARRS.iter().find(|(arr, _)| *arr == app).map_or(0, |(_, port)| *port);
+        let url = format!("http://{name}:{port}/ping");
+        Ok(fails(curled(curl().arg(&url)).and_then(|said| {
+            if said.contains("\"OK\"") {
+                Ok(())
+            } else {
+                Err(Error::new(format!("{url} answers {}", said.trim())))
+            }
         })))
     }
 

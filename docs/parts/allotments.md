@@ -22,6 +22,11 @@ principal's uid and gid, mode `0700`, or `0750` for a principal with `members`, 
 (`nixos/org/allotments.nix`). A principal that isn't on the host has an account there that owns it, with no home, login
 or password.
 
+## Torrents
+
+An allotment with `torrent = true` is one the torrent-server on its host downloads into, as its principal's, which needs
+the host to have the service, and the allotment no `replicas` (`docs/parts/torrent.md`).
+
 ## Replicas
 
 An allotment's `replicas` are the hosts that keep a copy of it for its principal, which has to be on each, and reach the

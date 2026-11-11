@@ -50,9 +50,9 @@ sftp = ["app-cloud"]
 [allotment."store-files@zhost"]
 size = "1T"
 
-[allotment."service-torrent-server@zhost"]
+[allotment."service-media-server@zhost"]
 size = "500G"
-sftp = ["app-cloud"]
+torrent = true
 
 # Fact: a nextcloud that mounts alice's allotment, which laptop would run as an app-scheduler, and doesn't.
 [app.cloud]
@@ -67,7 +67,6 @@ nextcloud.external.lisa.files = { sftp = { host = "files.example.com", login = "
 
 [service.torrent-server]
 id = 0
-principal.members = ["media-server"]
 
 [service.torrent-server.hosts.zhost]
 upload = 200

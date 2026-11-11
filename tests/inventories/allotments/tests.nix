@@ -21,6 +21,8 @@ let
       spec = lib.recursiveUpdate outputs.context.spec change;
     };
 
+  zhostOf = context: (o11nLib.mkNixosConfigurations context).zhost.config;
+
   failing =
     config:
     map (assertion: assertion.message) (
@@ -40,11 +42,11 @@ in
         ;
     }) outputs.org.allotment;
     expected = {
-      "service-torrent-server@zhost" = {
-        entity = "service-torrent-server";
+      "service-media-server@zhost" = {
+        entity = "service-media-server";
         host = "zhost";
         size = "500G";
-        path = "/srv/allotments/service-torrent-server";
+        path = "/srv/allotments/service-media-server";
       };
       "store-files@zhost" = {
         entity = "store-files";
@@ -65,13 +67,13 @@ in
   test_zfs_allotments = {
     expr = zhost.config.o11n.allotments;
     expected = {
-      service-torrent-server = {
-        dataset = "zroot/srv/storage/allotments/service-torrent-server";
+      service-media-server = {
+        dataset = "zroot/srv/storage/allotments/service-media-server";
         size = "500G";
-        path = "/srv/allotments/service-torrent-server";
-        uid = 2000;
-        gid = 2000;
-        mode = "0750";
+        path = "/srv/allotments/service-media-server";
+        uid = 2001;
+        gid = 2001;
+        mode = "0700";
       };
       store-files = {
         dataset = "zroot/srv/storage/allotments/store-files";
@@ -95,7 +97,7 @@ in
   test_zfs_units = {
     expr = lib.filter (lib.hasPrefix "allotment@") (lib.attrNames zhost.config.systemd.services);
     expected = [
-      "allotment@service-torrent-server"
+      "allotment@service-media-server"
       "allotment@store-files"
       "allotment@user-alice"
     ];
@@ -353,7 +355,6 @@ in
               in
               lib.recursiveUpdate spec {
                 allotment."user-alice@zhost".sftp = [ ];
-                allotment."service-torrent-server@zhost".sftp = [ ];
               }
               // {
                 app = spec.app // {
@@ -594,7 +595,7 @@ in
         sops = config.sops.gnupg.sshKeyPaths ++ config.sops.age.sshKeyPaths;
       };
       expected = {
-        logins = 3;
+        logins = 2;
         hostKeys = [
           "ed25519"
           "rsa"
@@ -604,12 +605,14 @@ in
       };
     };
 
-  # Policy: the torrent server downloads into its allotment, once that's there, as the org limits it, and its ssh-key
-  # runs its control alone, while an sftp client of the allotment logs in as its own login has it.
+  # Policy: the torrent server downloads into the allotments that allow it, each bound from a mount that maps its
+  # principal's ids to the server's, by default into the media-server's downloads, as the org limits it, and its ssh-key
+  # runs its control alone.
   test_torrent_server =
     let
       inherit (zhost.config) services systemd users;
       inherit (services.transmission) settings;
+      library = "/srv/allotments/service-media-server";
     in
     {
       expr = {
@@ -628,12 +631,17 @@ in
             ;
         };
         inherit (systemd.services.transmission) requires;
+        binds = lib.filter (lib.hasInfix "allotments") systemd.services.transmission.serviceConfig.BindPaths;
+        idmap =
+          lib.hasInfix "X-mount.idmap=u:2001:2000:1 g:2001:2000:1"
+            systemd.services."torrent-server-mount@service-media-server".script;
+        inherit (zhost.config.o11n.torrent-server) targets kinds default;
         keys = map (
           key:
           let
             control = builtins.match ''restrict,command="[^ ]*/bin/torrent-server" (.*)'' key;
           in
-          if control == null then "sftp" else lib.head control
+          if control == null then "other" else lib.head control
         ) users.users.torrent-server.openssh.authorizedKeys.keys;
         inherit (users.users.torrent-server.openssh.authorizedKeys) keyFiles;
       };
@@ -642,7 +650,7 @@ in
         home = "/srv/storage/var/lib/torrent-server";
         openPeerPorts = true;
         settings = {
-          download-dir = "/srv/allotments/service-torrent-server";
+          download-dir = "${library}/downloads";
           incomplete-dir-enabled = false;
           peer-port = 51413;
           rpc-bind-address = "127.0.0.1";
@@ -653,86 +661,157 @@ in
           ratio-limit-enabled = true;
         };
         requires = [
-          "allotment@service-torrent-server.service"
+          "torrent-server-mount@service-media-server.service"
           "transmission-setup.service"
         ];
-        keys = [
-          "sftp"
-          (lib.trim (builtins.readFile ./public-keys/service-torrent-server-ssh-key.pub))
-        ];
+        binds = [ "/run/torrent-server/service-media-server:${library}" ];
+        idmap = true;
+        targets.service-media-server = "${library}/downloads";
+        kinds = {
+          movies = "${library}/downloads/movies";
+          tv = "${library}/downloads/tv";
+          music = "${library}/downloads/music";
+        };
+        default = "${library}/downloads";
+        keys = [ (lib.trim (builtins.readFile ./public-keys/service-torrent-server-ssh-key.pub)) ];
         keyFiles = [ ];
       };
     };
 
-  # Policy: a host with the torrent server and no allotment for it fails evaluation, saying which to add.
+  # Policy: a host with the torrent server and no allotment that allows it fails evaluation, saying how to allow one, as
+  # does the media-server, whose library it is.
   test_torrent_server_needs_allotment =
     let
-      inherit (outputs.context) spec;
-      config =
-        (o11nLib.mkNixosConfigurations (
-          o11nLib.evalContext {
-            path = ./.;
-            flake = {
-              outPath = ./.;
-              inputs = { };
-            };
-            spec = spec // {
-              allotment = removeAttrs spec.allotment [ "service-torrent-server@zhost" ];
-            };
-          }
-        )).zhost.config;
+      config = zhostOf (alter {
+        allotment."service-media-server@zhost".torrent = false;
+      });
     in
     {
-      expr = {
-        failing = map (assertion: assertion.message) (
-          lib.filter (
-            assertion: !assertion.assertion && lib.hasPrefix "service.torrent-server" assertion.message
-          ) config.assertions
-        );
-        inherit (config.services.transmission) enable;
-      };
-      expected = {
-        failing = [
-          ''service.torrent-server on zhost: the server keeps what it downloads in an allotment of its own, and zhost has none: add allotment."service-torrent-server@zhost" with its size.''
-        ];
-        enable = false;
-      };
+      expr = map (assertion: assertion.message) (
+        lib.filter (
+          assertion: !assertion.assertion && lib.hasPrefix "service." assertion.message
+        ) config.assertions
+      );
+      expected = [
+        ''service.torrent-server on zhost: the server downloads into the allotments on zhost that allow it, and none does: set torrent = true on one, as allotment."service-media-server@zhost".''
+        ''service.media-server on zhost: Radarr, Sonarr and Lidarr take what the torrent-server on zhost downloads into the library: give zhost a role with the torrent-server, and set torrent = true on allotment."service-media-server@zhost".''
+      ];
     };
 
-  # Policy: the media server keeps its state where the host keeps it, reads the torrent server's allotment as a member of
-  # its group, and is reached at its own address on its vpn, on whose interface alone the firewall opens its port.
+  # Policy: an allotment that allows the torrent server is on a host with it, and has no replicas.
+  test_torrent_allotments = {
+    expr = {
+      replicas = failing (
+        zhostOf (alter {
+          allotment."user-alice@zhost".torrent = true;
+        })
+      );
+      server = failing (
+        zhostOf (alter {
+          host.zhost.roles = [ ];
+          allotment."store-files@zhost".torrent = true;
+        })
+      );
+    };
+    expected = {
+      replicas = [
+        ''allotment."user-alice@zhost": torrent = true, and it has replicas, which would sync what's still downloading, and break its seeding as they change it: drop torrent, or its replicas.''
+      ];
+      server = [
+        ''allotment."service-media-server@zhost": torrent = true, and zhost has no torrent-server to download into it: give zhost a role with it, or drop torrent.''
+        ''allotment."store-files@zhost": torrent = true, and zhost has no torrent-server to download into it: give zhost a role with it, or drop torrent.''
+      ];
+    };
+  };
+
+  # Policy: the media server keeps its state where the host keeps it, its library in its own allotment, which its *arrs
+  # file downloads into, and is reached at its own address on its vpn, on whose interface alone the firewall opens its
+  # ports.
   test_media_server =
     let
       inherit (zhost.config)
         networking
         services
         systemd
-        users
         ;
       address = outputs.org.vpn.wg0.members.media-server-zhost.address;
+      ports = [
+        8096
+        7878
+        8989
+        8686
+      ];
     in
     {
       expr = {
         inherit (services.jellyfin) user dataDir;
-        members = users.groups.torrent-server.members;
-        inherit (systemd.sockets.media-server) listenStreams;
+        arrs = lib.genAttrs [ "radarr" "sonarr" "lidarr" ] (app: {
+          inherit (services.${app}) user dataDir;
+          inherit (services.${app}.settings.server) bindaddress;
+          inherit (services.${app}.settings.auth) method;
+          root = systemd.services."media-server-${app}-setup".environment.ROOT;
+        });
+        sockets = lib.mapAttrs (_: socket: socket.listenStreams) (
+          lib.filterAttrs (name: _: lib.hasPrefix "media-server-" name) systemd.sockets
+        );
         firewall = lib.mapAttrs (
-          _: interface: lib.elem 8096 interface.allowedTCPPorts
+          _: interface: lib.all (port: lib.elem port interface.allowedTCPPorts) ports
         ) networking.firewall.interfaces;
-        open = lib.elem 8096 networking.firewall.allowedTCPPorts;
+        open = lib.any (port: lib.elem port networking.firewall.allowedTCPPorts) ports;
         hosts = laptop.config.networking.hosts.${address};
       };
       expected = {
         user = "media-server";
         dataDir = "/srv/storage/var/lib/media-server";
-        members = [
-          "torrent-server"
-          "media-server"
-        ];
-        listenStreams = [ "[${address}]:8096" ];
+        arrs = lib.genAttrs [ "radarr" "sonarr" "lidarr" ] (app: {
+          user = "media-server";
+          dataDir = "/srv/storage/var/lib/media-server-${app}";
+          bindaddress = "127.0.0.1";
+          method = "External";
+          root =
+            "/srv/allotments/service-media-server/"
+            + {
+              radarr = "movies";
+              sonarr = "tv";
+              lidarr = "music";
+            }
+            .${app};
+        });
+        sockets = {
+          media-server-jellyfin = [ "[${address}]:8096" ];
+          media-server-radarr = [ "[${address}]:7878" ];
+          media-server-sonarr = [ "[${address}]:8989" ];
+          media-server-lidarr = [ "[${address}]:8686" ];
+        };
         firewall.wg0 = true;
         open = false;
         hosts = [ "media-server-zhost.allotments" ];
       };
+    };
+
+  # Policy: a host with the media server and no allotment for its library fails evaluation, saying which to add.
+  test_media_server_needs_library =
+    let
+      inherit (outputs.context) spec;
+      config = zhostOf (
+        o11nLib.evalContext {
+          path = ./.;
+          flake = {
+            outPath = ./.;
+            inputs = { };
+          };
+          spec = spec // {
+            allotment = removeAttrs spec.allotment [ "service-media-server@zhost" ];
+          };
+        }
+      );
+    in
+    {
+      expr = lib.filter (lib.hasPrefix "service.media-server") (
+        map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) config.assertions)
+      );
+      expected = [
+        ''service.media-server on zhost: its library is an allotment of its own, and zhost has none: add allotment."service-media-server@zhost" with its size and torrent = true.''
+      ];
     };
 }

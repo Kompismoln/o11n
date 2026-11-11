@@ -97,6 +97,15 @@ the apps and hosts, by handle, that reach the allotment over SFTP, as its princi
 
 the most the allotment holds, as a ZFS size, of what's in it and not of its snapshots
 
+### `allotment.<name>.torrent`
+
+`org/allotment.nix` · boolean
+
+Default: `false`
+
+whether the torrent-server on the allotment's host downloads into it, as its principal, where `o11n torrent add --to`
+names it
+
 ### `allotment.<name>.vpn`
 
 `org/allotment.nix` · null or impossible (empty enum)

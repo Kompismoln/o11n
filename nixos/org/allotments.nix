@@ -210,6 +210,14 @@ in
             assertion = org.entities.${allotment.entity}.principal.home != "/var/empty";
             message = "allotment.\"${name allotment}\": ${allotment.entity} has no home on ${host.name} to keep its replica in: give it one, or drop ${host.name} from replicas.";
           }) host.replicas
+          ++ map (allotment: {
+            assertion = lib.any (service: service.name == "torrent-server") host.services;
+            message = "allotment.\"${name allotment}\": torrent = true, and ${host.name} has no torrent-server to download into it: give ${host.name} a role with it, or drop torrent.";
+          }) (lib.filter (allotment: allotment.torrent) host.allotments)
+          ++ map (allotment: {
+            assertion = allotment.replicas == [ ];
+            message = "allotment.\"${name allotment}\": torrent = true, and it has replicas, which would sync what's still downloading, and break its seeding as they change it: drop torrent, or its replicas.";
+          }) (lib.filter (allotment: allotment.torrent) host.allotments)
           ++ map (login: {
             assertion = builtins.pathExists login.key;
             message = "allotment.\"${name login.allotment}\".sftp: ${login.client} has no sftp-key, which it logs in to ${host.name} with: o11n secret generate ${login.client} sftp-key.";

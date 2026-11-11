@@ -154,4 +154,8 @@ code = [
 stage = "drafted"
 layer = "domain"
 doc = "docs/parts/media.md"
-code = ["nixos/services/media-server.nix", "tests/vm/media-server.nix"]
+code = [
+  "nixos/services/media-server-setup.sh",
+  "nixos/services/media-server.nix",
+  "tests/vm/media-server.nix",
+]
