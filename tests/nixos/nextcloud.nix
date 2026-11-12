@@ -15,6 +15,7 @@ let
       uid = 3007;
       gid = 3007;
     };
+    ids.hex8 = "00000007";
     secrets.sopsFile = "/enc/app-cloud.yaml";
     nextcloud = {
       collabora = "office";
@@ -150,7 +151,10 @@ let
             org = {
               postgres = "17";
               app = {
-                office.endpoint = "office.example.com";
+                office = {
+                  endpoint = "office.example.com";
+                  url = "https://office.example.com";
+                };
                 auth = {
                   url = "https://auth.example.com";
                   keycloak.realms.example.displayName = "Example";
@@ -222,7 +226,7 @@ in
     expected = {
       oidc = false;
       secret = false;
-      apps = [ "calendar" ];
+      apps = [ "richdocuments" ];
     };
   };
 
@@ -241,13 +245,23 @@ in
           inherit (cfg.sops.secrets."cloud/oidc-secret") sopsFile owner;
         };
         provider = lib.filter (word: word != "" && word != "\\") (
-          lib.drop 1 (lib.splitString " " (lib.replaceStrings [ "\n" ] [ " " ] script))
+          lib.drop 1 (
+            lib.splitString " " (lib.concatStringsSep " " (lib.take 4 (lib.splitString "\n" script)))
+          )
         );
+        alone = lib.all (part: lib.hasInfix part script) [
+          "config:app:set user_oidc allow_multiple_user_backends --type=string --value=0"
+          ''select(.value.backend == "Database" and .value.enabled)''
+          ''user:disable "$user"''
+        ];
+        settings = {
+          inherit (inner.services.nextcloud.settings) user_oidc lost_password_link token_auth_enforced;
+        };
         after = inner.systemd.services.nextcloud-oidc.after;
       };
       expected = {
         apps = [
-          "calendar"
+          "richdocuments"
           "user_oidc"
         ];
         secret = {
@@ -265,7 +279,147 @@ in
           "--unique-uid=0"
           "--mapping-uid=preferred_username"
         ];
+        alone = true;
+        settings = {
+          user_oidc.soft_auto_provision = false;
+          lost_password_link = "disabled";
+          token_auth_enforced = true;
+        };
         after = [ "nextcloud-setup.service" ];
+      };
+    };
+
+  # Policy: a nextcloud without a keycloak keeps its own login.
+  test_nextcloud_without_keycloak_keeps_its_login = {
+    expr = lib.filterAttrs (
+      name: _:
+      lib.elem name [
+        "user_oidc"
+        "lost_password_link"
+        "token_auth_enforced"
+      ]
+    ) container.config.services.nextcloud.settings;
+    expected = { };
+  };
+
+  # Policy: a nextcloud is a drive, whose apps are its files', its settings' and Nextcloud's own, from no app store.
+  test_nextcloud_keeps_a_drives_apps =
+    let
+      kept =
+        config:
+        let
+          script = config.systemd.services.nextcloud-apps.script;
+          line = lib.findFirst (lib.hasPrefix "kept=") "" (lib.splitString "\n" script);
+        in
+        builtins.fromJSON (
+          lib.removeSuffix "'" (lib.removePrefix "kept='" (builtins.unsafeDiscardStringContext line))
+        );
+      inner = container.config;
+      oidc = (evalApp logsIn app.principal.uid).containers.cloud.config;
+      external = (evalApp mounts app.principal.uid).containers.cloud.config;
+    in
+    {
+      expr = {
+        inherit (inner.services.nextcloud) appstoreEnable;
+        inherit (inner.services.nextcloud.settings)
+          defaultapp
+          skeletondirectory
+          trashbin_retention_obligation
+          versions_retention_obligation
+          ;
+        own = lib.subtractLists (kept oidc) (kept inner);
+        oidc = lib.subtractLists (kept inner) (kept oidc);
+        external = lib.subtractLists (kept inner) (kept external);
+        calendar = lib.elem "calendar" (kept inner);
+        locations = lib.attrNames cfg.services.nginx.virtualHosts."cloud.example.com".locations;
+      };
+      expected = {
+        appstoreEnable = false;
+        defaultapp = "files";
+        skeletondirectory = "";
+        trashbin_retention_obligation = "auto, 30";
+        versions_retention_obligation = "auto, 365";
+        own = [
+          "password_policy"
+          "twofactor_totp"
+        ];
+        oidc = [ "user_oidc" ];
+        external = [ "files_external" ];
+        calendar = false;
+        locations = [ "/" ];
+      };
+    };
+
+  # Policy: config.php's secret is the app's secret-key, which each unit that runs occ loads, and its instanceid follows
+  # from the app's id.
+  test_nextcloud_keeps_its_secret_and_instanceid =
+    let
+      all = (evalApp (lib.recursiveUpdate mounts logsIn) app.principal.uid).containers.cloud.config;
+      units = [
+        "nextcloud-apps"
+        "nextcloud-office"
+        "nextcloud-oidc"
+        "nextcloud-external"
+        "nextcloud-changes-alice-zhost"
+      ];
+    in
+    {
+      expr = {
+        bind = {
+          inherit (container.bindMounts."/run/secrets/secret-key") hostPath isReadOnly;
+        };
+        inherit (container.config.services.nextcloud) secrets;
+        inherit (container.config.services.nextcloud.settings) instanceid;
+        credentials = lib.genAttrs units (
+          unit:
+          let
+            inherit (all.systemd.services.${unit}) serviceConfig;
+          in
+          {
+            inherit (serviceConfig) User LoadCredential;
+          }
+        );
+        resticignore = lib.filter (lib.hasInfix ".resticignore") cfg.systemd.tmpfiles.rules;
+      };
+      expected = {
+        bind = {
+          hostPath = "/run/secrets/cloud/secret-key";
+          isReadOnly = true;
+        };
+        secrets.secret = "/run/secrets/secret-key";
+        instanceid = "oc00000007";
+        credentials = lib.genAttrs units (_: {
+          User = "nextcloud";
+          LoadCredential = [ "secret:/run/secrets/secret-key" ];
+        });
+        resticignore = [
+          "f+ '/var/lib/cloud/nextcloud/data/.resticignore' 0640 cloud cloud - appdata_*/preview\\n*/cache\\n*/uploads\\n"
+        ];
+      };
+    };
+
+  # Policy: a nextcloud with a collabora opens its office at the collabora's url.
+  test_nextcloud_opens_collaboras_office =
+    let
+      unit = container.config.systemd.services.nextcloud-office;
+    in
+    {
+      expr = {
+        inherit (unit) after;
+        sets = lib.all (part: lib.hasInfix part unit.script) [
+          "config:app:set richdocuments wopi_url --value=https://office.example.com"
+          "config:app:delete richdocuments public_wopi_url"
+          "config:app:delete richdocuments wopi_callback_url"
+        ];
+        without =
+          (evalApp (lib.recursiveUpdate app { nextcloud.collabora = null; }) app.principal.uid)
+          .containers.cloud.config.systemd.services
+            ? nextcloud-office;
+      };
+      expected = {
+        after = [ "nextcloud-setup.service" ];
+        sets = true;
+        without = false;
       };
     };
 
@@ -301,7 +455,7 @@ in
         failed = failed cfg;
       };
       expected = {
-        apps = [ "calendar" ];
+        apps = [ "richdocuments" ];
         secrets = {
           app-cloud = {
             hostPath = "/run/secrets/cloud/app-cloud/sftp-key";

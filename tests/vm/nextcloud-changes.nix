@@ -62,7 +62,7 @@ let
   };
 
   # Accommodating for sops-nix, which this test doesn't run: what the app declares there is only declared, and its
-  # sftp-key is installed at the path sops-nix would give it.
+  # sftp-key and a secret-key are installed at the paths sops-nix would give them.
   sops =
     { lib, ... }:
     {
@@ -87,6 +87,8 @@ let
       config.system.activationScripts.sftp-key = ''
         install -D -m 0400 -o ${cloud.name} -g ${cloud.name} ${./nextcloud-changes/app-cloud-sftp-key} \
           /run/secrets/${cloud.name}/app-cloud/sftp-key
+        install -D -m 0400 -o ${cloud.name} -g ${cloud.name} ${builtins.toFile "secret-key" "o11n-test-secret-key"} \
+          /run/secrets/${cloud.name}/secret-key
       '';
     };
 
@@ -236,20 +238,6 @@ pkgs.testers.runNixOSTest {
       services.nginx.virtualHosts.${cloud.endpoint} = {
         forceSSL = lib.mkForce false;
         enableACME = lib.mkForce false;
-      };
-      # Accommodating for nixos/postgresql.nix, which makes no role or database, as an operator made Kompismoln/org's.
-      services.postgresql = {
-        ensureDatabases = [ cloud.database ];
-        ensureUsers = [
-          {
-            inherit (cloud) name;
-            ensureDBOwnership = true;
-          }
-        ];
-      };
-      systemd.services."container@${cloud.name}" = {
-        after = [ "postgresql-setup.service" ];
-        requires = [ "postgresql-setup.service" ];
       };
       # Accommodating for the test's network, which has no wg0: the principal binds to its loopback address as
       # nixos/org/networking.nix routes it.

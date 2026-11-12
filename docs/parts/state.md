@@ -39,6 +39,11 @@ it is, and a host with a home archived there warns that each archive reads it as
 `<name>-dump`, which each snapshot of the owner's state requires and runs after, so that a snapshot holds a dump of the
 database as it was then. `nixos/postgresql.nix` and `nixos/mysql.nix` declare one for each of their databases.
 
+`nixos/postgresql.nix` makes each of its databases, and the role it's owned by, where they're missing, as
+postgresql-setup starts, and gives the database to its role when that has the database's name, each time; what uses them
+starts after: an app's container, and keycloak and django themselves. An extension a database needs, as mobilizon's
+postgis, it doesn't make.
+
 ## Archive
 
 A host with a role whose services hold `archive` and whose stores hold `archives` runs the archive service

@@ -128,31 +128,6 @@ pkgs.testers.runNixOSTest {
         # Accommodating for the test's mail server, whose certificate is of the test's own CA, which Keycloak doesn't
         # read from the host's bundle.
         services.keycloak.settings.truststore-paths = "${tls}/ca.crt";
-        # Accommodating for nixos/postgresql.nix, which makes no role or database, as an operator made Kompismoln/org's.
-        services.postgresql = {
-          ensureDatabases = [
-            auth.database
-            cloud.database
-          ];
-          ensureUsers =
-            map
-              (app: {
-                inherit (app) name;
-                ensureDBOwnership = true;
-              })
-              [
-                auth
-                cloud
-              ];
-        };
-        systemd.services."container@cloud" = {
-          after = [ "postgresql-setup.service" ];
-          requires = [ "postgresql-setup.service" ];
-        };
-        systemd.services.keycloak = {
-          after = [ "postgresql-setup.service" ];
-          requires = [ "postgresql-setup.service" ];
-        };
         networking.firewall.allowedTCPPorts = [
           80
           443
@@ -262,10 +237,11 @@ pkgs.testers.runNixOSTest {
         web.succeed("systemctl restart keycloak-realms.service")
         assert admin("${realm}")["smtpServer"]["host"] == "${fqdn}"
 
-    with subtest("nextcloud logs a user in with the realm, as the account of their name it had before"):
-        occ = "nixos-container run cloud -- nextcloud-occ"
-        web.wait_until_succeeds("nixos-container run cloud -- systemctl is-active nextcloud-oidc.service", timeout=300)
-        web.succeed(f"{occ} user:add --generate-password alice")
+    occ = "nixos-container run cloud -- nextcloud-occ"
+
+    with subtest("nextcloud's login sends to the realm, which makes the Keycloak user nextcloud's user of their name"):
+        for unit in ["nextcloud-oidc", "nextcloud-apps"]:
+            web.wait_until_succeeds(f"nixos-container run cloud -- systemctl is-active {unit}.service", timeout=300)
         user = {
             "username": "alice", "email": "alice@example.com", "emailVerified": True,
             "firstName": "Alice", "lastName": "Example", "enabled": True,
@@ -277,18 +253,45 @@ pkgs.testers.runNixOSTest {
             f" <<'EOF'\n{json.dumps(user)}\nEOF"
         )
         browse = "curl -sS -b /tmp/jar -c /tmp/jar -L"
-        page = web.succeed(f"{browse} ${cloud.url}/apps/user_oidc/login/1")
+        page = web.succeed(f"{browse} ${cloud.url}/login")
         form = re.search(r'action="([^"]*login-actions/authenticate[^"]*)"', page)
         assert form, page
         landed = web.succeed(
             f"{browse} -o /dev/null -w '%{{url_effective}}' --data-urlencode username=alice"
             f" --data-urlencode password=\"alice's\" '{html.unescape(form.group(1))}'"
         )
-        assert landed.startswith("${cloud.url}/") and "user_oidc" not in landed, landed
-        users = json.loads(web.succeed(f"{occ} user:list --output=json"))
-        assert users == {"alice": "Alice Example"}, users
-        seen = json.loads(web.succeed(f"{occ} user:info alice --output=json"))["last_seen"]
-        assert not seen.startswith("1970"), seen
+        assert landed.startswith("${cloud.url}/") and "/apps/files" in landed and "user_oidc" not in landed, landed
+        users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
+        assert list(users) == ["alice"] and users["alice"]["backend"] == "user_oidc", users
+
+    with subtest("a user of nextcloud's own is disabled, and the realm's user takes no password"):
+        web.succeed("nixos-container run cloud -- env OC_PASS=bob-password nextcloud-occ user:add --password-from-env bob")
+        web.succeed("nixos-container run cloud -- systemctl restart nextcloud-oidc.service")
+        bob = json.loads(web.succeed(f"{occ} user:info bob --output=json"))
+        assert not bob["enabled"], bob
+        dav = "curl -sS -o /dev/null -w '%{http_code}' -X PROPFIND"
+        said = web.succeed(f"{dav} -u bob:bob-password ${cloud.url}/remote.php/dav/files/bob/")
+        assert said == "401", said
+        said = web.succeed(f"{dav} -u \"alice:alice's\" ${cloud.url}/remote.php/dav/files/alice/")
+        assert said == "401", said
+
+    with subtest("nextcloud keeps a drive's apps, from no app store"):
+        enabled = json.loads(web.succeed(f"{occ} app:list --enabled --output=json"))["enabled"]
+        assert "user_oidc" in enabled and "files_sharing" in enabled, enabled
+        for other in ["calendar", "dashboard", "photos", "activity", "app_api"]:
+            assert other not in enabled, enabled
+        web.succeed(f"{occ} app:enable dashboard")
+        web.succeed("nixos-container run cloud -- systemctl restart nextcloud-apps.service")
+        enabled = json.loads(web.succeed(f"{occ} app:list --enabled --output=json"))["enabled"]
+        assert "dashboard" not in enabled, enabled
+        web.fail(f"{occ} app:install calendar")
+
+    with subtest("config.php's secret is the app's secret-key, and its instanceid follows from the app's id"):
+        held = web.succeed(f"{occ} config:system:get secret").strip()
+        assert held == web.succeed("cat /run/secrets/cloud/secret-key").strip(), held
+        assert web.succeed(f"{occ} config:system:get instanceid").strip() == "oc${cloud.ids.hex8}"
+        web.succeed("test -d /var/lib/cloud/nextcloud/data/appdata_oc${cloud.ids.hex8}")
+        web.succeed("grep -qx 'appdata_\\*/preview' /var/lib/cloud/nextcloud/data/.resticignore")
 
     with subtest("o11n status has Keycloak mail the app over verified TLS, as the app"):
         out = web.succeed(

@@ -89,6 +89,41 @@ let
     cfg: (lib.findFirst (a: lib.hasPrefix "o11n.dumps:" a.message) null cfg.assertions).assertion;
 in
 {
+  # Policy: each database and its role are made, and the database is its role's when that has the database's name.
+  test_postgresql_makes_databases_and_roles =
+    let
+      made = eval {
+        o11n.postgresql.databases = {
+          chat = { };
+          archive.user = "blog";
+        };
+      };
+    in
+    {
+      expr = {
+        inherit (made.services.postgresql) ensureDatabases;
+        ensureUsers = map (user: {
+          inherit (user) name ensureDBOwnership;
+        }) made.services.postgresql.ensureUsers;
+      };
+      expected = {
+        ensureDatabases = [
+          "archive"
+          "chat"
+        ];
+        ensureUsers = [
+          {
+            name = "blog";
+            ensureDBOwnership = false;
+          }
+          {
+            name = "chat";
+            ensureDBOwnership = true;
+          }
+        ];
+      };
+    };
+
   test_dump_services = {
     expr = lib.attrNames (dumps cfg.systemd.services);
     expected = [
@@ -185,8 +220,14 @@ in
       inherit (cfg.systemd.services."container@web") after requires wantedBy;
     };
     expected = {
-      after = [ "postgresql.service" ];
-      requires = [ "postgresql.service" ];
+      after = [
+        "postgresql.service"
+        "postgresql-setup.service"
+      ];
+      requires = [
+        "postgresql.service"
+        "postgresql-setup.service"
+      ];
       wantedBy = [ "postgresql.service" ];
     };
   };

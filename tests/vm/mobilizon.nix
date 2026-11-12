@@ -53,17 +53,7 @@ pkgs.testers.runNixOSTest {
       ];
       _module.args.host = org.host.web;
       services.nginx.enable = true;
-      # Accommodating for nixos/postgresql.nix, which makes no role, database or extension, as an operator made
-      # Kompismoln/org's.
-      services.postgresql = {
-        ensureDatabases = [ calendar.database ];
-        ensureUsers = [
-          {
-            inherit (calendar) name;
-            ensureDBOwnership = true;
-          }
-        ];
-      };
+      # Accommodating for nixos/postgresql.nix, which makes no extension, as an operator made Kompismoln/org's.
       systemd.services.mobilizon-extensions = {
         after = [ "postgresql-setup.service" ];
         requires = [ "postgresql-setup.service" ];

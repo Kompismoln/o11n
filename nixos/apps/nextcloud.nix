@@ -20,41 +20,150 @@ let
     home = "${app.principal.home}/nextcloud";
     port = 4000;
     user = app.name;
-    collaboraEndpoint = lib.mapNullable (
-      collabora: org.app.${collabora}.endpoint
-    ) app.nextcloud.collabora;
+    collabora = lib.mapNullable (collabora: org.app.${collabora}) app.nextcloud.collabora;
   };
+
+  package = pkgs.nextcloud35;
+  shipped = pkgs.nextcloud35Packages.apps;
 
   # Dependency: org/apps/nextcloud.nix derives the client, which the keycloak app keeps.
   inherit (app.nextcloud) client;
   secret = "/run/secrets/oidc-secret";
+  secretKey = "/run/secrets/secret-key";
 
-  # Policy: a Keycloak user is the Nextcloud user of the same name, which the realm lets no one take or rename to:
-  # user_oidc's soft auto-provisioning has a login of an account made before it the account's.
+  # Fact: occ reads config.php's secrets from systemd's credentials, which a unit gives its own user alone, so a unit
+  # that runs it runs as nextcloud and loads them, as nixpkgs' own units do.
+  occUnit = config: {
+    User = "nextcloud";
+    Group = "nextcloud";
+    LoadCredential = lib.mapAttrsToList (
+      name: file: "${name}:${file}"
+    ) config.services.nextcloud.secrets;
+  };
+
+  # Policy: a Keycloak user is the Nextcloud user of the same name, which the realm lets no one take or rename to, and
+  # the realm is the only way in: the login page sends to it, the users of nextcloud's own are disabled, and a client
+  # logs in with an app password, which login flow v2 makes once the user has logged in with the realm.
   oidc =
     { config, ... }:
     let
+      occ = lib.getExe config.services.nextcloud.occ;
       keycloak = org.app.${client.keycloak};
       realm = keycloak.keycloak.realms.${client.realm} or { displayName = client.realm; };
     in
     {
-      services.nextcloud.extraApps = {
-        inherit (pkgs.nextcloud35Packages.apps) user_oidc;
+      services.nextcloud = {
+        extraApps = {
+          inherit (shipped) user_oidc;
+        };
+        settings = {
+          user_oidc.soft_auto_provision = false;
+          lost_password_link = "disabled";
+          token_auth_enforced = true;
+        };
       };
       systemd.services.nextcloud-oidc = {
-        description = "keep nextcloud's login with ${client.keycloak}'s realm ${client.realm}";
+        description = "keep nextcloud's login with ${client.keycloak}'s realm ${client.realm}, and with it alone";
         after = [ "nextcloud-setup.service" ];
         requires = [ "nextcloud-setup.service" ];
         wantedBy = [ "multi-user.target" ];
-        serviceConfig = {
+        path = [ pkgs.jq ];
+        serviceConfig = occUnit config // {
           Type = "oneshot";
           RemainAfterExit = true;
         };
         script = ''
-          ${lib.getExe config.services.nextcloud.occ} user_oidc:provider ${lib.escapeShellArg realm.displayName} \
+          ${occ} user_oidc:provider ${lib.escapeShellArg realm.displayName} \
             --clientid=${client.representation.clientId} --clientsecret-file=${secret} \
             --discoveryuri=${keycloak.url}/realms/${client.realm}/.well-known/openid-configuration \
             --unique-uid=0 --mapping-uid=preferred_username
+          ${occ} config:app:set user_oidc allow_multiple_user_backends --type=string --value=0
+          users=$(${occ} user:list --info --limit=0 --output=json)
+          jq -r 'to_entries[] | select(.value.backend == "Database" and .value.enabled) | .key' <<<"$users" |
+            while IFS= read -r user; do
+              ${occ} user:disable "$user"
+            done
+        '';
+      };
+    };
+
+  # Policy: the office is the collabora app's, at its url, which Nextcloud's browsers open and Collabora calls back
+  # from as they find it.
+  office =
+    { config, ... }:
+    let
+      occ = lib.getExe config.services.nextcloud.occ;
+    in
+    {
+      services.nextcloud.extraApps = {
+        inherit (shipped) richdocuments;
+      };
+      systemd.services.nextcloud-office = {
+        description = "keep nextcloud's office with ${app.nextcloud.collabora}";
+        after = [ "nextcloud-setup.service" ];
+        requires = [ "nextcloud-setup.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = occUnit config // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          ${occ} config:app:set richdocuments wopi_url --value=${lib.escapeShellArg cfg.collabora.url}
+          ${occ} config:app:delete richdocuments public_wopi_url
+          ${occ} config:app:delete richdocuments wopi_callback_url
+        '';
+      };
+    };
+
+  # Policy: a nextcloud is a drive: it has the apps of its files and of what its settings call for, and the ones
+  # Nextcloud keeps enabled, and nextcloud-apps disables any other each time it starts. The app store is closed.
+  apps =
+    { config, ... }:
+    let
+      occ = lib.getExe config.services.nextcloud.occ;
+      kept = [
+        "bruteforcesettings"
+        "comments"
+        "files_downloadlimit"
+        "files_lock"
+        "files_pdfviewer"
+        "files_reminders"
+        "files_sharing"
+        "files_trashbin"
+        "files_versions"
+        "logreader"
+        "notifications"
+        "serverinfo"
+        "systemtags"
+        "text"
+      ]
+      ++ lib.attrNames config.services.nextcloud.extraApps
+      ++ lib.optional (mounts != [ ]) "files_external"
+      ++ lib.optionals (client == null) [
+        "password_policy"
+        "twofactor_totp"
+      ];
+    in
+    {
+      systemd.services.nextcloud-apps = {
+        description = "keep nextcloud's apps to a drive's";
+        after = [ "nextcloud-setup.service" ];
+        requires = [ "nextcloud-setup.service" ];
+        wantedBy = [ "multi-user.target" ];
+        path = [ pkgs.jq ];
+        serviceConfig = occUnit config // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          kept=${lib.escapeShellArg (builtins.toJSON kept)}
+          always=$(jq -c .alwaysEnabled ${config.services.nextcloud.package}/core/shipped.json)
+          enabled=$(${occ} app:list --enabled --output=json)
+          mapfile -t others < <(jq -r --argjson kept "$kept" --argjson always "$always" \
+            '.enabled | keys - $kept - $always | .[]' <<<"$enabled")
+          if ((''${#others[@]})); then
+            ${occ} app:disable "''${others[@]}"
+          fi
         '';
       };
     };
@@ -210,7 +319,7 @@ let
           requires = [ "nextcloud-setup.service" ];
           wantedBy = [ "multi-user.target" ];
           path = [ pkgs.jq ];
-          serviceConfig = {
+          serviceConfig = occUnit config // {
             Type = "oneshot";
             RemainAfterExit = true;
           };
@@ -241,9 +350,7 @@ let
               pkgs.gawk
               pkgs.openssh
             ];
-            serviceConfig = {
-              User = "nextcloud";
-              Group = "nextcloud";
+            serviceConfig = occUnit config // {
               Restart = "always";
               RestartSec = 10;
             };
@@ -369,8 +476,12 @@ in
       containers = [ cfg.name ];
     };
 
+    # Policy: an archive of the app's home leaves out what Nextcloud makes anew: previews, and each user's cache and
+    # uploads in progress.
     systemd.tmpfiles.rules = [
       "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
+      "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
+      "f+ '${cfg.home}/data/.resticignore' 0640 ${cfg.user} ${cfg.user} - appdata_*/preview\\n*/cache\\n*/uploads\\n"
     ];
 
     systemd.services = {
@@ -395,13 +506,6 @@ in
           "/" = {
             proxyPass = "http://[${cfg.bindAddress}]:${toString cfg.port}";
           };
-          "/.well-known/carddav" = {
-            return = "301 $scheme://$host/remote.php/dav";
-          };
-
-          "/.well-known/caldav" = {
-            return = "301 $scheme://$host/remote.php/dav";
-          };
         };
       };
     };
@@ -419,6 +523,10 @@ in
           "/run/postgresql" = {
             isReadOnly = false;
           };
+          ${secretKey} = {
+            hostPath = config.sops.secrets."${app.name}/secret-key".path;
+            isReadOnly = true;
+          };
         }
         // lib.optionalAttrs (client != null) {
           ${secret} = {
@@ -435,7 +543,12 @@ in
         ) keys;
 
         config = {
-          imports = lib.optional (client != null) oidc ++ lib.optional (mounts != [ ]) external;
+          imports = [
+            apps
+          ]
+          ++ lib.optional (client != null) oidc
+          ++ lib.optional (cfg.collabora != null) office
+          ++ lib.optional (mounts != [ ]) external;
           system.stateVersion = config.system.stateVersion;
 
           users.users.nextcloud.uid = cfg.uid;
@@ -472,12 +585,13 @@ in
             enable = true;
             https = cfg.ssl;
             hostName = "localhost";
-            package = pkgs.nextcloud35;
-            appstoreEnable = true;
+            inherit package;
+            appstoreEnable = false;
+            # Policy: config.php's secret, which what Nextcloud encrypts in its database is encrypted with, is the
+            # app's secret-key, and its instanceid, which names its appdata, follows from the app's id, so a database
+            # restored to a nextcloud installed anew reads as it did.
+            secrets.secret = secretKey;
             maxUploadSize = "1G";
-            extraApps = {
-              inherit (pkgs.nextcloud35Packages.apps) calendar;
-            };
             settings = {
               trusted_proxies = [
                 cfg.bindAddress
@@ -485,7 +599,14 @@ in
               trusted_domains = [
                 cfg.endpoint
               ]
-              ++ lib.optional (cfg.collaboraEndpoint != null) cfg.collaboraEndpoint;
+              ++ lib.optional (cfg.collabora != null) cfg.collabora.endpoint;
+              instanceid = "oc${app.ids.hex8}";
+              # Policy: the trash empties of what's 30 days old, and versions, thinned as Nextcloud does, of what's a
+              # year old: Nextcloud's own deletes only for room, which users without a quota never run out of.
+              trashbin_retention_obligation = "auto, 30";
+              versions_retention_obligation = "auto, 365";
+              defaultapp = "files";
+              skeletondirectory = "";
               default_phone_region = "SE";
               overwriteprotocol = app.scheme;
               forwarded_for_headers = [ "HTTP_X_FORWARDED_FOR" ];

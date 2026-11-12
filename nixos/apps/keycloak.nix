@@ -151,6 +151,11 @@ in
   o11n.postgresql.databases.${config.services.keycloak.database.name}.user =
     config.services.keycloak.database.username;
 
+  systemd.services.keycloak = {
+    after = [ "postgresql.target" ];
+    requires = [ "postgresql.target" ];
+  };
+
   # Dependency: the host decrypts the secret of each confidential client, in its app's sops file.
   sops.secrets = {
     "${app.name}/admin-client-secret" = {

@@ -1,4 +1,3 @@
-# nixos/postgresql.nix
 {
   config,
   lib,
@@ -76,18 +75,31 @@ in
               postgis
               pg_repack
             ];
+          # Policy: each database, and the role it's owned by, is made where it's missing, and owned by its role when
+          # that has the database's name, as postgresql-setup does each time it starts.
+          ensureDatabases = lib.mapAttrsToList (_: db: db.name) cfg.databases;
+          ensureUsers = map (user: {
+            name = user;
+            ensureDBOwnership = lib.any (db: db.name == user && db.user == user) (lib.attrValues cfg.databases);
+          }) (lib.unique (lib.mapAttrsToList (_: db: db.user) cfg.databases));
         };
 
-        # Upstream creates only the default data directory.
+        # Fact: upstream creates only the default data directory.
         systemd.tmpfiles.rules = [ "d ${dataDir} 0700 postgres postgres - -" ];
 
-        # Requires restarts a container when postgresql restarts, crashes included, and stops
-        # it when postgresql stops; being wanted by postgresql brings it back when that starts.
+        # Fact: Requires restarts a container when postgresql restarts, crashes included, and stops it when postgresql
+        # stops; being wanted by postgresql brings it back when that starts.
         systemd.services = lib.genAttrs' cfg.containers (
           name:
           lib.nameValuePair "container@${name}" {
-            after = [ "postgresql.service" ];
-            requires = [ "postgresql.service" ];
+            after = [
+              "postgresql.service"
+              "postgresql-setup.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "postgresql-setup.service"
+            ];
             wantedBy = [ "postgresql.service" ];
           }
         );
@@ -141,10 +153,10 @@ in
         systemd.services.postgresql = {
           unitConfig.RequiresMountsFor = [ walDir ];
           serviceConfig.ReadWritePaths = [ walDir ];
-          # A cluster made before the WAL got its own volume moves it there once. A start
-          # interrupted midway finishes the move, and nothing links a pg_wal that went missing.
-          # The unit's syscall filter allows no chown, so cp keeps no ownership: it copies as
-          # postgres, the files' owner.
+          # Policy: a cluster made before the WAL got its own volume moves it there once; a start interrupted midway
+          # finishes the move, and nothing links a pg_wal that went missing.
+          # Fact: the unit's syscall filter allows no chown, so cp keeps no ownership: it copies as postgres, the files'
+          # owner.
           preStart = lib.mkAfter ''
             pgWal="$PGDATA/pg_wal"
             if [ ! -L "$pgWal" ]; then

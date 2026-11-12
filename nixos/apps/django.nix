@@ -1,4 +1,3 @@
-# nixos/apps/django.nix
 {
   app,
   config,
@@ -138,6 +137,8 @@ in
 
       "${cfg.name}-django" = {
         path = [ config.services.postgresql.package ];
+        after = [ "postgresql.target" ];
+        requires = [ "postgresql.target" ];
         description = "serve ${cfg.name}";
         serviceConfig = {
           ExecStart = lib.escapeShellArgs [
@@ -157,6 +158,8 @@ in
 
       "${cfg.name}-django-worker" = lib.mkIf (cfg.worker-package != null) {
         path = [ config.services.postgresql.package ];
+        after = [ "postgresql.target" ];
+        requires = [ "postgresql.target" ];
         description = "serve ${cfg.name} worker";
         serviceConfig = {
           ExecStart = lib.getExe cfg.worker-package;

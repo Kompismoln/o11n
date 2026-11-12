@@ -33,10 +33,9 @@ included.
 A nextcloud with a `keycloak` has `user_oidc`, and `nextcloud-oidc`, a oneshot in its container after `nextcloud-setup`,
 keeps the realm as its provider, named by the realm's display name, with the app's `oidc-secret` from a file bound into
 the container (`nixos/apps/nextcloud.nix`). A Keycloak user is the nextcloud user of the same name: user_oidc maps the
-uid from `preferred_username`, as it is, and its soft auto-provisioning has a login of an account nextcloud had before
-the account's, its files and all, with the name and address Keycloak has. The realm lets no one register or rename their
-account, which is what keeps one from taking another's. Nextcloud's own logins go on beside, and user_oidc asks for
-https.
+uid from `preferred_username`, as it is, and makes the user its own, with the name and address Keycloak has. The realm
+lets no one register or rename their account, which is what keeps one from taking another's. The realm is the only way
+in: nextcloud's own logins are closed (`docs/parts/nextcloud.md`), and user_oidc asks for https.
 
 ## Status
 
@@ -48,9 +47,10 @@ app's own inbox, and the check fails with what Keycloak says when it can't (`cra
 
 `vmTests.keycloak` (`tests/vm/keycloak.nix`) runs `tests/inventories/mail`'s `auth` on `web`, beside its mail server on
 `mx`: Keycloak bootstraps `o11n` alone, keeps the realm as declared, and `meet`'s client, a jitsi on no host, which it
-puts back as declared after it's changed by hand, and `cloud`'s, a nextcloud on `web` too, with its secret: alice, an
-account of nextcloud's own, logs in with the realm as herself. `o11n status` has Keycloak mail the app over verified
-TLS, and fail with what Keycloak says when the server is down.
+puts back as declared after it's changed by hand, and `cloud`'s, a nextcloud on `web` too, with its secret: nextcloud's
+login sends alice to the realm, which makes her nextcloud's user, bob, a user of nextcloud's own, is disabled, and
+nextcloud keeps a drive's apps. `o11n status` has Keycloak mail the app over verified TLS, and fail with what Keycloak
+says when the server is down.
 
 ## Setting up: Kompismoln/org's keycloak as auth.kompismoln.se
 
@@ -102,8 +102,7 @@ and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't k
    `keycloak-realms` puts jitsi's client over the one `kompismoln` had, and jitsi's sign-in moves with it. Then move the
    friends' accounts out of `jitsi-realm`, or invite them anew, and delete it in the admin console.
 
-6. Have each nextcloud's users log in with `kompismoln`, under `[app.nextcloud-kompismoln]` and
-   `[app.nextcloud-kompismoln-dev]`:
+6. Have each nextcloud's users log in with `kompismoln`, under `[app.drive]` and `[app.drive-dev]`:
 
    ```toml
    nextcloud.keycloak = "keycloak"
@@ -111,15 +110,17 @@ and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't k
    ```
 
    ```sh
-   o11n secret generate app-nextcloud-kompismoln oidc-secret
-   o11n secret generate app-nextcloud-kompismoln-dev oidc-secret
+   o11n secret generate app-drive oidc-secret
+   o11n secret generate app-drive-dev oidc-secret
    o11n apply helsinki
    o11n apply stationary
    ```
 
    helsinki, the keycloak's host, decrypts the dev's secret too, as the app-scheduler it grants. Make each user in
    `kompismoln` with the name nextcloud has for them, from `nextcloud-occ user:list` in the container, and they log in
-   to their own account with "Log in with Kompismoln"; try it on the dev first.
+   to their own account with "Log in with Kompismoln"; try it on the dev first. Since nextcloud's logins are the realm's
+   alone (`docs/parts/nextcloud.md`), an account nextcloud had before can't be logged in to: the user is user_oidc's
+   anew, of a database made anew.
 
 ## Work in progress
 
@@ -129,5 +130,4 @@ and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't k
 - A realm or client the org no longer declares stays in Keycloak until someone removes it.
 - `keycloak-realms` keeps what's declared, and leaves what isn't as it finds it: a setting taken out of the declaration
   stays as it was last put.
-- Nothing makes its database or the role it logs in as, which `nixos/postgresql.nix` leaves to the operator.
 - The bootstrapped `o11n` is a temporary admin to Keycloak, which its console says.

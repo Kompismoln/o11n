@@ -138,6 +138,12 @@ code = [
   "tests/vm/keycloak.nix",
 ]
 
+[parts.nextcloud]
+stage = "drafted"
+layer = "domain"
+doc = "docs/parts/nextcloud.md"
+code = ["nixos/apps/nextcloud.nix", "tests/nixos/nextcloud.nix"]
+
 [parts.torrent]
 stage = "drafted"
 layer = "domain"
