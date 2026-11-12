@@ -9,3 +9,8 @@ tell = ["pending", "format", "lint", "docs", "parts", "index", "eval"]
 
 [hooks.hand-over]
 tell = ["format", "lint", "docs", "parts", "index", "eval", "leaks", "bats"]
+
+[costs]
+# Policy: the machine class, as MACHINE_CLASS names it, whose costs the docs quote (crates/o11n-dev/src/costs.rs:write).
+quoted = "container"
+quoted_in = ["AGENTS.md", "docs/dev.md"]

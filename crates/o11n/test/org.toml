@@ -109,15 +109,15 @@ keycloak.realms.example = {}
 id = 1
 endpoint = "cloud.example.com"
 run-on-hosts = ["testhost"]
-nextcloud.homes.carol = { host = "box.example.com", share = "carol", login = "carol", key = "store-box" }
-nextcloud.external.alice.files = { sftp = { host = "files.example.com", login = "alice" } }
+nextcloud.storages.carol.box.box = { host = "box.example.com", share = "carol", login = "carol", key = "store-box" }
+nextcloud.storages.alice.files = { sftp = { host = "files.example.com", login = "alice" } }
 
 # Fact: a nextcloud that follows what the replicas of testuser's allotment on testhost change.
 [app.files]
 id = 2
 endpoint = "files.example.com"
 run-on-hosts = ["lorem"]
-nextcloud.external.testuser.testhost = { allotment = "user-testuser@testhost" }
+nextcloud.storages.testuser.testhost = { allotment = "user-testuser@testhost" }
 
 [store.box]
 

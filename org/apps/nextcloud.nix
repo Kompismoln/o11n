@@ -8,15 +8,25 @@
 let
   inherit (context) org;
 
-  external = {
+  storage = {
     options = {
+      box = lib.mkOption {
+        description = "the SMB share that is the user's data, their files, versions and trash, which the user's other storages are folders in, or null";
+        type = lib.types.nullOr (lib.types.submodule home);
+        default = null;
+      };
+      bind = lib.mkOption {
+        description = "the directory on the app's hosts the storage is of, which nextcloud's user can write in, or null";
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
       allotment = lib.mkOption {
-        description = "the allotment, as <handle>@<host>, the mount reaches over SFTP, whose `sftp` has to have the app, or null for `sftp`";
+        description = "the allotment, as <handle>@<host>, the storage reaches over SFTP, whose `sftp` has to have the app, or null";
         type = lib.types.nullOr (lib.types.enum (lib.attrNames (context.spec.allotment or { })));
         default = null;
       };
       sftp = lib.mkOption {
-        description = "the SFTP server the mount reaches without an `allotment`, or null";
+        description = "the SFTP server the storage reaches, or null";
         type = lib.types.nullOr (
           lib.types.submodule {
             options = {
@@ -44,7 +54,7 @@ let
         default = null;
       };
       sharing = lib.mkOption {
-        description = "whether the user can share from the mount, nextcloud's enable_sharing";
+        description = "whether the user can share from the storage, but a box, nextcloud's enable_sharing";
         type = lib.types.bool;
         default = false;
       };
@@ -77,15 +87,58 @@ let
     org.entities.${handle}
       or (throw "app.${app.name}.nextcloud.${option}: ${handle} is no entity of the org's.");
 
+  rolfs = map (rolf: rolf.nextcloud-rolf) (
+    lib.filter (other: (other.nextcloud-rolf.nextcloud or null) == app.name) (lib.attrValues org.app)
+  );
+
+  kinds = [
+    "box"
+    "bind"
+    "allotment"
+    "sftp"
+  ];
+
+  # Policy: a storage is of one kind, and a user has one box at most, which is their data, and the rest folders in it.
+  checked = lib.mapAttrs (
+    user: storages:
+    let
+      boxes = lib.attrNames (lib.filterAttrs (_: storage: storage.box != null) storages);
+    in
+    if lib.length boxes > 1 then
+      throw "app.${app.name}.nextcloud.storages.${user}: ${lib.concatStringsSep " and " boxes} are both boxes, and a user's box is their data: keep one."
+    else
+      lib.mapAttrs (
+        name: storage:
+        let
+          set = lib.filter (kind: storage.${kind} != null) kinds;
+        in
+        if lib.length set != 1 then
+          throw "app.${app.name}.nextcloud.storages.${user}.${name}: a storage is a box, a bind, an allotment or an sftp server: set one of them${
+            lib.optionalString (set != [ ]) ", not ${lib.concatStringsSep " and " set}"
+          }."
+        else
+          storage // { kind = lib.head set; }
+      ) storages
+  ) config.storages;
+
+  ofKind =
+    kind:
+    lib.concatLists (
+      lib.mapAttrsToList (
+        user: storages:
+        lib.mapAttrsToList (name: storage: storage // { inherit user name; }) (
+          lib.filterAttrs (_: storage: storage.kind == kind) storages
+        )
+      ) checked
+    );
+
   servers =
     user: folder: mount:
     let
-      fail = message: throw "app.${app.name}.nextcloud.external.${user}.${folder}: ${message}";
+      fail = message: throw "app.${app.name}.nextcloud.storages.${user}.${folder}: ${message}";
       allotment = org.allotment.${mount.allotment};
     in
-    if (mount.allotment == null) == (mount.sftp == null) then
-      fail "it reaches an allotment or an sftp server: set one of them."
-    else if mount.sftp != null then
+    if mount.sftp != null then
       lib.genAttrs app.run-on-hosts (_: {
         inherit (mount.sftp) host login root;
         changes = null;
@@ -103,7 +156,7 @@ let
     user: folder: mount:
     let
       handle = if mount.sftp.key or null == null then app.handle else mount.sftp.key;
-      entity = entityOf "external.${user}.${folder}.sftp.key" handle;
+      entity = entityOf "storages.${user}.${folder}.sftp.key" handle;
     in
     {
       inherit handle;
@@ -116,41 +169,72 @@ let
 in
 {
   options = {
-    external = lib.mkOption {
-      description = "nextcloud's external storages over SFTP, by the Nextcloud user each is for, the one it applies to, then by the folder it's at in their files";
-      type = lib.types.attrsOf (lib.types.attrsOf (lib.types.submodule external));
+    storages = lib.mkOption {
+      description = "the storages of each Nextcloud user, by user, then by name: a box, which is their data, and the rest each a folder of its name in it, or, without a box, in a folder no one can write in; a Keycloak user without one can't log in";
+      type = lib.types.attrsOf (lib.types.attrsOf (lib.types.submodule storage));
       default = { };
-      example = lib.literalExpression ''{ alice.web.allotment = "user-alice@web"; }'';
-    };
-    homes = lib.mkOption {
-      description = "the Nextcloud users whose data, their files, versions and trash, is an SMB share, which each of the app's hosts mounts where Nextcloud keeps it, by user";
-      type = lib.types.attrsOf (lib.types.submodule home);
-      default = { };
-      example = lib.literalExpression ''{ alice = { host = "box.example.com"; share = "alice"; login = "alice"; key = "store-box"; }; }'';
+      example = lib.literalExpression ''
+        {
+          alice.box.box = { host = "box.example.com"; share = "alice"; login = "alice"; key = "store-box"; };
+          alice.web = { allotment = "user-alice@web"; sharing = true; };
+        }
+      '';
     };
     shares = lib.mkOption {
-      description = "each of `homes`, with its user and the key it logs in with";
+      description = "each box, with its user and the key it logs in with";
       internal = true;
       readOnly = true;
       type = lib.types.listOf lib.types.raw;
-      default = lib.mapAttrsToList (
-        user: home:
+      default = map (
+        storage:
         let
-          entity = entityOf "homes.${user}.key" home.key;
+          entity = entityOf "storages.${storage.user}.${storage.name}.box.key" storage.box.key;
         in
         {
-          inherit user;
-          inherit (home) host share login;
+          inherit (storage) user;
+          inherit (storage.box) host share login;
           key = {
-            handle = home.key;
+            handle = storage.box.key;
             secret = {
               name = "${entity.name}/smb-password";
               inherit (entity.secrets) sopsFile;
             };
           };
         }
-      ) config.homes;
-      defaultText = lib.literalMD "each of `homes`, with its user and its `key`'s smb-password";
+      ) (ofKind "box");
+      defaultText = lib.literalMD "each box of `storages`, with its user and its `key`'s smb-password";
+    };
+    binds = lib.mkOption {
+      description = "each bind, at its folder, for its user, with the directory it's of and whether it can be shared from";
+      internal = true;
+      readOnly = true;
+      type = lib.types.listOf lib.types.raw;
+      default =
+        map (storage: {
+          mountPoint = "/${storage.name}";
+          inherit (storage) user sharing;
+          path = storage.bind;
+          made = false;
+        }) (ofKind "bind")
+        ++ map (rolf: {
+          mountPoint = "/${rolf.folder}";
+          inherit (rolf) user path;
+          sharing = false;
+          made = true;
+        }) rolfs;
+      defaultText = lib.literalMD "each bind of `storages`, at its name, and the folder of each nextcloud-rolf app whose `nextcloud` is this one, which the app makes";
+    };
+    users = lib.mkOption {
+      description = "the Nextcloud users with storages, each with whether one is a box";
+      internal = true;
+      readOnly = true;
+      type = lib.types.attrsOf lib.types.bool;
+      default =
+        lib.genAttrs (map (rolf: rolf.user) rolfs) (_: false)
+        // lib.mapAttrs (
+          _: storages: lib.any (storage: storage.kind == "box") (lib.attrValues storages)
+        ) checked;
+      defaultText = lib.literalMD "each user of `storages`, with whether one is a box, and each nextcloud-rolf app's `user`";
     };
     mounts = lib.mkOption {
       description = "for each host the app runs on, its external storages: each at its folder, for its user, with the server it reaches there and how it follows what changes there, the key it logs in with and whether it can be shared from";
@@ -160,26 +244,34 @@ in
       default = lib.genAttrs app.run-on-hosts (
         on:
         lib.concatLists (
-          lib.mapAttrsToList (
-            user:
-            lib.mapAttrsToList (
-              folder: mount: {
-                mountPoint = "/${folder}";
-                inherit user;
-                inherit (mount) sharing;
-                server = (servers user folder mount).${on};
-                key = key user folder mount;
-              }
+          lib.mapAttrsToList
+            (
+              user:
+              lib.mapAttrsToList (
+                folder: mount: {
+                  mountPoint = "/${folder}";
+                  inherit user;
+                  inherit (mount) sharing;
+                  server = (servers user folder mount).${on};
+                  key = key user folder mount;
+                }
+              )
             )
-          ) config.external
+            (
+              lib.mapAttrs (
+                _:
+                lib.filterAttrs (
+                  _: storage:
+                  lib.elem storage.kind [
+                    "allotment"
+                    "sftp"
+                  ]
+                )
+              ) checked
+            )
         )
       );
-      defaultText = lib.literalMD "for each of the app's `run-on-hosts`, each of `external` with its server there and its `sftp.key`'s sftp-key, or the app's";
-    };
-    collabora = lib.mkOption {
-      description = "the collabora app whose endpoint nextcloud's office uses, or null";
-      type = lib.types.nullOr context.types.app.ref;
-      default = null;
+      defaultText = lib.literalMD "for each of the app's `run-on-hosts`, each allotment and sftp server of `storages` with its server there and its `sftp.key`'s sftp-key, or the app's";
     };
     keycloak = lib.mkOption {
       description = "the keycloak app nextcloud's users log in with, or null for nextcloud's own logins alone";

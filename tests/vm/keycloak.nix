@@ -128,6 +128,7 @@ pkgs.testers.runNixOSTest {
         # Accommodating for the test's mail server, whose certificate is of the test's own CA, which Keycloak doesn't
         # read from the host's bundle.
         services.keycloak.settings.truststore-paths = "${tls}/ca.crt";
+        systemd.tmpfiles.rules = [ "d /var/lib/cloud/alice 0750 cloud cloud - -" ];
         networking.firewall.allowedTCPPorts = [
           80
           443
@@ -264,6 +265,29 @@ pkgs.testers.runNixOSTest {
         users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
         assert list(users) == ["alice"] and users["alice"]["backend"] == "user_oidc", users
 
+    with subtest("a Keycloak user without storages isn't nextcloud's, and can't log in"):
+        carol = {
+            "username": "carol", "email": "carol@example.com", "emailVerified": True,
+            "firstName": "Carol", "lastName": "Example", "enabled": True,
+            "credentials": [{"type": "password", "value": "carol's", "temporary": False}],
+        }
+        web.succeed(
+            f"curl -sSf -X POST -H 'X-Forwarded-Proto: https' -H 'Authorization: Bearer {token()}'"
+            f" -H 'Content-Type: application/json' --data-binary @- ${local}/admin/realms/${realm}/users"
+            f" <<'EOF'\n{json.dumps(carol)}\nEOF"
+        )
+        browse = "curl -sS -b /tmp/carol -c /tmp/carol -L"
+        page = web.succeed(f"{browse} ${cloud.url}/login")
+        form = re.search(r'action="([^"]*login-actions/authenticate[^"]*)"', page)
+        assert form, page
+        refused = web.succeed(
+            f"{browse} -w '\\n%{{http_code}}' --data-urlencode username=carol"
+            f" --data-urlencode password=\"carol's\" '{html.unescape(form.group(1))}'"
+        )
+        assert refused.endswith("\n400") and "Failed to provision the user" in refused, refused[-500:]
+        users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
+        assert list(users) == ["alice"], users
+
     with subtest("a user of nextcloud's own is disabled, and the realm's user takes no password"):
         web.succeed("nixos-container run cloud -- env OC_PASS=bob-password nextcloud-occ user:add --password-from-env bob")
         web.succeed("nixos-container run cloud -- systemctl restart nextcloud-oidc.service")
@@ -290,8 +314,7 @@ pkgs.testers.runNixOSTest {
         held = web.succeed(f"{occ} config:system:get secret").strip()
         assert held == web.succeed("cat /run/secrets/cloud/secret-key").strip(), held
         assert web.succeed(f"{occ} config:system:get instanceid").strip() == "oc${cloud.ids.hex8}"
-        web.succeed("test -d /var/lib/cloud/nextcloud/data/appdata_oc${cloud.ids.hex8}")
-        web.succeed("grep -qx 'appdata_\\*/preview' /var/lib/cloud/nextcloud/data/.resticignore")
+        web.succeed("nixos-container run cloud -- test -d /var/lib/nextcloud/data/appdata_oc${cloud.ids.hex8}")
 
     with subtest("o11n status has Keycloak mail the app over verified TLS, as the app"):
         out = web.succeed(

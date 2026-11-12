@@ -1,4 +1,3 @@
-# nixos/apps/nextcloud-rolf.nix
 {
   app,
   host,
@@ -11,7 +10,7 @@ let
   nextcloud = org.app.${app.nextcloud-rolf.nextcloud};
   packages = inputs.${app.nextcloud-rolf.input}.packages.${host.system};
   user = nextcloud.name;
-  home = "${nextcloud.principal.home}/nextcloud/data/rolf/files/+pub";
+  home = app.nextcloud-rolf.path;
   siteRoot = "${home}/_site";
   sourceRoot = "${home}/_src";
 

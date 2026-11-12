@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Usage: [STAMPED=<commit>] dev/write.sh [stage]..., from the clone's root in the dev shell. Writes what follows from
 # the code and the docs for the stages named, or all of them, in order, says what it wrote, and stops at the first that
-# fails. A stage of dev/check.sh checks what each writes: format, index and stamped.
+# fails. A stage of dev/check.sh checks what each but costs writes: format, index and stamped.
 set -euo pipefail
 
-STAGES=(format index stamps)
+STAGES=(costs format index stamps)
+
+write-costs() {
+    o11n-dev costs write
+}
 
 write-format() {
     local docs=()

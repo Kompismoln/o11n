@@ -1,7 +1,10 @@
+# Optimization: two parts, as `part` names, each a VM test of its own, so that they run side by side: how changes are
+# followed, and how the following recovers.
 {
   pkgs,
   o11nInputs,
   outputs,
+  part,
 }:
 let
   inherit (pkgs) lib;
@@ -109,9 +112,72 @@ let
         pkgs
         ;
     };
+
+  parts = {
+    follows = ''
+      with subtest("what the replica changes, nextcloud knows of, without a folder opened or a scan run"):
+          laptop.succeed("su alice -c 'echo from-laptop > ${replica}/from-laptop.txt'")
+          zhost.wait_until_succeeds("test -e ${folder}/from-laptop.txt", timeout=120)
+          wait_cached("from-laptop.txt")
+          laptop.succeed("su alice -c 'mkdir -p ${replica}/deep/er && echo deep > ${replica}/deep/er/deep.txt'")
+          wait_cached("deep.txt")
+
+      with subtest("what another writer changes on the allotment's host isn't a change of the replicas'"):
+          zhost.succeed("runuser -u alice -- sh -c 'echo local > ${folder}/local.txt'")
+          laptop.wait_until_succeeds("test -e ${replica}/local.txt", timeout=120)
+          laptop.sleep(10)
+          assert not cached("local.txt")
+
+      with subtest("nextcloud checks a folder for changes as it's opened"):
+          laptop.succeed(
+              "curl -sSf -o /dev/null -X PROPFIND -H 'Depth: 1' -H 'Host: ${cloud.endpoint}' -u alice:alice-password"
+              " 'http://[${cloud.principal.bindAddress}]:4000/remote.php/dav/files/alice/zhost/'"
+          )
+          assert cached("local.txt")
+
+      with subtest("the login follows the allotments its key may, and nothing else"):
+          ssh = (
+              "ssh -T -i /run/secrets/${cloud.name}/app-cloud/sftp-key -o IdentitiesOnly=yes -o BatchMode=yes"
+              " -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null allotment-changes@${address4.zhost}"
+          )
+          refused = laptop.fail(f"{ssh} other.zhost 2>&1")
+          assert "this key follows ${id}, and not 'other.zhost'" in refused, refused
+          assert laptop.succeed(f"timeout 5 {ssh} ${id} || true").strip() == "changed"
+
+      with subtest("o11n status says the listener is ok once it has been connected for a while"):
+          laptop.wait_until_succeeds("nextcloud-status-${cloud.name} | grep -qx '${cloud.name} changes alice/zhost ok'", timeout=60)
+    '';
+
+    recovers = ''
+      with subtest("it catches up as it reconnects"):
+          zhost.succeed("systemctl stop sshd.service")
+          laptop.succeed(f"nixos-container run ${cloud.name} -- systemctl restart {listener}")
+          laptop.wait_until_fails(f"nixos-container run ${cloud.name} -- systemctl is-active {listener}", timeout=60)
+          laptop.succeed("su alice -c 'echo while-away > ${replica}/while-away.txt'")
+          zhost.wait_until_succeeds("test -e ${folder}/while-away.txt", timeout=120)
+          zhost.succeed("systemctl start sshd.service")
+          wait_cached("while-away.txt")
+
+      with subtest("a scan that fails, the listener scans again until one doesn't, and o11n status says so meanwhile"):
+          zhost.succeed("mv /etc/ssh/authorized_keys.d/alice /root/alice-keys")
+          laptop.succeed("su alice -c 'echo while-failing > ${replica}/while-failing.txt'")
+          zhost.wait_until_succeeds("test -e ${folder}/while-failing.txt", timeout=120)
+          laptop.wait_until_succeeds(f"journalctl -M ${cloud.name} -u {listener} | grep -q '| Errors |'", timeout=60)
+          laptop.wait_until_succeeds(
+              "nextcloud-status-${cloud.name} | grep -q '^${cloud.name} changes alice/zhost nextcloud-changes-alice-zhost.service '",
+              timeout=60,
+          )
+          assert not cached("while-failing.txt")
+          zhost.succeed("mv /root/alice-keys /etc/ssh/authorized_keys.d/alice")
+          # Accommodating for nextcloud, which skips a storage it failed to log in to for 30 minutes.
+          laptop.succeed("runuser -u postgres -- psql -d ${cloud.database} -c 'update oc_storages set available = 1'")
+          wait_cached("while-failing.txt")
+          laptop.wait_until_succeeds("nextcloud-status-${cloud.name} | grep -qx '${cloud.name} changes alice/zhost ok'", timeout=60)
+    '';
+  };
 in
 pkgs.testers.runNixOSTest {
-  name = "o11n-nextcloud-changes";
+  name = "o11n-nextcloud-changes" + lib.optionalString (part == "recovers") "-recovery";
 
   imports = [ ./timeout.nix ];
   globalTimeout = 900;
@@ -265,65 +331,10 @@ pkgs.testers.runNixOSTest {
     zhost.wait_for_unit("allotment-changes@${id}.service")
     laptop.wait_for_unit("allotment-sync@${id}.service")
     laptop.wait_until_succeeds("nixos-container run ${cloud.name} -- systemctl is-active nextcloud-external.service", timeout=600)
-    laptop.succeed("nixos-container run ${cloud.name} -- env OC_PASS=alice-password nextcloud-occ user:add --password-from-env alice")
+    laptop.succeed("nixos-container run ${cloud.name} -- env OC_PASS=alice-password nextcloud-occ user:resetpassword --password-from-env alice")
     laptop.wait_until_succeeds(f"nixos-container run ${cloud.name} -- systemctl is-active {listener}", timeout=120)
     laptop.wait_until_succeeds("test -d ${replica}/.stfolder", timeout=120)
 
-    with subtest("what the replica changes, nextcloud knows of, without a folder opened or a scan run"):
-        laptop.succeed("su alice -c 'echo from-laptop > ${replica}/from-laptop.txt'")
-        zhost.wait_until_succeeds("test -e ${folder}/from-laptop.txt", timeout=120)
-        wait_cached("from-laptop.txt")
-        laptop.succeed("su alice -c 'mkdir -p ${replica}/deep/er && echo deep > ${replica}/deep/er/deep.txt'")
-        wait_cached("deep.txt")
-
-    with subtest("what another writer changes on the allotment's host isn't a change of the replicas'"):
-        zhost.succeed("runuser -u alice -- sh -c 'echo local > ${folder}/local.txt'")
-        laptop.wait_until_succeeds("test -e ${replica}/local.txt", timeout=120)
-        laptop.sleep(10)
-        assert not cached("local.txt")
-
-    with subtest("nextcloud checks a folder for changes as it's opened"):
-        laptop.succeed(
-            "curl -sSf -o /dev/null -X PROPFIND -H 'Depth: 1' -H 'Host: ${cloud.endpoint}' -u alice:alice-password"
-            " 'http://[${cloud.principal.bindAddress}]:4000/remote.php/dav/files/alice/zhost/'"
-        )
-        assert cached("local.txt")
-
-    with subtest("the login follows the allotments its key may, and nothing else"):
-        ssh = (
-            "ssh -T -i /run/secrets/${cloud.name}/app-cloud/sftp-key -o IdentitiesOnly=yes -o BatchMode=yes"
-            " -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null allotment-changes@${address4.zhost}"
-        )
-        refused = laptop.fail(f"{ssh} other.zhost 2>&1")
-        assert "this key follows ${id}, and not 'other.zhost'" in refused, refused
-        assert laptop.succeed(f"timeout 5 {ssh} ${id} || true").strip() == "changed"
-
-    with subtest("it catches up as it reconnects"):
-        zhost.succeed("systemctl stop sshd.service")
-        laptop.succeed(f"nixos-container run ${cloud.name} -- systemctl restart {listener}")
-        laptop.wait_until_fails(f"nixos-container run ${cloud.name} -- systemctl is-active {listener}", timeout=60)
-        laptop.succeed("su alice -c 'echo while-away > ${replica}/while-away.txt'")
-        zhost.wait_until_succeeds("test -e ${folder}/while-away.txt", timeout=120)
-        zhost.succeed("systemctl start sshd.service")
-        wait_cached("while-away.txt")
-
-    with subtest("o11n status says the listener is ok once it has been connected for a while"):
-        laptop.wait_until_succeeds("nextcloud-status-${cloud.name} | grep -qx '${cloud.name} changes alice/zhost ok'", timeout=60)
-
-    with subtest("a scan that fails, the listener scans again until one doesn't, and o11n status says so meanwhile"):
-        zhost.succeed("mv /etc/ssh/authorized_keys.d/alice /root/alice-keys")
-        laptop.succeed("su alice -c 'echo while-failing > ${replica}/while-failing.txt'")
-        zhost.wait_until_succeeds("test -e ${folder}/while-failing.txt", timeout=120)
-        laptop.wait_until_succeeds(f"journalctl -M ${cloud.name} -u {listener} | grep -q '| Errors |'", timeout=60)
-        laptop.wait_until_succeeds(
-            "nextcloud-status-${cloud.name} | grep -q '^${cloud.name} changes alice/zhost nextcloud-changes-alice-zhost.service '",
-            timeout=60,
-        )
-        assert not cached("while-failing.txt")
-        zhost.succeed("mv /root/alice-keys /etc/ssh/authorized_keys.d/alice")
-        # Accommodating for nextcloud, which skips a storage it failed to log in to for 30 minutes.
-        laptop.succeed("runuser -u postgres -- psql -d ${cloud.database} -c 'update oc_storages set available = 1'")
-        wait_cached("while-failing.txt")
-        laptop.wait_until_succeeds("nextcloud-status-${cloud.name} | grep -qx '${cloud.name} changes alice/zhost ok'", timeout=60)
-  '';
+  ''
+  + parts.${part};
 }

@@ -52,6 +52,22 @@ pub fn side(side: Side, name: &str, text: &str) -> Result<String, String> {
     Ok(kept)
 }
 
+/// The index of each line of the text that is outside its stamps or as a stamp pending has it written now.
+pub fn applied_lines(text: &str) -> Vec<usize> {
+    let mut kept = Vec::new();
+    let mut at: Option<Side> = None;
+    for (n, line) in text.split_inclusive('\n').enumerate() {
+        match (at, line.trim_end_matches('\n')) {
+            (None, OPENING) => at = Some(Side::Signed),
+            (Some(Side::Signed), DIVIDER) => at = Some(Side::Applied),
+            (Some(Side::Applied), CLOSING) => at = None,
+            (None | Some(Side::Applied), _) => kept.push(n),
+            (Some(Side::Signed), _) => {}
+        }
+    }
+    kept
+}
+
 fn read(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|e| format!("stamps: {path}: {e}"))
 }

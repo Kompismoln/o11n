@@ -221,7 +221,6 @@ pkgs.testers.runNixOSTest {
             return line
 
         btrfs.succeed(
-            "createdb -h /run/postgresql -U postgres probe",
             "psql -h /run/postgresql -U postgres -c \"update pg_database set datcollversion = '0.0' where datname = 'probe'\"",
         )
         assert probe()[1] == "0.0", probe()

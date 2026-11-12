@@ -20,7 +20,9 @@ let
     home = "${app.principal.home}/nextcloud";
     port = 4000;
     user = app.name;
-    collabora = lib.mapNullable (collabora: org.app.${collabora}) app.nextcloud.collabora;
+    # Policy: coolwsd listens on loopback alone, as it binds to no single address, at a port of the app's own, as
+    # each nextcloud on a host shares its network.
+    officePort = 9980 + app.ids.int;
   };
 
   package = pkgs.nextcloud35;
@@ -57,7 +59,10 @@ let
           inherit (shipped) user_oidc;
         };
         settings = {
-          user_oidc.soft_auto_provision = false;
+          user_oidc = {
+            auto_provision = false;
+            soft_auto_provision = false;
+          };
           lost_password_link = "disabled";
           token_auth_enforced = true;
         };
@@ -87,8 +92,13 @@ let
       };
     };
 
-  # Policy: the office is the collabora app's, at its url, which Nextcloud's browsers open and Collabora calls back
-  # from as they find it.
+  dicts = [
+    pkgs.hunspellDicts.sv_SE
+    pkgs.hunspellDicts.en_US
+  ];
+
+  # Policy: the office is Collabora's, in the container beside Nextcloud, at the app's own url, which Nextcloud's
+  # browsers open, Nextcloud asks for its discovery, and Collabora calls back to, and coolwsd serves no other.
   office =
     { config, ... }:
     let
@@ -98,8 +108,35 @@ let
       services.nextcloud.extraApps = {
         inherit (shipped) richdocuments;
       };
+      environment.systemPackages = dicts;
+      services.collabora-online = {
+        enable = true;
+        port = cfg.officePort;
+        aliasGroups = [ { host = "${app.url}:${if cfg.ssl then "443" else "80"}"; } ];
+        settings = {
+          allowed_languages = "en_US sv_SE";
+          ssl = {
+            enable = false;
+            termination = cfg.ssl;
+          };
+          net = {
+            proto = "IPv6";
+            listen = "loopback";
+          };
+          storage.wopi.alias_groups."@mode" = "groups";
+        };
+      };
+      systemd.services.coolwsd = {
+        environment.DICPATH = lib.concatMapStringsSep ":" (dict: "${dict}/share/hunspell") dicts;
+        preStart = ''
+          mkdir -p /var/lib/cool/systemplate/usr/share/hunspell
+        ''
+        + lib.concatMapStrings (dict: ''
+          ln -sf ${dict}/share/hunspell/* /var/lib/cool/systemplate/usr/share/hunspell/
+        '') dicts;
+      };
       systemd.services.nextcloud-office = {
-        description = "keep nextcloud's office with ${app.nextcloud.collabora}";
+        description = "keep nextcloud's office with its coolwsd";
         after = [ "nextcloud-setup.service" ];
         requires = [ "nextcloud-setup.service" ];
         wantedBy = [ "multi-user.target" ];
@@ -108,10 +145,83 @@ let
           RemainAfterExit = true;
         };
         script = ''
-          ${occ} config:app:set richdocuments wopi_url --value=${lib.escapeShellArg cfg.collabora.url}
+          ${occ} config:app:set richdocuments wopi_url --value=${lib.escapeShellArg app.url}
           ${occ} config:app:delete richdocuments public_wopi_url
           ${occ} config:app:delete richdocuments wopi_callback_url
         '';
+      };
+    };
+
+  # Policy: the container's home is its own, and so made anew as it starts, but what's mounted in it: what's
+  # Nextcloud's own of it is declared, or in its database, which holds the version Nextcloud is at, as nextcloud-setup
+  # records it once it has installed or upgraded. config.php then says it's installed at that version, and Nextcloud
+  # upgrades from it rather than install anew.
+  ephemeral =
+    { config, ... }:
+    {
+      systemd.services.nextcloud-setup =
+        let
+          psql = "${postgresql}/bin/psql -h /run/postgresql -U ${cfg.user} -d ${cfg.database} -tAX";
+          config_php = "${config.services.nextcloud.datadir}/config/config.php";
+        in
+        {
+          preStart = ''
+            if [[ ! -s ${config_php} ]]; then
+              version=$(${psql} -c "select value from o11n_nextcloud where key = 'version'" 2>/dev/null) || version=
+              if [[ -n $version ]]; then
+                printf '<?php\n$CONFIG = [\x27installed\x27 => true, \x27version\x27 => \x27%s\x27];\n' "$version" >${config_php}
+                echo '# Nextcloud data directory' >${datadir}/.ncdata
+              elif [[ -n $(${psql} -c "select to_regclass('oc_appconfig')") ]]; then
+                echo "${cfg.database} holds a nextcloud whose version o11n_nextcloud doesn't say, which nextcloud-setup would install anew over: record it, as in ${cfg.database}'s old config.php, with psql -c \"create table o11n_nextcloud (key text primary key, value text not null); insert into o11n_nextcloud values ('version', '<version>')\"" >&2
+                exit 1
+              fi
+            fi
+          '';
+          postStart = ''
+            version=$(${lib.getExe config.services.nextcloud.occ} config:system:get version)
+            ${psql} -c "create table if not exists o11n_nextcloud (key text primary key, value text not null)" \
+              -c "insert into o11n_nextcloud values ('version', '$version') on conflict (key) do update set value = excluded.value"
+          '';
+        };
+    };
+
+  # Policy: the users with storages are the drive's, which it makes as it starts, each of the realm's with a
+  # Keycloak, as user_oidc lets in no other, and of nextcloud's own without, whose password occ sets. A user nothing
+  # declares has a quota of nothing, and one with a box none, as the box is their data.
+  users =
+    { config, ... }:
+    let
+      occ = lib.getExe config.services.nextcloud.occ;
+      psql = "${postgresql}/bin/psql -h /run/postgresql -U ${cfg.user} -d ${cfg.database} -tAX";
+      declared = app.nextcloud.users or { };
+      made =
+        user:
+        if client != null then
+          "insert into oc_user_oidc (user_id, display_name) values ('${user}', '') on conflict (user_id) do nothing"
+        else
+          "insert into oc_users (uid, uid_lower, displayname, password) values ('${user}', '${lib.toLower user}', '${user}', '') on conflict (uid) do nothing";
+    in
+    {
+      systemd.services.nextcloud-users = {
+        description = "keep nextcloud's users to those with storages";
+        after = [ "nextcloud-setup.service" ];
+        requires = [ "nextcloud-setup.service" ];
+        before = [ "nextcloud-external.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = occUnit config // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script =
+          lib.concatMapStrings (user: ''
+            ${psql} -c ${lib.escapeShellArg (made user)}
+          '') (lib.attrNames declared)
+          + ''
+            ${occ} config:app:set files default_quota --value='0 B'
+          ''
+          + lib.concatMapStrings (user: ''
+            ${occ} user:setting ${user} files quota none
+          '') (lib.attrNames (lib.filterAttrs (_: boxed: boxed) declared));
       };
     };
 
@@ -138,7 +248,7 @@ let
         "text"
       ]
       ++ lib.attrNames config.services.nextcloud.extraApps
-      ++ lib.optional (mounts != [ ]) "files_external"
+      ++ lib.optional (mounts ++ binds != [ ]) "files_external"
       ++ lib.optionals (client == null) [
         "password_policy"
         "twofactor_totp"
@@ -169,6 +279,10 @@ let
     };
 
   mounts = app.nextcloud.mounts.${host.name} or [ ];
+  binds = app.nextcloud.binds or [ ];
+  bindOf = bind: "/srv/binds/${bind.user}${bind.mountPoint}";
+  # Policy: a user without a box has the files no one can write in, which their other storages are folders in.
+  unboxed = lib.attrNames (lib.filterAttrs (_: boxed: !boxed) (app.nextcloud.users or { }));
   followed = lib.filter (mount: mount.server.changes or null != null) mounts;
   changesOf =
     mount: "nextcloud-changes-${mount.user}${lib.replaceStrings [ "/" ] [ "-" ] mount.mountPoint}";
@@ -177,6 +291,8 @@ let
   sftpKey = handle: "/run/secrets/sftp-keys/${handle}";
 
   shares = app.nextcloud.shares or [ ];
+  datadir = "/var/lib/nextcloud/data";
+  postgresql = config.services.postgresql.package;
   dataOf = user: "${cfg.home}/data/${user}";
   passwordOf = handle: "${app.name}/${handle}/smb-password";
   credentialsOf = user: "${app.name}/${user}-smb-credentials";
@@ -210,7 +326,7 @@ let
         say home ${share.user} ok
       fi
     '') shares
-    + lib.optionalString (mounts != [ ]) (
+    + lib.optionalString (mounts ++ binds != [ ]) (
       ''
         listed=$(occ files_external:list --output=json 2>/dev/null) || listed=
       ''
@@ -239,7 +355,7 @@ let
             fi
           fi
         ''
-      ) mounts
+      ) (mounts ++ binds)
     )
     # Policy: a listener that can't connect is active for no more than its ssh's ConnectTimeout before it restarts, so
     # one active for longer is connected.
@@ -277,22 +393,34 @@ let
       keep =
         mount:
         let
+          local = mount ? path;
           declared = {
             mount_id = null;
             mount_point = mount.mountPoint;
-            storage = "\\OCA\\Files_External\\Lib\\Storage\\SFTP";
-            authentication_type = "publickey::rsa";
-            configuration = {
-              inherit (mount.server) host root;
-              user = mount.server.login;
-              public_key = lib.optionalString (builtins.pathExists mount.key.publicKey) (
-                lib.trim (builtins.readFile mount.key.publicKey)
-              );
-            };
             options.enable_sharing = mount.sharing;
             applicable_users = [ mount.user ];
             applicable_groups = [ ];
-          };
+          }
+          // (
+            if local then
+              {
+                storage = "\\OC\\Files\\Storage\\Local";
+                authentication_type = "null::null";
+                configuration.datadir = bindOf mount;
+              }
+            else
+              {
+                storage = "\\OCA\\Files_External\\Lib\\Storage\\SFTP";
+                authentication_type = "publickey::rsa";
+                configuration = {
+                  inherit (mount.server) host root;
+                  user = mount.server.login;
+                  public_key = lib.optionalString (builtins.pathExists mount.key.publicKey) (
+                    lib.trim (builtins.readFile mount.key.publicKey)
+                  );
+                };
+              }
+          );
         in
         ''
           declared=${lib.escapeShellArg (builtins.toJSON declared)}
@@ -306,8 +434,15 @@ let
             for id in $(jq -r '.[].mount_id' <<<"$current"); do
               ${occ} files_external:delete --yes "$id"
             done
-            jq --rawfile key ${sftpKey mount.key.handle} '.configuration.private_key = $key' <<<"$declared" \
-              | ${occ} files_external:import -
+            ${
+              if local then
+                ''${occ} files_external:import - <<<"$declared"''
+              else
+                ''
+                  jq --rawfile key ${sftpKey mount.key.handle} '.configuration.private_key = $key' <<<"$declared" \
+                    | ${occ} files_external:import -
+                ''
+            }
           fi
         '';
     in
@@ -326,7 +461,7 @@ let
           script = ''
             ${occ} app:enable files_external
             mounts=$(${occ} files_external:list --show-password --output=json)
-            ${lib.concatMapStrings keep mounts}
+            ${lib.concatMapStrings keep (mounts ++ binds)}
           '';
         };
       }
@@ -449,7 +584,7 @@ in
       ) shares
     );
 
-    environment.systemPackages = lib.optional (shares != [ ] || mounts != [ ]) status;
+    environment.systemPackages = lib.optional (shares ++ mounts ++ binds != [ ]) status;
 
     # Policy: the container connects as the host user with its uid, by peer authentication.
     assertions = [
@@ -476,13 +611,16 @@ in
       containers = [ cfg.name ];
     };
 
-    # Policy: an archive of the app's home leaves out what Nextcloud makes anew: previews, and each user's cache and
-    # uploads in progress.
-    systemd.tmpfiles.rules = [
-      "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
-      "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
-      "f+ '${cfg.home}/data/.resticignore' 0640 ${cfg.user} ${cfg.user} - appdata_*/preview\\n*/cache\\n*/uploads\\n"
-    ];
+    systemd.tmpfiles.rules =
+      lib.optionals (shares != [ ]) [
+        "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
+        "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
+      ]
+      ++ lib.concatMap (bind: [
+        "d '${dirOf (dirOf bind.path)}' 0750 ${cfg.user} ${cfg.user} - -"
+        "d '${dirOf bind.path}' 0750 ${cfg.user} ${cfg.user} - -"
+        "d '${bind.path}' 0750 ${cfg.user} ${cfg.user} - -"
+      ]) (lib.filter (bind: bind.made or false) binds);
 
     systemd.services = {
       "container@${cfg.name}" = {
@@ -502,11 +640,34 @@ in
           client_max_body_size 1G;
         '';
 
-        locations = {
-          "/" = {
-            proxyPass = "http://[${cfg.bindAddress}]:${toString cfg.port}";
+        locations =
+          let
+            office = {
+              proxyPass = "http://[::1]:${toString cfg.officePort}";
+              extraConfig = ''
+                proxy_set_header Host $host;
+              '';
+            };
+            websocket = office // {
+              proxyWebsockets = true;
+              extraConfig = office.extraConfig + ''
+                proxy_read_timeout 36000s;
+              '';
+            };
+          in
+          {
+            "/" = {
+              proxyPass = "http://[${cfg.bindAddress}]:${toString cfg.port}";
+            };
+            "^~ /browser" = office;
+            "^~ /hosting/discovery" = office;
+            "^~ /hosting/capabilities" = office;
+            "~ ^/cool/(.*)/ws$" = websocket // {
+              priority = 1;
+            };
+            "^~ /cool/adminws" = websocket;
+            "~ ^/(c|l)ool" = office;
           };
-        };
       };
     };
 
@@ -516,10 +677,6 @@ in
         ephemeral = true;
 
         bindMounts = {
-          ${config.services.nextcloud.home} = {
-            isReadOnly = false;
-            hostPath = cfg.home;
-          };
           "/run/postgresql" = {
             isReadOnly = false;
           };
@@ -540,16 +697,43 @@ in
             hostPath = config.sops.secrets.${secretOf handle}.path;
             isReadOnly = true;
           }
-        ) keys;
+        ) keys
+        // lib.listToAttrs (
+          map (
+            share:
+            lib.nameValuePair "${datadir}/${share.user}" {
+              hostPath = dataOf share.user;
+              isReadOnly = false;
+            }
+          ) shares
+          ++ map (
+            bind:
+            lib.nameValuePair (bindOf bind) {
+              hostPath = bind.path;
+              isReadOnly = false;
+            }
+          ) binds
+          ++ map (
+            user:
+            lib.nameValuePair "${datadir}/${user}/files" {
+              hostPath = "${pkgs.emptyDirectory}";
+              isReadOnly = true;
+            }
+          ) unboxed
+        );
 
         config = {
           imports = [
             apps
+            ephemeral
+            users
           ]
           ++ lib.optional (client != null) oidc
-          ++ lib.optional (cfg.collabora != null) office
-          ++ lib.optional (mounts != [ ]) external;
+          ++ [ office ]
+          ++ lib.optional (mounts ++ binds != [ ]) external;
           system.stateVersion = config.system.stateVersion;
+
+          systemd.tmpfiles.rules = map (user: "d '${datadir}/${user}' 0750 nextcloud nextcloud - -") unboxed;
 
           users.users.nextcloud.uid = cfg.uid;
           users.groups.nextcloud.gid = cfg.gid;
@@ -587,10 +771,13 @@ in
             hostName = "localhost";
             inherit package;
             appstoreEnable = false;
-            # Policy: config.php's secret, which what Nextcloud encrypts in its database is encrypted with, is the
-            # app's secret-key, and its instanceid, which names its appdata, follows from the app's id, so a database
-            # restored to a nextcloud installed anew reads as it did.
-            secrets.secret = secretKey;
+            # Policy: config.php's secret, which what Nextcloud encrypts in its database is encrypted with, and its
+            # passwordsalt are the app's secret-key, and its instanceid, which names its appdata, follows from the
+            # app's id, so that its home, made anew, reads its database as it did.
+            secrets = {
+              secret = secretKey;
+              passwordsalt = secretKey;
+            };
             maxUploadSize = "1G";
             settings = {
               trusted_proxies = [
@@ -598,8 +785,7 @@ in
               ];
               trusted_domains = [
                 cfg.endpoint
-              ]
-              ++ lib.optional (cfg.collabora != null) cfg.collabora.endpoint;
+              ];
               instanceid = "oc${app.ids.hex8}";
               # Policy: the trash empties of what's 30 days old, and versions, thinned as Nextcloud does, of what's a
               # year old: Nextcloud's own deletes only for room, which users without a quota never run out of.
@@ -612,8 +798,9 @@ in
               forwarded_for_headers = [ "HTTP_X_FORWARDED_FOR" ];
               "simpleSignUpLink.shown" = false;
               # Accommodating for files_external:import, which leaves out the mount option the web UI sets: each
-              # storage, a home on SMB too, checks a folder for changes as it's opened, rather than never.
+              # storage, a box too, checks a folder for changes as it's opened, rather than never.
               filesystem_check_changes = 1;
+              files_external_allow_create_new_local = binds != [ ];
             };
             phpOptions = {
               "opcache.interned_strings_buffer" = 23;

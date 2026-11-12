@@ -96,11 +96,14 @@ let
     }
     // lib.optionalAttrs (entity.class == "app" && entity.nextcloud != null) {
       nextcloud = {
-        homes = lib.attrNames entity.nextcloud.homes;
+        homes = lib.attrNames (lib.filterAttrs (_: boxed: boxed) entity.nextcloud.users);
         external = lib.concatLists (
           lib.mapAttrsToList (
-            user: folders: map (folder: "${user}/${folder}") (lib.attrNames folders)
-          ) entity.nextcloud.external
+            user: storages:
+            map (name: "${user}/${name}") (
+              lib.attrNames (lib.filterAttrs (_: storage: storage.box == null) storages)
+            )
+          ) entity.nextcloud.storages
         );
         changes = lib.unique (
           lib.concatMap (

@@ -86,14 +86,15 @@ run-on-hosts = []
 principal.hasPublicKey = false
 jitsi = { keycloak = "auth", realm = "example" }
 
-# Fact: a nextcloud whose confidential client auth keeps, with the secret web decrypts as the app-scheduler; only
+# Fact: a nextcloud whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and
+# whose user alice has a bind of a directory in its home; only
 # vmTests.keycloak runs it, on web.
 [app.cloud]
 id = 4
 endpoint = "cloud.example.com"
 run-on-hosts = []
 grants = ["host:app-scheduler"]
-nextcloud = { keycloak = "auth", realm = "example" }
+nextcloud = { keycloak = "auth", realm = "example", storages = { alice = { files = { bind = "/var/lib/cloud/alice" } } } }
 
 [role.mailserver]
 services = ["mailserver"]

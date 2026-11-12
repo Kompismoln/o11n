@@ -1,0 +1,256 @@
+2026-11-12T18:33:45Z	container	0.0	0	0	888ed97	dev/check.sh stamps
+2026-11-12T18:33:46Z	container	0.0	0	0	888ed97	dev/check.sh pending
+2026-11-12T18:33:46Z	container	0.1	1	0	888ed97	dev/check.sh stamped
+2026-11-12T18:33:47Z	container	1.2	1	0	888ed97	dev/check.sh format
+2026-11-12T18:33:49Z	container	2.5	123	0	888ed97	dev/check.sh lint
+2026-11-12T18:33:50Z	container	0.8	0	0	888ed97	dev/check.sh docs
+2026-11-12T18:33:50Z	container	0.1	0	0	888ed97	dev/check.sh parts
+2026-11-12T18:33:52Z	container	2.2	0	0	888ed97	dev/check.sh index
+2026-11-12T18:34:54Z	container	62.0	0	0	888ed97	nix build --dry-run .#stages.eval
+2026-11-12T18:34:55Z	container	0.7	0	0	888ed97	nix build .#stages.eval
+2026-11-12T18:34:55Z	container	62.8	0	0	888ed97	dev/check.sh eval
+2026-11-12T18:35:48Z	container	53.0	0	0	888ed97	nix build --dry-run .#stages.leaks
+2026-11-12T18:35:59Z	container	11.0	0	0	888ed97	nix build .#stages.leaks
+2026-11-12T18:35:59Z	container	64.0	0	0	888ed97	dev/check.sh leaks
+2026-11-12T18:36:01Z	container	1.9	0	0	888ed97	nix build --dry-run .#stages.bats
+2026-11-12T18:36:19Z	container	17.9	1	0	888ed97	nix build .#stages.bats
+2026-11-12T18:36:19Z	container	19.7	1	0	888ed97	dev/check.sh bats
+2026-11-12T18:36:46Z	container	3.0	0	0	888ed97	dev/check.sh lint
+2026-11-12T18:36:48Z	container	2.4	0	0	888ed97	nix build --dry-run .#stages.bats
+2026-11-12T18:37:48Z	container	59.6	0	0	888ed97	nix build .#stages.bats
+2026-11-12T18:37:48Z	container	62.0	0	0	888ed97	dev/check.sh bats
+2026-11-12T18:38:11Z	container	0.1	0	11	888ed97	dev/check.sh parts
+2026-11-12T18:38:11Z	container	0.2	0	11	888ed97	dev/check.sh stamps
+2026-11-12T18:38:11Z	container	0.2	1	11	888ed97	dev/check.sh pending
+2026-11-12T18:38:11Z	container	0.3	0	11	888ed97	dev/check.sh stamped
+2026-11-12T18:38:12Z	container	1.3	0	11	888ed97	dev/check.sh docs
+2026-11-12T18:38:13Z	container	2.0	0	11	888ed97	dev/check.sh format
+2026-11-12T18:38:13Z	container	2.5	0	11	888ed97	dev/check.sh index
+2026-11-12T18:38:14Z	container	3.0	0	11	888ed97	dev/check.sh lint
+2026-11-12T18:38:59Z	container	48.4	0	11	9943c47	nix build --dry-run .#stages.vm
+2026-11-12T18:40:00Z	container	61.2	0	11	3d0aac0	nix build --dry-run .#stages.eval
+2026-11-12T18:40:01Z	container	0.3	0	11	3d0aac0	nix build .#stages.eval
+2026-11-12T18:40:01Z	container	109.9	0	11	3d0aac0	dev/check.sh eval
+2026-11-12T18:40:02Z	container	1.9	0	11	3d0aac0	nix build --dry-run .#stages.bats
+2026-11-12T18:40:43Z	container	103.4	1	11	3d0aac0	o11n remote build .#stages.vm
+2026-11-12T18:40:43Z	container	151.9	1	11	3d0aac0	dev/check.sh vm
+2026-11-12T18:41:03Z	container	60.7	0	11	3d0aac0	nix build --dry-run .#stages.leaks
+2026-11-12T18:41:13Z	container	70.2	0	11	3d0aac0	nix build .#stages.bats
+2026-11-12T18:41:13Z	container	181.7	0	11	3d0aac0	dev/check.sh bats
+2026-11-12T18:41:17Z	container	13.6	0	11	3d0aac0	nix build .#stages.leaks
+2026-11-12T18:41:17Z	container	185.8	0	11	3d0aac0	dev/check.sh leaks
+2026-11-12T18:41:17Z	container	185.9	1	0	3d0aac0	dev/check.sh
+2026-11-12T18:50:44Z	container	53.8	0	0	2d0d9a2	nix build --dry-run .#stages.vm
+2026-11-12T18:54:31Z	container	226.6	0	0	2d0d9a2	o11n remote build .#stages.vm
+2026-11-12T18:54:31Z	container	77.1	0	0	2d0d9a2	vmTests.keycloak
+2026-11-12T18:54:31Z	container	96.9	0	0	2d0d9a2	vmTests.deploy
+2026-11-12T18:54:31Z	container	194.4	0	0	2d0d9a2	vmTests.nextcloud-changes
+2026-11-12T18:54:31Z	container	280.5	0	0	2d0d9a2	dev/check.sh vm
+2026-11-12T19:22:56Z	container	30.1	0	0	1bfcc15	nix-eval-jobs eval
+2026-11-12T19:22:57Z	container	1.4	0	0	1bfcc15	nix build .#stages.eval
+2026-11-12T19:22:57Z	container	31.6	0	0	1bfcc15	dev/check.sh eval
+2026-11-12T19:23:41Z	container	30.9	0	0	1bfcc15	nix-eval-jobs eval
+2026-11-12T19:23:42Z	container	0.3	0	0	1bfcc15	nix build .#stages.eval
+2026-11-12T19:23:42Z	container	31.2	0	0	1bfcc15	dev/check.sh eval
+2026-11-12T19:24:22Z	container	40.4	0	0	1bfcc15	nix-eval-jobs eval
+2026-11-12T19:24:22Z	container	0.3	0	0	1bfcc15	nix build .#stages.eval
+2026-11-12T19:24:22Z	container	40.7	0	0	1bfcc15	dev/check.sh eval
+2026-11-12T19:24:33Z	container	0.3	0	0	1bfcc15	nix build .#stages.eval
+2026-11-12T19:24:33Z	container	0.5	0	0	1bfcc15	dev/check.sh eval
+2026-11-12T19:25:04Z	container	31.2	0	0	1bfcc15	nix-eval-jobs eval
+2026-11-12T19:25:04Z	container	0.3	0	0	1bfcc15	nix build .#stages.eval
+2026-11-12T19:25:04Z	container	31.6	0	0	1bfcc15	dev/check.sh eval
+2026-11-12T19:25:36Z	container	31.2	0	0	1bfcc15	nix-eval-jobs eval
+2026-11-12T19:25:36Z	container	0.3	0	0	1bfcc15	nix build .#stages.eval
+2026-11-12T19:25:36Z	container	31.5	0	0	1bfcc15	dev/check.sh eval
+2026-11-12T19:27:04Z	container	0.1	1	11	1bfcc15	dev/check.sh pending
+2026-11-12T19:27:04Z	container	0.2	0	11	1bfcc15	dev/check.sh parts
+2026-11-12T19:27:04Z	container	0.2	0	11	1bfcc15	dev/check.sh stamps
+2026-11-12T19:27:04Z	container	0.5	0	11	1bfcc15	dev/check.sh stamped
+2026-11-12T19:27:06Z	container	1.9	0	11	1bfcc15	dev/check.sh docs
+2026-11-12T19:27:07Z	container	3.5	0	11	1bfcc15	dev/check.sh format
+2026-11-12T19:27:08Z	container	4.7	0	11	1bfcc15	dev/check.sh index
+2026-11-12T19:27:09Z	container	5.8	0	11	1bfcc15	dev/check.sh lint
+2026-11-12T19:28:17Z	container	0.3	0	11	1bfcc15	nix build .#stages.eval
+2026-11-12T19:28:17Z	container	73.1	0	11	1bfcc15	dev/check.sh eval
+2026-11-12T19:28:55Z	container	86.9	1	11	1bfcc15	o11n remote build .#stages.vm
+2026-11-12T19:28:56Z	container	111.9	1	11	1bfcc15	dev/check.sh vm
+2026-11-12T19:29:00Z	container	116.1	0	11	1bfcc15	nix-eval-jobs vm eval leaks bats
+2026-11-12T19:29:13Z	container	13.7	0	11	1bfcc15	nix build .#stages.leaks
+2026-11-12T19:29:13Z	container	129.6	0	11	1bfcc15	dev/check.sh leaks
+2026-11-12T19:29:31Z	container	36.2	0	11	1bfcc15	nix build .#stages.bats
+2026-11-12T19:29:31Z	container	147.3	0	11	1bfcc15	dev/check.sh bats
+2026-11-12T19:29:31Z	container	147.4	1	0	1bfcc15	dev/check.sh
+2026-11-12T19:30:16Z	container	21.4	0	0	1bfcc15	nix-eval-jobs vm
+2026-11-12T19:32:01Z	container	105.4	0	0	1bfcc15	o11n remote build .#stages.vm
+2026-11-12T19:32:01Z	container	90.1	0	0	1bfcc15	vmTests.deploy
+2026-11-12T19:32:01Z	container	126.7	0	0	1bfcc15	dev/check.sh vm
+2026-11-12T19:32:10Z	container	0.2	1	11	1bfcc15	dev/check.sh pending
+2026-11-12T19:32:10Z	container	0.2	0	11	1bfcc15	dev/check.sh stamps
+2026-11-12T19:32:10Z	container	0.3	0	11	1bfcc15	dev/check.sh parts
+2026-11-12T19:32:11Z	container	0.3	0	11	1bfcc15	dev/check.sh stamped
+2026-11-12T19:32:12Z	container	2.1	0	11	1bfcc15	dev/check.sh docs
+2026-11-12T19:32:14Z	container	3.7	0	11	1bfcc15	dev/check.sh format
+2026-11-12T19:32:14Z	container	4.0	0	11	1bfcc15	dev/check.sh index
+2026-11-12T19:32:16Z	container	5.8	0	11	1bfcc15	dev/check.sh lint
+2026-11-12T19:32:49Z	container	14.2	0	11	1bfcc15	o11n remote build .#stages.vm
+2026-11-12T19:32:49Z	container	38.3	0	11	1bfcc15	dev/check.sh vm
+2026-11-12T19:33:10Z	container	0.3	0	11	1bfcc15	nix build .#stages.eval
+2026-11-12T19:33:10Z	container	59.6	0	11	1bfcc15	dev/check.sh eval
+2026-11-12T19:33:36Z	container	0.2	0	11	1bfcc15	nix build .#stages.bats
+2026-11-12T19:33:36Z	container	85.6	0	11	1bfcc15	dev/check.sh bats
+2026-11-12T19:33:40Z	container	0.0	0	11	1bfcc15	nix build .#stages.leaks
+2026-11-12T19:33:40Z	container	90.2	0	11	1bfcc15	dev/check.sh leaks
+2026-11-12T19:33:40Z	container	90.1	0	11	1bfcc15	nix-eval-jobs vm eval leaks bats
+2026-11-12T19:33:40Z	container	90.3	1	0	1bfcc15	dev/check.sh
+2026-11-12T19:33:59Z	container	0.2	0	11	1bfcc15	dev/check.sh stamps
+2026-11-12T19:33:59Z	container	0.2	1	11	1bfcc15	dev/check.sh pending
+2026-11-12T19:33:59Z	container	0.2	0	11	1bfcc15	dev/check.sh parts
+2026-11-12T19:33:59Z	container	0.3	0	11	1bfcc15	dev/check.sh stamped
+2026-11-12T19:34:00Z	container	1.0	0	11	1bfcc15	dev/check.sh docs
+2026-11-12T19:34:00Z	container	1.7	0	11	1bfcc15	dev/check.sh format
+2026-11-12T19:34:01Z	container	2.4	0	11	1bfcc15	dev/check.sh index
+2026-11-12T19:34:01Z	container	2.8	0	11	1bfcc15	dev/check.sh lint
+2026-11-12T19:44:18Z	container	619.0	0	11	1bfcc15	dev/check.sh eval
+2026-11-12T19:44:18Z	container	619.0	0	11	1bfcc15	dev/check.sh bats
+2026-11-12T19:44:18Z	container	619.0	0	11	1bfcc15	dev/check.sh vm
+2026-11-12T19:44:18Z	container	619.0	0	11	1bfcc15	dev/check.sh leaks
+2026-11-12T19:44:18Z	container	0.2	0	11	1bfcc15	dev/check.sh stamps
+2026-11-12T19:44:18Z	container	0.3	0	11	1bfcc15	dev/check.sh parts
+2026-11-12T19:44:18Z	container	0.3	1	11	1bfcc15	dev/check.sh pending
+2026-11-12T19:44:18Z	container	0.3	0	11	1bfcc15	dev/check.sh stamped
+2026-11-12T19:44:19Z	container	1.7	0	11	1bfcc15	dev/check.sh docs
+2026-11-12T19:44:21Z	container	3.5	0	11	1bfcc15	dev/check.sh format
+2026-11-12T19:44:22Z	container	4.3	0	11	1bfcc15	dev/check.sh index
+2026-11-12T19:44:23Z	container	4.9	0	11	1bfcc15	dev/check.sh lint
+2026-11-12T19:44:24Z	container	6.7	0	11	1bfcc15	dev/check.sh bats
+2026-11-12T19:44:24Z	container	6.7	0	11	1bfcc15	dev/check.sh vm
+2026-11-12T19:44:24Z	container	6.7	0	11	1bfcc15	dev/check.sh leaks
+2026-11-12T19:44:24Z	container	6.7	0	11	1bfcc15	dev/check.sh eval
+2026-11-12T19:45:29Z	container	0.2	1	11	1bfcc15	dev/check.sh pending
+2026-11-12T19:45:29Z	container	0.2	0	11	1bfcc15	dev/check.sh stamps
+2026-11-12T19:45:29Z	container	0.2	0	11	1bfcc15	dev/check.sh parts
+2026-11-12T19:45:29Z	container	0.3	0	11	1bfcc15	dev/check.sh stamped
+2026-11-12T19:45:31Z	container	2.1	0	11	1bfcc15	dev/check.sh docs
+2026-11-12T19:45:32Z	container	3.1	0	11	1bfcc15	dev/check.sh format
+2026-11-12T19:45:33Z	container	4.1	0	11	1bfcc15	dev/check.sh index
+2026-11-12T19:45:34Z	container	4.8	0	11	1bfcc15	dev/check.sh lint
+2026-11-12T19:46:24Z	container	32.5	0	11	1bfcc15	nix build .#stages.bats
+2026-11-12T19:46:24Z	container	54.8	0	11	1bfcc15	dev/check.sh bats
+2026-11-12T19:46:42Z	container	0.4	0	11	1bfcc15	nix build .#stages.eval
+2026-11-12T19:46:42Z	container	73.2	0	11	1bfcc15	dev/check.sh eval
+2026-11-12T19:47:07Z	container	98.3	0	11	1bfcc15	nix-eval-jobs vm bats eval leaks
+2026-11-12T19:47:17Z	container	9.1	0	11	1bfcc15	nix build .#stages.leaks
+2026-11-12T19:47:17Z	container	107.5	0	11	1bfcc15	dev/check.sh leaks
+2026-11-12T19:48:03Z	container	131.7	0	11	1bfcc15	o11n remote build .#stages.vm
+2026-11-12T19:48:03Z	container	93.9	0	11	1bfcc15	vmTests.deploy
+2026-11-12T19:48:03Z	container	154.0	0	11	1bfcc15	dev/check.sh vm
+2026-11-12T19:48:03Z	container	154.1	1	0	1bfcc15	dev/check.sh
+2026-11-12T19:48:03Z	container	0.1	1	11	1bfcc15	dev/check.sh pending
+2026-11-12T19:48:03Z	container	0.1	0	11	1bfcc15	dev/check.sh parts
+2026-11-12T19:48:03Z	container	0.2	0	11	1bfcc15	dev/check.sh stamps
+2026-11-12T19:48:03Z	container	0.2	0	11	1bfcc15	dev/check.sh stamped
+2026-11-12T19:48:03Z	container	0.1	0	11	1bfcc15	nix build .#stages.leaks
+2026-11-12T19:48:03Z	container	0.3	0	11	1bfcc15	dev/check.sh leaks
+2026-11-12T19:48:04Z	container	0.2	0	11	1bfcc15	nix build .#stages.bats
+2026-11-12T19:48:04Z	container	0.5	0	11	1bfcc15	dev/check.sh bats
+2026-11-12T19:48:04Z	container	0.4	0	11	1bfcc15	nix build .#stages.eval
+2026-11-12T19:48:04Z	container	0.6	0	11	1bfcc15	dev/check.sh eval
+2026-11-12T19:48:04Z	container	1.2	0	11	1bfcc15	dev/check.sh docs
+2026-11-12T19:48:05Z	container	1.9	0	11	1bfcc15	dev/check.sh format
+2026-11-12T19:48:06Z	container	2.4	0	11	1bfcc15	dev/check.sh index
+2026-11-12T19:48:06Z	container	3.2	0	11	1bfcc15	dev/check.sh lint
+2026-11-12T19:48:16Z	container	13.0	0	11	1bfcc15	o11n remote build .#stages.vm
+2026-11-12T19:48:16Z	container	13.2	0	11	1bfcc15	dev/check.sh vm
+2026-11-12T19:48:16Z	container	13.3	1	0	1bfcc15	dev/check.sh
+2026-11-12T19:56:09Z	container	1.7	0	1	796d78d	dev/check.sh format
+2026-11-12T19:56:10Z	container	2.7	0	1	796d78d	dev/check.sh lint
+2026-11-12T19:56:10Z	container	2.8	0	0	796d78d	dev/check.sh format lint
+2026-11-12T20:45:17Z	container	7.5	0	2	588969d	dev/check.sh lint
+2026-11-12T20:45:22Z	container	12.7	0	2	588969d	dev/check.sh format
+2026-11-12T20:45:58Z	container	48.4	0	2	588969d	nix-eval-jobs eval
+2026-11-12T20:45:59Z	container	0.9	0	2	588969d	nix build .#stages.eval
+2026-11-12T20:45:59Z	container	49.3	0	2	588969d	dev/check.sh eval
+2026-11-12T20:45:59Z	container	49.5	0	0	588969d	dev/check.sh eval lint format
+2026-11-12T21:32:01Z	container	2.9	0	4	96a74ff	dev/check.sh format
+2026-11-12T21:32:02Z	container	3.9	0	4	96a74ff	dev/check.sh lint
+2026-11-12T21:32:37Z	container	0.5	0	4	96a74ff	nix build .#stages.eval
+2026-11-12T21:32:37Z	container	38.7	0	4	96a74ff	dev/check.sh eval
+2026-11-12T21:32:41Z	container	40.6	0	4	96a74ff	nix build .#stages.bats
+2026-11-12T21:32:41Z	container	43.2	0	4	96a74ff	dev/check.sh bats
+2026-11-12T21:33:08Z	container	69.7	0	4	96a74ff	nix-eval-jobs bats eval leaks
+2026-11-12T21:33:20Z	container	11.9	0	4	96a74ff	nix build .#stages.leaks
+2026-11-12T21:33:20Z	container	81.8	0	4	96a74ff	dev/check.sh leaks
+2026-11-12T21:33:20Z	container	81.9	0	0	96a74ff	dev/check.sh format lint eval leaks bats
+2026-11-12T21:42:01Z	container	0.2	0	4	ac4124f	dev/check.sh parts
+2026-11-12T21:42:02Z	container	1.1	0	4	ac4124f	dev/check.sh docs
+2026-11-12T21:42:03Z	container	2.1	0	4	ac4124f	dev/check.sh format
+2026-11-12T21:42:04Z	container	2.8	0	4	ac4124f	dev/check.sh index
+2026-11-12T21:42:04Z	container	3.1	0	4	ac4124f	dev/check.sh lint
+2026-11-12T21:42:04Z	container	3.2	0	0	ac4124f	dev/check.sh docs parts index lint format
+2026-11-12T21:42:13Z	container	0.1	0	11	ac4124f	dev/check.sh stamps
+2026-11-12T21:42:14Z	container	0.1	1	11	ac4124f	dev/check.sh pending
+2026-11-12T21:42:14Z	container	0.2	0	11	ac4124f	dev/check.sh parts
+2026-11-12T21:42:14Z	container	0.4	1	11	ac4124f	dev/check.sh stamped
+2026-11-12T21:42:15Z	container	1.8	0	11	ac4124f	dev/check.sh docs
+2026-11-12T21:42:17Z	container	3.4	0	11	ac4124f	dev/check.sh format
+2026-11-12T21:42:18Z	container	4.1	0	11	ac4124f	dev/check.sh index
+2026-11-12T21:42:18Z	container	5.1	0	11	ac4124f	dev/check.sh lint
+2026-11-12T21:42:49Z	container	0.2	0	11	ac4124f	nix build .#stages.bats
+2026-11-12T21:42:49Z	container	35.5	0	11	ac4124f	dev/check.sh bats
+2026-11-12T21:43:40Z	container	0.3	0	11	ac4124f	nix build .#stages.eval
+2026-11-12T21:43:40Z	container	86.7	0	11	ac4124f	dev/check.sh eval
+2026-11-12T21:44:03Z	container	109.6	0	11	ac4124f	nix-eval-jobs vm bats eval leaks
+2026-11-12T21:44:12Z	container	9.5	0	11	ac4124f	nix build .#stages.leaks
+2026-11-12T21:44:12Z	container	119.1	0	11	ac4124f	dev/check.sh leaks
+2026-11-12T21:45:09Z	container	140.5	0	11	ac4124f	o11n remote build .#stages.vm
+2026-11-12T21:45:09Z	container	28.8	0	11	ac4124f	vmTests.mail
+2026-11-12T21:45:09Z	container	29.8	0	11	ac4124f	vmTests.mobilizon
+2026-11-12T21:45:09Z	container	63.9	0	11	ac4124f	vmTests.drive
+2026-11-12T21:45:09Z	container	96.6	0	11	ac4124f	vmTests.deploy
+2026-11-12T21:45:09Z	container	175.4	0	11	ac4124f	dev/check.sh vm
+2026-11-12T21:45:09Z	container	175.5	1	0	ac4124f	dev/check.sh
+2026-11-12T22:01:59Z	container	0.1	0	7	03a8a3b	dev/check.sh stamps
+2026-11-12T22:01:59Z	container	0.3	0	7	03a8a3b	dev/check.sh pending
+2026-11-12T22:01:59Z	container	0.3	0	7	03a8a3b	dev/check.sh parts
+2026-11-12T22:02:00Z	container	1.1	0	7	03a8a3b	dev/check.sh docs
+2026-11-12T22:02:06Z	container	7.0	0	7	03a8a3b	dev/check.sh lint
+2026-11-12T22:02:10Z	container	11.3	0	7	03a8a3b	dev/check.sh format
+2026-11-12T22:02:11Z	container	12.0	0	7	03a8a3b	dev/check.sh index
+2026-11-12T22:02:39Z	container	40.6	0	7	03a8a3b	nix-eval-jobs eval
+2026-11-12T22:02:40Z	container	1.0	0	7	03a8a3b	nix build .#stages.eval
+2026-11-12T22:02:40Z	container	41.6	0	7	03a8a3b	dev/check.sh eval
+2026-11-12T22:02:41Z	container	41.7	0	0	03a8a3b	dev/check.sh stamps pending format lint docs parts index eval
+2026-11-12T22:04:28Z	container	0.1	0	7	20a3ae7	dev/check.sh parts
+2026-11-12T22:04:30Z	container	2.0	0	7	20a3ae7	dev/check.sh docs
+2026-11-12T22:04:31Z	container	3.1	0	7	20a3ae7	dev/check.sh format
+2026-11-12T22:04:32Z	container	4.1	0	7	20a3ae7	dev/check.sh index
+2026-11-12T22:04:32Z	container	4.7	0	7	20a3ae7	dev/check.sh lint
+2026-11-12T22:05:04Z	container	0.3	0	7	20a3ae7	nix build .#stages.eval
+2026-11-12T22:05:04Z	container	36.0	0	7	20a3ae7	dev/check.sh eval
+2026-11-12T22:05:05Z	container	34.6	0	7	20a3ae7	nix build .#stages.bats
+2026-11-12T22:05:05Z	container	37.5	0	7	20a3ae7	dev/check.sh bats
+2026-11-12T22:05:40Z	container	72.4	0	7	20a3ae7	nix-eval-jobs bats eval leaks
+2026-11-12T22:05:51Z	container	11.2	0	7	20a3ae7	nix build .#stages.leaks
+2026-11-12T22:05:51Z	container	83.7	0	7	20a3ae7	dev/check.sh leaks
+2026-11-12T22:05:51Z	container	83.7	0	0	20a3ae7	dev/check.sh format lint docs parts index eval leaks bats
+2026-11-12T22:16:04Z	container	1.6	0	3	0723144	dev/check.sh docs
+2026-11-12T22:16:05Z	container	2.7	1	3	0723144	dev/check.sh format
+2026-11-12T22:16:07Z	container	4.6	0	3	0723144	dev/check.sh lint
+2026-11-12T22:16:34Z	container	32.4	0	3	0723144	nix-eval-jobs eval
+2026-11-12T22:16:35Z	container	0.4	0	3	0723144	nix build .#stages.eval
+2026-11-12T22:16:35Z	container	32.9	0	3	0723144	dev/check.sh eval
+2026-11-12T22:16:35Z	container	32.9	1	0	0723144	dev/check.sh eval lint format docs
+2026-11-12T22:16:56Z	container	0.1	0	7	d633a2f	dev/check.sh parts
+2026-11-12T22:16:57Z	container	1.8	0	7	d633a2f	dev/check.sh docs
+2026-11-12T22:16:58Z	container	2.7	0	7	d633a2f	dev/check.sh format
+2026-11-12T22:17:00Z	container	4.1	0	7	d633a2f	dev/check.sh index
+2026-11-12T22:17:01Z	container	5.4	0	7	d633a2f	dev/check.sh lint
+2026-11-12T22:17:32Z	container	0.4	0	7	d633a2f	nix build .#stages.eval
+2026-11-12T22:17:32Z	container	35.9	0	7	d633a2f	dev/check.sh eval
+2026-11-12T22:17:33Z	container	35.1	0	7	d633a2f	nix build .#stages.bats
+2026-11-12T22:17:33Z	container	37.8	0	7	d633a2f	dev/check.sh bats
+2026-11-12T22:17:56Z	container	59.9	0	7	d633a2f	nix-eval-jobs bats eval leaks
+2026-11-12T22:18:05Z	container	9.3	0	7	d633a2f	nix build .#stages.leaks
+2026-11-12T22:18:05Z	container	69.2	0	7	d633a2f	dev/check.sh leaks
+2026-11-12T22:18:05Z	container	69.3	0	0	d633a2f	dev/check.sh format lint docs parts index eval leaks bats

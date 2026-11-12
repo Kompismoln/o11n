@@ -6,7 +6,6 @@
 }:
 let
   kinds = {
-    collabora = ./apps/collabora.nix;
     django = ./apps/django.nix;
     jitsi = ./apps/jitsi.nix;
     keycloak = ./apps/keycloak.nix;
@@ -38,9 +37,9 @@ in
         lib.optionalAttrs
           (
             config.nextcloud != null
-            && lib.any (mount: mount.allotment != null || mount.sftp.key or null == null) (
-              lib.concatMap lib.attrValues (lib.attrValues config.nextcloud.external)
-            )
+            && lib.any (
+              storage: storage.allotment != null || storage.sftp != null && storage.sftp.key == null
+            ) (lib.concatMap lib.attrValues (lib.attrValues config.nextcloud.storages))
           )
           {
             sftp-key = "ssh-rsa";

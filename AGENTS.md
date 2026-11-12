@@ -85,11 +85,12 @@ These are for developers and ops, so:
 
 ## Tests and checks
 
-`dev/check.sh` checks everything, ~60s and ~240s when bats runs (`docs/dev.md`, "Check").
+- `dev/check.sh` checks everything ~150s (`docs/dev.md`, "Check"), and `dev/costs.tsv` holds what each check took
+  (`docs/dev.md`, "Costs"): `o11n-dev costs show`.
 
 ### Bats
 
-- `bats crates/o11n/test dev/test` runs them outside the sandbox, with the dev shell's tools, ~3 minutes.
+- `bats crates/o11n/test dev/test` runs them outside the sandbox, with the dev shell's tools, ~40s.
 - `crates/o11n/test` copies its `org.toml` for each test and stubs `ssh`, `ssh-keyscan` and `cryptsetup`, and pins
   `testhost` to `testhost.local` with `O11N_ROUTES`; the `ssh` stub runs `nixos/services/locksmith.sh` for the
   locksmith.

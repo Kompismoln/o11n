@@ -15,10 +15,13 @@ let
       uid = 3007;
       gid = 3007;
     };
-    ids.hex8 = "00000007";
     secrets.sopsFile = "/enc/app-cloud.yaml";
+    url = "https://cloud.example.com";
+    ids = {
+      int = 7;
+      hex8 = "00000007";
+    };
     nextcloud = {
-      collabora = "office";
       client = null;
     };
   };
@@ -86,9 +89,21 @@ let
     ];
   };
 
-  # Fact: as org/apps/nextcloud.nix derives it for a home of carol's on box.example.com, with store-box's
-  # smb-password.
+  # Fact: as org/apps/nextcloud.nix derives it for a box of carol's on box.example.com, with store-box's
+  # smb-password, and a bind of bob's at /srv/pub, who has no box.
   homes = lib.recursiveUpdate app {
+    nextcloud.users = {
+      carol = true;
+      bob = false;
+    };
+    nextcloud.binds = [
+      {
+        mountPoint = "/pub";
+        user = "bob";
+        sharing = false;
+        path = "/srv/pub";
+      }
+    ];
     nextcloud.shares = [
       {
         user = "carol";
@@ -151,10 +166,6 @@ let
             org = {
               postgres = "17";
               app = {
-                office = {
-                  endpoint = "office.example.com";
-                  url = "https://office.example.com";
-                };
                 auth = {
                   url = "https://auth.example.com";
                   keycloak.realms.example.displayName = "Example";
@@ -281,7 +292,10 @@ in
         ];
         alone = true;
         settings = {
-          user_oidc.soft_auto_provision = false;
+          user_oidc = {
+            auto_provision = false;
+            soft_auto_provision = false;
+          };
           lost_password_link = "disabled";
           token_auth_enforced = true;
         };
@@ -331,7 +345,7 @@ in
         oidc = lib.subtractLists (kept inner) (kept oidc);
         external = lib.subtractLists (kept inner) (kept external);
         calendar = lib.elem "calendar" (kept inner);
-        locations = lib.attrNames cfg.services.nginx.virtualHosts."cloud.example.com".locations;
+        nextcloud = cfg.services.nginx.virtualHosts."cloud.example.com".locations."/".proxyPass;
       };
       expected = {
         appstoreEnable = false;
@@ -346,12 +360,12 @@ in
         oidc = [ "user_oidc" ];
         external = [ "files_external" ];
         calendar = false;
-        locations = [ "/" ];
+        nextcloud = "http://[fd12:3456:7890:ffff::bb7:7]:4000";
       };
     };
 
-  # Policy: config.php's secret is the app's secret-key, which each unit that runs occ loads, and its instanceid follows
-  # from the app's id.
+  # Policy: config.php's secret and passwordsalt are the app's secret-key, which each unit that runs occ loads, its
+  # instanceid follows from the app's id, and the container binds no home of the host's.
   test_nextcloud_keeps_its_secret_and_instanceid =
     let
       all = (evalApp (lib.recursiveUpdate mounts logsIn) app.principal.uid).containers.cloud.config;
@@ -379,47 +393,64 @@ in
             inherit (serviceConfig) User LoadCredential;
           }
         );
-        resticignore = lib.filter (lib.hasInfix ".resticignore") cfg.systemd.tmpfiles.rules;
+        home = container.bindMounts ? "/var/lib/nextcloud";
       };
       expected = {
         bind = {
           hostPath = "/run/secrets/cloud/secret-key";
           isReadOnly = true;
         };
-        secrets.secret = "/run/secrets/secret-key";
+        secrets = {
+          secret = "/run/secrets/secret-key";
+          passwordsalt = "/run/secrets/secret-key";
+        };
         instanceid = "oc00000007";
         credentials = lib.genAttrs units (_: {
           User = "nextcloud";
-          LoadCredential = [ "secret:/run/secrets/secret-key" ];
+          LoadCredential = [
+            "passwordsalt:/run/secrets/secret-key"
+            "secret:/run/secrets/secret-key"
+          ];
         });
-        resticignore = [
-          "f+ '/var/lib/cloud/nextcloud/data/.resticignore' 0640 cloud cloud - appdata_*/preview\\n*/cache\\n*/uploads\\n"
-        ];
+        home = false;
       };
     };
 
-  # Policy: a nextcloud with a collabora opens its office at the collabora's url.
-  test_nextcloud_opens_collaboras_office =
+  # Policy: a nextcloud's office is its container's coolwsd, at the app's own url, on a loopback port of the app's,
+  # which the app's server serves the office's paths from, and which serves the app alone.
+  test_nextcloud_opens_its_own_office =
     let
       unit = container.config.systemd.services.nextcloud-office;
+      office = container.config.services.collabora-online;
+      inherit (cfg.services.nginx.virtualHosts."cloud.example.com") locations;
     in
     {
       expr = {
         inherit (unit) after;
         sets = lib.all (part: lib.hasInfix part unit.script) [
-          "config:app:set richdocuments wopi_url --value=https://office.example.com"
+          "config:app:set richdocuments wopi_url --value=https://cloud.example.com"
           "config:app:delete richdocuments public_wopi_url"
           "config:app:delete richdocuments wopi_callback_url"
         ];
-        without =
-          (evalApp (lib.recursiveUpdate app { nextcloud.collabora = null; }) app.principal.uid)
-          .containers.cloud.config.systemd.services
-            ? nextcloud-office;
+        inherit (office) enable port aliasGroups;
+        listens = office.settings.net.listen;
+        discovery = locations."^~ /hosting/discovery".proxyPass;
+        websocket = locations."~ ^/cool/(.*)/ws$".proxyWebsockets;
       };
       expected = {
         after = [ "nextcloud-setup.service" ];
         sets = true;
-        without = false;
+        enable = true;
+        port = 9987;
+        aliasGroups = [
+          {
+            host = "https://cloud.example.com:443";
+            aliases = [ ];
+          }
+        ];
+        listens = "loopback";
+        discovery = "http://[::1]:9987";
+        websocket = true;
       };
     };
 
@@ -478,7 +509,7 @@ in
       };
     };
 
-  # Policy: a home is the share, which the host mounts as the app's user, with its key's smb-password, and the container
+  # Policy: a box is the share, which the host mounts as the app's user, with its key's smb-password, and the container
   # starts only once it's mounted.
   test_nextcloud_mounts_a_home =
     let
@@ -586,4 +617,54 @@ in
       secrets = [ ];
     };
   };
+
+  # Policy: a box is its user's data, a bind is mounted at its folder from the directory the container binds, and a
+  # user without a box has files no one can write in; o11n makes each of them, and only a box has no quota.
+  test_nextcloud_binds_each_storage =
+    let
+      cfg = evalApp homes app.principal.uid;
+      container = cfg.containers.cloud;
+      inner = container.config;
+      bound = path: { inherit (container.bindMounts.${path}) hostPath isReadOnly; };
+      users = inner.systemd.services.nextcloud-users.script;
+    in
+    {
+      expr = {
+        box = bound "/var/lib/nextcloud/data/carol";
+        bind = bound "/srv/binds/bob/pub";
+        files = (bound "/var/lib/nextcloud/data/bob/files").isReadOnly;
+        local = lib.hasInfix "/srv/binds/bob/pub" inner.systemd.services.nextcloud-external.script;
+        made =
+          lib.hasInfix "insert into oc_users" users
+          && lib.all (user: lib.hasInfix "'\\''${user}'\\''" users) [
+            "bob"
+            "carol"
+          ];
+        quota = {
+          carol = lib.hasInfix "user:setting carol files quota none" users;
+          bob = lib.hasInfix "user:setting bob files" users;
+          default = lib.hasInfix "config:app:set files default_quota --value='0 B'" users;
+        };
+        local_allowed = inner.services.nextcloud.settings.files_external_allow_create_new_local;
+      };
+      expected = {
+        box = {
+          hostPath = "/var/lib/cloud/nextcloud/data/carol";
+          isReadOnly = false;
+        };
+        bind = {
+          hostPath = "/srv/pub";
+          isReadOnly = false;
+        };
+        files = true;
+        local = true;
+        made = true;
+        quota = {
+          carol = true;
+          bob = false;
+          default = true;
+        };
+        local_allowed = true;
+      };
+    };
 }

@@ -15,22 +15,49 @@ clone.
 failed, and in a git checkout logs each to `dev/state/logs/<stage>.log`, and how it ended to
 `dev/state/logs/<stage>.json`, which the hooks read:
 
-- `stamps`, every conflict marker a stamp's
-- `pending`, what is left to stamp
-- `stamped`, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as `dev/write.sh` stamps it
-- `format`, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
-- `lint`, statix, deadnix and shellcheck
-- `docs`, the references of the docs (`o11n-dev refs check`)
-- `parts`, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
-- `index`, that `docs/index/` is as `dev/write.sh index` writes it (`o11n-dev index check`)
-- `eval`, `leaks` and `bats`, which build `.#stages.<stage>`
-- `vm`, which builds `.#stages.vm` on the remote builder with the tree's own `o11n remote`.
+- `dev/check.sh stamps` ~0.1s, every conflict marker a stamp's
+- `dev/check.sh pending` ~0.1s, what is left to stamp
+- `dev/check.sh stamped` ~0.1s, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as
+  `dev/write.sh` stamps it
+- `dev/check.sh format` ~1.7s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+- `dev/check.sh lint` ~2.7s, statix, deadnix and shellcheck
+- `dev/check.sh docs` ~0.8s, the references of the docs (`o11n-dev refs check`)
+- `dev/check.sh parts` ~0.1s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
+- `dev/check.sh index` ~1.9s, that `docs/index/` is as `dev/write.sh index` writes it (`o11n-dev index check`)
+- `dev/check.sh eval` ~32s, which builds the jobs of `.#jobs.eval`
+- `dev/check.sh leaks` ~60s, which builds the jobs of `.#jobs.leaks`
+- `dev/check.sh bats` ~62s, which builds the job of `.#jobs.bats`
+- `dev/check.sh vm`, which builds the jobs of `.#jobs.vm`, the VM tests, on the remote builder with the tree's own
+  `o11n remote`, each though one fails.
 
-All of them take ~60s, and ~240s when bats runs, as after a change to `tools/` or `dev/`. On a host with less than 24
-GB, `eval`, `leaks`, `bats` and `vm` take turns to evaluate, as nix's evaluations for them side by side would outgrow
-it, and build side by side. The flake's `stages.stamps`, `stages.format` and `stages.lint` run the same stage in the
-sandbox (`tests/source.nix`). `o11n-dev files` gives `dev/check.sh` and `dev/write.sh` the same files to read: what git
-tracks or would, or in a directory without git, as in the sandbox, every file under it.
+The flake's `jobs.<stage>` holds what each of `eval`, `leaks`, `bats` and `vm` builds, and `stages.<stage>` links it
+together. nix-eval-jobs evaluates the jobs of those named together at once, `vm`'s first, as its VMs take longest, then
+`bats`', whose one job takes a second, in as many workers as there are cores and 2.5 GB in 3/4 of what's available,
+which they share, a job that outgrows it all run alone, and each stage builds as soon as its own are. In one process,
+the evaluation of all of them would outgrow 16 GB. A stage's jobs, at a tree of the clone's tracked files whose
+derivations are still in the store, are as they were last evaluated there, as `dev/state/evaluated/<stage>` holds them:
+at a tree checked before, as turn-start checks what the turn before handed over, the evaluation takes under a second.
+The flake's `stages.stamps`, `stages.format` and `stages.lint` run the same stage in the sandbox (`tests/source.nix`).
+`o11n-dev files` gives `dev/check.sh` and `dev/write.sh` the same files to read: what git tracks or would, or in a
+directory without git, as in the sandbox, every file under it.
+
+## Costs
+
+`dev/costs.tsv`, in git, holds what each check took, a line each, with tab-separated columns: when, `$MACHINE_CLASS`,
+seconds, exit status, how many stages ran beside it, the commit and the command. In a checkout that has it, with
+`$MACHINE_CLASS` set, `dev/check.sh` spools to `dev/state/costs-spool.tsv`:
+
+- each stage, as `dev/check.sh <stage>`, and the stages named together, as `dev/check.sh [stage]...`
+- the evaluation of those of `vm`, `bats`, `eval` and `leaks` named together, in that order, as
+  `nix-eval-jobs <stage>...`, unless at a tree evaluated before, and the build of `eval`, `leaks` and `bats`, as
+  `nix build .#stages.<stage>`, and of `vm`, as `o11n remote build .#stages.vm`
+- each VM test the builder ran, as `vmTests.<name>`, with the time its driver says its script took.
+
+session-start sets `$MACHINE_CLASS` to `container` in a cloud session, and the dev shell to `devshell` unless it's set.
+`dev/write.sh costs` folds the spool into `dev/costs.tsv`, and rewrites a `~<n>s` figure the docs quote once it's 1.5
+times off; `settings.toml`'s `[costs]` names the machine class and the docs (`o11n-dev costs write`). A figure is one in
+a list item whose first code span is the command, the median of its 5 latest passes run alone on that machine class.
+`o11n-dev costs show` says each command's median per machine class.
 
 ## Parts
 
@@ -56,8 +83,9 @@ part it indexes, and stamped like any other, so that a change to a part's interf
 ## Write
 
 `[STAMPED=<commit>] dev/write.sh [stage]...` writes what follows from the code and the docs for the stages named, or all
-of them, in order, each what a stage of `dev/check.sh` checks:
+of them, in order, each but `costs` what a stage of `dev/check.sh` checks:
 
+- `costs`, what was timed, into `dev/costs.tsv`, and the figures the docs quote off it (`o11n-dev costs write`)
 - `format`, the Nix, the Rust and the docs that hold no stamps pending, which `format` checks
 - `index`, `docs/index/` (`o11n-dev index write`), which `index` checks
 - `stamps`, each change to a doc since `STAMPED` as stamps pending, against what the operator had signed of it there,
@@ -122,8 +150,8 @@ In a cloud session, `session-start`:
 - unshallows the clone
 - fetches the `github:` and `gitlab:` inputs its `flake.lock` locks over git with `./dev/agent.sh fetch-inputs`, as the
   forges' archives are refused or rate-limited there; nix then finds them in the store under the same content hash
-- writes the dev shell's PATH and `O11N_ROOT` to `dev/state/env`, for the hooks, and to `$CLAUDE_ENV_FILE`, for the
-  session's commands
+- writes the dev shell's PATH, `O11N_ROOT` and `MACHINE_CLASS=container` to `dev/state/env`, for the hooks, and to
+  `$CLAUDE_ENV_FILE`, for the session's commands
 - roots the inputs and the dev shell in `dev/state/roots`, so that `nix store gc` keeps them
 - with `O11N_REMOTE_BUILDER` set, says when the remote builder doesn't answer `o11n remote info`.
 
@@ -138,11 +166,14 @@ daemon, and give fixed-output fetches their network through pasta, which can't s
 
 In `dev/state/`, out of git, which `rm -rf dev/state` resets:
 
-- `env`: the dev shell's PATH and `O11N_ROOT`, which session-start writes for the hooks and the session's commands.
+- `env`: the dev shell's PATH, `O11N_ROOT` and `MACHINE_CLASS`, which session-start writes for the hooks and the
+  session's commands.
 - `roots`: the gc roots of the inputs and the dev shell.
 - `session-start`: what session-start hands the session's first turn.
 - `turn-start`: the commit the turn started at, as in `STAMPED="$(cat dev/state/turn-start)" dev/write.sh`.
 - `refused`: there while work is refused this turn.
+- `evaluated/<stage>`: the tree `dev/check.sh` last evaluated the stage's jobs at, and their derivations, a line each.
+- `costs-spool.tsv`: what `dev/check.sh` timed since `dev/write.sh costs` last folded it into `dev/costs.tsv`.
 - `logs/<stage>.log`: what `dev/check.sh` last said for the stage, under a line of when, at which commit and what ran
   it.
 - `logs/<stage>.json`: how that check ended, `{"stage", "commit", "status"}`. A hook removes it before it checks, and

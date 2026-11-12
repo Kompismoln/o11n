@@ -1,4 +1,5 @@
 mod base;
+mod costs;
 mod files;
 mod git;
 mod index;
@@ -55,6 +56,21 @@ enum Command {
     /// The systems of the org whose clone ORG names, with this clone's tree as their o11n.
     #[command(subcommand)]
     Systems(SystemsCommand),
+    /// What dev/check.sh's stages took, as it spools them to `dev/state/costs-spool.tsv` with `MACHINE_CLASS` set and
+    /// `dev/costs.tsv` there: a line each, with tab-separated columns: when, `MACHINE_CLASS`, seconds, exit status, how
+    /// many stages ran beside it, the commit and the command.
+    #[command(subcommand)]
+    Costs(CostsCommand),
+}
+
+#[derive(Subcommand)]
+enum CostsCommand {
+    /// Folds the spool into `dev/costs.tsv`, and rewrites each `~<n>s` figure of a list item whose first code span is a
+    /// command, in the docs settings.toml's `[costs]` `quoted_in` names, once it's 1.5 times off the median of the
+    /// command's 5 latest passes run alone on the machine class its `quoted` names; says what it wrote.
+    Write,
+    /// Each command's median per machine class, as write would quote it.
+    Show,
 }
 
 #[derive(Subcommand)]
@@ -175,6 +191,21 @@ fn main() -> ExitCode {
         Command::Index(IndexCommand::Write) => index::index(false),
         Command::Index(IndexCommand::Check) => index::index(true),
         Command::Parts(PartsCommand::Check) => parts::check(),
+        Command::Costs(command) => {
+            return match command {
+                CostsCommand::Write => costs::written(),
+                CostsCommand::Show => costs::show(std::path::Path::new(costs::SPOOL), std::path::Path::new(costs::LOG)),
+            }
+            .map_or_else(
+                |message| failed(&message),
+                |lines| {
+                    for line in lines {
+                        println!("{line}");
+                    }
+                    ExitCode::SUCCESS
+                },
+            );
+        }
         Command::Systems(command) => {
             return match command {
                 SystemsCommand::Check { args } => systems::check(&args),

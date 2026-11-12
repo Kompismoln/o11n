@@ -85,8 +85,10 @@
                 inherit (lib.importTOML ./dev/parts.toml) parts;
               };
 
-              legacyPackages.stages = lib.mapAttrs stage categories // {
-                vm = stage "vm" config.legacyPackages.vmTests;
+              legacyPackages.stages = lib.mapAttrs stage config.legacyPackages.jobs;
+
+              legacyPackages.jobs = categories // {
+                vm = config.legacyPackages.vmTests;
               };
 
               packages = {
@@ -128,6 +130,12 @@
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
               };
 
+              legacyPackages.vmTests.drive = import ./tests/vm/drive.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
+              };
+
               legacyPackages.vmTests.keycloak = import ./tests/vm/keycloak.nix {
                 inherit pkgs;
                 o11nInputs = inputs;
@@ -158,6 +166,14 @@
                 inherit pkgs;
                 o11nInputs = inputs;
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/allotments; };
+                part = "follows";
+              };
+
+              legacyPackages.vmTests.nextcloud-changes-recovery = import ./tests/vm/nextcloud-changes.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/allotments; };
+                part = "recovers";
               };
 
               # Policy: the dev shell runs each package's source as it is, with what the package runs,
@@ -178,7 +194,7 @@
                   ]
                 );
                 shellHook = ''
-                  export O11N_ROOT=$PWD
+                  export O11N_ROOT=$PWD MACHINE_CLASS=''${MACHINE_CLASS:-devshell}
                   if [[ -f .env ]]; then
                     set -a && source .env && set +a
                   fi

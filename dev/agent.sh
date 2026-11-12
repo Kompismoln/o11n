@@ -198,6 +198,7 @@ provision() {
     nix print-dev-env --quiet --no-warn-dirty --profile "$ROOTS/dev-shell" --json |
         jq -r '"export PATH=\(.variables.PATH.value | @sh):\"$PATH\""' >"$ENV"
     [[ -z ${O11N_ROOT:-} ]] || printf 'export O11N_ROOT=%q\n' "$O11N_ROOT" >>"$ENV"
+    ! remote || echo 'export MACHINE_CLASS=container' >>"$ENV"
     [[ -z ${CLAUDE_ENV_FILE:-} ]] || cat "$ENV" >>"$CLAUDE_ENV_FILE"
 }
 

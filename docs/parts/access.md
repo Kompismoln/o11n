@@ -52,8 +52,8 @@ each module its own:
 What a host's peers have no need of listens on loopback, or not at all:
 
 - MariaDB on `127.0.0.1` (`nixos/mysql.nix`): its clients use its socket.
-- coolwsd on loopback (`nixos/apps/collabora.nix`), which serves the hosts in `collabora.allowedHosts` alone, by default
-  each nextcloud that names it.
+- coolwsd on loopback, at a port of each nextcloud's (`nixos/apps/nextcloud.nix`), which serves that nextcloud's `url`
+  alone.
 - prosody on loopback (`nixos/apps/jitsi.nix`), for jicofo, the videobridge and nginx.
 - keycloak's cache is local (`nixos/apps/keycloak.nix`), with no cluster to listen for.
 - mobilizon runs without Erlang distribution (`nixos/apps/mobilizon.nix`), so neither epmd nor a node listens; it stops

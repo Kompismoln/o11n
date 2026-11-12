@@ -104,9 +104,10 @@ started() {
   [ "$(cat dev/state/session-start)" = "fresh refused" ]
 }
 
-@test "session-start provisions a cloud session from the dev shell, rooted in the clone" {
+@test "session-start provisions a cloud session from the dev shell, rooted in the clone, its machine class container" {
   expected="export PATH='/dev-shell/bin':\"\$PATH\""
   [[ -z ${O11N_ROOT:-} ]] || expected+=$'\n'"export O11N_ROOT=$(printf %q "$O11N_ROOT")"
+  expected+=$'\n'"export MACHINE_CLASS=container"
   CLAUDE_CODE_REMOTE=true CLAUDE_ENV_FILE=$BATS_TEST_TMPDIR/env run "$agent" session-start <<<'{"source":"resume"}'
   [ "$status" -eq 0 ]
   [ "$output" = "" ]

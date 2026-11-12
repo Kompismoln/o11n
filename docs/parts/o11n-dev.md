@@ -11,6 +11,7 @@ o11n-dev refs check
 o11n-dev index write | check
 o11n-dev systems check [-- <nix argument>...]
 o11n-dev systems compare <rev> <rev> <host>... [-- <nix argument>...]
+o11n-dev costs write | show              # fold dev/check.sh's times into dev/costs.tsv and the docs | the medians
 ```
 
 Each flags on stderr as `flag: ...`, and fails if it flags any.

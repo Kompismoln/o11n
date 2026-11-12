@@ -334,7 +334,7 @@ in
         external:
         (builtins.tryEval (
           builtins.deepSeq
-            (alter { app.cloud.nextcloud = { inherit external; }; }).org.app.cloud.nextcloud.mounts.laptop
+            (alter { app.cloud.nextcloud.storages = external; }).org.app.cloud.nextcloud.mounts.laptop
             true
         )).success;
     in
@@ -360,7 +360,7 @@ in
                 app = spec.app // {
                   cloud = cloud // {
                     nextcloud = cloud.nextcloud // {
-                      external = { inherit (cloud.nextcloud.external) lisa; };
+                      storages = { inherit (cloud.nextcloud.storages) lisa; };
                     };
                   };
                 };
@@ -389,8 +389,8 @@ in
         let
           tried = builtins.tryEval (
             builtins.deepSeq
-              (alter { app.cloud.nextcloud = { inherit external; }; }).org.app.cloud.nextcloud.mounts.laptop
-              (alter { app.cloud.nextcloud = { inherit external; }; }).org.app.cloud.nextcloud.mounts.laptop
+              (alter { app.cloud.nextcloud.storages = external; }).org.app.cloud.nextcloud.mounts.laptop
+              (alter { app.cloud.nextcloud.storages = external; }).org.app.cloud.nextcloud.mounts.laptop
           );
         in
         if tried.success then
@@ -813,5 +813,108 @@ in
       expected = [
         ''service.media-server on zhost: its library is an allotment of its own, and zhost has none: add allotment."service-media-server@zhost" with its size and torrent = true.''
       ];
+    };
+
+  # Policy: a storage is of one kind, a user has a box at most, which is their data, a bind is at its folder, and the
+  # users without a box are told apart.
+  test_nextcloud_storages =
+    let
+      box = {
+        host = "box.example.com";
+        share = "alice";
+        login = "alice";
+        key = "store-files";
+      };
+      nextcloud =
+        storages:
+        let
+          tried = builtins.tryEval (
+            builtins.deepSeq (alter { app.cloud.nextcloud.storages = storages; }).org.app.cloud.nextcloud.users
+              (alter { app.cloud.nextcloud.storages = storages; }).org.app.cloud.nextcloud
+          );
+        in
+        if tried.success then
+          {
+            inherit (tried.value) users binds;
+            shares = map (share: share.user) tried.value.shares;
+          }
+        else
+          null;
+    in
+    {
+      expr = {
+        boxed = nextcloud {
+          alice.box = { inherit box; };
+          bob.pub.bind = "/srv/pub";
+        };
+        boxes = nextcloud {
+          alice.one = { inherit box; };
+          alice.two = { inherit box; };
+        };
+        both = nextcloud {
+          alice.box = {
+            inherit box;
+            bind = "/srv/pub";
+          };
+        };
+      };
+      expected = {
+        boxed = {
+          users = {
+            alice = true;
+            bob = false;
+            lisa = false;
+          };
+          binds = [
+            {
+              mountPoint = "/pub";
+              user = "bob";
+              sharing = false;
+              path = "/srv/pub";
+              made = false;
+            }
+          ];
+          shares = [ "alice" ];
+        };
+        boxes = null;
+        both = null;
+      };
+    };
+
+  # Policy: a nextcloud-rolf's folder is a bind of its nextcloud's, in the nextcloud's home, which it makes, and its
+  # user the nextcloud's.
+  test_nextcloud_rolf_binds_its_folder =
+    let
+      inherit
+        ((alter {
+          app.site = {
+            id = 9;
+            endpoint = "site.example.com";
+            run-on-hosts = [ ];
+            nextcloud-rolf.nextcloud = "cloud";
+          };
+        }).org.app.cloud.nextcloud
+        )
+        binds
+        users
+        ;
+    in
+    {
+      expr = {
+        inherit binds;
+        rolf = users.rolf or null;
+      };
+      expected = {
+        binds = [
+          {
+            mountPoint = "/+pub";
+            user = "rolf";
+            path = "${outputs.org.app.cloud.principal.home}/binds/rolf/+pub";
+            sharing = false;
+            made = true;
+          }
+        ];
+        rolf = false;
+      };
     };
 }

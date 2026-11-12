@@ -25,16 +25,19 @@
         || lib.elem config.handle (
           lib.concatMap (
             app:
-            lib.concatMap (lib.mapAttrsToList (_: mount: mount.sftp.key or null)) (
-              lib.attrValues (app.nextcloud.external or { })
+            lib.concatMap (lib.mapAttrsToList (_: storage: storage.sftp.key or null)) (
+              lib.attrValues (app.nextcloud.storages or { })
             )
           ) (lib.attrValues (context.spec.app or { }))
         )
       ) { sftp-key = "ssh-rsa"; }
       // lib.optionalAttrs (lib.elem config.handle (
-        lib.concatMap (app: lib.mapAttrsToList (_: home: home.key or null) (app.nextcloud.homes or { })) (
-          lib.attrValues (context.spec.app or { })
-        )
+        lib.concatMap (
+          app:
+          lib.concatMap (lib.mapAttrsToList (_: storage: storage.box.key or null)) (
+            lib.attrValues (app.nextcloud.storages or { })
+          )
+        ) (lib.attrValues (context.spec.app or { }))
       )) { smb-password = "passphrase"; };
     # Policy: a host's ssh-key is its own, which `o11n host pull-ssh-key` writes the public key of, and the org has no
     # secret of.

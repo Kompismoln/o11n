@@ -59,9 +59,9 @@ torrent = true
 id = 0
 endpoint = "cloud.example.com"
 run-on-hosts = ["laptop"]
-nextcloud.external.alice.zhost = { allotment = "user-alice@zhost", sharing = true }
+nextcloud.storages.alice.zhost = { allotment = "user-alice@zhost", sharing = true }
 # Fact: lisa is a Nextcloud user alone, whose mount logs in with store-files' sftp-key.
-nextcloud.external.lisa.files = { sftp = { host = "files.example.com", login = "lisa", key = "store-files" } }
+nextcloud.storages.lisa.files = { sftp = { host = "files.example.com", login = "lisa", key = "store-files" } }
 
 [root.1]
 

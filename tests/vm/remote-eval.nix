@@ -141,6 +141,9 @@ pkgs.testers.runNixOSTest {
         "cd /srv/org && GIT_SSH_COMMAND='ssh -i /run/secrets/nix-remote/ssh-key -o StrictHostKeyChecking=accept-new'"
         " nix --extra-experimental-features 'nix-command flakes' flake lock"
     )
+    # Accommodating for nix, which adds the lock file to git's index as root, writing the empty blob in a directory
+    # of .git/objects git can't write in after: git's commit failed whenever an object of it hashed there.
+    gw.succeed("chown -R git:git /srv/org")
     org = commit("git", "/srv/org", "org")
     archive = gw.succeed("nix --extra-experimental-features 'nix-command flakes' flake archive --json /srv/org")
     gw.succeed(f"nix-store --delete {json.loads(archive)['inputs']['private']['path']}")

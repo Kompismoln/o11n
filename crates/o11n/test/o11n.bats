@@ -538,24 +538,25 @@ setup() {
 }
 
 @test "status tells whether this o11n is the package the o11n the org pins builds" {
-  local o11n
-  o11n=$(readlink -f "$(command -v o11n)")
-  if [[ $o11n != /nix/store/* ]]; then
+  local bin o11n
+  bin=$(readlink -f "$(command -v o11n)")
+  if [[ $bin != /nix/store/* ]]; then
     run o11n status host-testhost
     [[ $output == *"org o11n skip: this o11n isn't in the nix store, as one cargo built"* ]]
+    bin=$(nix-store --add "$bin" 2>/dev/null) || skip "nix can't add to the store here"
   fi
-  o11n=$(nix-store --add "$o11n" 2>/dev/null) || skip "nix can't add to the store here"
+  o11n=$(cut -d / -f 1-4 <<<"$bin")
 
   mkdir o11n-stub
   echo "{ outputs = _: { packages.x86_64-linux.o11n.outPath = \"$o11n\"; }; }" >o11n-stub/flake.nix
   echo "{ inputs.o11n.url = \"path:$TESTROOT/o11n-stub\"; outputs = _: { }; }" >flake.nix
   nix flake lock 2>/dev/null || skip "nix can't lock a flake here"
-  run "$o11n" status host-testhost
+  run "$bin" status host-testhost
   [[ $output == *"org o11n ok"* ]]
 
   echo "{ outputs = _: { packages.x86_64-linux.o11n.outPath = \"/nix/store/other\"; }; }" >o11n-stub/flake.nix
   nix flake update 2>/dev/null
-  run "$o11n" status host-testhost
+  run "$bin" status host-testhost
   [[ $output == *"org o11n fail: this o11n is $o11n, and the org's builds /nix/store/other"* ]]
 }
 

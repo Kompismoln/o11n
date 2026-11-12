@@ -11,6 +11,7 @@
   gnused,
   jq,
   lib,
+  nix-eval-jobs,
   nixfmt,
   o11n,
   o11n-dev,
@@ -51,6 +52,7 @@ let
     write
     ++ [
       deadnix
+      nix-eval-jobs
       shellcheck
       statix
     ]

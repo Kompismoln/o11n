@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC2016 # Accommodating for Markdown, whose backticks are literal here
+
 setup() {
   opening="<<<<<<< signed"
   divider="======="
@@ -116,7 +118,7 @@ indexed() {
   [ "$output" = "write.sh: stamps writes against STAMPED, which is unset" ]
   run dev/write.sh nowhere
   [ "$status" -eq 1 ]
-  [ "$output" = "no stage nowhere: format index stamps" ]
+  [ "$output" = "no stage nowhere: costs format index stamps" ]
 }
 
 @test "docs flags paths that aren't there and commits off main, but not what's elsewhere or ignored" {
@@ -189,4 +191,132 @@ TOML
   O11N_ROOT=$PWD run o11n-dev main
   [ "$status" -eq 1 ]
   [ "$output" = "o11n-dev: O11N_ROOT, $PWD, holds no crates/o11n-dev to build" ]
+}
+
+@test "with MACHINE_CLASS set and dev/costs.tsv there, each stage spools what it took, which write.sh folds into it" {
+  MACHINE_CLASS=container run dev/check.sh stamps
+  [ "$status" -eq 0 ]
+  [ ! -e dev/state/costs-spool.tsv ]
+
+  printf '2026-11-12T00:00:00Z\tcontainer\t12.0\t0\t0\tabc\tdev/check.sh lint\n' >dev/costs.tsv
+  printf '[costs]\nquoted = "container"\nquoted_in = ["doc.md"]\n' >settings.toml
+  printf -- '- `dev/check.sh lint` ~900s\n- `dev/check.sh docs` ~900s\n' >doc.md
+  MACHINE_CLASS=container run dev/check.sh stamps
+  [ "$status" -eq 0 ]
+  MACHINE_CLASS=container run dev/check.sh stamps docs
+  [ "$status" -eq 0 ]
+  commit=$(git rev-parse --short HEAD)
+  [ "$(cut -f2,4- dev/state/costs-spool.tsv | sort)" = "container	0	0	$commit	dev/check.sh stamps
+container	0	0	$commit	dev/check.sh stamps docs
+container	0	1	$commit	dev/check.sh docs
+container	0	1	$commit	dev/check.sh stamps" ]
+
+  run dev/write.sh costs
+  [ "$status" -eq 0 ]
+  [ "$output" = "dev/costs.tsv: 4 folded
+doc.md: figures rewritten" ]
+  [ ! -e dev/state/costs-spool.tsv ]
+  [ "$(wc -l <dev/costs.tsv)" -eq 5 ]
+  [ "$(cat doc.md)" = '- `dev/check.sh lint` ~12s
+- `dev/check.sh docs` ~900s' ]
+  run dev/write.sh costs
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+}
+
+@test "vm spools its evaluation, its build and each VM test the builder ran, with the time its driver says it took" {
+  touch dev/costs.tsv
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'NIX'
+case $1 in
+eval) echo '{"vm": 1, "eval": 3}' ;;
+run)
+  echo 'vm-test-run-o11n-mail> (finished: run the VM test script, in 30.48 seconds)' >&2
+  echo 'vm-test-run-o11n-mail> (finished: cleanup, in 0.12 seconds)' >&2
+  ;;
+esac
+NIX
+  } >"$BATS_TEST_TMPDIR/bin/nix"
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'NIX'
+echo "${*//$'\n'/ }" >>"$BATS_TEST_TMPDIR/nix-eval-jobs.log"
+echo '{"attrPath": ["0/vm/mail"], "drvPath": "/nix/store/x-vm-test-run-o11n-mail.drv"}'
+NIX
+  } >"$BATS_TEST_TMPDIR/bin/nix-eval-jobs"
+  printf '#!%s\n' "$BASH" >"$BATS_TEST_TMPDIR/bin/nix-store"
+  chmod +x "$BATS_TEST_TMPDIR"/bin/*
+  MACHINE_CLASS=container run dev/check.sh vm
+  [ "$status" -eq 0 ]
+  [[ $output == *"run the VM test script, in 30.48 seconds"* ]]
+  [ "$(cut -f7 dev/state/costs-spool.tsv)" = "nix-eval-jobs vm
+o11n remote build .#stages.vm
+vmTests.mail
+dev/check.sh vm" ]
+  [ "$(sed -n 3p dev/state/costs-spool.tsv | cut -f3,4)" = "30.5	0" ]
+  [[ $(cat "$BATS_TEST_TMPDIR/nix-eval-jobs.log") == *"--select"* ]]
+}
+
+@test "a stage's jobs, at a tree whose derivations are still there, are as they were last evaluated there" {
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'NIX'
+echo "$*" >>"$BATS_TEST_TMPDIR/nix.log"
+[[ $1 != eval ]] || echo '{"eval": 2}'
+NIX
+  } >"$BATS_TEST_TMPDIR/bin/nix"
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'NIX'
+echo "${*//$'\n'/ }" >>"$BATS_TEST_TMPDIR/nix-eval-jobs.log"
+echo '{"attrPath": ["0/eval/one"], "drvPath": "/nix/store/x-one.drv"}'
+echo '{"attrPath": ["0/eval/two"], "drvPath": "/nix/store/x-two.drv"}'
+NIX
+  } >"$BATS_TEST_TMPDIR/bin/nix-eval-jobs"
+  printf '#!%s\nexit "${INVALID:-0}"\n' "$BASH" >"$BATS_TEST_TMPDIR/bin/nix-store"
+  chmod +x "$BATS_TEST_TMPDIR"/bin/*
+  run dev/check.sh eval
+  [ "$status" -eq 0 ]
+  grep -qxF -- "build --no-link --quiet --no-warn-dirty /nix/store/x-one.drv^* /nix/store/x-two.drv^*" "$BATS_TEST_TMPDIR/nix.log"
+  run dev/check.sh eval
+  [ "$status" -eq 0 ]
+  [ "$(wc -l <"$BATS_TEST_TMPDIR/nix-eval-jobs.log")" -eq 1 ]
+  INVALID=1 run dev/check.sh eval
+  [ "$(wc -l <"$BATS_TEST_TMPDIR/nix-eval-jobs.log")" -eq 2 ]
+  echo changed >>doc.md
+  run dev/check.sh eval
+  [ "$(wc -l <"$BATS_TEST_TMPDIR/nix-eval-jobs.log")" -eq 3 ]
+}
+
+@test "a job that fails to evaluate fails its stage, saying why, and the stage evaluated beside it builds" {
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'NIX'
+[[ $1 != eval ]] || echo '{"eval": 1, "leaks": 1}'
+NIX
+  } >"$BATS_TEST_TMPDIR/bin/nix"
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'NIX'
+echo '{"attrPath": ["0/eval/one"], "error": "error: broken"}'
+echo '{"attrPath": ["1/leaks/two"], "drvPath": "/nix/store/x-two.drv"}'
+NIX
+  } >"$BATS_TEST_TMPDIR/bin/nix-eval-jobs"
+  chmod +x "$BATS_TEST_TMPDIR"/bin/*
+  run dev/check.sh eval leaks
+  [ "$status" -eq 1 ]
+  [[ $output == *"eval/one: error: broken"* ]]
+  [ "${lines[-1]}" = "• failed: eval" ]
+}
+
+@test "an evaluation that fails before nix-eval-jobs answers fails each stage that waits for it, rather than hang" {
+  printf '#!%s\necho "warning: noise" >&2\n[[ $1 != eval ]] || { echo "error: no jobs" >&2; exit 1; }\n' "$BASH" \
+    >"$BATS_TEST_TMPDIR/bin/nix"
+  chmod +x "$BATS_TEST_TMPDIR/bin/nix"
+  run timeout 60 dev/check.sh eval leaks
+  [ "$status" -eq 1 ]
+  [[ $output == *"error: no jobs"* ]]
+  [[ $output == *"evaluate: eval wasn't evaluated, as said above"* ]]
+  [ "${lines[-1]}" = "• failed: eval leaks" ]
 }

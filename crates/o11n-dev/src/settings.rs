@@ -16,6 +16,10 @@ pub const HOOKS: &[(&str, &[&str])] = &[
 
 pub struct Settings {
     pub main: String,
+    /// The machine class, as `MACHINE_CLASS` names it, whose costs the docs quote, if any.
+    pub quoted: Option<String>,
+    /// The docs that quote them.
+    pub quoted_in: Vec<String>,
     hooks: BTreeMap<(String, String), Vec<String>>,
 }
 
@@ -80,6 +84,27 @@ fn hooks(table: &Table) -> Result<BTreeMap<(String, String), Vec<String>>, Strin
     Ok(read)
 }
 
+fn costs(table: &Table) -> Result<(Option<String>, Vec<String>), String> {
+    let costs = match table.get("costs") {
+        None => return Ok((None, Vec::new())),
+        Some(Value::Table(costs)) => costs,
+        Some(_) => return Err(format!("{SETTINGS}: costs isn't a table")),
+    };
+    let quoted = match costs.get("quoted") {
+        None => None,
+        Some(Value::String(quoted)) => Some(quoted.clone()),
+        Some(_) => return Err(format!("{SETTINGS}: [costs]: quoted isn't a machine class")),
+    };
+    let quoted_in = match costs.get("quoted_in") {
+        None => Vec::new(),
+        Some(Value::Array(docs)) if docs.iter().all(Value::is_str) => {
+            docs.iter().filter_map(Value::as_str).map(str::to_owned).collect()
+        }
+        Some(_) => return Err(format!("{SETTINGS}: [costs]: quoted_in isn't a list of docs")),
+    };
+    Ok((quoted, quoted_in))
+}
+
 /// The clone's settings.toml, each setting it leaves out as its default.
 pub fn read() -> Result<Settings, String> {
     let table: Table = match fs::read_to_string(SETTINGS) {
@@ -92,8 +117,11 @@ pub fn read() -> Result<Settings, String> {
         Some(Value::String(main)) => main.clone(),
         Some(_) => return Err(format!("{SETTINGS}: main isn't a branch's name")),
     };
+    let (quoted, quoted_in) = costs(&table)?;
     Ok(Settings {
         main,
+        quoted,
+        quoted_in,
         hooks: hooks(&table)?,
     })
 }
