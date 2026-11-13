@@ -7,6 +7,7 @@
 let
   kinds = {
     django = ./apps/django.nix;
+    immich = ./apps/immich.nix;
     jitsi = ./apps/jitsi.nix;
     keycloak = ./apps/keycloak.nix;
     mobilizon = ./apps/mobilizon.nix;
@@ -30,9 +31,9 @@ in
         "nextcloud"
       ]) { secret-key = "passphrase"; }
       // lib.optionalAttrs (config.kind == "keycloak") { admin-client-secret = "passphrase"; }
-      // lib.optionalAttrs (config.nextcloud != null && config.nextcloud.keycloak != null) {
-        oidc-secret = "passphrase";
-      }
+      // lib.optionalAttrs (
+        config.immich != null || config.nextcloud != null && config.nextcloud.keycloak != null
+      ) { oidc-secret = "passphrase"; }
       //
         lib.optionalAttrs
           (

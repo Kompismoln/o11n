@@ -142,6 +142,12 @@
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
               };
 
+              legacyPackages.vmTests.photos = import ./tests/vm/photos.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
+              };
+
               legacyPackages.vmTests.mobilizon = import ./tests/vm/mobilizon.nix {
                 inherit pkgs;
                 o11nInputs = inputs;

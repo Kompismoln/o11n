@@ -50,3 +50,11 @@ o11n identity create app-cloud
 for key in ssh-key secret-key oidc-secret; do
     o11n secret generate app-cloud "$key"
 done
+
+o11n identity create store-box
+o11n secret generate store-box smb-password
+
+o11n identity create app-photos
+for key in ssh-key mail oidc-secret; do
+    o11n secret generate app-photos "$key"
+done

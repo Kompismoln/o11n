@@ -96,6 +96,17 @@ django's CSRF_TRUSTED_ORIGINS
 
 canonical name on internet
 
+<<<<<<< signed
+=======
+### `app.<name>.immich`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a immich, which make it one
+
+>>>>>>> @stamp
 ### `app.<name>.jitsi`
 
 `org/app.nix` · null or (submodule)
@@ -126,7 +137,11 @@ the app's settings as a keycloak, which make it one
 
 ### `app.<name>.kind`
 
+<<<<<<< signed
 `org/app.nix` · null or one of "django", "jitsi", "keycloak", "mobilizon", "nextcloud", "rolf", "wordpress"
+=======
+`org/app.nix` · null or one of "django", "immich", "jitsi", "keycloak", "mobilizon", "nextcloud", "rolf", "wordpress"
+>>>>>>> @stamp
 
 Default: the one of its kinds' tables that is set, or null
 
@@ -1118,7 +1133,11 @@ Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and 
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
 `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key`
 for an app or host an allotment's `sftp` has and for an entity a nextcloud's `sftp.key` names, an `smb-password` for one
+<<<<<<< signed
 its `homes` name, and the keys o11n's modules read of the services they name
+=======
+a nextcloud's or an immich's boxes name, and the keys o11n's modules read of the services they name
+>>>>>>> @stamp
 
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 

@@ -325,3 +325,23 @@
 2026-11-13T02:10:41Z	container	91.4	0	11	8c3b8901	vmTests.deploy
 2026-11-13T02:10:41Z	container	181.3	0	11	8c3b8901	dev/check.sh vm
 2026-11-13T02:10:41Z	container	181.4	1	0	8c3b8901	dev/check.sh
+2026-11-13T13:05:20Z	container	0.1	0	7	aace3bee	dev/check.sh parts
+2026-11-13T13:05:20Z	container	0.2	0	7	aace3bee	dev/check.sh stamps
+2026-11-13T13:05:20Z	container	0.3	0	7	aace3bee	dev/check.sh pending
+2026-11-13T13:05:21Z	container	1.2	0	7	aace3bee	dev/check.sh docs
+2026-11-13T13:05:27Z	container	7.2	0	7	aace3bee	dev/check.sh format
+2026-11-13T13:05:28Z	container	7.6	0	7	aace3bee	dev/check.sh lint
+2026-11-13T13:05:28Z	container	7.8	0	7	aace3bee	dev/check.sh index
+2026-11-13T13:06:21Z	container	61.1	0	7	aace3bee	nix-eval-jobs eval
+2026-11-13T13:06:31Z	container	9.9	0	7	aace3bee	nix build .#stages.eval
+2026-11-13T13:06:31Z	container	70.8	0	7	aace3bee	dev/check.sh eval
+2026-11-13T13:06:31Z	container	71.6	0	0	aace3bee	dev/check.sh stamps pending format lint docs parts index eval
+2026-11-13T15:47:13Z	container	0.4	0	4	aace3bee	dev/check.sh parts
+2026-11-13T15:47:14Z	container	2.4	0	4	aace3bee	dev/check.sh docs
+2026-11-13T15:47:15Z	container	2.8	0	4	aace3bee	dev/check.sh format
+2026-11-13T15:47:16Z	container	4.0	0	4	aace3bee	dev/check.sh index
+2026-11-13T15:47:17Z	container	5.2	0	4	aace3bee	dev/check.sh lint
+2026-11-13T15:47:17Z	container	5.3	0	0	aace3bee	dev/check.sh format lint docs parts index
+2026-11-13T15:48:27Z	container	66.6	0	0	aace3bee	nix-eval-jobs eval
+2026-11-13T15:48:28Z	container	0.8	0	0	aace3bee	nix build .#stages.eval
+2026-11-13T15:48:28Z	container	67.5	0	0	aace3bee	dev/check.sh eval
