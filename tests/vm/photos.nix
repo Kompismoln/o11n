@@ -117,10 +117,8 @@ pkgs.testers.runNixOSTest {
           ../../nixos/org/mail.nix
           ../../nixos/apps/keycloak.nix
           immich
-          (principal photos)
-          (principal auth)
-          (principal org.user.alice)
-        ];
+        ]
+        ++ map principal (org.host.web.principals ++ [ photos ]);
         _module.args = {
           # Accommodating for the inventory, whose photos runs on no host: here, web has it as a principal.
           host = org.host.web // {
