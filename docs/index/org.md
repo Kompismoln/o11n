@@ -126,7 +126,7 @@ the app's settings as a keycloak, which make it one
 
 ### `app.<name>.kind`
 
-`org/app.nix` · null or one of "django", "jitsi", "keycloak", "mobilizon", "nextcloud", "nextcloud-rolf", "wordpress"
+`org/app.nix` · null or one of "django", "jitsi", "keycloak", "mobilizon", "nextcloud", "rolf", "wordpress"
 
 Default: the one of its kinds' tables that is set, or null
 
@@ -173,44 +173,6 @@ Default: `null`
 
 the app's settings as a nextcloud, which make it one
 
-### `app.<name>.nextcloud-rolf`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a nextcloud-rolf, which make it one
-
-### `app.<name>.nextcloud-rolf.folder`
-
-`org/apps/nextcloud-rolf.nix` · string
-
-Default: `"+pub"`
-
-the user's folder the site is built from, a bind of the nextcloud's, which it makes
-
-### `app.<name>.nextcloud-rolf.input`
-
-`org/apps/nextcloud-rolf.nix` · string
-
-Default: `name`
-
-the org's input whose packages.<system> has the site's packages
-
-### `app.<name>.nextcloud-rolf.nextcloud`
-
-`org/apps/nextcloud-rolf.nix` · impossible (empty enum)
-
-the nextcloud app whose files the site is built from, and whose user builds it
-
-### `app.<name>.nextcloud-rolf.user`
-
-`org/apps/nextcloud-rolf.nix` · string
-
-Default: `"rolf"`
-
-the Nextcloud user whose folder the site is built from
-
 ### `app.<name>.nextcloud.keycloak`
 
 `org/apps/nextcloud.nix` · null or impossible (empty enum)
@@ -233,8 +195,18 @@ the keycloak realm of nextcloud's client
 
 Default: `{ }`
 
-the storages of each Nextcloud user, by user, then by name: a box, which is their data, and the rest each a folder of
-its name in it, or, without a box, in a folder no one can write in; a Keycloak user without one can't log in
+the storages of each Nextcloud user, by user, then by name: a box or an adapter, which is their data, and the rest each
+a folder of its name in it, or, without either, in a folder no one can write in; a Keycloak user without one logs in to
+nothing they can write in
+
+### `app.<name>.nextcloud.storages.<name>.<name>.adapter`
+
+`org/apps/nextcloud.nix` · null or string
+
+Default: `null`
+
+the entity, by its handle, whose home is the user's data, as a box would be, which the app's hosts mount as nextcloud's
+user's and write in as the entity, or null
 
 ### `app.<name>.nextcloud.storages.<name>.<name>.allotment`
 
@@ -328,7 +300,31 @@ the directory on the server the mount is of
 
 Default: `false`
 
-whether the user can share from the storage, but a box, nextcloud's enable_sharing
+whether the user can share from the storage, but a box or an adapter, nextcloud's enable_sharing
+
+### `app.<name>.rolf`
+
+`org/app.nix` · null or (submodule)
+
+Default: `null`
+
+the app's settings as a rolf, which make it one
+
+### `app.<name>.rolf.input`
+
+`org/apps/rolf.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system> has the site's packages
+
+### `app.<name>.rolf.source`
+
+`org/apps/rolf.nix` · string
+
+Default: `"files"`
+
+the folder in the app's home the site is built from
 
 ### `app.<name>.run-on-hosts`
 

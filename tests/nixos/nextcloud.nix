@@ -1,5 +1,6 @@
 {
   lib,
+  pkgs,
   evalNixosModule,
 }:
 let
@@ -15,7 +16,7 @@ let
       uid = 3007;
       gid = 3007;
     };
-    secrets.sopsFile = "/enc/app-cloud.yaml";
+    secrets.sopsFile = ../inventories/allotments/enc/app-cloud.yaml;
     url = "https://cloud.example.com";
     ids = {
       int = 7;
@@ -81,7 +82,7 @@ let
           handle = "store-files";
           secret = {
             name = "files/sftp-key";
-            sopsFile = "/enc/store-files.yaml";
+            sopsFile = ../inventories/allotments/enc/store-files.yaml;
           };
           publicKey = ../inventories/allotments/public-keys/store-files-sftp-key.pub;
         };
@@ -117,6 +118,18 @@ let
             sopsFile = "/enc/store-box.yaml";
           };
         };
+      }
+    ];
+  };
+
+  # Fact: as org/apps/nextcloud.nix derives it for storages.rolf.home.adapter = "app-site", site's home /var/lib/site.
+  adapts = lib.recursiveUpdate app {
+    nextcloud.users.rolf = true;
+    nextcloud.adapters = [
+      {
+        user = "rolf";
+        path = "/var/lib/site";
+        owner = "site";
       }
     ];
   };
@@ -269,6 +282,9 @@ in
           inherit (inner.services.nextcloud.settings) user_oidc lost_password_link token_auth_enforced;
         };
         after = inner.systemd.services.nextcloud-oidc.after;
+        restarts =
+          lib.elem (builtins.hashFile "sha256" ../inventories/allotments/enc/app-cloud.yaml)
+            cfg.systemd.services."container@cloud".restartTriggers;
       };
       expected = {
         apps = [
@@ -278,7 +294,7 @@ in
         secret = {
           hostPath = "/run/secrets/cloud/oidc-secret";
           isReadOnly = true;
-          sopsFile = "/enc/app-cloud.yaml";
+          sopsFile = ../inventories/allotments/enc/app-cloud.yaml;
           owner = "cloud";
         };
         provider = [
@@ -293,13 +309,14 @@ in
         alone = true;
         settings = {
           user_oidc = {
-            auto_provision = false;
+            auto_provision = true;
             soft_auto_provision = false;
           };
           lost_password_link = "disabled";
           token_auth_enforced = true;
         };
         after = [ "nextcloud-setup.service" ];
+        restarts = true;
       };
     };
 
@@ -427,19 +444,18 @@ in
     {
       expr = {
         inherit (unit) after;
-        sets = lib.all (part: lib.hasInfix part unit.script) [
-          "config:app:set richdocuments wopi_url --value=https://cloud.example.com"
-          "config:app:delete richdocuments public_wopi_url"
-          "config:app:delete richdocuments wopi_callback_url"
-        ];
+        activates = lib.hasInfix "richdocuments:activate-config --wopi-url=https://cloud.example.com" unit.script;
         inherit (office) enable port aliasGroups;
         listens = office.settings.net.listen;
         discovery = locations."^~ /hosting/discovery".proxyPass;
         websocket = locations."~ ^/cool/(.*)/ws$".proxyWebsockets;
       };
       expected = {
-        after = [ "nextcloud-setup.service" ];
-        sets = true;
+        after = [
+          "nextcloud-setup.service"
+          "coolwsd.service"
+        ];
+        activates = true;
         enable = true;
         port = 9987;
         aliasGroups = [
@@ -491,14 +507,14 @@ in
           app-cloud = {
             hostPath = "/run/secrets/cloud/app-cloud/sftp-key";
             isReadOnly = true;
-            sopsFile = "/enc/app-cloud.yaml";
+            sopsFile = ../inventories/allotments/enc/app-cloud.yaml;
             key = "cloud/sftp-key";
             owner = "cloud";
           };
           store-files = {
             hostPath = "/run/secrets/cloud/store-files/sftp-key";
             isReadOnly = true;
-            sopsFile = "/enc/store-files.yaml";
+            sopsFile = ../inventories/allotments/enc/store-files.yaml;
             key = "files/sftp-key";
             owner = "cloud";
           };
@@ -645,6 +661,12 @@ in
           bob = lib.hasInfix "user:setting bob files" users;
           default = lib.hasInfix "config:app:set files default_quota --value='0 B'" users;
         };
+        examples =
+          lib.all (key: lib.hasInfix "config:app:set dav ${key} --type=boolean --value=false" users)
+            [
+              "enableDefaultContact"
+              "create_example_event"
+            ];
         local_allowed = inner.services.nextcloud.settings.files_external_allow_create_new_local;
       };
       expected = {
@@ -664,7 +686,58 @@ in
           bob = false;
           default = true;
         };
+        examples = true;
         local_allowed = true;
+      };
+    };
+
+  # Policy: an adapter is a home, as a box is, mounted on the host as nextcloud's user's from its owner's home, which is
+  # written as the owner, and bound into the container as the user's data, once the owner is on the host.
+  test_nextcloud_adapts_a_home =
+    let
+      cfg = evalApp adapts app.principal.uid;
+      container = cfg.containers.cloud;
+      where = "/var/lib/cloud/nextcloud/data/rolf";
+    in
+    {
+      expr = {
+        mounts = map (mount: {
+          inherit (mount)
+            what
+            where
+            type
+            options
+            after
+            ;
+        }) (lib.filter (mount: mount.type == "fuse.bindfs") cfg.systemd.mounts);
+        data = { inherit (container.bindMounts."/var/lib/nextcloud/data/rolf") hostPath isReadOnly; };
+        files = container.bindMounts ? "/var/lib/nextcloud/data/rolf/files";
+        requires = lib.elem where cfg.systemd.services."container@cloud".unitConfig.RequiresMountsFor;
+        quota = lib.hasInfix "user:setting rolf files quota none" container.config.systemd.services.nextcloud-users.script;
+        bindfs = lib.elem pkgs.bindfs cfg.system.fsPackages;
+        failed = failed cfg;
+      };
+      expected = {
+        mounts = [
+          {
+            what = "/var/lib/site";
+            inherit where;
+            type = "fuse.bindfs";
+            options = "force-user=cloud,force-group=cloud,create-for-user=site,create-for-group=site,nofail";
+            after = [ "systemd-tmpfiles-setup.service" ];
+          }
+        ];
+        data = {
+          hostPath = where;
+          isReadOnly = false;
+        };
+        files = false;
+        requires = true;
+        quota = true;
+        bindfs = true;
+        failed = [
+          "Nextcloud cloud mounts rolf's home from /var/lib/site, whose owner, site, isn't on web: run the owner on web, or drop the adapter."
+        ];
       };
     };
 }

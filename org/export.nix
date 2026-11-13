@@ -101,7 +101,9 @@ let
           lib.mapAttrsToList (
             user: storages:
             map (name: "${user}/${name}") (
-              lib.attrNames (lib.filterAttrs (_: storage: storage.box == null) storages)
+              lib.attrNames (
+                lib.filterAttrs (_: storage: storage.box == null && storage.adapter == null) storages
+              )
             )
           ) entity.nextcloud.storages
         );

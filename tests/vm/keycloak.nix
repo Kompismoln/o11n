@@ -265,7 +265,7 @@ pkgs.testers.runNixOSTest {
         users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
         assert list(users) == ["alice"] and users["alice"]["backend"] == "user_oidc", users
 
-    with subtest("a Keycloak user without storages isn't nextcloud's, and can't log in"):
+    with subtest("a Keycloak user without storages logs in, writes nothing, and logs out"):
         carol = {
             "username": "carol", "email": "carol@example.com", "emailVerified": True,
             "firstName": "Carol", "lastName": "Example", "enabled": True,
@@ -280,13 +280,26 @@ pkgs.testers.runNixOSTest {
         page = web.succeed(f"{browse} ${cloud.url}/login")
         form = re.search(r'action="([^"]*login-actions/authenticate[^"]*)"', page)
         assert form, page
-        refused = web.succeed(
-            f"{browse} -w '\\n%{{http_code}}' --data-urlencode username=carol"
+        landed = web.succeed(
+            f"{browse} -o /dev/null -w '%{{url_effective}}' --data-urlencode username=carol"
             f" --data-urlencode password=\"carol's\" '{html.unescape(form.group(1))}'"
         )
-        assert refused.endswith("\n400") and "Failed to provision the user" in refused, refused[-500:]
+        assert landed.startswith("${cloud.url}/") and "/apps/files" in landed, landed
         users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
-        assert list(users) == ["alice"], users
+        assert sorted(users) == ["alice", "carol"] and users["carol"]["backend"] == "user_oidc", users
+        assert users["carol"]["quota"] == "0 B", users["carol"]
+        password = web.succeed(f"{occ} --no-interaction user:auth-tokens:add carol").strip().splitlines()[-1]
+        said = web.succeed(
+            f"curl -sS -o /dev/null -w '%{{http_code}}' -u 'carol:{password}' -T /etc/hostname"
+            " ${cloud.url}/remote.php/dav/files/carol/written"
+        )
+        assert said == "507", said
+        files = web.succeed(f"{browse} ${cloud.url}/apps/files/")
+        request = re.search(r'data-requesttoken="([^"]+)"', files)
+        assert request, files[-500:]
+        web.succeed(f"{browse} -o /dev/null '${cloud.url}/logout?requesttoken={html.unescape(request.group(1))}'")
+        page = web.succeed(f"{browse} ${cloud.url}/login")
+        assert re.search(r'action="[^"]*login-actions/authenticate', page), page[-500:]
 
     with subtest("a user of nextcloud's own is disabled, and the realm's user takes no password"):
         web.succeed("nixos-container run cloud -- env OC_PASS=bob-password nextcloud-occ user:add --password-from-env bob")

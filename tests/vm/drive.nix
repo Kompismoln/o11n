@@ -7,11 +7,22 @@ let
   inherit (pkgs) lib;
   inherit (outputs) org;
   # Fact: the mail inventory's nextcloud, with users of its own rather than auth's realm's, which vmTests.keycloak runs,
-  # and storages as org/apps/nextcloud.nix derives them for nextcloud.storages.bob.pub.bind = "/srv/pub".
+  # and storages as org/apps/nextcloud.nix derives them for nextcloud.storages.bob.pub.bind = "/srv/pub" and
+  # nextcloud.storages.rolf.home.adapter = "app-site", site's home /var/lib/site.
   cloud = lib.recursiveUpdate org.app.cloud {
     nextcloud = {
       client = null;
-      users.bob = false;
+      users = {
+        bob = false;
+        rolf = true;
+      };
+      adapters = [
+        {
+          user = "rolf";
+          path = "/var/lib/site";
+          owner = "site";
+        }
+      ];
       binds = [
         {
           mountPoint = "/pub";
@@ -87,6 +98,13 @@ pkgs.testers.runNixOSTest {
       # nixos/org/networking.nix routes it.
       networking.localCommands = "ip -6 route replace local ${org.loCidr} dev lo";
       boot.kernel.sysctl."net.ipv6.ip_nonlocal_bind" = 1;
+      users.users.site = {
+        isSystemUser = true;
+        group = "site";
+        home = "/var/lib/site";
+        createHome = true;
+      };
+      users.groups.site = { };
       systemd.tmpfiles.rules = [ "d /srv/pub 0750 ${cloud.name} ${cloud.name} - -" ];
       environment.systemPackages = [ pkgs.poppler-utils ];
       virtualisation.memorySize = 4096;
@@ -102,8 +120,8 @@ pkgs.testers.runNixOSTest {
         discovery = web.wait_until_succeeds("curl -sSf ${cloud.url}/hosting/discovery", timeout=120)
         assert "${cloud.url}/browser/" in discovery, discovery
 
-    with subtest("nextcloud reaches its office"):
-        web.succeed("${occ} richdocuments:activate-config")
+    with subtest("nextcloud keeps its office's discovery, which it opens a document with"):
+        assert web.succeed("${occ} config:app:get richdocuments public_wopi_url").strip() == "${cloud.url}"
 
     with subtest("the office converts a document, as it opens one, in the container"):
         web.succeed("printf 'Hello from the drive\\n' > /tmp/hello.txt")
@@ -122,6 +140,7 @@ pkgs.testers.runNixOSTest {
             print(web.execute("journalctl -M ${cloud.name} -u nextcloud-setup --no-pager | tail -40")[1])
             raise
         web.fail("nixos-container run ${cloud.name} -- test -e /var/lib/nextcloud/made-before")
+        web.succeed("nixos-container run ${cloud.name} -- sh -c 'test -s /var/lib/nextcloud/data/appdata_*/richdocuments/remoteData/discovery'")
         assert web.succeed("${occ} config:system:get version").strip() == version
         web.succeed("${occ} user:info bob")
         assert "kept" in web.succeed("${occ} tag:list"), "the tag is gone"
@@ -148,5 +167,20 @@ pkgs.testers.runNixOSTest {
         web.succeed("systemctl restart container@${cloud.name}.service")
         web.wait_until_succeeds("nixos-container run ${cloud.name} -- systemctl is-active nextcloud-external.service", timeout=300)
         assert web.succeed("curl -sSf -u bob:alice-password '${dav}/pub/kept.txt'").strip() == "kept"
+
+    with subtest("an adapter is a user's home, their owner's, which nextcloud writes in as the owner, and reads the owner's in"):
+        web.succeed("nixos-container run ${cloud.name} -- env OC_PASS=rolf-password nextcloud-occ user:resetpassword --password-from-env rolf")
+        rolf = "curl -sS -u rolf:rolf-password"
+        written = web.succeed(
+            f"printf written | {rolf} -o /dev/null -w '%{{http_code}}' -T - '${cloud.url}/remote.php/dav/files/rolf/written.txt'"
+        ).strip()
+        assert written == "201", f"rolf couldn't write in his home: {written}"
+        assert web.succeed("stat -c %U:%G /var/lib/site/files/written.txt").strip() == "site:site"
+        web.sleep(1)
+        web.succeed("runuser -u site -- sh -c 'echo site > /var/lib/site/files/from-site.txt'")
+        listed = web.succeed(f"{rolf} -f -X PROPFIND -H 'Depth: 1' '${cloud.url}/remote.php/dav/files/rolf/'")
+        assert "from-site.txt" in listed, listed
+        said = web.succeed("nextcloud-status-${cloud.name}")
+        assert "${cloud.name} home rolf ok" in said.splitlines(), said
   '';
 }

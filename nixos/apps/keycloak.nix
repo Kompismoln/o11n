@@ -222,6 +222,11 @@ in
     after = [ "keycloak.service" ];
     requires = [ "keycloak.service" ];
     wantedBy = [ "multi-user.target" ];
+    # Fact: a switch to another value of a secret it loads restarts nothing, as NixOS 26.11's activation no longer
+    # restarts what restartUnits names.
+    restartTriggers = map (file: builtins.hashFile "sha256" file) (
+      lib.unique ([ app.secrets.sopsFile ] ++ map (client: client.secret.sopsFile) secretClients)
+    );
     environment = {
       REALMS = builtins.toJSON (lib.mapAttrsToList realm realms);
       CLIENTS = builtins.toJSON (

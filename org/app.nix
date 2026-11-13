@@ -11,7 +11,7 @@ let
     keycloak = ./apps/keycloak.nix;
     mobilizon = ./apps/mobilizon.nix;
     nextcloud = ./apps/nextcloud.nix;
-    nextcloud-rolf = ./apps/nextcloud-rolf.nix;
+    rolf = ./apps/rolf.nix;
     wordpress = { };
   };
   set = lib.filter (kind: config.${kind} != null) (lib.attrNames kinds);

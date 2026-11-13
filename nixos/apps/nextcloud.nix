@@ -45,7 +45,8 @@ let
 
   # Policy: a Keycloak user is the Nextcloud user of the same name, which the realm lets no one take or rename to, and
   # the realm is the only way in: the login page sends to it, the users of nextcloud's own are disabled, and a client
-  # logs in with an app password, which login flow v2 makes once the user has logged in with the realm.
+  # logs in with an app password, which login flow v2 makes once the user has logged in with the realm. Any user of the
+  # realm gets in, as one refused would have no way to log out of it, and one nothing declares can write nothing.
   oidc =
     { config, ... }:
     let
@@ -60,7 +61,7 @@ let
         };
         settings = {
           user_oidc = {
-            auto_provision = false;
+            auto_provision = true;
             soft_auto_provision = false;
           };
           lost_password_link = "disabled";
@@ -135,19 +136,27 @@ let
           ln -sf ${dict}/share/hunspell/* /var/lib/cool/systemplate/usr/share/hunspell/
         '') dicts;
       };
+      # Fact: richdocuments opens a document only with the discovery it keeps in its appdata, which the home made
+      # anew has none of, and which activate-config fetches, through the app's server, once coolwsd answers there.
       systemd.services.nextcloud-office = {
         description = "keep nextcloud's office with its coolwsd";
-        after = [ "nextcloud-setup.service" ];
-        requires = [ "nextcloud-setup.service" ];
+        after = [
+          "nextcloud-setup.service"
+          "coolwsd.service"
+        ];
+        requires = [
+          "nextcloud-setup.service"
+          "coolwsd.service"
+        ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = occUnit config // {
           Type = "oneshot";
           RemainAfterExit = true;
+          Restart = "on-failure";
+          RestartSec = 5;
         };
         script = ''
-          ${occ} config:app:set richdocuments wopi_url --value=${lib.escapeShellArg app.url}
-          ${occ} config:app:delete richdocuments public_wopi_url
-          ${occ} config:app:delete richdocuments wopi_callback_url
+          ${occ} richdocuments:activate-config --wopi-url=${lib.escapeShellArg app.url}
         '';
       };
     };
@@ -186,8 +195,9 @@ let
     };
 
   # Policy: the users with storages are the drive's, which it makes as it starts, each of the realm's with a
-  # Keycloak, as user_oidc lets in no other, and of nextcloud's own without, whose password occ sets. A user nothing
-  # declares has a quota of nothing, and one with a box none, as the box is their data.
+  # Keycloak, and of nextcloud's own without, whose password occ sets. A user nothing declares has a quota of nothing,
+  # which lets them write nothing of their own, and one with a home none, as the home is their data. A user's address
+  # book and calendar, which dav makes as they first log in, have none of its examples.
   users =
     { config, ... }:
     let
@@ -218,6 +228,8 @@ let
           '') (lib.attrNames declared)
           + ''
             ${occ} config:app:set files default_quota --value='0 B'
+            ${occ} config:app:set dav enableDefaultContact --type=boolean --value=false
+            ${occ} config:app:set dav create_example_event --type=boolean --value=false
           ''
           + lib.concatMapStrings (user: ''
             ${occ} user:setting ${user} files quota none
@@ -281,7 +293,7 @@ let
   mounts = app.nextcloud.mounts.${host.name} or [ ];
   binds = app.nextcloud.binds or [ ];
   bindOf = bind: "/srv/binds/${bind.user}${bind.mountPoint}";
-  # Policy: a user without a box has the files no one can write in, which their other storages are folders in.
+  # Policy: a user without a home has the files no one can write in, which their other storages are folders in.
   unboxed = lib.attrNames (lib.filterAttrs (_: boxed: !boxed) (app.nextcloud.users or { }));
   followed = lib.filter (mount: mount.server.changes or null != null) mounts;
   changesOf =
@@ -291,6 +303,15 @@ let
   sftpKey = handle: "/run/secrets/sftp-keys/${handle}";
 
   shares = app.nextcloud.shares or [ ];
+  # Policy: an adapter is a home, as a box is, its owner's, which the host mounts as the app's user's, and what's
+  # written there is written as its owner.
+  adapters = app.nextcloud.adapters or [ ];
+  homes = shares ++ adapters;
+  contained = [
+    app.secrets
+  ]
+  ++ lib.optional (client != null) client.secret
+  ++ map (key: key.secret) (lib.attrValues keys);
   datadir = "/var/lib/nextcloud/data";
   postgresql = config.services.postgresql.package;
   dataOf = user: "${cfg.home}/data/${user}";
@@ -316,16 +337,16 @@ let
         timeout 60 nixos-container run ${cfg.name} -- nextcloud-occ "$@"
       }
     ''
-    + lib.concatMapStrings (share: ''
-      path=${lib.escapeShellArg (dataOf share.user)}
+    + lib.concatMapStrings (home: ''
+      path=${lib.escapeShellArg (dataOf home.user)}
       if ! timeout 20 mountpoint -q "$path"; then
-        say home ${share.user} "$path isn't mounted: systemctl status $path"
+        say home ${home.user} "$path isn't mounted: systemctl status $path"
       elif ! timeout 20 runuser -u ${cfg.user} -- test -w "$path"; then
-        say home ${share.user} "$path isn't writable as ${cfg.user}"
+        say home ${home.user} "$path isn't writable as ${cfg.user}"
       else
-        say home ${share.user} ok
+        say home ${home.user} ok
       fi
-    '') shares
+    '') homes
     + lib.optionalString (mounts ++ binds != [ ]) (
       ''
         listed=$(occ files_external:list --output=json 2>/dev/null) || listed=
@@ -584,7 +605,7 @@ in
       ) shares
     );
 
-    environment.systemPackages = lib.optional (shares ++ mounts ++ binds != [ ]) status;
+    environment.systemPackages = lib.optional (homes ++ mounts ++ binds != [ ]) status;
 
     # Policy: the container connects as the host user with its uid, by peer authentication.
     assertions = [
@@ -597,6 +618,10 @@ in
       assertion = builtins.pathExists mount.server.changes.hostKey;
       message = "Nextcloud ${cfg.name} follows what changes in ${mount.user}'s ${mount.mountPoint} on ${mount.server.host} by ssh, verifying its host's ssh-key, which it has none of: o11n host pull-ssh-key on that host.";
     }) followed
+    ++ map (adapter: {
+      assertion = config.users.users ? ${adapter.owner};
+      message = "Nextcloud ${cfg.name} mounts ${adapter.user}'s home from ${adapter.path}, whose owner, ${adapter.owner}, isn't on ${host.name}: run the owner on ${host.name}, or drop the adapter.";
+    }) adapters
     ++ lib.mapAttrsToList (handle: key: {
       assertion = builtins.pathExists key.publicKey;
       message = "Nextcloud ${cfg.name} logs in to an external storage with ${handle}'s sftp-key, which it has none of: o11n secret generate ${handle} sftp-key.";
@@ -611,20 +636,38 @@ in
       containers = [ cfg.name ];
     };
 
-    systemd.tmpfiles.rules =
-      lib.optionals (shares != [ ]) [
-        "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
-        "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
-      ]
-      ++ lib.concatMap (bind: [
-        "d '${dirOf (dirOf bind.path)}' 0750 ${cfg.user} ${cfg.user} - -"
-        "d '${dirOf bind.path}' 0750 ${cfg.user} ${cfg.user} - -"
-        "d '${bind.path}' 0750 ${cfg.user} ${cfg.user} - -"
-      ]) (lib.filter (bind: bind.made or false) binds);
+    systemd.tmpfiles.rules = lib.optionals (homes != [ ]) [
+      "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
+      "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
+    ];
+
+    system.fsPackages = lib.optional (adapters != [ ]) pkgs.bindfs;
+
+    # Fact: a mount unit with nofail isn't ordered before local-fs.target, so it can follow systemd-tmpfiles-setup,
+    # which makes the home it mounts in.
+    systemd.mounts = map (adapter: {
+      what = adapter.path;
+      where = dataOf adapter.user;
+      type = "fuse.bindfs";
+      options = lib.concatStringsSep "," [
+        "force-user=${cfg.user}"
+        "force-group=${cfg.user}"
+        "create-for-user=${adapter.owner}"
+        "create-for-group=${adapter.owner}"
+        "nofail"
+      ];
+      after = [ "systemd-tmpfiles-setup.service" ];
+      wantedBy = [ "multi-user.target" ];
+    }) adapters;
 
     systemd.services = {
+      # Fact: the container binds each secret's file as it starts, and a switch to another of its values restarts
+      # nothing, as NixOS 26.11's activation no longer restarts what restartUnits names.
       "container@${cfg.name}" = {
-        unitConfig.RequiresMountsFor = map (share: dataOf share.user) shares;
+        restartTriggers = map (file: builtins.hashFile "sha256" file) (
+          lib.unique (map (secret: secret.sopsFile) contained)
+        );
+        unitConfig.RequiresMountsFor = map (home: dataOf home.user) homes;
         serviceConfig = {
           TimeoutStopSec = 10;
           KillMode = "mixed";
@@ -700,12 +743,12 @@ in
         ) keys
         // lib.listToAttrs (
           map (
-            share:
-            lib.nameValuePair "${datadir}/${share.user}" {
-              hostPath = dataOf share.user;
+            home:
+            lib.nameValuePair "${datadir}/${home.user}" {
+              hostPath = dataOf home.user;
               isReadOnly = false;
             }
-          ) shares
+          ) homes
           ++ map (
             bind:
             lib.nameValuePair (bindOf bind) {

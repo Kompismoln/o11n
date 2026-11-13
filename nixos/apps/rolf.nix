@@ -2,15 +2,15 @@
   app,
   host,
   inputs,
-  org,
+  lib,
   pkgs,
   ...
 }:
 let
-  nextcloud = org.app.${app.nextcloud-rolf.nextcloud};
-  packages = inputs.${app.nextcloud-rolf.input}.packages.${host.system};
-  user = nextcloud.name;
-  home = app.nextcloud-rolf.path;
+  packages = inputs.${app.rolf.input}.packages.${host.system};
+  user = app.name;
+  inherit (app.principal) home;
+  source = "${home}/${app.rolf.source}";
   siteRoot = "${home}/_site";
   sourceRoot = "${home}/_src";
 
@@ -26,7 +26,7 @@ let
         makeWrapper \
           $src/bin/rolf \
           $out/bin/${app.name} \
-            --append-flags ${home} \
+            --append-flags ${source} \
             --append-flags ${sourceRoot} \
             --append-flags ${siteRoot} \
             --append-flags --watch
@@ -34,6 +34,18 @@ let
 in
 {
   environment.systemPackages = [ sync ];
+
+  # Policy: nginx serves the site from the app's home, which only the app's group can enter.
+  assertions = [
+    {
+      assertion = lib.elem "nginx" app.principal.members;
+      message = "rolf ${app.name} has nginx serve its site from ${home}: add \"nginx\" to app.${app.name}.principal.members.";
+    }
+  ];
+
+  systemd.tmpfiles.rules = [
+    "d '${source}' 0750 ${user} ${user} - -"
+  ];
 
   services.nginx.virtualHosts.${app.endpoint} = {
     forceSSL = app.ssl;

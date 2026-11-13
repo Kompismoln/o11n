@@ -815,8 +815,8 @@ in
       ];
     };
 
-  # Policy: a storage is of one kind, a user has a box at most, which is their data, a bind is at its folder, and the
-  # users without a box are told apart.
+  # Policy: a storage is of one kind, a user has one home at most, which is their data, a bind is at its folder, and
+  # the users without a home are told apart.
   test_nextcloud_storages =
     let
       box = {
@@ -871,7 +871,6 @@ in
               user = "bob";
               sharing = false;
               path = "/srv/pub";
-              made = false;
             }
           ];
           shares = [ "alice" ];
@@ -881,40 +880,66 @@ in
       };
     };
 
-  # Policy: a nextcloud-rolf's folder is a bind of its nextcloud's, in the nextcloud's home, which it makes, and its
-  # user the nextcloud's.
-  test_nextcloud_rolf_binds_its_folder =
+  # Policy: an adapter is a user's home, their data, as a box is: their owner's home, and neither the owner nor the
+  # nextcloud names the other but in the storage. A user has one home at most.
+  test_nextcloud_adapts_a_home =
     let
-      inherit
-        ((alter {
-          app.site = {
-            id = 9;
-            endpoint = "site.example.com";
-            run-on-hosts = [ ];
-            nextcloud-rolf.nextcloud = "cloud";
-          };
-        }).org.app.cloud.nextcloud
-        )
-        binds
-        users
-        ;
+      site = {
+        id = 9;
+        endpoint = "site.example.com";
+        run-on-hosts = [ "laptop" ];
+        principal.members = [ "nginx" ];
+        rolf = { };
+      };
+      altered = alter {
+        app.site = site;
+        app.cloud.nextcloud.storages.rolf.home.adapter = "app-site";
+      };
+      inherit (altered.org.app.cloud.nextcloud) adapters binds users;
+      both = builtins.tryEval (
+        builtins.deepSeq
+          (alter {
+            app.site = site;
+            app.cloud.nextcloud.storages.rolf = {
+              home.adapter = "app-site";
+              box.box = {
+                host = "box.example.com";
+                share = "rolf";
+                login = "rolf";
+                key = "store-files";
+              };
+            };
+          }).org.app.cloud.nextcloud.users
+          true
+      );
     in
     {
       expr = {
-        inherit binds;
+        inherit adapters binds;
         rolf = users.rolf or null;
+        site = altered.org.app.site.rolf;
+        external = altered.org.export.entities.app-cloud.nextcloud.external or null;
+        both = both.success;
       };
       expected = {
-        binds = [
+        adapters = [
           {
-            mountPoint = "/+pub";
             user = "rolf";
-            path = "${outputs.org.app.cloud.principal.home}/binds/rolf/+pub";
-            sharing = false;
-            made = true;
+            path = altered.org.app.site.principal.home;
+            owner = "site";
           }
         ];
-        rolf = false;
+        binds = [ ];
+        rolf = true;
+        site = {
+          input = "site";
+          source = "files";
+        };
+        external = [
+          "alice/zhost"
+          "lisa/files"
+        ];
+        both = false;
       };
     };
 }

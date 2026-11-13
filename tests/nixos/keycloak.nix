@@ -17,7 +17,7 @@ let
         send = true;
       };
     };
-    secrets.sopsFile = "/enc/app-auth.yaml";
+    secrets.sopsFile = ../inventories/mail/enc/app-auth.yaml;
     keycloak.realms.example.displayName = "Example";
   };
 
@@ -39,7 +39,7 @@ let
         app = "app-cloud";
         secret = {
           name = "cloud/oidc-secret";
-          sopsFile = "/enc/app-cloud.yaml";
+          sopsFile = ../inventories/mail/enc/app-cloud.yaml;
         };
         representation.clientId = "cloud";
       };
@@ -215,6 +215,7 @@ in
       credentials = realms.serviceConfig.LoadCredential;
       failed = failed cfg;
       secret = cfg.sops.secrets."cloud/oidc-secret".sopsFile;
+      restarts = realms.restartTriggers;
     };
     expected = {
       realm = "example";
@@ -237,7 +238,11 @@ in
         "client-cloud:/run/secrets/cloud/oidc-secret"
       ];
       failed = [ ];
-      secret = "/enc/app-cloud.yaml";
+      secret = ../inventories/mail/enc/app-cloud.yaml;
+      restarts = map (file: builtins.hashFile "sha256" file) [
+        ../inventories/mail/enc/app-auth.yaml
+        ../inventories/mail/enc/app-cloud.yaml
+      ];
     };
   };
 
