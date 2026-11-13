@@ -233,30 +233,31 @@ in
       ) shares
     );
 
+    system.fsPackages = lib.optional (shares != [ ]) pkgs.cifs-utils;
+
     # Policy: a box is mounted as the app's user at its user's library, and the container starts only once each is,
     # so that Immich never files a user's originals into the directory beneath.
-    fileSystems = lib.listToAttrs (
-      map (
-        share:
-        lib.nameValuePair (libraryOf share.user) {
-          device = "//${share.host}/${share.share}";
-          fsType = "cifs";
-          options = [
-            "credentials=${config.sops.templates.${credentialsOf share.user}.path}"
-            "uid=${toString cfg.uid}"
-            "gid=${toString cfg.gid}"
-            "dir_mode=0750"
-            "file_mode=0640"
-            "vers=3.1.1"
-            "seal"
-            "_netdev"
-            "nofail"
-            "x-systemd.after=network-online.target"
-            "x-systemd.requires=network-online.target"
-          ];
-        }
-      ) shares
-    );
+    # Fact: a mount unit, unlike fileSystems, which a NixOS test's VM replaces with its own.
+    systemd.mounts = map (share: {
+      what = "//${share.host}/${share.share}";
+      where = libraryOf share.user;
+      type = "cifs";
+      options = lib.concatStringsSep "," [
+        "credentials=${config.sops.templates.${credentialsOf share.user}.path}"
+        "uid=${toString cfg.uid}"
+        "gid=${toString cfg.gid}"
+        "dir_mode=0750"
+        "file_mode=0640"
+        "vers=3.1.1"
+        "seal"
+      ];
+      after = [
+        "network-online.target"
+        "systemd-tmpfiles-setup.service"
+      ];
+      wants = [ "network-online.target" ];
+      wantedBy = [ "multi-user.target" ];
+    }) shares;
 
     # Fact: nspawn refuses to start a container whose bind's host path is missing.
     # Policy: an archive of the app's state leaves out the thumbnails and the videos encoded for the web, which Immich
