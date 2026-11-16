@@ -121,7 +121,7 @@ impl Org {
                 log(format!("{id} took its new identity"));
                 self.write(&self.public_path(id, key)?, &public, false)?;
                 self.write_identity(id, &identity)?;
-                self.reencrypt_for(id)
+                self.reencrypt(false)
             }
             // Policy: slot 0 is the luks-key a deployment writes, so the new one takes it, and the one it held, which
             // still opens the disk for the initrd until a deployment, moves to a free slot.

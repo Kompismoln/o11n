@@ -60,6 +60,11 @@ root)
 		fi
 		;;
 	systemctl) cat "$BATS_TEST_TMPDIR/trigger-$fqdn" 2>/dev/null || echo ;;
+	"uname -m;"*)
+		cat "$BATS_TEST_TMPDIR/machine-$fqdn"
+		[[ ! -e $BATS_TEST_TMPDIR/mounted-$fqdn ]] || echo mounted
+		;;
+	"if mountpoint"*) [[ ! -e $BATS_TEST_TMPDIR/mounted-$fqdn ]] || echo mounted ;;
 	esac
 	;;
 nix-switch)

@@ -273,6 +273,15 @@ Default: `"systemd"`
 
 boot method
 
+### `host.<name>.buildHosts`
+
+`org/host.nix` · list of string
+
+Default: the org's `build-hosts` the host is or reaches
+
+the org's `build-hosts` the host fetches a build from, as o11n tries them: itself, those it reaches without another host
+between, then those through another host's hub, each in the org's order
+
 ### `host.<name>.configurationFile`
 
 `org/host.nix` · absolute path
@@ -356,6 +365,15 @@ maybe canonical name on internet
 Default: `"<org>/hosts/‹name›/facter.json"`
 
 facter report path
+
+### `host.<name>.fqdns`
+
+`org/host.nix` · list of string
+
+Default: its name on each of its `vpns`
+
+the host's names on its vpns, the most direct to dial first: on the vpns it's the gateway of, on a mesh, then on a hub
+through another host, each in the order of its vpns
 
 ### `host.<name>.hardwareReport`
 
@@ -509,6 +527,15 @@ roles that this host has
 Default: `null`
 
 the router the host is, for the hosts behind it, or null
+
+### `host.<name>.routes`
+
+`org/host.nix` · lazy attribute set of list of raw value
+
+Default: for each host, its network on each vpn this host reaches it on
+
+each host's networks on the vpns this host reaches it on, the most direct first: the vpn it's the gateway of, the vpn
+this host is the gateway of, a mesh, then a hub through another host, each in the order of this host's vpns
 
 ### `host.<name>.services`
 

@@ -1,4 +1,3 @@
-# nixos/nix.nix
 {
   config,
   host,
@@ -14,9 +13,14 @@ let
 
   serves = peer: lib.any (service: service.name == "nix-serve") peer.services;
 
-  substituters = lib.filter (
-    peer: peer.name != host.name && serves peer && host.reach.${peer.name} != null
-  ) (lib.attrValues org.host);
+  # Policy: a substituter is listed at each name the host reaches it at, the most direct first, so that a vpn that is
+  # down leaves the others; all after cache.nixos.org (40), so that public paths don't come over a vpn.
+  substituters = lib.concatMap (
+    peer:
+    lib.imap0 (
+      index: network: "http://${network.fqdn}:5000?priority=${toString (50 + index)}"
+    ) host.routes.${peer.name}
+  ) (lib.filter serves (lib.attrValues org.host));
 in
 {
   # Policy: the one place o11n's tree enters a system, so that a system built with it off tells whether a change to
@@ -63,8 +67,7 @@ in
           "https://cache.nixos.org"
           "https://cache.lix.systems"
         ]
-        # Policy: after cache.nixos.org (40), so that public paths don't come over a vpn.
-        ++ map (peer: "http://${host.reach.${peer.name}.fqdn}:5000?priority=50") substituters;
+        ++ substituters;
         connect-timeout = 5;
         fallback = true;
         trusted-users = [ "@wheel" ];

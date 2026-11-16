@@ -699,19 +699,32 @@ impl Org {
 
     fn recipients_match(&self, id: &str) -> Result<(), Error> {
         let entity = self.entity(id)?;
-        let Some(sops_file) = &entity.secrets.sops_file else {
-            return Ok(());
-        };
-        let path = self.path(sops_file);
-        let contents = util::read(&path)?.ok_or_else(|| Error::new(format!("there's no {sops_file}")))?;
-        let mut expected: Vec<String> = self
-            .export
-            .sops_yaml(&self.root, id, &mut Vec::new())?
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("- age1").map(|key| format!("age1{key}")))
-            .collect();
-        expected.sort();
-        let actual = recipients_of(&contents);
+        if let Some(sops_file) = &entity.secrets.sops_file {
+            let contents =
+                util::read(&self.path(sops_file))?.ok_or_else(|| Error::new(format!("there's no {sops_file}")))?;
+            let mut expected: Vec<String> = self
+                .export
+                .sops_yaml(&self.root, id, &mut Vec::new())?
+                .lines()
+                .filter_map(|line| line.trim().strip_prefix("- age1").map(|key| format!("age1{key}")))
+                .collect();
+            expected.sort();
+            self.encrypted_to(sops_file, &recipients_of(&contents), &expected)?;
+        }
+        if entity.class != "root"
+            && let Some(identity_file) = &entity.secrets.identity_file
+            && self.has_identity(id)?
+        {
+            self.encrypted_to(
+                identity_file,
+                &self.identity_keys_recorded(id)?,
+                &self.identity_keys_expected(id)?,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn encrypted_to(&self, file: &str, actual: &[String], expected: &[String]) -> Result<(), Error> {
         if actual == expected {
             return Ok(());
         }
@@ -719,7 +732,7 @@ impl Org {
         let extra: Vec<String> = actual.iter().filter(|key| !expected.contains(key)).map(name).collect();
         let lacking: Vec<String> = expected.iter().filter(|key| !actual.contains(key)).map(name).collect();
         Err(Error::new(format!(
-            "{sops_file} is encrypted to {} it shouldn't be, and not to {} it should: o11n reencrypt",
+            "{file} is encrypted to {} it shouldn't be, and not to {} it should: o11n reencrypt",
             if extra.is_empty() {
                 "none".into()
             } else {

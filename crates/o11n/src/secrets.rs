@@ -23,7 +23,7 @@ impl Org {
         self.write(&self.public_path(id, "age-key")?, &public, false)?;
         self.write_identity(id, &identity)?;
         if root {
-            self.reencrypt(true)
+            self.reencrypt(false)
         } else {
             self.create_sops_file(id)
         }
@@ -48,32 +48,22 @@ impl Org {
         let public = keys::public(Kind::Age, "age-key", &identity, None)?;
         self.write(&self.public_path(id, "age-key")?, &public, false)?;
         self.write_identity(id, &identity)?;
-        self.reencrypt_for(id)
+        self.reencrypt(false)
     }
 
-    // Optimization: sops leaves a file whose recipients are as they were, so each is updated; an identity is written
-    // anew only where the entity is one of its actors, or for a root, everywhere.
-    pub fn reencrypt_for(&self, id: &str) -> Result<(), Error> {
-        if self.entity(id)?.class == "root" {
-            return self.reencrypt(true);
-        }
-        self.reencrypt(false)?;
-        for (other, entity) in &self.export.entities {
-            if entity.actors.iter().any(|actor| actor == id) && self.has_identity(other)? {
-                self.write_identity(other, &self.identity(other)?)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn reencrypt(&self, identities: bool) -> Result<(), Error> {
+    pub fn reencrypt(&self, rotate: bool) -> Result<(), Error> {
         for (id, entity) in &self.export.entities {
             if entity.class == "root" {
                 continue;
             }
             self.update_sops_file(id)?;
-            if identities && self.has_identity(id)? {
-                self.write_identity(id, &self.identity(id)?)?;
+            if rotate {
+                self.rotate_sops_file(id)?;
+                if self.has_identity(id)? {
+                    self.write_identity(id, &self.identity(id)?)?;
+                }
+            } else {
+                self.update_identity(id)?;
             }
         }
         Ok(())

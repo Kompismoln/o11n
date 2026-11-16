@@ -6,6 +6,27 @@
 }:
 let
   inherit (context) org;
+
+  # Policy: a vpn is the more direct the fewer hosts are between: none to the gateway of a hub, from either end, or on
+  # a mesh, and the gateway between two others on a hub.
+  rankTo =
+    name: vpn:
+    if org.vpn.${vpn}.gateway == name then
+      0
+    else if org.vpn.${vpn}.gateway == config.name then
+      1
+    else if org.vpn.${vpn}.topology == "mesh" then
+      2
+    else
+      3;
+
+  byRank = rank: lib.sort (a: b: rank a < rank b);
+
+  routed =
+    name:
+    byRank (rankTo name) (
+      lib.filter (vpn: lib.elem name (org.vpn.${vpn}.reaches.${config.name} or [ ])) config.vpns
+    );
 in
 {
   imports = [
@@ -135,6 +156,34 @@ in
       default = lib.mapAttrs (
         name: peer: if config.shares.${name} == null then null else peer.network.${config.shares.${name}}
       ) org.host;
+    };
+    routes = lib.mkOption {
+      description = "each host's networks on the vpns this host reaches it on, the most direct first: the vpn it's the gateway of, the vpn this host is the gateway of, a mesh, then a hub through another host, each in the order of this host's vpns";
+      type = lib.types.lazyAttrsOf (lib.types.listOf lib.types.raw);
+      readOnly = true;
+      default = lib.mapAttrs (name: peer: map (vpn: peer.network.${vpn}) (routed name)) org.host;
+      defaultText = lib.literalMD "for each host, its network on each vpn this host reaches it on";
+    };
+    fqdns = lib.mkOption {
+      description = "the host's names on its vpns, the most direct to dial first: on the vpns it's the gateway of, on a mesh, then on a hub through another host, each in the order of its vpns";
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      default = map (vpn: config.network.${vpn}.fqdn) (byRank (rankTo config.name) config.vpns);
+      defaultText = lib.literalMD "its name on each of its `vpns`";
+    };
+    buildHosts = lib.mkOption {
+      description = "the org's `build-hosts` the host fetches a build from, as o11n tries them: itself, those it reaches without another host between, then those through another host's hub, each in the org's order";
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      default =
+        let
+          others = lib.filter (name: name != config.name && routed name != [ ]) org.build-hosts;
+          direct = name: rankTo name (lib.head (routed name)) < 3;
+        in
+        lib.filter (name: name == config.name) org.build-hosts
+        ++ lib.filter direct others
+        ++ lib.filter (name: !direct name) others;
+      defaultText = lib.literalMD "the org's `build-hosts` the host is or reaches";
     };
     system = lib.mkOption {
       description = "host platform";

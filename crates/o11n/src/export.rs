@@ -61,6 +61,11 @@ pub struct Entity {
     pub state: Option<State>,
     #[serde(default)]
     pub endpoint: Option<String>,
+    // Dependency: org/host.nix orders a host's names on its vpns, and the build hosts it fetches from, by how direct.
+    #[serde(default)]
+    pub fqdns: Vec<String>,
+    #[serde(default)]
+    pub build_hosts: Vec<String>,
     #[serde(default)]
     pub services: Vec<String>,
     // Dependency: org/export.nix gives a host's services that serve on a vpn their names there, by service.

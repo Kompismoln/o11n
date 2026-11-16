@@ -11,8 +11,8 @@ let
   user = app.name;
   inherit (app.principal) home;
   source = "${home}/${app.source}";
-  siteRoot = "${home}/_site";
-  sourceRoot = "${home}/_src";
+  siteRoot = "${source}/_site";
+  sourceRoot = "${source}/_src";
 
   sync =
     pkgs.runCommand app.name

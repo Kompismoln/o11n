@@ -294,6 +294,19 @@ impl Org {
         Ok(())
     }
 
+    pub fn rotate_sops_file(&self, id: &str) -> Result<(), Error> {
+        let file = self.sops_file(id)?;
+        if !file.exists() {
+            return Ok(());
+        }
+        run(Command::new("sops").args(["rotate", "--in-place"]).arg(&file), None)?;
+        log(format!(
+            "encrypted {} with a new data key",
+            file.strip_prefix(&self.root).unwrap_or(&file).display()
+        ));
+        Ok(())
+    }
+
     fn is_root(&self, id: &str) -> Result<bool, Error> {
         Ok(self.entity(id)?.class == "root")
     }
@@ -319,6 +332,47 @@ impl Org {
         ids.sort();
         ids.dedup();
         Ok(ids)
+    }
+
+    // Fact: an age file doesn't tell whom it's encrypted to, so their public keys are recorded beside it.
+    pub fn identity_recipients_file(&self, id: &str) -> Result<PathBuf, Error> {
+        let mut file = self.identity_file(id)?.into_os_string();
+        file.push(".recipients");
+        Ok(file.into())
+    }
+
+    fn identity_keys(&self, id: &str) -> Result<IdentityKeys, Error> {
+        let mut keys = IdentityKeys::default();
+        for recipient in self.identity_recipients(id)? {
+            match util::read(&self.public_path(&recipient, "age-key")?)? {
+                Some(public) => {
+                    keys.public.push(public.trim().to_owned());
+                    keys.names.push(recipient);
+                }
+                None => keys.missing.push(recipient),
+            }
+        }
+        keys.public.sort();
+        Ok(keys)
+    }
+
+    pub fn identity_keys_expected(&self, id: &str) -> Result<Vec<String>, Error> {
+        Ok(self.identity_keys(id)?.public)
+    }
+
+    pub fn identity_keys_recorded(&self, id: &str) -> Result<Vec<String>, Error> {
+        Ok(util::read(&self.identity_recipients_file(id)?)?
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect())
+    }
+
+    pub fn update_identity(&self, id: &str) -> Result<(), Error> {
+        if !self.has_identity(id)? || self.identity_keys_recorded(id)? == self.identity_keys_expected(id)? {
+            return Ok(());
+        }
+        self.write_identity(id, &self.identity(id)?)
     }
 
     // Policy: the operator's identity is where sops reads it, so that one variable names it for both.
@@ -369,23 +423,21 @@ impl Org {
         if self.is_root(id)? {
             return self.write(&file, identity, true);
         }
-        let mut recipients = Vec::new();
-        let mut names = Vec::new();
-        for recipient in self.identity_recipients(id)? {
-            let path = self.public_path(&recipient, "age-key")?;
-            let Some(public) = util::read(&path)? else {
-                log(format!(
-                    "warning: {id}'s identity isn't encrypted to {recipient}, who has no age-key"
-                ));
-                continue;
-            };
-            names.push(recipient);
-            let recipient: age::x25519::Recipient = public
-                .trim()
-                .parse()
-                .map_err(|e| Error::new(format!("{}: {e}", path.display())))?;
-            recipients.push(recipient);
+        let keys = self.identity_keys(id)?;
+        for recipient in &keys.missing {
+            log(format!(
+                "warning: {id}'s identity isn't encrypted to {recipient}, who has no age-key"
+            ));
         }
+        let recipients = keys
+            .public
+            .iter()
+            .map(|public| {
+                public
+                    .parse()
+                    .map_err(|e| Error::new(format!("{id}'s recipient {public}: {e}")))
+            })
+            .collect::<Result<Vec<age::x25519::Recipient>, Error>>()?;
         if recipients.is_empty() {
             return Err(Error::new(format!(
                 "{id}'s identity has no one to be encrypted to: create a root identity"
@@ -403,7 +455,16 @@ impl Org {
             .and_then(age::armor::ArmoredWriter::finish)
             .map_err(|e| Error::new(e.to_string()))?;
         util::write(&file, &String::from_utf8_lossy(&encrypted), false)?;
-        log(format!("encrypted {id}'s identity to {}", names.join(", ")));
+        let recorded = keys.public.join("\n") + "\n";
+        util::write(&self.identity_recipients_file(id)?, &recorded, false)?;
+        log(format!("encrypted {id}'s identity to {}", keys.names.join(", ")));
         Ok(())
     }
+}
+
+#[derive(Default)]
+struct IdentityKeys {
+    names: Vec<String>,
+    public: Vec<String>,
+    missing: Vec<String>,
 }

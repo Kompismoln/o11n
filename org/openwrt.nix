@@ -146,11 +146,15 @@ let
   derived = {
     system = [ (section "@system[0]" { hostname = host.name; }) ];
     dropbear = [
-      (section "@dropbear[0]" {
-        PasswordAuth = false;
-        RootPasswordAuth = false;
-        Port = 22;
-      })
+      (section "@dropbear[0]" (
+        {
+          PasswordAuth = false;
+          RootPasswordAuth = false;
+          Port = 22;
+        }
+        # Policy: a router takes logins on its lan alone, whatever its firewall lets in from its WAN.
+        // lib.optionalAttrs (router != null) { Interface = "lan"; }
+      ))
     ];
   }
   // lib.optionalAttrs (router != null) {

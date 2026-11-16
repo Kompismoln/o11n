@@ -51,7 +51,8 @@ with it fail evaluation.
 
 o11n derives:
 
-- `@system[0]`'s `hostname`, the host's name, and `@dropbear[0]`'s login by key alone, over what `uci` sets of them
+- `@system[0]`'s `hostname`, the host's name, and `@dropbear[0]`'s login by key alone, and for a `router` on its lan
+  alone, so that it takes none from its WAN whatever its firewall lets in, over what `uci` sets of them
 - `/etc/dropbear/authorized_keys`, the ssh-keys of the host's `users` and service-rescue's, as root on a NixOS host
   takes
 - for a `router`, from its `address4`, `prefixLength4`, `lan`, `forwards` and `dmz`:
@@ -84,8 +85,8 @@ keeps nothing of what the router had (`crates/o11n/src/openwrt.rs`). The router 
 `o11n openwrt apply <host>` writes the router's `files`, each secret's marker replaced with the host's secret, as root
 with service-rescue's ssh-key, and the operator's, if it has one, or, for an operator who can't act as service-rescue,
 the operator's alone, as on a router that doesn't take service-rescue's yet. It reaches the router as `o11n` reaches any
-host, by `O11N_ROUTES` or its name in a namespace, or else at a router's `address4`, and runs `/etc/o11n/uci`. A file
-with a secret, and `authorized_keys`, are root's alone. It keeps what it replaces, and `/etc/config`, in
+host, by `O11N_ROUTES`, its name on a vpn or in a namespace, or else at a router's `address4`, and runs `/etc/o11n/uci`.
+A file with a secret, and `authorized_keys`, are root's alone. It keeps what it replaces, and `/etc/config`, in
 `/tmp/o11n-rollback`, puts that back at once if a change fails, with `uci`'s own error, and otherwise runs
 `reload_config`, which restarts what the changes touched. Unless `o11n` logs in again within 90 seconds, the router puts
 back what it kept and reloads that, so that changes that lock `o11n` out undo themselves.

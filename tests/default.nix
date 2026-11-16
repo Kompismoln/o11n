@@ -150,6 +150,7 @@ let
         dhcp.o11n_beta.name='beta'
         dropbear.@dropbear[0]=dropbear
         dropbear.@dropbear[0].PasswordAuth='0'
+        dropbear.@dropbear[0].Interface='lan'
         dropbear.@dropbear[0].Port='22'
         dropbear.@dropbear[0].RootPasswordAuth='0'
         network.lan=interface

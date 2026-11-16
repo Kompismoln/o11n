@@ -122,6 +122,111 @@ in
     };
   };
 
+  # Policy: a host dials another on the vpn with the fewest hosts between first: the one either is the gateway of, a
+  # mesh, then a hub through a third, and on none where they don't reach each other.
+  test_routes = {
+    expr = lib.mapAttrs (
+      _: host:
+      lib.filterAttrs (_: fqdns: fqdns != [ ]) (lib.mapAttrs (_: map (network: network.fqdn)) host.routes)
+    ) (removeAttrs outputs.org.host [ "windsor" ]);
+    expected = {
+      alpha = {
+        beta = [
+          "beta.access"
+          "beta.data"
+        ];
+        delta = [ "delta.data" ];
+        gamma = [
+          "gamma.access"
+          "gamma.data"
+        ];
+      };
+      beta = {
+        alpha = [
+          "alpha.access"
+          "alpha.data"
+        ];
+        delta = [ "delta.data" ];
+        gamma = [
+          "gamma.data"
+          "gamma.access"
+        ];
+      };
+      delta = {
+        alpha = [ "alpha.data" ];
+        beta = [ "beta.data" ];
+      };
+      gamma = {
+        alpha = [
+          "alpha.access"
+          "alpha.data"
+        ];
+        beta = [
+          "beta.data"
+          "beta.access"
+        ];
+      };
+    };
+  };
+
+  # Policy: a host is dialed from outside on the vpn it's the gateway of first, then a mesh, then another's hub.
+  test_fqdns = {
+    expr = lib.mapAttrs (_: host: host.fqdns) outputs.org.host;
+    expected = {
+      alpha = [
+        "alpha.access"
+        "alpha.data"
+      ];
+      beta = [
+        "beta.data"
+        "beta.access"
+      ];
+      delta = [ "delta.data" ];
+      gamma = [
+        "gamma.data"
+        "gamma.access"
+      ];
+      windsor = [ ];
+    };
+  };
+
+  # Policy: a host builds on itself if it's a build host, then on those it reaches without another between, then on
+  # those through another's hub, and on none it doesn't reach.
+  test_build_hosts = {
+    expr =
+      lib.mapAttrs (_: host: host.buildHosts)
+        (alter {
+          build-hosts = [
+            "gamma"
+            "beta"
+            "alpha"
+          ];
+          host.gamma.vpns = [ "wg0" ];
+        }).org.host;
+    expected = {
+      alpha = [
+        "alpha"
+        "gamma"
+        "beta"
+      ];
+      beta = [
+        "beta"
+        "alpha"
+        "gamma"
+      ];
+      delta = [
+        "beta"
+        "alpha"
+      ];
+      gamma = [
+        "gamma"
+        "alpha"
+        "beta"
+      ];
+      windsor = [ ];
+    };
+  };
+
   test_reaches = {
     expr = lib.mapAttrs (_: vpn: vpn.reaches) outputs.org.vpn;
     expected = {

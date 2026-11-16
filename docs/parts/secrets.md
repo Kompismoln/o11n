@@ -23,15 +23,21 @@ Ed25519 and an `ssh-rsa` key RSA, for what logs in with RSA alone, as Nextcloud'
 ## Where they're kept
 
 - An entity's identity, its age-key, is its `identityFile`, `enc/<handle>.age`, encrypted to itself, its actors and the
-  root identities.
+  root identities. An age file doesn't tell whom it's encrypted to, so `enc/<handle>.age.recipients` beside it holds
+  their public keys, as o11n wrote the two.
 - The rest is in its `sopsFile`, `enc/<handle>.yaml`, encrypted to itself, the root identities and its grants, as
   `o11n sops-yaml` gives them: a host's at the file's top, any other's under its name. Slot 0 of a key with slots is
   stored as the key, any other as `<key>--<slot>`, and a password's hash as `<key>-sha512`.
 - A host keeps its identity at its `decryptionKey`, `/keys/<handle>`, with which sops-nix decrypts what its
   configuration reads (`nixos/org/sops.nix`).
 
-`o11n reencrypt` encrypts each to its recipients as they are, and `o11n identity rotate` replaces the identity of an
-entity but a host, and encrypts to the new one what was to the old.
+`o11n reencrypt` encrypts each to its recipients as they are, and leaves a file that already is as it is, so that a
+change to grants, actors or root identities changes the files it concerns and no others; `o11n status`'s `recipients`
+tells which aren't. A sops file keeps its data key through that, so whoever is no longer a recipient, and kept the key,
+can decrypt what the file takes later. `o11n reencrypt --rotate` encrypts every sops file with a new data key as well,
+and every identity anew: it changes every file, and no identity.
+
+`o11n identity rotate` replaces the identity of an entity but a host, and encrypts to the new one what was to the old.
 
 ## A host's keys
 

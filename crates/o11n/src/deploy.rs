@@ -60,10 +60,34 @@ fn shown(command: &mut Command) -> Result<(ExitStatus, String), Error> {
 }
 
 impl Org {
-    pub fn build_host(&self, build_host: Option<String>) -> Result<String, Error> {
-        build_host
-            .or_else(|| self.export.build_hosts.first().cloned())
-            .ok_or_else(|| Error::new("the org has no build-hosts: set BUILD_HOST, as BUILD_HOST=localhost"))
+    // Policy: the host is built where it fetches the build from most directly, itself first, among those that answer.
+    pub fn build_host(&self, host: &str, build_host: Option<String>) -> Result<String, Error> {
+        if let Some(build_host) = build_host {
+            return Ok(build_host);
+        }
+        if self.export.build_hosts.is_empty() {
+            return Err(Error::new(
+                "the org has no build-hosts: set BUILD_HOST, as BUILD_HOST=localhost",
+            ));
+        }
+        let fetched_from = &self.entity(&format!("host-{host}"))?.build_hosts;
+        fetched_from
+            .iter()
+            .find(|build_host| self.export.route(build_host, 22).is_ok())
+            .cloned()
+            .ok_or_else(|| {
+                Error::new(if fetched_from.is_empty() {
+                    format!(
+                        "{host} is on no vpn with a build host, {}, to fetch a build from: put it on one, or set BUILD_HOST, as BUILD_HOST=localhost",
+                        self.export.build_hosts.join(" or ")
+                    )
+                } else {
+                    format!(
+                        "no build host {host} fetches from answers, of {}: set BUILD_HOST, as BUILD_HOST=localhost",
+                        fetched_from.join(", ")
+                    )
+                })
+            })
     }
 
     pub fn build(&self, host: &str, build_host: &str, nix_options: &[String]) -> Result<String, Error> {

@@ -56,3 +56,20 @@ on the vpn it would go over:
   `docs/parts/state.md`).
 
 An endpoint is dialed at what it resolves to, so a host on IPv6 alone is reached only from those that have IPv6.
+
+## Routes
+
+Two hosts may share more than one vpn, and what isn't tied to one goes over the most direct that works. A host's
+`routes` has, for each host it reaches, that host's networks in that order (`org/host.nix`): on the vpn the other is the
+gateway of, on the vpn it's the gateway of itself, on a mesh, then on a hub through a third host, each in the order of
+its `vpns`.
+
+- A host substitutes from each host with the nix-serve service at each of its `routes` to it, the first at priority 50,
+  the next at 51 and so on, so that nix goes on to the next where one doesn't connect (`nixos/org/nix.nix`).
+- `o11n` dials a host at its `fqdns`, its names on the vpns it's the gateway of, on a mesh, then on another's hub, then
+  at its name in each of the org's `namespaces`, and takes the first that answers (`crates/o11n/src/route.rs`);
+  `O11N_ROUTES` pins a host to an address instead.
+- `o11n apply <host>` and `o11n build <host>` build on the first that answers of the host's `buildHosts`: the host
+  itself, if it's one of the org's `build-hosts`, those it reaches without a host between, then those through a third
+  host's hub, each in the org's order, and none it doesn't reach, which it couldn't fetch the build from
+  (`crates/o11n/src/deploy.rs`). `--build-host`, or `BUILD_HOST`, names one instead, or `localhost`.

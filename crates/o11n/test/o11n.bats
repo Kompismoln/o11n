@@ -93,6 +93,46 @@ setup() {
   fails "no entity root-3"
 }
 
+@test "reencrypt leaves what is encrypted to its recipients as it is" {
+  o11n identity create host-testhost
+  o11n identity create user-testuser
+  o11n secret generate host-testhost luks-key
+  [ "$(cat enc/host-testhost.age.recipients)" = "$(sort public-keys/host-testhost-age-key.pub public-keys/root-1-age-key.pub)" ]
+  sha256sum enc/* >"$BATS_TEST_TMPDIR/before"
+
+  run o11n reencrypt
+  succeeds
+  [[ $output != *encrypted* ]]
+  sha256sum --check --quiet "$BATS_TEST_TMPDIR/before"
+
+  rm enc/user-testuser.age.recipients
+  run o11n reencrypt
+  succeeds
+  [[ $output == *"encrypted user-testuser's identity to root-1, user-testuser"* ]]
+  [[ $output != *host-testhost* ]]
+  run sha256sum --check "$BATS_TEST_TMPDIR/before"
+  [[ $output == *"enc/user-testuser.age: FAILED"* ]]
+  [[ $output == *"enc/host-testhost.age: OK"* ]]
+  [[ $output == *"enc/user-testuser.yaml: OK"* ]]
+}
+
+@test "reencrypt --rotate encrypts everything anew, and no identity changes" {
+  o11n identity create host-testhost
+  o11n secret generate host-testhost luks-key
+  luks_key=$(o11n secret show host-testhost luks-key 2>/dev/null)
+  identity=$(o11n identity show host-testhost 2>/dev/null)
+  cp enc/host-testhost.yaml "$BATS_TEST_TMPDIR/before.yaml"
+  cp enc/host-testhost.age "$BATS_TEST_TMPDIR/before.age"
+
+  run o11n reencrypt --rotate
+  succeeds
+  [[ $output == *"encrypted enc/host-testhost.yaml with a new data key"* ]]
+  [ "$(cat enc/host-testhost.age)" != "$(cat "$BATS_TEST_TMPDIR/before.age")" ]
+  [ "$(grep '^luks-key: ' enc/host-testhost.yaml)" != "$(grep '^luks-key: ' "$BATS_TEST_TMPDIR/before.yaml")" ]
+  [ "$(o11n secret show host-testhost luks-key 2>/dev/null)" = "$luks_key" ]
+  [ "$(o11n identity show host-testhost 2>/dev/null)" = "$identity" ]
+}
+
 @test "a root identity is rotated by another" {
   o11n identity create user-testuser
   o11n identity create root-2
@@ -707,6 +747,16 @@ dns() {
   [[ $output == *"user-testuser recipients fail: enc/user-testuser.yaml is encrypted to user-testadmin it shouldn't be, and not to user-testuser it should: o11n reencrypt"* ]]
 }
 
+@test "status tells an identity encrypted to another than it should be" {
+  o11n identity create user-testuser
+  o11n identity create user-testadmin
+  cp enc/user-testadmin.age.recipients enc/user-testuser.age.recipients
+
+  run o11n status user-testuser
+  fails "checks failed"
+  [[ $output == *"user-testuser recipients fail: enc/user-testuser.age is encrypted to user-testadmin it shouldn't be, and not to user-testuser it should: o11n reencrypt"* ]]
+}
+
 @test "status skips a host without an endpoint that doesn't answer, and fails one with" {
   O11N_ROUTES='' run o11n status host-testhost host-lorem
   [[ $output == *"host-lorem ssh-key skip: no contact with lorem:22"* ]]
@@ -758,6 +808,73 @@ dns() {
   succeeds
   [[ $(sed -n 2p "$BATS_TEST_TMPDIR/calls") == *'#nixosConfigurations.lorem.config'* ]]
   [ "$(sed -n 3p "$BATS_TEST_TMPDIR/calls")" = "scp [Unit] root@testhost.local:/run/systemd/system/hello.service" ]
+}
+
+@test "reset checks what the host is installed with and reads before it touches the machine, and resumes" {
+  o11n identity create host-testhost
+  o11n identity create user-testuser
+  o11n identity create user-admin
+  o11n identity create service-rescue
+  secret() { printf '"%s": {"file": "%s/enc/%s.yaml", "key": "%s"}' "$2" "$TESTROOT" "$1" "$2"; }
+  plan() {
+    local IFS=,
+    printf '#!/bin/sh\necho '\''{"secrets": {%s}, "devices": ["/dev/disk/by-id/ata-one"], "system": "x86_64-linux", "networkmanager": "/etc/NetworkManager"}'\''\n' "$*" >"$TESTROOT/bin/nix"
+  }
+  plan "$(secret host-testhost luks-key)" "$(secret user-testuser testuser/passwd-sha512)" \
+    "$(secret user-admin admin/passwd-sha512)" "$(secret user-gone gone/passwd-sha512)"
+  printf '#!/bin/sh\necho "nixos-anywhere $*" >>"%s/calls"\n[ ! -e "%s/fails" ]\n' "$BATS_TEST_TMPDIR" "$BATS_TEST_TMPDIR" >"$TESTROOT/bin/nixos-anywhere"
+  chmod +x "$TESTROOT"/bin/*
+
+  run o11n reset testhost --check
+  fails "there's no host-testhost's luks-key"
+  o11n secret generate host-testhost luks-key
+  run o11n reset testhost --check
+  fails "there's no service-rescue's ssh-key"
+  o11n secret generate service-rescue ssh-key
+
+  run o11n reset testhost --check
+  fails "testhost's configuration reads secrets it wouldn't have"
+  [[ $output == *"enc/user-testuser.yaml has no testuser/passwd-sha512"* ]]
+  [[ $output == *"host-testhost can't decrypt "*"enc/user-admin.yaml: o11n reencrypt"* ]]
+  [[ $output == *"enc/user-gone.yaml isn't in the flake: git add it"* ]]
+  [[ $output != *"has no luks-key"* ]]
+  [ ! -e "$BATS_TEST_TMPDIR/calls" ]
+
+  plan "$(secret host-testhost luks-key)"
+  run o11n reset testhost --check
+  succeeds
+  [[ $output == *"testhost has its keys, a configuration that evaluates, and the 1 secrets it reads"* ]]
+  [ ! -e "$BATS_TEST_TMPDIR/calls" ]
+
+  echo aarch64 >"$BATS_TEST_TMPDIR/machine-testhost.local"
+  run o11n reset testhost
+  fails "the machine at testhost.local is aarch64, and testhost's system is x86_64-linux"
+  printf 'x86_64\n/dev/disk/by-id/ata-one\n' >"$BATS_TEST_TMPDIR/machine-testhost.local"
+  run o11n reset testhost
+  fails "the machine at testhost.local has no /dev/disk/by-id/ata-one"
+  [ ! -e "$BATS_TEST_TMPDIR/calls" ]
+
+  echo x86_64 >"$BATS_TEST_TMPDIR/machine-testhost.local"
+  touch "$BATS_TEST_TMPDIR/fails"
+  run o11n reset testhost
+  [ "$status" -eq 1 ]
+  [[ $output != *"--resume"* ]]
+  [[ $(cat "$BATS_TEST_TMPDIR/calls") != *--phases* ]]
+
+  touch "$BATS_TEST_TMPDIR/mounted-testhost.local"
+  run o11n reset testhost
+  [ "$status" -eq 1 ]
+  [[ $output == *"o11n reset testhost --resume goes on from there"* ]]
+
+  rm "$BATS_TEST_TMPDIR/fails"
+  run o11n reset testhost --resume
+  succeeds
+  [[ $(tail -n 1 "$BATS_TEST_TMPDIR/calls") == *"--phases install,reboot --disko-mode mount" ]]
+
+  rm "$BATS_TEST_TMPDIR/mounted-testhost.local"
+  run o11n reset testhost --resume
+  succeeds
+  [[ $(tail -n 1 "$BATS_TEST_TMPDIR/calls") == *"--phases disko,install,reboot --disko-mode mount" ]]
 }
 
 @test "state fetch downloads a principal's home from each host it's on, as service-rescue, once it has said how much" {
@@ -845,6 +962,17 @@ dns() {
 }
 
 lorem_routes="testhost=testhost.local lorem=lorem.local"
+
+@test "apply builds on the first build host that answers of those the host fetches from" {
+  O11N_ROUTES="lorem=lorem.local" run o11n apply lorem
+  fails "no build host lorem fetches from answers, of testhost: set BUILD_HOST, as BUILD_HOST=localhost"
+
+  O11N_ROUTES="$lorem_routes" run o11n apply lorem
+  [[ $output == *"use testhost to build lorem (at lorem.local)"* ]]
+
+  O11N_ROUTES="$lorem_routes" run o11n apply lorem --build-host ipsum
+  fails "ipsum is not in build-hosts"
+}
 
 test_identity_root_1=AGE-SECRET-KEY-1DJDMVRRC7UNF8HSKVSGQCWFNMJ5HTRT6HT2MDML9JZ54GCW8TYNSSWWL8D
 

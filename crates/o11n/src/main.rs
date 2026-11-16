@@ -147,7 +147,11 @@ enum Command {
     },
     /// Installs the host's system with nixos-anywhere on the machine at <host>.<endpoint>, booted into an installer
     /// that lets root in with service-rescue's ssh-key.
-    Reset { host: String },
+    Reset {
+        host: String,
+        #[command(flatten)]
+        how: remote::ResetHow,
+    },
     /// The text of a systemd unit of the host's configuration, or of another's.
     Unit {
         unit: String,
@@ -193,9 +197,13 @@ enum Command {
         #[command(flatten)]
         build_host: BuildHost,
     },
-    /// Encrypts every sops file to its recipients, and every identity to itself, its actors and the root identities, as
-    /// the org declares them.
-    Reencrypt,
+    /// Encrypts each sops file to its recipients, and each identity to itself, its actors and the root identities, as
+    /// the org declares them, where they aren't already.
+    Reencrypt {
+        /// Encrypts every sops file with a new data key too, and every identity anew. Identities stay as they are.
+        #[arg(long)]
+        rotate: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -272,7 +280,8 @@ impl From {
 
 #[derive(Args)]
 struct BuildHost {
-    /// The host that builds: one of the org's build-hosts, its first by default, or localhost.
+    /// The host that builds: one of the org's build-hosts, or localhost; by default the first that answers of those the
+    /// host fetches a build from, itself, then the most direct first.
     #[arg(long, env = "BUILD_HOST")]
     build_host: Option<String>,
 }
@@ -584,11 +593,11 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             nix_options,
         } => println!(
             "{}",
-            org.build(&host, &org.build_host(build_host.build_host)?, &nix_options)?
+            org.build(&host, &org.build_host(&host, build_host.build_host)?, &nix_options)?
         ),
-        Command::Apply { host, build_host } => org.apply(&host, &org.build_host(build_host.build_host)?)?,
-        Command::Reencrypt => org.reencrypt(true)?,
-        Command::Reset { host } => org.reset(&host)?,
+        Command::Apply { host, build_host } => org.apply(&host, &org.build_host(&host, build_host.build_host)?)?,
+        Command::Reencrypt { rotate } => org.reencrypt(rotate)?,
+        Command::Reset { host, how } => org.reset(&host, how)?,
         Command::Unit {
             unit,
             host,

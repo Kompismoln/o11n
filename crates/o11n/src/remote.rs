@@ -1,7 +1,11 @@
+use std::collections::BTreeMap;
 use std::os::unix::fs::DirBuilderExt;
+use std::path::Path;
 use std::process::Command;
 
-use clap::Subcommand;
+use clap::{Args, Subcommand};
+use serde::Deserialize;
+use serde_json::Value;
 
 use crate::Error;
 use crate::acting::Agent;
@@ -69,8 +73,87 @@ pub enum TunnelAction {
     Connect,
     /// Writes the machine's facts as hosts/<host>/facter.json, and shows its disks.
     Facts { host: String },
-    /// Installs the host's system on the machine, which reboots into it.
-    Reset { host: String },
+    /// Installs the host's system on the machine, which reboots into it, once what it needs is there.
+    Reset {
+        host: String,
+        #[command(flatten)]
+        how: ResetHow,
+    },
+}
+
+#[derive(Args, Clone, Copy)]
+pub struct ResetHow {
+    /// Checks what the org has of what the installation needs, and stops there, with no machine.
+    #[arg(long, conflicts_with = "resume")]
+    check: bool,
+    /// Keeps the machine's disks as an installation that failed left them, with what it had downloaded.
+    #[arg(long)]
+    resume: bool,
+}
+
+#[derive(Deserialize)]
+struct SopsSecret {
+    file: String,
+    key: String,
+}
+
+#[derive(Deserialize)]
+struct Plan {
+    secrets: BTreeMap<String, SopsSecret>,
+    devices: Vec<String>,
+    system: String,
+    networkmanager: String,
+}
+
+// Dependency: nixos-anywhere builds system.build.toplevel and system.build.diskoScript, on the machine once its disks
+// are formatted when it builds there, so their derivations are evaluated here first.
+const PLAN: &str = r#"c: let p = c.o11n.preserve or { enable = false; }; in {
+  secrets = builtins.mapAttrs (_: s: { file = toString s.sopsFile; inherit (s) key; }) c.sops.secrets;
+  devices = map (d: d.device) (builtins.attrValues c.disko.devices.disk);
+  system = builtins.seq c.system.build.toplevel.drvPath (
+    builtins.seq c.system.build.diskoScript.drvPath c.nixpkgs.hostPlatform.system
+  );
+  networkmanager = (if p.enable then p.storage else "") + "/etc/NetworkManager";
+}"#;
+
+impl Plan {
+    // Dependency: nixos-anywhere's disko phase destroys and formats, and in its mount mode mounts what is there; without
+    // phases it runs them all, and kexec does nothing on an installer.
+    fn phases(
+        &self,
+        found: &str,
+        host: &str,
+        address: &str,
+        resume: bool,
+        through_stick: bool,
+    ) -> Result<Option<String>, Error> {
+        let mut lines = found.lines();
+        let machine = lines.next().unwrap_or_default();
+        if self.system.split('-').next() != Some(machine) {
+            return Err(Error::new(format!(
+                "the machine at {address} is {machine}, and {host}'s system is {}: call in from {host}'s machine, or set its system",
+                self.system
+            )));
+        }
+        let absent: Vec<&str> = lines.clone().filter(|line| line.starts_with('/')).collect();
+        if !absent.is_empty() {
+            return Err(Error::new(format!(
+                "the machine at {address} has no {}: set the devices of {host}'s disk-layouts to its own, as ls -l /dev/disk/by-id shows them there",
+                absent.join(", ")
+            )));
+        }
+        let reboot = if through_stick { "" } else { ",reboot" };
+        Ok(match (resume, lines.any(|line| line == "mounted")) {
+            (false, _) => through_stick.then(|| "kexec,disko,install".to_owned()),
+            (true, true) => Some(format!("install{reboot}")),
+            (true, false) => Some(format!("disko,install{reboot}")),
+        })
+    }
+}
+
+// Dependency: a flake's files are in the store as /nix/store/<hash>-<name>/<path>.
+fn in_flake(file: &str) -> String {
+    file.splitn(5, '/').last().unwrap_or(file).to_owned()
 }
 
 impl Org {
@@ -117,12 +200,99 @@ impl Org {
         Ok(())
     }
 
-    pub fn reset(&self, host: &str) -> Result<(), Error> {
+    pub fn reset(&self, host: &str, how: ResetHow) -> Result<(), Error> {
+        let plan = self.plan(host)?;
+        if how.check {
+            return Ok(());
+        }
         let address = self.export.on_endpoint(host);
-        self.install(host, &address, None)
+        self.install(
+            host,
+            &address,
+            None,
+            &plan,
+            how.resume,
+            &format!("o11n reset {host} --resume"),
+        )
     }
 
-    fn install(&self, host: &str, address: &str, stick: Option<(&Stick, &Agent)>) -> Result<(), Error> {
+    // Policy: what the installed system can't do without is told before the machine is touched: the keys it is
+    // installed with, a configuration that evaluates, and each secret it reads, decrypted as the host will.
+    fn plan(&self, host: &str) -> Result<Plan, Error> {
+        let id = format!("host-{host}");
+        let identity = self.identity(&id)?;
+        self.verify_public_key(&id, "age-key")?;
+        if self.entity(&id)?.keys.contains_key("luks-key") {
+            self.required(Secret {
+                id: &id,
+                key: "luks-key",
+                slot: 0,
+            })?;
+        }
+        self.required(ssh_key("service-rescue"))?;
+        let json = run(
+            Command::new("nix")
+                .args(["eval", "--json"])
+                .arg(format!("{}#nixosConfigurations.{host}.config", flake(&self.root)?))
+                .args(["--apply", PLAN]),
+            None,
+        )?;
+        let plan: Plan = serde_json::from_str(&json).map_err(|e| Error::new(format!("{host}'s configuration: {e}")))?;
+
+        let temp = TempDir::new()?;
+        let identity = temp.file("identity", &identity)?;
+        let mut files: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        for secret in plan.secrets.values() {
+            files.entry(&secret.file).or_default().push(&secret.key);
+        }
+        let mut missing = Vec::new();
+        for (file, keys) in files {
+            let name = in_flake(file);
+            if !Path::new(file).exists() {
+                missing.push(format!("{name} isn't in the flake: git add it"));
+                continue;
+            }
+            let decrypted = run(
+                Command::new("sops")
+                    .args(["decrypt", "--output-type", "json", file])
+                    .env("SOPS_AGE_KEY_FILE", &identity),
+                None,
+            );
+            let value: Value = match decrypted {
+                Ok(json) => serde_json::from_str(&json).map_err(|e| Error::new(format!("{name}: {e}")))?,
+                Err(error) => {
+                    missing.push(format!("{id} can't decrypt {name}: o11n reencrypt\n{error}"));
+                    continue;
+                }
+            };
+            for key in keys {
+                if key.split('/').try_fold(&value, |value, part| value.get(part)).is_none() {
+                    missing.push(format!("{name} has no {key}"));
+                }
+            }
+        }
+        if !missing.is_empty() {
+            return Err(Error::new(format!(
+                "{host}'s configuration reads secrets it wouldn't have; o11n status --failed tells whose each is:\n{}",
+                missing.join("\n")
+            )));
+        }
+        log(format!(
+            "{host} has its keys, a configuration that evaluates, and the {} secrets it reads",
+            plan.secrets.len()
+        ));
+        Ok(plan)
+    }
+
+    fn install(
+        &self,
+        host: &str,
+        address: &str,
+        stick: Option<(&Stick, &Agent)>,
+        plan: &Plan,
+        resume: bool,
+        resuming: &str,
+    ) -> Result<(), Error> {
         let id = format!("host-{host}");
         let temp = TempDir::new()?;
         let identity = self.identity(&id)?;
@@ -158,16 +328,26 @@ impl Org {
             (Vec::new(), &own)
         };
 
-        status(
-            agent
-                .command("ssh")
-                .args(&through)
-                .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=5"])
-                .arg(format!("root@{address}"))
-                .arg("true"),
-        )
-        .map_err(|_| Error::new(format!("SSH to root@{address} failed")))?;
+        let probe = |script: &str| {
+            run(
+                agent
+                    .command("ssh")
+                    .args(&through)
+                    .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=5"])
+                    .arg(format!("root@{address}"))
+                    .arg(script),
+                None,
+            )
+        };
+        let mounted = "if mountpoint -q /mnt; then echo mounted; fi";
+        let devices: Vec<String> = plan.devices.iter().map(|device| quoted(device)).collect();
+        let found = probe(&format!(
+            "uname -m; for device in {}; do [ -e \"$device\" ] || echo \"$device\"; done; {mounted}",
+            devices.join(" ")
+        ))
+        .map_err(|error| Error::new(format!("SSH to root@{address} failed:\n{error}")))?;
         log(format!("SSH to root@{address} succeeded"));
+        let phases = plan.phases(&found, host, address, resume, stick.is_some())?;
 
         let mut anywhere = agent.command("nixos-anywhere");
         anywhere
@@ -195,9 +375,21 @@ impl Org {
                 .arg(format!("ProxyJump=admin@{}", stick.server))
                 // Policy: the machine builds its system from the caches over its own line, rather than receive it
                 // through the server, and reboots only once it has the wifi it called in on.
-                .args(["--build-on", "remote", "--phases", "kexec,disko,install"]);
+                .args(["--build-on", "remote"]);
         }
-        status(&mut anywhere)
+        if let Some(phases) = &phases {
+            anywhere.args(["--phases", phases]);
+        }
+        if resume {
+            anywhere.args(["--disko-mode", "mount"]);
+        }
+        let installed = status(&mut anywhere);
+        if installed.is_err() && probe(mounted).is_ok_and(|found| found.trim() == "mounted") {
+            log(format!(
+                "the machine's disks are formatted and mounted, with what it downloaded: {resuming} goes on from there"
+            ));
+        }
+        installed
     }
 
     pub fn tunnel(&self, server: &str, action: TunnelAction) -> Result<(), Error> {
@@ -236,7 +428,7 @@ impl Org {
         match action {
             TunnelAction::Connect => status(&mut stick.ssh(&agent)),
             TunnelAction::Facts { host } => self.facts(&stick, &agent, &host),
-            TunnelAction::Reset { host } => self.reset_through(&stick, &agent, &host),
+            TunnelAction::Reset { host, how } => self.reset_through(server, &stick, &agent, &host, how),
             TunnelAction::Open { .. } | TunnelAction::Close | TunnelAction::Status => unreachable!(),
         }
     }
@@ -258,19 +450,27 @@ impl Org {
         status(stick.ssh(agent).arg("ls -l /dev/disk/by-id/ | grep -v -- -part"))
     }
 
-    fn reset_through(&self, stick: &Stick, agent: &Agent, host: &str) -> Result<(), Error> {
-        let networkmanager = run(
-            Command::new("nix")
-                .args(["eval", "--raw"])
-                .arg(format!("{}#nixosConfigurations.{host}.config", flake(&self.root)?))
-                .args([
-                    "--apply",
-                    r#"c: let p = c.o11n.preserve or { enable = false; };
-                       in (if p.enable then p.storage else "") + "/etc/NetworkManager""#,
-                ]),
-            None,
+    fn reset_through(
+        &self,
+        server: &str,
+        stick: &Stick,
+        agent: &Agent,
+        host: &str,
+        how: ResetHow,
+    ) -> Result<(), Error> {
+        let plan = self.plan(host)?;
+        if how.check {
+            return Ok(());
+        }
+        let networkmanager = &plan.networkmanager;
+        self.install(
+            host,
+            "localhost",
+            Some((stick, agent)),
+            &plan,
+            how.resume,
+            &format!("o11n tunnel {server} reset {host} --resume"),
         )?;
-        self.install(host, "localhost", Some((stick, agent)))?;
         status(stick.ssh(agent).arg(format!(
             "if [ -d /etc/NetworkManager/system-connections ]; then \
              mkdir -p /mnt{networkmanager} && cp -a /etc/NetworkManager/system-connections /mnt{networkmanager}/; fi"
@@ -278,5 +478,55 @@ impl Org {
         let _ = status(stick.ssh(agent).args(["systemctl", "reboot"]));
         log(format!("{host} is rebooting into its new system"));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn plan() -> Plan {
+        Plan {
+            secrets: BTreeMap::new(),
+            devices: vec!["/dev/disk/by-id/ata-one".into()],
+            system: "x86_64-linux".into(),
+            networkmanager: "/etc/NetworkManager".into(),
+        }
+    }
+
+    fn phases(found: &str, resume: bool, through_stick: bool) -> Result<Option<String>, String> {
+        plan()
+            .phases(found, "alpha", "localhost", resume, through_stick)
+            .map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn a_reset_formats_and_a_resumed_one_mounts_or_goes_on() {
+        assert_eq!(phases("x86_64\n", false, false), Ok(None));
+        assert_eq!(phases("x86_64\n", false, true), Ok(Some("kexec,disko,install".into())));
+        assert_eq!(phases("x86_64\n", true, true), Ok(Some("disko,install".into())));
+        assert_eq!(phases("x86_64\nmounted\n", true, true), Ok(Some("install".into())));
+        assert_eq!(
+            phases("x86_64\nmounted\n", true, false),
+            Ok(Some("install,reboot".into()))
+        );
+    }
+
+    #[test]
+    fn another_machine_or_one_without_the_disks_is_refused() {
+        assert!(phases("aarch64\n", false, true).unwrap_err().contains("is aarch64"));
+        assert!(
+            phases("x86_64\n/dev/disk/by-id/ata-one\n", false, true)
+                .unwrap_err()
+                .contains("has no /dev/disk/by-id/ata-one")
+        );
+    }
+
+    #[test]
+    fn a_file_of_the_flake_is_named_from_its_root() {
+        assert_eq!(
+            in_flake("/nix/store/abc-source/enc/host-alpha.yaml"),
+            "enc/host-alpha.yaml"
+        );
     }
 }

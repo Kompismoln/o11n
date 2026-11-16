@@ -126,6 +126,8 @@ let
         system
         luksKeyFile
         nixos
+        fqdns
+        buildHosts
         ;
       services = map (service: service.name) entity.services;
       served = lib.listToAttrs (
