@@ -5,10 +5,6 @@
     SOPS_AGE_KEY_FILE = "/keys/user-$USER";
   };
 
-  nixpkgs.overlays = [
-    (import ../../overlays/tools.nix)
-  ];
-
   programs.bash = {
     promptInit = builtins.readFile ./prompt-init.sh;
     shellAliases = {

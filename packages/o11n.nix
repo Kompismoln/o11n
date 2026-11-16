@@ -1,7 +1,7 @@
 {
+  callPackage,
   clippy,
   curl,
-  gost,
   lib,
   makeWrapper,
   openssh,
@@ -9,6 +9,7 @@
   sops,
 }:
 let
+  gost = callPackage ./gost.nix { };
   runtimeInputs = [
     curl
     gost

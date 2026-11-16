@@ -21,9 +21,7 @@ let
   realm = "example";
   local = "http://[${auth.principal.bindAddress}]:8080";
   orgExport = pkgs.writeText "org-export.json" (builtins.toJSON org.export);
-  o11n = pkgs.callPackage ../../packages/o11n.nix {
-    gost = pkgs.callPackage ../../packages/gost.nix { };
-  };
+  o11n = pkgs.callPackage ../../packages/o11n.nix { };
 
   # Fact: the mail server and the apps' endpoints, as the internet's DNS would answer.
   resolving =

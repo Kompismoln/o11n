@@ -142,7 +142,7 @@ pkgs.testers.runNixOSTest {
         "flakes"
       ];
       environment.systemPackages = [
-        (pkgs.callPackage ../../packages/o11n.nix { gost = pkgs.callPackage ../../packages/gost.nix { }; })
+        (pkgs.callPackage ../../packages/o11n.nix { })
         pkgs.gettext
         pkgs.git
       ];

@@ -93,8 +93,9 @@
 
               packages = {
                 gost = pkgs.callPackage ./packages/gost.nix { };
-                o11n = pkgs.callPackage ./packages/o11n.nix { inherit (config.packages) gost; };
+                o11n = pkgs.callPackage ./packages/o11n.nix { };
                 o11n-dev = pkgs.callPackage ./packages/o11n-dev.nix { };
+                origin = pkgs.callPackage ./packages/origin.nix { };
                 # Accommodating for orgs whose devShell still takes o11n-tools, which o11n now is.
                 o11n-tools = config.packages.o11n;
               };

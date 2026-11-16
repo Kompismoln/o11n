@@ -142,9 +142,6 @@ rec {
             o11nInputs.home-manager.lib.homeManagerConfiguration {
               pkgs = import o11nInputs.nixpkgs {
                 inherit (host) system;
-                overlays = [
-                  (import ../overlays/tools.nix)
-                ];
               };
               extraSpecialArgs = {
                 inherit (context) inputs org;

@@ -1,4 +1,10 @@
-pkgs: with pkgs; rec {
+pkgs:
+let
+  o11n = pkgs.callPackage ./o11n.nix { };
+  origin = pkgs.callPackage ./origin.nix { };
+in
+with pkgs;
+rec {
   all =
     core-cli
     ++ terminal-env
