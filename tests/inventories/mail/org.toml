@@ -96,6 +96,21 @@ run-on-hosts = []
 grants = ["host:app-scheduler"]
 nextcloud = { keycloak = "auth", realm = "example", storages = { alice = { files = { bind = "/var/lib/cloud/alice" } } } }
 
+# Fact: an immich whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and whose
+# user alice's library is a share of box's on mx; only vmTests.photos runs it, on web.
+[app.photos]
+id = 5
+endpoint = "photos.example.com"
+run-on-hosts = []
+grants = ["host:app-scheduler", "host:mailserver"]
+principal.mail.send = true
+immich = { keycloak = "auth", realm = "example", storages = { alice = { box = { host = "mx.example.com", share = "alice", login = "alice", key = "store-box" } } } }
+
+[store.box]
+id = 0
+principal.hasPublicKey = false
+grants = ["host:app-scheduler"]
+
 [role.mailserver]
 services = ["mailserver"]
 

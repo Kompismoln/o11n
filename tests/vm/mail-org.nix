@@ -11,7 +11,10 @@ let
   elsewhere = "elsewhere.test";
   receiver = "mx.${elsewhere}";
   # Fact: the endpoints of the apps that are served over https in a test, whose certificates the test's CA signs.
-  apps = [ outputs.org.app.cloud.endpoint ];
+  apps = [
+    outputs.org.app.cloud.endpoint
+    outputs.org.app.photos.endpoint
+  ];
 in
 rec {
   inherit fqdn elsewhere receiver;

@@ -15,6 +15,7 @@ let
   # postgresql (nixos/postgresql.nix).
   postgresqlKinds = [
     "django"
+    "immich"
     "keycloak"
     "mobilizon"
     "nextcloud"
