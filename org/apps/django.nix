@@ -1,10 +1,10 @@
-{ app, lib, ... }:
+{ config, lib, ... }:
 {
   options = {
     input = lib.mkOption {
       description = "the org's input whose packages.<system> has the app's django-app and scripts";
       type = lib.types.str;
-      default = app.name;
+      default = config.name;
       defaultText = lib.literalExpression "name";
     };
     module = lib.mkOption {

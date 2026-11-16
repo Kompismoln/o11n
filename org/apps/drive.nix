@@ -1,0 +1,253 @@
+{
+  config,
+  context,
+  lib,
+  ...
+}:
+let
+  inherit (context) org;
+
+  storage = {
+    options = {
+      bind = lib.mkOption {
+        description = "the directory on the app's hosts the storage is of, which nextcloud's user can write in, or null";
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
+      allotment = lib.mkOption {
+        description = "the allotment, as <handle>@<host>, the storage reaches over SFTP, whose `sftp` has to have the app, or null";
+        type = lib.types.nullOr (lib.types.enum (lib.attrNames (context.spec.allotment or { })));
+        default = null;
+      };
+      sftp = lib.mkOption {
+        description = "the SFTP server the storage reaches, or null";
+        type = lib.types.nullOr (
+          lib.types.submodule {
+            options = {
+              host = lib.mkOption {
+                description = "the server, as Nextcloud takes it: a name, or an IPv6 address in brackets";
+                type = lib.types.str;
+              };
+              login = lib.mkOption {
+                description = "the user it logs in as";
+                type = lib.types.str;
+              };
+              root = lib.mkOption {
+                description = "the directory on the server the mount is of";
+                type = lib.types.str;
+                default = "/";
+              };
+              key = lib.mkOption {
+                description = "the entity, by its handle, whose sftp-key the mount logs in with, which has to grant the app's hosts, or null for the app's";
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+              };
+            };
+          }
+        );
+        default = null;
+      };
+      sharing = lib.mkOption {
+        description = "whether the user can share from the storage, Nextcloud's enable_sharing";
+        type = lib.types.bool;
+        default = false;
+      };
+    };
+  };
+
+  entityOf =
+    option: handle:
+    org.entities.${handle}
+      or (throw "app.${config.name}.${option}: ${handle} is no entity of the org's.");
+
+  kinds = [
+    "bind"
+    "allotment"
+    "sftp"
+  ];
+
+  # Policy: a storage is of one kind, a folder of its name in its user's root.
+  checked = lib.mapAttrs (
+    user:
+    lib.mapAttrs (
+      name: storage:
+      let
+        set = lib.filter (kind: storage.${kind} != null) kinds;
+      in
+      if lib.length set != 1 then
+        throw "app.${config.name}.storages.${user}.${name}: a storage is a bind, an allotment or an sftp server: set one of them${
+          lib.optionalString (set != [ ]) ", not ${lib.concatStringsSep " and " set}"
+        }."
+      else
+        storage // { kind = lib.head set; }
+    )
+  ) config.storages;
+
+  ofKind =
+    kind:
+    lib.concatLists (
+      lib.mapAttrsToList (
+        user: storages:
+        lib.mapAttrsToList (name: storage: storage // { inherit user name; }) (
+          lib.filterAttrs (_: storage: storage.kind == kind) storages
+        )
+      ) checked
+    );
+
+  servers =
+    user: folder: mount:
+    let
+      fail = message: throw "app.${config.name}.storages.${user}.${folder}: ${message}";
+      allotment = org.allotment.${mount.allotment};
+    in
+    if mount.sftp != null then
+      lib.genAttrs config.run-on-hosts (_: {
+        inherit (mount.sftp) host login root;
+        changes = null;
+      })
+    else if !(allotment.logins ? ${config.handle}) then
+      fail "${mount.allotment} lets ${config.handle} in by sftp only from its sftp: add it there."
+    else
+      # Accommodating for Nextcloud, which keeps the host keys it knows as host::key lines, split at the first ::.
+      lib.mapAttrs (_: login: {
+        host = login.address4;
+        inherit (login) login root changes;
+      }) allotment.logins.${config.handle};
+
+  key =
+    user: folder: mount:
+    let
+      handle = if mount.sftp.key or null == null then config.handle else mount.sftp.key;
+      entity = entityOf "storages.${user}.${folder}.sftp.key" handle;
+    in
+    {
+      inherit handle;
+      secret = {
+        name = "${entity.name}/sftp-key";
+        inherit (entity.secrets) sopsFile;
+      };
+      publicKey = entity.publicKeys.sftp-key;
+    };
+in
+{
+  imports = [ ./roots.nix ];
+
+  options = {
+    storages = lib.mkOption {
+      description = "the storages of each Nextcloud user, by user, then by name: each a folder of its name in their root, or, without one, in a folder no one can write in";
+      type = lib.types.attrsOf (lib.types.attrsOf (lib.types.submodule storage));
+      default = { };
+      example = lib.literalExpression ''
+        {
+          alice.web = { allotment = "user-alice@web"; sharing = true; };
+        }
+      '';
+    };
+    binds = lib.mkOption {
+      description = "each bind, at its folder, for its user, with the directory it's of and whether it can be shared from";
+      internal = true;
+      readOnly = true;
+      type = lib.types.listOf lib.types.raw;
+      default = map (storage: {
+        mountPoint = "/${storage.name}";
+        inherit (storage) user sharing;
+        path = storage.bind;
+      }) (ofKind "bind");
+      defaultText = lib.literalMD "each bind of `storages`, at its name";
+    };
+    users = lib.mkOption {
+      description = "the Nextcloud users with a root or storages, each with whether they have a root";
+      internal = true;
+      readOnly = true;
+      type = lib.types.attrsOf lib.types.bool;
+      default = lib.mapAttrs (_: _: false) config.storages // lib.mapAttrs (_: _: true) config.roots;
+      defaultText = lib.literalMD "each user of `roots` or `storages`, with whether they're of `roots`";
+    };
+    mounts = lib.mkOption {
+      description = "for each host the app runs on, its external storages: each at its folder, for its user, with the server it reaches there and how it follows what changes there, the key it logs in with and whether it can be shared from";
+      internal = true;
+      readOnly = true;
+      type = lib.types.lazyAttrsOf lib.types.raw;
+      default = lib.genAttrs config.run-on-hosts (
+        on:
+        lib.concatLists (
+          lib.mapAttrsToList
+            (
+              user:
+              lib.mapAttrsToList (
+                folder: mount: {
+                  mountPoint = "/${folder}";
+                  inherit user;
+                  inherit (mount) sharing;
+                  server = (servers user folder mount).${on};
+                  key = key user folder mount;
+                }
+              )
+            )
+            (
+              lib.mapAttrs (
+                _:
+                lib.filterAttrs (
+                  _: storage:
+                  lib.elem storage.kind [
+                    "allotment"
+                    "sftp"
+                  ]
+                )
+              ) checked
+            )
+        )
+      );
+      defaultText = lib.literalMD "for each of the app's `run-on-hosts`, each allotment and sftp server of `storages` with its server there and its `sftp.key`'s sftp-key, or the app's";
+    };
+    keycloak = lib.mkOption {
+      description = "the keycloak app Nextcloud's users log in with, or null for Nextcloud's own logins alone";
+      type = lib.types.nullOr context.types.app.ref;
+      default = null;
+    };
+    realm = lib.mkOption {
+      description = "the keycloak realm of Nextcloud's client";
+      type = lib.types.str;
+      default = "";
+    };
+    client = lib.mkOption {
+      description = "Nextcloud's client, which the keycloak app keeps in the realm, as Keycloak's admin API represents it, or null";
+      internal = true;
+      readOnly = true;
+      type = lib.types.raw;
+      # Dependency: nixos/apps/drive.nix logs in with user_oidc, whose code route is /apps/user_oidc/code, and
+      # which proves its code with PKCE where the realm offers it.
+      default = lib.mapNullable (keycloak: {
+        inherit keycloak;
+        inherit (config) realm;
+        app = config.handle;
+        secret = {
+          name = "${config.name}/oidc-secret";
+          inherit (config.secrets) sopsFile;
+        };
+        representation = {
+          clientId = config.name;
+          enabled = true;
+          protocol = "openid-connect";
+          publicClient = false;
+          standardFlowEnabled = true;
+          implicitFlowEnabled = false;
+          directAccessGrantsEnabled = false;
+          serviceAccountsEnabled = false;
+          # Policy: its tokens carry no roles, as it reads none, rather than every role, as Keycloak's full scope,
+          # which it deprecates, gives.
+          fullScopeAllowed = false;
+          redirectUris = [
+            "${config.url}/apps/user_oidc/code"
+            "${config.url}/index.php/apps/user_oidc/code"
+          ];
+          attributes = {
+            "pkce.code.challenge.method" = "S256";
+            "post.logout.redirect.uris" = "${config.url}/*";
+          };
+        };
+      }) config.keycloak;
+      defaultText = lib.literalMD "a confidential client with the app's `oidc-secret`, or null without a `keycloak`";
+    };
+  };
+}

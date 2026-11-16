@@ -6,32 +6,30 @@
 let
   inherit (pkgs) lib;
   inherit (outputs) org;
-  # Fact: the mail inventory's nextcloud, with users of its own rather than auth's realm's, which vmTests.keycloak runs,
-  # and storages as org/apps/nextcloud.nix derives them for nextcloud.storages.bob.pub.bind = "/srv/pub" and
-  # nextcloud.storages.rolf.home.adapter = "app-site", site's home /var/lib/site.
+  # Fact: the mail inventory's drive, with users of its own rather than auth's realm's, which vmTests.keycloak runs,
+  # and storages and roots as org/apps/drive.nix derives them for storages.bob.pub.bind = "/srv/pub" and
+  # roots.rolf = "app-site", site's home /var/lib/site.
   cloud = lib.recursiveUpdate org.app.cloud {
-    nextcloud = {
-      client = null;
-      users = {
-        bob = false;
-        rolf = true;
-      };
-      adapters = [
-        {
-          user = "rolf";
-          path = "/var/lib/site";
-          owner = "site";
-        }
-      ];
-      binds = [
-        {
-          mountPoint = "/pub";
-          user = "bob";
-          sharing = false;
-          path = "/srv/pub";
-        }
-      ];
+    client = null;
+    users = {
+      bob = false;
+      rolf = true;
     };
+    adapters = [
+      {
+        user = "rolf";
+        path = "/var/lib/site/drive";
+        owner = "site";
+      }
+    ];
+    binds = [
+      {
+        mountPoint = "/pub";
+        user = "bob";
+        sharing = false;
+        path = "/srv/pub";
+      }
+    ];
   };
   dav = "${cloud.url}/remote.php/dav/files/bob";
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
@@ -47,7 +45,7 @@ let
       pkgs,
       ...
     }:
-    import ../../nixos/apps/nextcloud.nix {
+    import ../../nixos/apps/drive.nix {
       app = cloud;
       inherit
         config
@@ -150,10 +148,10 @@ pkgs.testers.runNixOSTest {
             f"printf %s {body} | curl -s -o /dev/null -w '%{{http_code}}' -u bob:alice-password -T - '${dav}/{path}'"
         ).strip()
 
-    with subtest("a user without a box has files no one can write in, and each of their storages a folder in them"):
+    with subtest("a user without a root has files no one can write in, and each of their storages a folder in them"):
         web.wait_until_succeeds("nixos-container run ${cloud.name} -- systemctl is-active nextcloud-external.service", timeout=120)
         root = put("root.txt", "root")
-        assert root != "201", f"bob wrote in his files, which have no box: {root}"
+        assert root != "201", f"bob wrote in their files, which have no root: {root}"
         pub = put("pub/kept.txt", "kept")
         assert pub == "201", f"bob couldn't write in his bind: {pub}"
         assert web.succeed("cat /srv/pub/kept.txt").strip() == "kept"
@@ -168,19 +166,19 @@ pkgs.testers.runNixOSTest {
         web.wait_until_succeeds("nixos-container run ${cloud.name} -- systemctl is-active nextcloud-external.service", timeout=300)
         assert web.succeed("curl -sSf -u bob:alice-password '${dav}/pub/kept.txt'").strip() == "kept"
 
-    with subtest("an adapter is a user's home, their owner's, which nextcloud writes in as the owner, and reads the owner's in"):
+    with subtest("a root in an entity's home is the entity's, which nextcloud writes in as the entity, and reads the entity's in"):
         web.succeed("nixos-container run ${cloud.name} -- env OC_PASS=rolf-password nextcloud-occ user:resetpassword --password-from-env rolf")
         rolf = "curl -sS -u rolf:rolf-password"
         written = web.succeed(
             f"printf written | {rolf} -o /dev/null -w '%{{http_code}}' -T - '${cloud.url}/remote.php/dav/files/rolf/written.txt'"
         ).strip()
-        assert written == "201", f"rolf couldn't write in his home: {written}"
-        assert web.succeed("stat -c %U:%G /var/lib/site/files/written.txt").strip() == "site:site"
+        assert written == "201", f"rolf couldn't write in their root: {written}"
+        assert web.succeed("stat -c %U:%G /var/lib/site/drive/files/written.txt").strip() == "site:site"
         web.sleep(1)
-        web.succeed("runuser -u site -- sh -c 'echo site > /var/lib/site/files/from-site.txt'")
+        web.succeed("runuser -u site -- sh -c 'echo site > /var/lib/site/drive/files/from-site.txt'")
         listed = web.succeed(f"{rolf} -f -X PROPFIND -H 'Depth: 1' '${cloud.url}/remote.php/dav/files/rolf/'")
         assert "from-site.txt" in listed, listed
         said = web.succeed("nextcloud-status-${cloud.name}")
-        assert "${cloud.name} home rolf ok" in said.splitlines(), said
+        assert "${cloud.name} root rolf ok" in said.splitlines(), said
   '';
 }

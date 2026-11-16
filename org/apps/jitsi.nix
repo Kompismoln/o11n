@@ -1,12 +1,11 @@
 {
-  app,
   config,
   context,
   lib,
   ...
 }:
 let
-  url = "https://${app.endpoint}";
+  url = "https://${config.endpoint}";
 in
 {
   options = {
@@ -27,9 +26,9 @@ in
       # public client, which proves its code with PKCE.
       default = {
         inherit (config) keycloak realm;
-        app = app.handle;
+        app = config.handle;
         representation = {
-          clientId = app.name;
+          clientId = config.name;
           enabled = true;
           protocol = "openid-connect";
           publicClient = true;

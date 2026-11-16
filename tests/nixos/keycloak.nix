@@ -18,13 +18,13 @@ let
       };
     };
     secrets.sopsFile = ../inventories/mail/enc/app-auth.yaml;
-    keycloak.realms.example.displayName = "Example";
+    realms.example.displayName = "Example";
   };
 
   apps = realm: {
     meet = {
       kind = "jitsi";
-      jitsi.client = {
+      client = {
         keycloak = "auth";
         inherit realm;
         app = "app-meet";
@@ -32,8 +32,8 @@ let
       };
     };
     cloud = {
-      kind = "nextcloud";
-      nextcloud.client = {
+      kind = "drive";
+      client = {
         keycloak = "auth";
         inherit realm;
         app = "app-cloud";
@@ -45,12 +45,11 @@ let
       };
     };
     elsewhere = {
-      kind = "nextcloud";
-      nextcloud.client = null;
+      kind = "drive";
+      client = null;
     };
     blog = {
       kind = "wordpress";
-      wordpress = { };
     };
     other.kind = null;
   };
@@ -254,7 +253,7 @@ in
   };
 
   test_keycloak_without_realms_keeps_none = {
-    expr = (eval (app // { keycloak.realms = { }; })).systemd.services ? keycloak-realms;
+    expr = (eval (app // { realms = { }; })).systemd.services ? keycloak-realms;
     expected = false;
   };
 
@@ -278,7 +277,7 @@ in
   test_keycloak_client_in_a_realm_it_keeps = {
     expr = failed (evalWith "jitsi-realm" app);
     expected = [
-      "app-meet's client is in the realm jitsi-realm, which app-auth doesn't keep: add keycloak.realms.jitsi-realm under [app.auth], or name one it keeps."
+      "app-meet's client is in the realm jitsi-realm, which app-auth doesn't keep: add realms.jitsi-realm under [app.auth], or name one it keeps."
     ];
   };
 }

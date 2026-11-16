@@ -23,7 +23,7 @@ On 80 and 443:
 - each WordPress denies `xmlrpc.php`.
 - keycloak locks a user out after failed logins (`bruteForceProtected`), and reads the client's address from nginx's
   headers.
-- nextcloud throttles failed logins itself.
+- Nextcloud throttles failed logins itself.
 - `mobilizon-<app>` (`nixos/apps/mobilizon.nix`): 10 names tried in an hour, GETs for a profile, `/@<name>` and what's
   under it, or for a webfinger, that mobilizon answers as not found, as nginx logs them; `eval-fail2ban-mobilizon`
   checks the filter as `eval-fail2ban-wordpress` does. A failed login is a GraphQL answer to a POST to `/api` like any
@@ -52,8 +52,7 @@ each module its own:
 What a host's peers have no need of listens on loopback, or not at all:
 
 - MariaDB on `127.0.0.1` (`nixos/mysql.nix`): its clients use its socket.
-- coolwsd on loopback, at a port of each nextcloud's (`nixos/apps/nextcloud.nix`), which serves that nextcloud's `url`
-  alone.
+- coolwsd on loopback, at a port of each drive's (`nixos/apps/drive.nix`), which serves that drive's `url` alone.
 - prosody on loopback (`nixos/apps/jitsi.nix`), for jicofo, the videobridge and nginx.
 - keycloak's cache is local (`nixos/apps/keycloak.nix`), with no cluster to listen for.
 - mobilizon runs without Erlang distribution (`nixos/apps/mobilizon.nix`), so neither epmd nor a node listens; it stops

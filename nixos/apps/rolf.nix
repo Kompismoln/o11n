@@ -7,10 +7,10 @@
   ...
 }:
 let
-  packages = inputs.${app.rolf.input}.packages.${host.system};
+  packages = inputs.${app.input}.packages.${host.system};
   user = app.name;
   inherit (app.principal) home;
-  source = "${home}/${app.rolf.source}";
+  source = "${home}/${app.source}";
   siteRoot = "${home}/_site";
   sourceRoot = "${home}/_src";
 

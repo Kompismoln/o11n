@@ -22,14 +22,13 @@ let
       int = 7;
       hex8 = "00000007";
     };
-    nextcloud = {
-      client = null;
-    };
+    kind = "drive";
+    client = null;
   };
 
-  # Fact: as org/apps/nextcloud.nix derives it for nextcloud.keycloak = "auth" and nextcloud.realm = "example".
+  # Fact: as org/apps/drive.nix derives it for keycloak = "auth" and realm = "example".
   logsIn = lib.recursiveUpdate app {
-    nextcloud.client = {
+    client = {
       keycloak = "auth";
       realm = "example";
       app = "app-cloud";
@@ -41,10 +40,10 @@ let
     };
   };
 
-  # Fact: as org/apps/nextcloud.nix derives it, run on web, for an external zhost of alice's allotment there, and an
+  # Fact: as org/apps/drive.nix derives it, run on web, for an external zhost of alice's allotment there, and an
   # external files of bob's on an sftp server, logging in with store-files' sftp-key.
   mounts = lib.recursiveUpdate app {
-    nextcloud.mounts.web = [
+    mounts.web = [
       {
         mountPoint = "/zhost";
         user = "alice";
@@ -90,14 +89,14 @@ let
     ];
   };
 
-  # Fact: as org/apps/nextcloud.nix derives it for a box of carol's on box.example.com, with store-box's
-  # smb-password, and a bind of bob's at /srv/pub, who has no box.
-  homes = lib.recursiveUpdate app {
-    nextcloud.users = {
+  # Fact: as org/apps/drive.nix derives it for carol's root in store-box, whose share is carol on box.example.com, at drive,
+  # with its smb-password, and a bind of bob's at /srv/pub, who has no root.
+  rooted = lib.recursiveUpdate app {
+    users = {
       carol = true;
       bob = false;
     };
-    nextcloud.binds = [
+    binds = [
       {
         mountPoint = "/pub";
         user = "bob";
@@ -105,11 +104,11 @@ let
         path = "/srv/pub";
       }
     ];
-    nextcloud.shares = [
+    shares = [
       {
         user = "carol";
         host = "box.example.com";
-        share = "carol";
+        share = "carol/drive";
         login = "carol";
         key = {
           handle = "store-box";
@@ -122,13 +121,13 @@ let
     ];
   };
 
-  # Fact: as org/apps/nextcloud.nix derives it for storages.rolf.home.adapter = "app-site", site's home /var/lib/site.
+  # Fact: as org/apps/drive.nix derives it for roots.rolf = "app-site", site's home /var/lib/site, at drive.
   adapts = lib.recursiveUpdate app {
-    nextcloud.users.rolf = true;
-    nextcloud.adapters = [
+    users.rolf = true;
+    adapters = [
       {
         user = "rolf";
-        path = "/var/lib/site";
+        path = "/var/lib/site/drive";
         owner = "site";
       }
     ];
@@ -137,7 +136,7 @@ let
   evalApp =
     app: uid:
     evalNixosModule [
-      ../../nixos/apps/nextcloud.nix
+      ../../nixos/apps/drive.nix
       {
         # Accommodating for sops-nix and preservation, which this evaluation doesn't import: what the app
         # declares there is only declared, at the paths sops-nix would give it.
@@ -181,7 +180,7 @@ let
               app = {
                 auth = {
                   url = "https://auth.example.com";
-                  keycloak.realms.example.displayName = "Example";
+                  realms.example.displayName = "Example";
                 };
               };
             };
@@ -254,7 +253,7 @@ in
     };
   };
 
-  # Policy: a nextcloud with a keycloak has its users log in with the realm, as the Keycloak user of their name.
+  # Policy: a drive with a keycloak has its users log in with the realm, as the Keycloak user of their name.
   test_nextcloud_logs_in_with_keycloak =
     let
       cfg = evalApp logsIn app.principal.uid;
@@ -320,7 +319,7 @@ in
       };
     };
 
-  # Policy: a nextcloud without a keycloak keeps its own login.
+  # Policy: a drive without a keycloak keeps its own login.
   test_nextcloud_without_keycloak_keeps_its_login = {
     expr = lib.filterAttrs (
       name: _:
@@ -333,7 +332,7 @@ in
     expected = { };
   };
 
-  # Policy: a nextcloud is a drive, whose apps are its files', its settings' and Nextcloud's own, from no app store.
+  # Policy: a drive's apps are its files', its settings' and Nextcloud's own, from no app store.
   test_nextcloud_keeps_a_drives_apps =
     let
       kept =
@@ -433,7 +432,7 @@ in
       };
     };
 
-  # Policy: a nextcloud's office is its container's coolwsd, at the app's own url, on a loopback port of the app's,
+  # Policy: a drive's office is its container's coolwsd, at the app's own url, on a loopback port of the app's,
   # which the app's server serves the office's paths from, and which serves the app alone.
   test_nextcloud_opens_its_own_office =
     let
@@ -470,7 +469,7 @@ in
       };
     };
 
-  # Policy: a nextcloud keeps each of its external storages, which logs in with its key's sftp-key.
+  # Policy: a drive keeps each of its external storages, which logs in with its key's sftp-key.
   test_nextcloud_keeps_its_external_storages =
     let
       cfg = evalApp mounts app.principal.uid;
@@ -525,11 +524,11 @@ in
       };
     };
 
-  # Policy: a box is the share, which the host mounts as the app's user, with its key's smb-password, and the container
+  # Policy: a root in a store's share is mounted as the app's user, with the store's smb-password, and the container
   # starts only once it's mounted.
-  test_nextcloud_mounts_a_home =
+  test_drive_mounts_a_share =
     let
-      cfg = evalApp homes app.principal.uid;
+      cfg = evalApp rooted app.principal.uid;
       data = "/var/lib/cloud/nextcloud/data/carol";
     in
     {
@@ -560,7 +559,7 @@ in
       };
       expected = {
         mount = {
-          device = "//box.example.com/carol";
+          device = "//box.example.com/carol/drive";
           fsType = "cifs";
           options = [
             "credentials=/run/secrets/rendered/cloud/carol-smb-credentials"
@@ -583,7 +582,7 @@ in
       };
     };
 
-  # Policy: a nextcloud checks each storage for changes as a folder is opened, and scans a mount of an allotment with
+  # Policy: a drive checks each storage for changes as a folder is opened, and scans a mount of an allotment with
   # replicas as it follows what they change there, by ssh with the mount's key, verifying its host's ssh-key.
   test_nextcloud_follows_changes =
     let
@@ -634,11 +633,12 @@ in
     };
   };
 
-  # Policy: a box is its user's data, a bind is mounted at its folder from the directory the container binds, and a
-  # user without a box has files no one can write in; o11n makes each of them, and only a box has no quota.
+  # Policy: a root is its user's data, a bind is mounted at its folder from the directory the container binds, and a
+  # user without a root has files no one can write in; o11n makes each of them, and only a user with a root has no
+  # quota.
   test_nextcloud_binds_each_storage =
     let
-      cfg = evalApp homes app.principal.uid;
+      cfg = evalApp rooted app.principal.uid;
       container = cfg.containers.cloud;
       inner = container.config;
       bound = path: { inherit (container.bindMounts.${path}) hostPath isReadOnly; };
@@ -691,9 +691,10 @@ in
       };
     };
 
-  # Policy: an adapter is a home, as a box is, mounted on the host as nextcloud's user's from its owner's home, which is
-  # written as the owner, and bound into the container as the user's data, once the owner is on the host.
-  test_nextcloud_adapts_a_home =
+  # Policy: a root in an entity's home is a directory there, its owner's, which the host makes and mounts as
+  # Nextcloud's user's, written as the owner, and binds into the container as the user's data, once the owner is on
+  # the host.
+  test_drive_roots_in_a_home =
     let
       cfg = evalApp adapts app.principal.uid;
       container = cfg.containers.cloud;
@@ -715,12 +716,13 @@ in
         requires = lib.elem where cfg.systemd.services."container@cloud".unitConfig.RequiresMountsFor;
         quota = lib.hasInfix "user:setting rolf files quota none" container.config.systemd.services.nextcloud-users.script;
         bindfs = lib.elem pkgs.bindfs cfg.system.fsPackages;
+        made = lib.elem "d '/var/lib/site/drive' 0750 site site - -" cfg.systemd.tmpfiles.rules;
         failed = failed cfg;
       };
       expected = {
         mounts = [
           {
-            what = "/var/lib/site";
+            what = "/var/lib/site/drive";
             inherit where;
             type = "fuse.bindfs";
             options = "force-user=cloud,force-group=cloud,create-for-user=site,create-for-group=site,nofail";
@@ -735,8 +737,9 @@ in
         requires = true;
         quota = true;
         bindfs = true;
+        made = true;
         failed = [
-          "Nextcloud cloud mounts rolf's home from /var/lib/site, whose owner, site, isn't on web: run the owner on web, or drop the adapter."
+          "Nextcloud cloud mounts rolf's root from /var/lib/site/drive, whose owner, site, isn't on web: run the owner on web, or root rolf elsewhere."
         ];
       };
     };

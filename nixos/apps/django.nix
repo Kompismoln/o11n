@@ -9,7 +9,7 @@
 }:
 
 let
-  packages = inputs.${app.django.input}.packages.${host.system};
+  packages = inputs.${app.input}.packages.${host.system};
 
   cfg = {
     inherit (app)
@@ -17,14 +17,12 @@ let
       endpoint
       database
       ssl
-      ;
-    inherit (app.principal) bindAddress;
-    inherit (app.django)
       module
       locationProxy
       trustedOrigins
       timeout
       ;
+    inherit (app.principal) bindAddress;
     home = "${app.principal.home}/django";
     package = packages.django-app;
     scripts = packages.scripts or null;

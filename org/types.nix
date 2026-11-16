@@ -45,8 +45,80 @@ let
   });
 
   ip = lib.mapAttrs (_: regex: lib.types.strMatching "^${regex}$") ipRegexes;
+
+  kinds = {
+    django = ./apps/django.nix;
+    drive = ./apps/drive.nix;
+    jitsi = ./apps/jitsi.nix;
+    keycloak = ./apps/keycloak.nix;
+    mobilizon = ./apps/mobilizon.nix;
+    photos = ./apps/photos.nix;
+    rolf = ./apps/rolf.nix;
+    wordpress = { };
+  };
+
+  ofKind =
+    kind:
+    lib.types.submoduleWith {
+      modules = [ ./app.nix ] ++ lib.optional (kind != null) kinds.${kind};
+      specialArgs = {
+        inherit context;
+      };
+    };
+
+  # Policy: an app's kind is read from the org's spec, as the options its kind gives it can't depend on its config.
+  kindOf =
+    loc:
+    let
+      name = lib.last loc;
+      kind = context.spec.app.${name}.kind or null;
+    in
+    if kind == null || kinds ? ${kind} then
+      ofKind kind
+    else
+      throw "app.${name}.kind: ${kind} is no kind of o11n's: set one of ${lib.concatStringsSep ", " (lib.attrNames kinds)}, or none.";
+
+  app =
+    let
+      base = ofKind null;
+    in
+    entities.app
+    // {
+      inherit kinds;
+      module = lib.fix (
+        self:
+        base
+        // {
+          description = "app and the options of its kind";
+          # Fact: the module system substitutes an option's submodules into its type, which would drop these.
+          substSubModules = _: self;
+          merge = {
+            __functor =
+              _: loc: defs:
+              (kindOf loc).merge loc defs;
+            v2 = args: (kindOf args.loc).merge.v2 args;
+          };
+          # Accommodating for the index, which reads each kind's options as an app's of that kind, `<kind>`.
+          getSubOptions =
+            prefix:
+            let
+              own = base.getSubOptions prefix;
+            in
+            own
+            // lib.mapAttrs' (
+              kind: _:
+              lib.nameValuePair "<${kind}>" (
+                removeAttrs ((ofKind kind).getSubOptions (lib.init prefix ++ [ "<${kind}>" ])) (lib.attrNames own)
+              )
+            ) kinds;
+        }
+      );
+    };
 in
 entities
+// {
+  inherit app;
+}
 // ip
 // {
   class = with lib.types; enum (lib.attrNames context.classes);

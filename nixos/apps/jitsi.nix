@@ -9,13 +9,13 @@ let
   cfg = {
     inherit (app) name endpoint;
     keycloak = {
-      inherit (org.app.${app.jitsi.keycloak}) endpoint;
-      inherit (app.jitsi) realm;
+      inherit (org.app.${app.keycloak}) endpoint;
+      inherit (app) realm;
     };
   };
   issuer = "https://${cfg.keycloak.endpoint}/realms/${cfg.keycloak.realm}";
   # Dependency: org/apps/jitsi.nix derives the client, which the keycloak app keeps.
-  client = app.jitsi.client.representation;
+  client = app.client.representation;
 in
 {
 

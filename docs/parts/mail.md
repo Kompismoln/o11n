@@ -38,8 +38,8 @@ An app sends through its own account:
 - WordPress (`nixos/apps/wordpress.nix`): PHP's `sendmail_path` is msmtp with the app's account, which, with `sendAs`,
   takes the envelope sender from the From WordPress writes, `wordpress@<site's domain>` by default.
 - mobilizon (`nixos/apps/mobilizon.nix`): its mailer logs in to the server over SMTP as the app, with the password the
-  container reads from a sops template bound into it, and sends from `mobilizon.from`, the app's address by default,
-  which the app is to send as.
+  container reads from a sops template bound into it, and sends from its `from`, the app's address by default, which the
+  app is to send as.
 
 ## Resolving
 
@@ -85,9 +85,9 @@ The records the test publishes are its own; `o11n status` checks the org's.
 - `[service.dmarc-reports]` has an `id` and `principal.mail.inbox = true`; its `mail` stays as it is.
 - Each app that sends, such as esse and klimatkalendern, has `principal.mail.send = true` and a `mail` key
   (`o11n secret generate app-<name> mail`), and `settings.mailServer` goes.
-- esse has `principal.mail.sendAs = ["@esse.nu"]`, and klimatkalendern `["@klimatkalendern.nu"]` and a `mobilizon.from`
-  on it, such as `noreply@klimatkalendern.nu`. Each domain's SPF covers `mail.kompismoln.se`, and
-  `k1._domainkey.<domain>` has the key the server keeps at `/var/dkim/<domain>.k1.txt`.
+- esse has `principal.mail.sendAs = ["@esse.nu"]`, and klimatkalendern `["@klimatkalendern.nu"]` and a `from` on it,
+  such as `noreply@klimatkalendern.nu`. Each domain's SPF covers `mail.kompismoln.se`, and `k1._domainkey.<domain>` has
+  the key the server keeps at `/var/dkim/<domain>.k1.txt`.
 - Each principal that archives sends, to tell of its failures, as does the archive service, whose secrets are then
   granted to `host:archive` and `host:mailserver`.
 

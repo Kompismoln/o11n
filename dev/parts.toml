@@ -138,17 +138,22 @@ code = [
   "tests/vm/keycloak.nix",
 ]
 
-[parts.nextcloud]
+[parts.drive]
 stage = "drafted"
 layer = "domain"
-doc = "docs/parts/nextcloud.md"
-code = ["nixos/apps/nextcloud.nix", "tests/nixos/nextcloud.nix"]
+doc = "docs/parts/drive.md"
+code = [
+  "nixos/apps/drive.nix",
+  "org/apps/drive.nix",
+  "tests/nixos/drive.nix",
+  "tests/vm/drive.nix",
+]
 
-[parts.immich]
+[parts.photos]
 stage = "drafted"
 layer = "domain"
-doc = "docs/parts/immich.md"
-code = ["nixos/apps/immich.nix", "org/apps/immich.nix", "tests/vm/photos.nix"]
+doc = "docs/parts/photos.md"
+code = ["nixos/apps/photos.nix", "org/apps/photos.nix", "tests/vm/photos.nix"]
 
 [parts.torrent]
 stage = "drafted"

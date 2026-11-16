@@ -9,7 +9,11 @@
   options = {
     uid = lib.mkOption {
       description = "posix user id";
-      default = context.classes.${entity.class}.block + entity.id;
+      default =
+        if entity.id == null then
+          throw "${entity.class}.${entity.name} has a principal, whose uid is its class's block plus its id: set its id under [${entity.class}.${entity.name}]."
+        else
+          context.classes.${entity.class}.block + entity.id;
       defaultText = lib.literalMD "the block `org/classes.nix` gives the entity's class, plus the entity's `id`";
       type = lib.types.int;
     };

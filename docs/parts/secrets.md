@@ -17,7 +17,7 @@ the old, for a key without slots.
 
 A key's type says how it's generated and validated, and whether it has a public key, in `public-keys/`: each type has
 one but `passphrase`, `luks` and `file`. A `luks` key has slots, as the luks device it opens does. An `ssh` key is
-Ed25519 and an `ssh-rsa` key RSA, for what logs in with RSA alone, as nextcloud's SFTP does
+Ed25519 and an `ssh-rsa` key RSA, for what logs in with RSA alone, as Nextcloud's SFTP does
 (`docs/parts/allotments.md`).
 
 ## Where they're kept

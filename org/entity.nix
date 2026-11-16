@@ -5,6 +5,9 @@
   context,
   ...
 }:
+let
+  driveStorages = app: if app.kind or null == "drive" then app.storages or { } else { };
+in
 {
   config = {
     # Policy: an entity has the secrets something reads: nixos/org/principals.nix a principal's passwd and ssh-key, as
@@ -17,7 +20,7 @@
         // config.principal.mail.keys
         // lib.optionalAttrs (config.principal.state != null) config.principal.state.keys
       )
-      # Accommodating for nextcloud's SFTP, which logs in with an RSA key alone.
+      # Accommodating for Nextcloud's SFTP, which logs in with an RSA key alone.
       // lib.optionalAttrs (
         lib.any (allotment: lib.elem config.handle (allotment.sftp or [ ])) (
           lib.attrValues (context.spec.allotment or { })
@@ -26,20 +29,11 @@
           lib.concatMap (
             app:
             lib.concatMap (lib.mapAttrsToList (_: storage: storage.sftp.key or null)) (
-              lib.attrValues (app.nextcloud.storages or { })
+              lib.attrValues (driveStorages app)
             )
           ) (lib.attrValues (context.spec.app or { }))
         )
-      ) { sftp-key = "ssh-rsa"; }
-      // lib.optionalAttrs (lib.elem config.handle (
-        lib.concatMap (
-          app:
-          lib.concatMap (lib.mapAttrsToList (_: storage: storage.box.key or null)) (
-            lib.attrValues (app.nextcloud.storages or { })
-          )
-          ++ lib.mapAttrsToList (_: storage: storage.box.key or null) (app.immich.storages or { })
-        ) (lib.attrValues (context.spec.app or { }))
-      )) { smb-password = "passphrase"; };
+      ) { sftp-key = "ssh-rsa"; };
     # Policy: a host's ssh-key is its own, which `o11n host pull-ssh-key` writes the public key of, and the org has no
     # secret of.
     publicKeys = lib.mapAttrs (
@@ -60,9 +54,23 @@
 
   options = {
     id = lib.mkOption {
-      description = "numeric internal id used to seed other id's";
+      description = "numeric internal id used to seed other id's, of the entity's class alone";
       default = null;
       type = with lib.types; nullOr int;
+      # Policy: an id is one entity's of its class, as its uid and addresses derive from it; the spec's ids are read,
+      # as the others' config would read this one's.
+      apply =
+        id:
+        let
+          same = lib.filter (
+            other: other != config.name && (context.spec.${config.class}.${other}.id or null) == id
+          ) (lib.attrNames (context.spec.${config.class} or { }));
+        in
+        lib.throwIf (id != null && same != [ ])
+          "${config.class}.${config.name} has the id ${toString id}, as ${
+            lib.concatMapStringsSep " and " (other: "${config.class}.${other}") same
+          } does: give it another, the lowest free one being what `o11n next-id ${config.class}` says."
+          id;
     };
     name = lib.mkOption {
       description = "name";
@@ -122,7 +130,7 @@
     };
     keys = lib.mkOption {
       description = "the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it";
-      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key` for an app or host an allotment's `sftp` has and for an entity a nextcloud's `sftp.key` names, an `smb-password` for one a nextcloud's or an immich's boxes name, and the keys o11n's modules read of the services they name";
+      defaultText = lib.literalMD "the `keys` `org/classes.nix` gives the entity's class, an age-key, and a user an ssh-key; a principal's `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key` for an app or host an allotment's `sftp` has and for an entity a drive's `sftp.key` names, a store's `smb-password` with an `smb`, and the keys o11n's modules read of the services they name";
       # Dependency: crates/o11n/src/keys.rs reads each of these types.
       type = lib.types.attrsOf (
         lib.types.enum [

@@ -54,14 +54,15 @@ size = "1T"
 size = "500G"
 torrent = true
 
-# Fact: a nextcloud that mounts alice's allotment, which laptop would run as an app-scheduler, and doesn't.
+# Fact: a drive that mounts alice's allotment, which laptop would run as an app-scheduler, and doesn't.
 [app.cloud]
 id = 0
 endpoint = "cloud.example.com"
 run-on-hosts = ["laptop"]
-nextcloud.storages.alice.zhost = { allotment = "user-alice@zhost", sharing = true }
+kind = "drive"
+storages.alice.zhost = { allotment = "user-alice@zhost", sharing = true }
 # Fact: lisa is a Nextcloud user alone, whose mount logs in with store-files' sftp-key.
-nextcloud.storages.lisa.files = { sftp = { host = "files.example.com", login = "lisa", key = "store-files" } }
+storages.lisa.files = { sftp = { host = "files.example.com", login = "lisa", key = "store-files" } }
 
 [root.1]
 

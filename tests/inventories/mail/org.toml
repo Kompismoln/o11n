@@ -58,7 +58,7 @@ run-on-hosts = ["web"]
 grants = ["host:app-scheduler", "host:mailserver"]
 principal.members = ["nginx"]
 principal.mail = { send = true, sendAs = ["@example.org"] }
-wordpress = {}
+kind = "wordpress"
 
 [app.calendar]
 id = 1
@@ -67,7 +67,8 @@ ssl = false
 run-on-hosts = ["web"]
 grants = ["host:app-scheduler", "host:mailserver"]
 principal.mail = { send = true, sendAs = ["@example.net"] }
-mobilizon.from = "noreply@example.net"
+kind = "mobilizon"
+from = "noreply@example.net"
 
 [app.auth]
 id = 2
@@ -76,7 +77,8 @@ ssl = false
 run-on-hosts = ["web"]
 grants = ["host:app-scheduler", "host:mailserver"]
 principal.mail = { inbox = true, send = true }
-keycloak.realms.example = { displayName = "Example" }
+kind = "keycloak"
+realms.example = { displayName = "Example" }
 
 # Fact: a jitsi on no host, whose client auth keeps.
 [app.meet]
@@ -84,9 +86,11 @@ id = 3
 endpoint = "meet.example.com"
 run-on-hosts = []
 principal.hasPublicKey = false
-jitsi = { keycloak = "auth", realm = "example" }
+kind = "jitsi"
+keycloak = "auth"
+realm = "example"
 
-# Fact: a nextcloud whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and
+# Fact: a drive whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and
 # whose user alice has a bind of a directory in its home; only
 # vmTests.keycloak runs it, on web.
 [app.cloud]
@@ -94,20 +98,27 @@ id = 4
 endpoint = "cloud.example.com"
 run-on-hosts = []
 grants = ["host:app-scheduler"]
-nextcloud = { keycloak = "auth", realm = "example", storages = { alice = { files = { bind = "/var/lib/cloud/alice" } } } }
+kind = "drive"
+keycloak = "auth"
+realm = "example"
+storages.alice.files = { bind = "/var/lib/cloud/alice" }
 
-# Fact: an immich whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and whose
-# user alice's library is a share of box's on mx; only vmTests.photos runs it, on web.
+# Fact: a photos app whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and
+# whose user alice's root is in box's share on mx; only vmTests.photos runs it, on web.
 [app.photos]
 id = 5
 endpoint = "photos.example.com"
 run-on-hosts = []
 grants = ["host:app-scheduler", "host:mailserver"]
 principal.mail.send = true
-immich = { keycloak = "auth", realm = "example", storages = { alice = { box = { host = "mx.example.com", share = "alice", login = "alice", key = "store-box" } } } }
+kind = "photos"
+keycloak = "auth"
+realm = "example"
+roots.alice = "store-box"
 
 [store.box]
 id = 0
+smb = { host = "mx.example.com", share = "alice", login = "alice" }
 principal.hasPublicKey = false
 grants = ["host:app-scheduler"]
 

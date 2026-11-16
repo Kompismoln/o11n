@@ -3,9 +3,9 @@ use crate::status::Outcome;
 use crate::store::Org;
 
 impl Org {
-    // Dependency: nixos/apps/nextcloud.nix has switch-system nextcloud say, a line each, <app> home <user>,
+    // Dependency: nixos/apps/drive.nix has switch-system nextcloud say, a line each, <app> root <user>,
     // <app> external <user>/<folder> and <app> changes <user>/<folder>, then ok or why not.
-    pub fn nextcloud_outcome(&self, entity: &Entity, kind: &str, name: &str, host: &str) -> Result<Outcome, Outcome> {
+    pub fn drive_outcome(&self, entity: &Entity, kind: &str, name: &str, host: &str) -> Result<Outcome, Outcome> {
         let host_id = format!("host-{host}");
         let host_entity = self
             .entity(&host_id)
@@ -13,7 +13,7 @@ impl Org {
         let said = self.switch_system(&host_id, host_entity, "nextcloud")?;
         if said.trim().is_empty() {
             return Err(Outcome::Skip(format!(
-                "{host_id} runs a system that doesn't say how its nextclouds' storages are"
+                "{host_id} runs a system that doesn't say how its drives' roots and storages are"
             )));
         }
         let prefix = format!("{} {kind} {name} ", entity.name);

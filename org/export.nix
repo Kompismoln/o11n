@@ -15,10 +15,10 @@ let
   # postgresql (nixos/postgresql.nix).
   postgresqlKinds = [
     "django"
-    "immich"
+    "drive"
     "keycloak"
     "mobilizon"
-    "nextcloud"
+    "photos"
   ];
 
   # Policy: a grant that names an entity names one of the org's, or o11n can't tell its recipients.
@@ -45,6 +45,7 @@ let
       inherit (entity)
         class
         name
+        id
         actors
         settings
         keys
@@ -95,18 +96,13 @@ let
         hosts = entity.run-on-hosts;
       };
     }
-    // lib.optionalAttrs (entity.class == "app" && entity.nextcloud != null) {
-      nextcloud = {
-        homes = lib.attrNames (lib.filterAttrs (_: boxed: boxed) entity.nextcloud.users);
+    // lib.optionalAttrs (entity.class == "app" && entity.kind == "drive") {
+      drive = {
+        roots = lib.attrNames entity.roots;
         external = lib.concatLists (
           lib.mapAttrsToList (
-            user: storages:
-            map (name: "${user}/${name}") (
-              lib.attrNames (
-                lib.filterAttrs (_: storage: storage.box == null && storage.adapter == null) storages
-              )
-            )
-          ) entity.nextcloud.storages
+            user: storages: map (name: "${user}/${name}") (lib.attrNames storages)
+          ) entity.storages
         );
         changes = lib.unique (
           lib.concatMap (
@@ -114,13 +110,13 @@ let
             map (mount: "${mount.user}${mount.mountPoint}") (
               lib.filter (mount: mount.server.changes != null) mounts
             )
-          ) (lib.attrValues entity.nextcloud.mounts)
+          ) (lib.attrValues entity.mounts)
         );
         hosts = entity.run-on-hosts;
       };
     }
-    // lib.optionalAttrs (entity.class == "app" && entity.keycloak != null) {
-      keycloak.realms = lib.attrNames entity.keycloak.realms;
+    // lib.optionalAttrs (entity.class == "app" && entity.kind == "keycloak") {
+      keycloak.realms = lib.attrNames entity.realms;
     }
     // lib.optionalAttrs (entity.class == "host") {
       inherit (entity)

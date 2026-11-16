@@ -14,9 +14,7 @@ let
   };
   # Fact: the app with its mount of alice's allotment alone, as lisa's would need store-files' sftp-key.
   cloud = lib.recursiveUpdate org.app.cloud {
-    nextcloud.mounts.laptop = lib.filter (
-      mount: mount.user == "alice"
-    ) org.app.cloud.nextcloud.mounts.laptop;
+    mounts.laptop = lib.filter (mount: mount.user == "alice") org.app.cloud.mounts.laptop;
   };
   alice = org.user.alice;
 
@@ -102,7 +100,7 @@ let
       pkgs,
       ...
     }:
-    import ../../nixos/apps/nextcloud.nix {
+    import ../../nixos/apps/drive.nix {
       app = cloud;
       host = org.host.laptop;
       inherit

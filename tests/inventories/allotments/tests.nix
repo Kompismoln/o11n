@@ -23,6 +23,12 @@ let
 
   zhostOf = context: (o11nLib.mkNixosConfigurations context).zhost.config;
 
+  smb = {
+    host = "files.example.com";
+    share = "files";
+    login = "files";
+  };
+
   failing =
     config:
     map (assertion: assertion.message) (
@@ -257,7 +263,7 @@ in
       };
     };
 
-  # Policy: nextcloud mounts an allotment at its folder, for its user, as the allotment's login for the app has it, with
+  # Policy: a drive mounts an allotment at its folder, for its user, as the allotment's login for the app has it, with
   # the app's sftp-key, and an sftp server with its key's, for a user the org needn't have.
   test_nextcloud_mounts = {
     expr = lib.mapAttrs (
@@ -276,7 +282,7 @@ in
           };
         }
       )
-    ) outputs.org.app.cloud.nextcloud.mounts;
+    ) outputs.org.app.cloud.mounts;
     expected.laptop = [
       {
         mountPoint = "/zhost";
@@ -333,9 +339,7 @@ in
       evaluates =
         external:
         (builtins.tryEval (
-          builtins.deepSeq
-            (alter { app.cloud.nextcloud.storages = external; }).org.app.cloud.nextcloud.mounts.laptop
-            true
+          builtins.deepSeq (alter { app.cloud.storages = external; }).org.app.cloud.mounts.laptop true
         )).success;
     in
     {
@@ -359,9 +363,7 @@ in
               // {
                 app = spec.app // {
                   cloud = cloud // {
-                    nextcloud = cloud.nextcloud // {
-                      storages = { inherit (cloud.nextcloud.storages) lisa; };
-                    };
+                    storages = { inherit (cloud.storages) lisa; };
                   };
                 };
               };
@@ -388,9 +390,8 @@ in
         external:
         let
           tried = builtins.tryEval (
-            builtins.deepSeq
-              (alter { app.cloud.nextcloud.storages = external; }).org.app.cloud.nextcloud.mounts.laptop
-              (alter { app.cloud.nextcloud.storages = external; }).org.app.cloud.nextcloud.mounts.laptop
+            builtins.deepSeq (alter { app.cloud.storages = external; }).org.app.cloud.mounts.laptop
+              (alter { app.cloud.storages = external; }).org.app.cloud.mounts.laptop
           );
         in
         if tried.success then
@@ -450,8 +451,7 @@ in
   test_nextcloud_reaches_an_allotment_by_its_sftp_alone = {
     expr =
       (builtins.tryEval (
-        builtins.deepSeq
-          (alter { allotment."user-alice@zhost".sftp = [ ]; }).org.app.cloud.nextcloud.mounts.laptop
+        builtins.deepSeq (alter { allotment."user-alice@zhost".sftp = [ ]; }).org.app.cloud.mounts.laptop
           true
       )).success;
     expected = false;
@@ -815,22 +815,19 @@ in
       ];
     };
 
-  # Policy: a storage is of one kind, a user has one home at most, which is their data, a bind is at its folder, and
-  # the users without a home are told apart.
-  test_nextcloud_storages =
+  # Policy: a storage is of one kind, a bind is at its folder, and the users without a root are told apart.
+  test_drive_storages =
     let
-      box = {
-        host = "box.example.com";
-        share = "alice";
-        login = "alice";
-        key = "store-files";
-      };
-      nextcloud =
-        storages:
+      drive =
+        change:
         let
+          altered = (alter (lib.recursiveUpdate { store.files.smb = smb; } change)).org.app.cloud;
           tried = builtins.tryEval (
-            builtins.deepSeq (alter { app.cloud.nextcloud.storages = storages; }).org.app.cloud.nextcloud.users
-              (alter { app.cloud.nextcloud.storages = storages; }).org.app.cloud.nextcloud
+            builtins.deepSeq [
+              altered.users
+              altered.binds
+              altered.shares
+            ] altered
           );
         in
         if tried.success then
@@ -843,23 +840,22 @@ in
     in
     {
       expr = {
-        boxed = nextcloud {
-          alice.box = { inherit box; };
-          bob.pub.bind = "/srv/pub";
+        rooted = drive {
+          app.cloud.roots.alice = "store-files";
+          app.cloud.storages.bob.pub.bind = "/srv/pub";
         };
-        boxes = nextcloud {
-          alice.one = { inherit box; };
-          alice.two = { inherit box; };
-        };
-        both = nextcloud {
-          alice.box = {
-            inherit box;
+        both = drive {
+          app.cloud.storages.alice.pub = {
             bind = "/srv/pub";
+            sftp = {
+              host = "files.example.com";
+              login = "alice";
+            };
           };
         };
       };
       expected = {
-        boxed = {
+        rooted = {
           users = {
             alice = true;
             bob = false;
@@ -875,57 +871,124 @@ in
           ];
           shares = [ "alice" ];
         };
-        boxes = null;
         both = null;
       };
     };
 
-  # Policy: an adapter is a user's home, their data, as a box is: their owner's home, and neither the owner nor the
-  # nextcloud names the other but in the storage. A user has one home at most.
-  test_nextcloud_adapts_a_home =
+  # Policy: a root is a directory of a store's share or of an entity's home, its kind's name by default, which no
+  # other root is; a photos app's is a share's alone.
+  test_roots =
+    let
+      roots =
+        change:
+        let
+          tried = builtins.tryEval (
+            let
+              inherit (alter (lib.recursiveUpdate { store.files.smb = smb; } change)) org;
+            in
+            builtins.deepSeq [ org.app.cloud.shares org.app.cloud.adapters ] (
+              map (share: "${share.user} //${share.host}/${share.share}") org.app.cloud.shares
+              ++ map (adapter: "${adapter.user} ${adapter.path}") org.app.cloud.adapters
+            )
+          );
+        in
+        if tried.success then tried.value else null;
+      photos =
+        root:
+        (builtins.tryEval (
+          builtins.deepSeq
+            (alter {
+              app.album = {
+                id = 8;
+                endpoint = "album.example.com";
+                run-on-hosts = [ ];
+                kind = "photos";
+                keycloak = "cloud";
+                realm = "example";
+                roots.alice = root;
+              };
+              store.files.smb = smb;
+            }).org.app.album.shares
+            true
+        )).success;
+    in
+    {
+      expr = {
+        share = roots { app.cloud.roots.alice = "store-files"; };
+        path = roots {
+          app.cloud.roots.alice = {
+            entity = "store-files";
+            path = "old";
+          };
+        };
+        home = roots { app.cloud.roots.alice = "user-alice"; };
+        twice = roots {
+          app.cloud.roots = {
+            alice = "store-files";
+            lisa = "store-files";
+          };
+        };
+        apart = roots {
+          app.cloud.roots = {
+            alice = "store-files";
+            lisa = {
+              entity = "store-files";
+              path = "lisa";
+            };
+          };
+        };
+        nowhere = roots { app.cloud.roots.alice = "host-zhost"; };
+        unknown = roots { app.cloud.roots.alice = "store-nobody"; };
+        photosShare = photos "store-files";
+        photosHome = photos "user-alice";
+      };
+      expected = {
+        share = [ "alice //files.example.com/files/drive" ];
+        path = [ "alice //files.example.com/files/old" ];
+        home = [ "alice ${outputs.org.user.alice.principal.home}/drive" ];
+        twice = null;
+        apart = [
+          "alice //files.example.com/files/drive"
+          "lisa //files.example.com/files/lisa"
+        ];
+        nowhere = null;
+        unknown = null;
+        photosShare = true;
+        photosHome = false;
+      };
+    };
+
+  # Policy: a root in an entity's home is its owner's, and neither the owner nor the drive names the other but in the
+  # root.
+  test_drive_roots_in_a_home =
     let
       site = {
         id = 9;
         endpoint = "site.example.com";
         run-on-hosts = [ "laptop" ];
         principal.members = [ "nginx" ];
-        rolf = { };
+        kind = "rolf";
       };
       altered = alter {
         app.site = site;
-        app.cloud.nextcloud.storages.rolf.home.adapter = "app-site";
+        app.cloud.roots.rolf = "app-site";
       };
-      inherit (altered.org.app.cloud.nextcloud) adapters binds users;
-      both = builtins.tryEval (
-        builtins.deepSeq
-          (alter {
-            app.site = site;
-            app.cloud.nextcloud.storages.rolf = {
-              home.adapter = "app-site";
-              box.box = {
-                host = "box.example.com";
-                share = "rolf";
-                login = "rolf";
-                key = "store-files";
-              };
-            };
-          }).org.app.cloud.nextcloud.users
-          true
-      );
+      inherit (altered.org.app.cloud) adapters binds users;
     in
     {
       expr = {
         inherit adapters binds;
         rolf = users.rolf or null;
-        site = altered.org.app.site.rolf;
-        external = altered.org.export.entities.app-cloud.nextcloud.external or null;
-        both = both.success;
+        site = { inherit (altered.org.app.site) input source; };
+        export = {
+          inherit (altered.org.export.entities.app-cloud.drive) roots external;
+        };
       };
       expected = {
         adapters = [
           {
             user = "rolf";
-            path = altered.org.app.site.principal.home;
+            path = "${altered.org.app.site.principal.home}/drive";
             owner = "site";
           }
         ];
@@ -935,11 +998,55 @@ in
           input = "site";
           source = "files";
         };
-        external = [
-          "alice/zhost"
-          "lisa/files"
-        ];
-        both = false;
+        export = {
+          roots = [ "rolf" ];
+          external = [
+            "alice/zhost"
+            "lisa/files"
+          ];
+        };
+      };
+    };
+
+  # Policy: an app has the options of its kind alone, and its kind is one of o11n's.
+  test_app_kinds =
+    let
+      evaluates =
+        change: (builtins.tryEval (builtins.deepSeq (alter change).org.app.cloud.users true)).success;
+    in
+    {
+      expr = {
+        own = evaluates { };
+        unknown = evaluates { app.cloud.kind = "nextcloud"; };
+        other = evaluates { app.cloud.realms.example = { }; };
+      };
+      expected = {
+        own = true;
+        unknown = false;
+        other = false;
+      };
+    };
+
+  # Policy: an id is one entity's of its class: app.cloud's is store.files' and user.alice's too.
+  test_ids =
+    let
+      evaluates =
+        change:
+        (builtins.tryEval (builtins.deepSeq (alter change).org.app.cloud.principal.uid true)).success;
+      other = {
+        id = 0;
+        endpoint = "other.example.com";
+        run-on-hosts = [ ];
+      };
+    in
+    {
+      expr = {
+        own = evaluates { };
+        app = evaluates { app.other = other; };
+      };
+      expected = {
+        own = true;
+        app = false;
       };
     };
 }

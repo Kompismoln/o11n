@@ -9,18 +9,13 @@
 let
   port = 8080;
   inherit (app.principal) bindAddress mail;
-  inherit (app.keycloak) realms;
+  inherit (app) realms;
   local = "http://[${bindAddress}]:${toString port}";
 
   # Dependency: an app's kind in org/apps/ derives the client it authenticates as, which names the keycloak.
   clients = lib.concatMap (
     other:
-    let
-      settings = if other.kind == null then { } else other.${other.kind};
-    in
-    lib.optional (
-      (settings.client or null) != null && settings.client.keycloak == app.name
-    ) settings.client
+    lib.optional ((other.client or null) != null && other.client.keycloak == app.name) other.client
   ) (lib.attrValues org.app);
 
   secretClients = lib.filter (client: (client.secret or null) != null) clients;
@@ -145,7 +140,7 @@ in
     }
     ++ map (client: {
       assertion = realms ? ${client.realm};
-      message = "${client.app}'s client is in the realm ${client.realm}, which ${app.handle} doesn't keep: add keycloak.realms.${client.realm} under [app.${app.name}], or name one it keeps.";
+      message = "${client.app}'s client is in the realm ${client.realm}, which ${app.handle} doesn't keep: add realms.${client.realm} under [app.${app.name}], or name one it keeps.";
     }) clients;
 
   o11n.postgresql.databases.${config.services.keycloak.database.name}.user =

@@ -69,13 +69,13 @@ allotment's, as a replica would. The allotment's `logins` say how each logs in f
 sftp = ["app-cloud"]
 ```
 
-- Each logs in with its `sftp-key`, an RSA key, as nextcloud's SFTP takes no other kind:
+- Each logs in with its `sftp-key`, an RSA key, as Nextcloud's SFTP takes no other kind:
   `o11n secret generate <handle> sftp-key` makes it, and the allotment's host without its public key fails evaluation.
 - The allotment's host lets the key in as the principal from that host's addresses on the vpn alone, and gives it
   nothing but sftp, jailed to the allotments' directory, `/srv/allotments`, and starting in the allotment
   (`nixos/org/allotments.nix`). What it writes there is the principal's, as if a replica had synced it.
 - The allotment's host has an RSA host key besides its own, `/keys/ssh_host_rsa_key`, which sshd makes as it first
-  starts, and takes `hmac-sha2-256` besides NixOS's MACs, as nextcloud's SFTP, phpseclib 2, verifies no other kind of
+  starts, and takes `hmac-sha2-256` besides NixOS's MACs, as Nextcloud's SFTP, phpseclib 2, verifies no other kind of
   host key and has none of those MACs. OpenSSH's clients keep to the host's own key and NixOS's MACs.
 - A client on the allotment's host, or on one that doesn't reach it on a vpn, fails evaluation.
 - Of an allotment with replicas, a client follows what they change in it: `allotment-changes@<id>` records each batch
@@ -84,35 +84,35 @@ sftp = ["app-cloud"]
   addresses, whose command says `changed` as it connects and as the record changes, for the allotment the client names
   of those it reaches, and nothing else (`nixos/allotment-changes.nix`, as `nixos/org/allotments.nix` grants it).
 
-## In Nextcloud
+## In a drive
 
-A nextcloud's `storages` of an `allotment` or an `sftp` server are external storages over SFTP, by the Nextcloud user
-each is for, then by its folder in their files, each applicable to that user alone (`org/apps/nextcloud.nix`,
-`docs/parts/nextcloud.md`). The user needn't be one of the org's: a Keycloak account in the app's realm is a Nextcloud
-user of its own (`docs/parts/keycloak.md`). An `allotment` is reached as its `logins` have it for the app, which has to
-be in its `sftp`, logging in with the app's `sftp-key`; with `sharing` its user can share from it, which is how others
-get to it:
+A drive's `storages` of an `allotment` or an `sftp` server are external storages over SFTP, by the Nextcloud user each
+is for, then by its folder in their files, each applicable to that user alone (`org/apps/drive.nix`,
+`docs/parts/drive.md`). The user needn't be one of the org's: a Keycloak account in the app's realm is a Nextcloud user
+of its own (`docs/parts/keycloak.md`). An `allotment` is reached as its `logins` have it for the app, which has to be in
+its `sftp`, logging in with the app's `sftp-key`; with `sharing` its user can share from it, which is how others get to
+it:
 
 ```toml
-[app.cloud.nextcloud.storages]
+[app.cloud.storages]
 alice.web = { allotment = "user-alice@web", sharing = true }
 bob.web = { allotment = "user-bob@web" }
 alice.files = { sftp = { host = "files.example.com", login = "archive", root = "/" } }
-carol.box = { sftp = { host = "box.example.com", login = "carol", key = "store-box" } }
+carol.files = { sftp = { host = "files.example.com", login = "carol", key = "store-files" } }
 ```
 
 - An `sftp` server's mount logs in with the app's `sftp-key`, or with that of the entity its `key` names, as a store
   that owns a server outside the org: the entity has an `sftp-key` while a mount names it, and grants the app's hosts,
   which decrypt it (`docs/parts/secrets.md`). A `key` that names no entity of the org's fails evaluation, as does a key
-  without its public key, on the app's host (`nixos/apps/nextcloud.nix`).
-- In nextcloud's container, `nextcloud-external`, a oneshot after `nextcloud-setup`, enables `files_external` and
+  without its public key, on the app's host (`nixos/apps/drive.nix`).
+- In the drive's container, `nextcloud-external`, a oneshot after `nextcloud-setup`, enables `files_external` and
   imports each, unless one is at its folder for its user as declared, which it replaces otherwise
-  (`nixos/apps/nextcloud.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
+  (`nixos/apps/drive.nix`). It imports, as the import reads the private key on stdin, where `files_external:config`
   would take it on its command line.
 - Nextcloud reaches an allotment at its host's IPv4 address on the vpn, as it keeps the host keys it knows as
   `host::key` lines, split at the first `::`. It keeps the host key it first sees, and checks for changes as a folder is
   opened.
-- Each of its storages, its boxes too, checks a folder for changes as it's opened, by its mtime, which a file added,
+- Each of its storages, its roots too, checks a folder for changes as it's opened, by its mtime, which a file added,
   removed or renamed in it changes, as Syncthing does, and the change shows in that folder and the etags above it:
   `filesystem_check_changes = 1` in its settings, as the import leaves out the mount option the web UI sets, without
   which it would never check.
@@ -120,31 +120,14 @@ carol.box = { sftp = { host = "box.example.com", login = "carol", key = "store-b
   no one opens, it follows what the replicas change: `nextcloud-changes-<user>-<folder>` in its container logs in as
   `allotment-changes` to the allotment's host, with the mount's key, verifying the host's `ssh-key`, which the app's
   host without fails evaluation, and scans the mount as it connects and once each batch of changes has been quiet for 5
-  seconds, reconnecting as the connection drops (`nixos/apps/nextcloud.nix`). A scan with errors, which `occ files:scan`
+  seconds, reconnecting as the connection drops (`nixos/apps/drive.nix`). A scan with errors, which `occ files:scan`
   exits 0 with and counts in its summary alone, the listener restarts on, to connect and scan again; a storage it failed
-  to reach, nextcloud skips for 10 minutes, and one it failed to log in to for 30, so it catches up after them. Any
+  to reach, Nextcloud skips for 10 minutes, and one it failed to log in to for 30, so it catches up after them. Any
   other mount it knows changes of as their folders are opened, or after `occ files:scan`.
-- An allotment that a replica syncs has two writers, nextcloud and Syncthing, which nothing coordinates.
+- An allotment that a replica syncs has two writers, Nextcloud and Syncthing, which nothing coordinates.
 
-### Boxes
-
-A nextcloud's `storages` of a `box` are the Nextcloud users whose data, their files, versions and trash alike, is an SMB
-share, by user, each logging in as its `login` with the `smb-password` of the entity its `key` names, which has it while
-a box names it and grants the app's hosts (`org/apps/nextcloud.nix`):
-
-```toml
-[app.cloud.nextcloud.storages]
-carol.box.box = { host = "box.example.com", share = "carol", login = "carol", key = "store-box" }
-```
-
-- Each of the app's hosts mounts the share at `<home>/nextcloud/data/<user>` under the app's home, as the app's user,
-  over SMB 3.1.1, encrypted, with the credentials sops-nix renders from the password, and the container binds it where
-  Nextcloud keeps the user's data (`nixos/apps/nextcloud.nix`).
-- The container starts only once each share is mounted, so that Nextcloud never writes a user's data into the directory
-  beneath: a share that doesn't mount keeps the whole nextcloud down, and the host boots without it.
-- What changes on the share other than through Nextcloud, Nextcloud knows of after `occ files:scan <user>`.
-- The share is a file system of its own, which a snapshot of the app's state doesn't hold, nor an archive of it, and
-  holds all of the user's data, which another nextcloud could mount as well.
+A user's root, where the drive keeps their data and these folders' trash and versions, is no allotment's: it's a
+directory of a store's share or of a principal's home (`docs/parts/drive.md`).
 
 ## Status
 
@@ -156,11 +139,11 @@ serves syncs, or the one named, from Syncthing's API, which `switch-system allot
   skipped when it isn't connected but was seen within a week, and failed after that, or when it never was
 - `allotment-conflicts <id>`: fails while the allotment holds a `*.sync-conflict-*` copy.
 
-On a host a nextcloud with `storages` runs on, `nextcloud-status-<app>` says how each is, which
-`switch-system nextcloud` runs for `o11n status` (`crates/o11n/src/nextcloud.rs`):
+On a host a drive with `roots` or `storages` runs on, `nextcloud-status-<app>` says how each is, which
+`switch-system nextcloud` runs for `o11n status` (`crates/o11n/src/drive.rs`):
 
-- `nextcloud-home <user> <host>`: the share is mounted at the user's data, and the app's user can write to it
-- `nextcloud-external <user>/<folder> <host>`: Nextcloud has the external storage, and `files_external:verify` says it's
-  ok, or else fails with what it says.
-- `nextcloud-changes <user>/<folder> <host>`: of an allotment with replicas, `nextcloud-changes-<user>-<folder>` is
-  active, and has been for 20 seconds, as its ssh gives up connecting after 10 and it restarts.
+- `drive-root <user> <host>`: the root is mounted at the user's data, and the app's user can write to it
+- `drive-external <user>/<folder> <host>`: Nextcloud has the external storage, and `files_external:verify` says it's ok,
+  or else fails with what it says.
+- `drive-changes <user>/<folder> <host>`: of an allotment with replicas, `nextcloud-changes-<user>-<folder>` is active,
+  and has been for 20 seconds, as its ssh gives up connecting after 10 and it restarts.

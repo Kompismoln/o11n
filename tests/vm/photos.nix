@@ -16,6 +16,7 @@ let
   local = "http://[${auth.principal.bindAddress}]:8080";
   box = org.entities.store-box;
   share = "/srv/box/alice";
+  root = "${share}/photos";
 
   picture = pkgs.runCommand "red.jpg" { nativeBuildInputs = [ pkgs.imagemagick ]; } ''
     magick -size 16x16 xc:red $out
@@ -43,7 +44,7 @@ let
       pkgs,
       ...
     }:
-    import ../../nixos/apps/immich.nix {
+    import ../../nixos/apps/photos.nix {
       app = photos;
       inherit
         config
@@ -76,7 +77,10 @@ pkgs.testers.runNixOSTest {
           group = "alice";
         };
         users.groups.alice = { };
-        systemd.tmpfiles.rules = [ "d ${share} 0700 alice alice - -" ];
+        systemd.tmpfiles.rules = [
+          "d ${share} 0700 alice alice - -"
+          "d ${root} 0700 alice alice - -"
+        ];
         services.samba = {
           enable = true;
           openFirewall = true;
@@ -238,7 +242,7 @@ pkgs.testers.runNixOSTest {
     web.wait_for_unit("keycloak-realms.service", timeout=300)
     web.wait_until_succeeds("nixos-container run photos -- systemctl is-active immich-users.service", timeout=600)
 
-    with subtest("the box is alice's library, mounted as the app's user"):
+    with subtest("alice's root is their library, mounted as the app's user"):
         web.succeed("mountpoint -q /var/lib/photos/immich/library/alice")
         owner = web.succeed("nixos-container run photos -- stat -c %U /var/lib/immich/library/alice").strip()
         assert owner == "photos", owner
@@ -265,7 +269,7 @@ pkgs.testers.runNixOSTest {
         assert me["storageLabel"] == "alice" and me["quotaSizeInBytes"] is None, me
         body, status = upload("alice")
         assert status == "201", f"{status} {body}"
-        mx.wait_until_succeeds("test -f ${share}/2024/2024-05-06/red.jpg", timeout=120)
+        mx.wait_until_succeeds("test -f ${root}/2024/2024-05-06/red.jpg", timeout=120)
 
     with subtest("a Keycloak user without a box logs in, and can upload nothing"):
         member("carol")

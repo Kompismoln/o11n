@@ -6,7 +6,7 @@ place in that.
 
 ## Options
 
-### `app.<name>.keycloak.realms`
+### `app.<keycloak>.realms`
 
 `org/apps/keycloak.nix` · attribute set of (submodule)
 
@@ -14,7 +14,7 @@ Default: `{ }`
 
 the realms whose settings o11n keeps, by name; Keycloak keeps the rest of a realm, its users included
 
-### `app.<name>.keycloak.realms.<name>.displayName`
+### `app.<keycloak>.realms.<name>.displayName`
 
 `org/apps/keycloak.nix` · string
 

@@ -103,23 +103,27 @@ id = 0
 endpoint = "auth.example.com"
 run-on-hosts = ["testhost"]
 principal.mail = { inbox = true, send = true }
-keycloak.realms.example = {}
+kind = "keycloak"
+realms.example = {}
 
 [app.cloud]
 id = 1
 endpoint = "cloud.example.com"
 run-on-hosts = ["testhost"]
-nextcloud.storages.carol.box.box = { host = "box.example.com", share = "carol", login = "carol", key = "store-box" }
-nextcloud.storages.alice.files = { sftp = { host = "files.example.com", login = "alice" } }
+kind = "drive"
+roots.carol = "store-box"
+storages.alice.files = { sftp = { host = "files.example.com", login = "alice" } }
 
-# Fact: a nextcloud that follows what the replicas of testuser's allotment on testhost change.
+# Fact: a drive that follows what the replicas of testuser's allotment on testhost change.
 [app.files]
 id = 2
 endpoint = "files.example.com"
 run-on-hosts = ["lorem"]
-nextcloud.storages.testuser.testhost = { allotment = "user-testuser@testhost" }
+kind = "drive"
+storages.testuser.testhost = { allotment = "user-testuser@testhost" }
 
 [store.box]
+smb = { host = "box.example.com", share = "carol", login = "carol" }
 
 [vpn.wg0]
 id = 0

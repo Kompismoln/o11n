@@ -570,3 +570,59 @@
 2026-11-13T15:48:27Z	container	66.6	0	0	aace3bee	nix-eval-jobs eval
 2026-11-13T15:48:28Z	container	0.8	0	0	aace3bee	nix build .#stages.eval
 2026-11-13T15:48:28Z	container	67.5	0	0	aace3bee	dev/check.sh eval
+2026-11-16T18:56:24Z	container	0.1	f07e7e73	dev/check.sh parts
+2026-11-16T18:56:25Z	container	1.1	f07e7e73	dev/check.sh docs
+2026-11-16T18:56:26Z	container	2.2	f07e7e73	dev/check.sh format
+2026-11-16T18:56:26Z	container	2.5	f07e7e73	dev/check.sh index
+2026-11-16T18:56:29Z	container	4.9	f07e7e73	dev/check.sh lint
+2026-11-16T18:57:02Z	container	32.8	f07e7e73	nix build .#stages.bats
+2026-11-16T18:58:24Z	container	119.9	f07e7e73	nix-eval-jobs bats eval
+2026-11-16T18:58:36Z	container	11.2	f07e7e73	nix build .#stages.eval
+2026-11-16T19:00:27Z	container	77.6	f07e7e73	nix-eval-jobs eval
+2026-11-16T19:00:53Z	container	1.8	f07e7e73	dev/check.sh format
+2026-11-16T19:02:08Z	container	33.9	f07e7e73	nix-eval-jobs vm
+2026-11-16T19:05:16Z	container	30.7	f07e7e73	vmTests.mobilizon
+2026-11-16T19:05:16Z	container	30.2	f07e7e73	vmTests.mail
+2026-11-16T19:05:16Z	container	103.3	f07e7e73	vmTests.deploy
+2026-11-16T19:05:16Z	container	127.4	f07e7e73	vmTests.photos
+2026-11-16T19:05:16Z	container	84.5	f07e7e73	vmTests.drive
+2026-11-16T19:15:57Z	container	29.2	f07e7e73	nix-eval-jobs vm
+2026-11-16T19:18:19Z	container	93.4	f07e7e73	vmTests.deploy
+2026-11-16T19:18:57Z	container	0.1	f07e7e73	dev/check.sh parts
+2026-11-16T19:18:59Z	container	2.0	f07e7e73	dev/check.sh docs
+2026-11-16T19:19:00Z	container	3.4	f07e7e73	dev/check.sh format
+2026-11-16T19:19:01Z	container	4.3	f07e7e73	dev/check.sh index
+2026-11-16T19:19:02Z	container	5.4	f07e7e73	dev/check.sh lint
+2026-11-16T19:20:02Z	container	65.0	f07e7e73	nix-eval-jobs bats eval
+2026-11-16T19:37:51Z	container	1.8	65b2af01	dev/check.sh format
+2026-11-16T19:37:53Z	container	3.5	65b2af01	dev/check.sh lint
+2026-11-16T19:39:39Z	container	109.4	65b2af01	nix-eval-jobs bats eval
+2026-11-16T19:41:53Z	container	0.1	65b2af01	dev/check.sh parts
+2026-11-16T19:41:55Z	container	1.9	65b2af01	dev/check.sh docs
+2026-11-16T19:41:56Z	container	3.0	65b2af01	dev/check.sh format
+2026-11-16T19:41:58Z	container	4.8	65b2af01	dev/check.sh lint
+2026-11-16T19:43:34Z	container	100.6	65b2af01	nix-eval-jobs bats eval
+2026-11-16T19:45:09Z	container	0.9	65b2af01	dev/check.sh docs
+2026-11-16T19:45:10Z	container	1.8	65b2af01	dev/check.sh format
+2026-11-16T20:18:33Z	container	2.7	2dad2208	dev/check.sh lint
+2026-11-16T20:19:45Z	container	3.8	2dad2208	dev/check.sh index
+2026-11-16T20:22:13Z	container	149.7	2dad2208	nix build .#stages.bats
+2026-11-16T20:23:22Z	container	60.9	2dad2208	nix-eval-jobs eval
+2026-11-16T20:24:33Z	container	47.2	2dad2208	nix-eval-jobs vm
+2026-11-16T20:26:04Z	container	1.8	2dad2208	dev/check.sh format
+2026-11-16T20:29:29Z	container	42.2	5a8bed8f	vmTests.mobilizon
+2026-11-16T20:29:29Z	container	32.4	5a8bed8f	vmTests.mail
+2026-11-16T20:29:29Z	container	99.2	5a8bed8f	vmTests.drive
+2026-11-16T20:29:29Z	container	23.7	5a8bed8f	vmTests.remote-eval
+2026-11-16T20:29:29Z	container	136.0	5a8bed8f	vmTests.photos
+2026-11-16T20:29:29Z	container	100.0	5a8bed8f	vmTests.keycloak
+2026-11-16T20:29:29Z	container	97.3	5a8bed8f	vmTests.deploy
+2026-11-16T20:45:42Z	container	0.1	0b38b1c0	dev/check.sh pending
+2026-11-16T20:45:42Z	container	0.1	0b38b1c0	dev/check.sh stamps
+2026-11-16T20:48:40Z	container	0.1	0b38b1c0	dev/check.sh parts
+2026-11-16T20:48:41Z	container	1.0	0b38b1c0	dev/check.sh docs
+2026-11-16T20:48:42Z	container	2.1	0b38b1c0	dev/check.sh format
+2026-11-16T20:48:43Z	container	2.7	0b38b1c0	dev/check.sh index
+2026-11-16T20:48:43Z	container	3.0	0b38b1c0	dev/check.sh lint
+2026-11-16T20:49:04Z	container	0.9	0b38b1c0	dev/check.sh docs
+2026-11-16T20:49:05Z	container	1.8	0b38b1c0	dev/check.sh format

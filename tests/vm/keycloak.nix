@@ -46,7 +46,7 @@ let
       pkgs,
       ...
     }:
-    import ../../nixos/apps/nextcloud.nix {
+    import ../../nixos/apps/drive.nix {
       app = cloud;
       inherit
         config
@@ -295,7 +295,9 @@ pkgs.testers.runNixOSTest {
         files = web.succeed(f"{browse} ${cloud.url}/apps/files/")
         request = re.search(r'data-requesttoken="([^"]+)"', files)
         assert request, files[-500:]
-        web.succeed(f"{browse} -o /dev/null '${cloud.url}/logout?requesttoken={html.unescape(request.group(1))}'")
+        web.succeed(
+            f"{browse} -o /dev/null -G --data-urlencode 'requesttoken={html.unescape(request.group(1))}' ${cloud.url}/logout"
+        )
         page = web.succeed(f"{browse} ${cloud.url}/login")
         assert re.search(r'action="[^"]*login-actions/authenticate', page), page[-500:]
 

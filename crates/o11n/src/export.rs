@@ -55,6 +55,8 @@ pub struct Entity {
     #[serde(default)]
     pub roles: Vec<String>,
     #[serde(default)]
+    pub id: Option<u64>,
+    #[serde(default)]
     pub namespace: Option<String>,
     pub state: Option<State>,
     #[serde(default)]
@@ -77,7 +79,7 @@ pub struct Entity {
     #[serde(default)]
     pub database: Option<Database>,
     #[serde(default)]
-    pub nextcloud: Option<Nextcloud>,
+    pub drive: Option<Drive>,
     #[serde(default)]
     pub openwrt: Option<Openwrt>,
     #[serde(default)]
@@ -110,8 +112,8 @@ pub struct Keycloak {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Nextcloud {
-    pub homes: Vec<String>,
+pub struct Drive {
+    pub roots: Vec<String>,
     pub external: Vec<String>,
     pub changes: Vec<String>,
     pub hosts: Vec<String>,

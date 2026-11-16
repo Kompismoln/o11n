@@ -60,7 +60,7 @@ let
         fi
         exit 0
       elif [[ $generation == nextcloud ]]; then
-        # Dependency: nixos/apps/nextcloud.nix puts one of these on a host for each nextcloud with a home or an external
+        # Dependency: nixos/apps/drive.nix puts one of these on a host for each drive with a root or a
         # storage, which a host without, or runs a system from before, says nothing for.
         for status in /run/current-system/sw/bin/nextcloud-status-*; do
           if [[ -x $status ]]; then

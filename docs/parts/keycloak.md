@@ -1,6 +1,6 @@
 # Keycloak
 
-An app with `keycloak` (`org/apps/keycloak.nix`) runs Keycloak at its endpoint, as the app, with its database in the
+An app of kind `keycloak` (`org/apps/keycloak.nix`) runs Keycloak at its endpoint, as the app, with its database in the
 host's postgresql, dumped into the app's home as any other (`nixos/apps/keycloak.nix`, `docs/parts/state.md`).
 
 ## What the org keeps
@@ -18,24 +18,25 @@ included.
   has `principal.mail = { inbox = true, send = true }`, or fails evaluation.
 - `o11n`'s account has the app's address, where Keycloak sends a realm's test mail.
 - No client has Keycloak's full scope, which it deprecates: `o11n` has the master realm's `admin` role in its scope
-  alone, which `keycloak-realms` maps before it turns full scope off, and jitsi's and nextcloud's clients none, as
-  neither reads a role.
+  alone, which `keycloak-realms` maps before it turns full scope off, and jitsi's and a drive's clients none, as neither
+  reads a role.
 - An app whose kind derives a client, as jitsi does (`org/apps/jitsi.nix`), has it in the realm it names, of the
   keycloak it names, which keeps it as it keeps a realm: made when it's missing, and put over what it was, by its
   `clientId`, leaving what isn't declared of it be. The keycloak fails evaluation for a client in a realm it doesn't
   keep. Jitsi's is public, with PKCE, and redirects to its `/static/sso.html`, which its sign-in reads from the same
   client (`nixos/apps/jitsi.nix`).
 - A confidential client has a secret, its app's `oidc-secret`, which the keycloak's host decrypts and puts as the
-  client's. Nextcloud's is one, with `nextcloud.keycloak` and `nextcloud.realm` (`org/apps/nextcloud.nix`).
+  client's. A drive's is one, with its `keycloak` and `realm` (`org/apps/drive.nix`), and a photos app's
+  (`org/apps/photos.nix`).
 
-## Nextcloud
+## Drive
 
-A nextcloud with a `keycloak` has `user_oidc`, and `nextcloud-oidc`, a oneshot in its container after `nextcloud-setup`,
+A drive with a `keycloak` has `user_oidc`, and `nextcloud-oidc`, a oneshot in its container after `nextcloud-setup`,
 keeps the realm as its provider, named by the realm's display name, with the app's `oidc-secret` from a file bound into
-the container (`nixos/apps/nextcloud.nix`). A Keycloak user is the nextcloud user of the same name: user_oidc maps the
-uid from `preferred_username`, as it is, and makes the user its own, with the name and address Keycloak has. The realm
-lets no one register or rename their account, which is what keeps one from taking another's. The realm is the only way
-in: nextcloud's own logins are closed (`docs/parts/nextcloud.md`), and user_oidc asks for https.
+the container (`nixos/apps/drive.nix`). A Keycloak user is the Nextcloud user of the same name: user_oidc maps the uid
+from `preferred_username`, as it is, and makes the user its own, with the name and address Keycloak has. The realm lets
+no one register or rename their account, which is what keeps one from taking another's. The realm is the only way in:
+Nextcloud's own logins are closed (`docs/parts/drive.md`), and user_oidc asks for https.
 
 ## Status
 
@@ -47,10 +48,10 @@ app's own inbox, and the check fails with what Keycloak says when it can't (`cra
 
 `vmTests.keycloak` (`tests/vm/keycloak.nix`) runs `tests/inventories/mail`'s `auth` on `web`, beside its mail server on
 `mx`: Keycloak bootstraps `o11n` alone, keeps the realm as declared, and `meet`'s client, a jitsi on no host, which it
-puts back as declared after it's changed by hand, and `cloud`'s, a nextcloud on `web` too, with its secret: nextcloud's
-login sends alice to the realm, which makes her nextcloud's user, bob, a user of nextcloud's own, is disabled, and
-nextcloud keeps a drive's apps. `o11n status` has Keycloak mail the app over verified TLS, and fail with what Keycloak
-says when the server is down.
+puts back as declared after it's changed by hand, and `cloud`'s, a drive on `web` too, with its secret: the drive's
+login sends alice to the realm, which makes alice its user, bob, a user of Nextcloud's own, is disabled, and the drive
+keeps its apps. `o11n status` has Keycloak mail the app over verified TLS, and fail with what Keycloak says when the
+server is down.
 
 ## Setting up: Kompismoln/org's keycloak as auth.kompismoln.se
 
@@ -81,7 +82,7 @@ and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't k
    ```toml
    endpoint = "auth.kompismoln.se"
    principal.mail = { inbox = true, send = true, address = "auth@kompismoln.se" }
-   keycloak.realms.kompismoln = { displayName = "Kompismoln" }
+   realms.kompismoln = { displayName = "Kompismoln" }
    ```
 
    The issuer moves with it: jitsi's sign-in follows, and everyone signed in signs in again.
@@ -98,15 +99,15 @@ and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't k
 4. See that it archives and mails: `o11n status app-keycloak` has `archive pelle helsinki` and
    `keycloak-mail kompismoln`.
 
-5. Move jitsi into `kompismoln`, as `jitsi = { keycloak = "keycloak", realm = "kompismoln" }`, and apply helsinki:
-   `keycloak-realms` puts jitsi's client over the one `kompismoln` had, and jitsi's sign-in moves with it. Then move the
-   friends' accounts out of `jitsi-realm`, or invite them anew, and delete it in the admin console.
+5. Move jitsi into `kompismoln`, with `keycloak = "keycloak"` and `realm = "kompismoln"` under `[app.jitsi]`, and apply
+   helsinki: `keycloak-realms` puts jitsi's client over the one `kompismoln` had, and jitsi's sign-in moves with it.
+   Then move the friends' accounts out of `jitsi-realm`, or invite them anew, and delete it in the admin console.
 
-6. Have each nextcloud's users log in with `kompismoln`, under `[app.drive]` and `[app.drive-dev]`:
+6. Have each drive's users log in with `kompismoln`, under `[app.drive]` and `[app.drive-dev]`:
 
    ```toml
-   nextcloud.keycloak = "keycloak"
-   nextcloud.realm = "kompismoln"
+   keycloak = "keycloak"
+   realm = "kompismoln"
    ```
 
    ```sh
@@ -117,16 +118,16 @@ and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't k
    ```
 
    helsinki, the keycloak's host, decrypts the dev's secret too, as the app-scheduler it grants. Make each user in
-   `kompismoln` with the name nextcloud has for them, from `nextcloud-occ user:list` in the container, and they log in
-   to their own account with "Log in with Kompismoln"; try it on the dev first. Since nextcloud's logins are the realm's
-   alone (`docs/parts/nextcloud.md`), an account nextcloud had before can't be logged in to: the user is user_oidc's
-   anew, of a database made anew.
+   `kompismoln` with the name Nextcloud has for them, from `nextcloud-occ user:list` in the container, and they log in
+   to their own account with "Log in with Kompismoln"; try it on the dev first. Since the drive's logins are the realm's
+   alone (`docs/parts/drive.md`), an account Nextcloud had before can't be logged in to: the user is user_oidc's anew,
+   of a database made anew.
 
 ## Work in progress
 
 - That the keycloak's host can decrypt a confidential client's secret isn't known at evaluation: one that can't fails as
   sops-nix decrypts.
-- Nothing maps Keycloak's groups to nextcloud's.
+- Nothing maps Keycloak's groups to a drive's.
 - A realm or client the org no longer declares stays in Keycloak until someone removes it.
 - `keycloak-realms` keeps what's declared, and leaves what isn't as it finds it: a setting taken out of the declaration
   stays as it was last put.

@@ -385,6 +385,15 @@ setup() {
   fails "tls-cert isn't one of service-testservice's keys"
 }
 
+@test "the next id is the lowest from 1 up that no entity of its class has" {
+  [ "$(o11n next-id app)" = 3 ]
+  [ "$(o11n next-id host)" = 4 ]
+  [ "$(o11n next-id store)" = 1 ]
+
+  run o11n next-id network
+  fails "no class network"
+}
+
 @test "entities with hyphens in their name" {
   o11n identity create service-sysctl-user-portal
   [ -f public-keys/service-sysctl-user-portal-age-key.pub ]
@@ -961,36 +970,36 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   [[ $output == *"user-testuser archive testhost testhost fail: state-archive@user-testuser:testhost on testhost took no snapshot since its timer last started it, the latest being of 2026-11-06T03:00:12.123456789+01:00: journalctl -u state-archive@user-testuser:testhost on testhost"* ]]
 }
 
-@test "status tells whether a nextcloud's homes and external storages are reachable on each of its hosts" {
+@test "status tells whether a drive's roots and external storages are reachable on each of its hosts" {
   mock-host testhost
   o11n host pull-ssh-key host-testhost
   o11n identity create service-nix-switch
   local said=$BATS_TEST_TMPDIR/nextcloud-testhost.local
 
   run o11n status --list app-cloud
-  [[ $output == *"app-cloud nextcloud-home carol testhost"* ]]
-  [[ $output == *"app-cloud nextcloud-external alice/files testhost"* ]]
+  [[ $output == *"app-cloud drive-root carol testhost"* ]]
+  [[ $output == *"app-cloud drive-external alice/files testhost"* ]]
 
   run o11n status app-cloud
-  [[ $output == *"app-cloud nextcloud-home carol testhost skip: host-testhost runs a system that doesn't say how its nextclouds' storages are"* ]]
+  [[ $output == *"app-cloud drive-root carol testhost skip: host-testhost runs a system that doesn't say how its drives' roots and storages are"* ]]
 
-  printf '%s\n' 'cloud home carol ok' 'cloud external alice/files ok' >"$said"
+  printf '%s\n' 'cloud root carol ok' 'cloud external alice/files ok' >"$said"
   run o11n status app-cloud
-  [[ $output == *"app-cloud nextcloud-home carol testhost ok"* ]]
-  [[ $output == *"app-cloud nextcloud-external alice/files testhost ok"* ]]
+  [[ $output == *"app-cloud drive-root carol testhost ok"* ]]
+  [[ $output == *"app-cloud drive-external alice/files testhost ok"* ]]
 
-  printf '%s\n' 'cloud home carol /var/lib/cloud/nextcloud/data/carol isn'"'"'t mounted: systemctl status /var/lib/cloud/nextcloud/data/carol' \
+  printf '%s\n' 'cloud root carol /var/lib/cloud/nextcloud/data/carol isn'"'"'t mounted: systemctl status /var/lib/cloud/nextcloud/data/carol' \
     'cloud external alice/files error: Error while connecting' >"$said"
   run o11n status app-cloud
-  [[ $output == *"app-cloud nextcloud-home carol testhost fail: cloud's home carol on host-testhost: /var/lib/cloud/nextcloud/data/carol isn't mounted: systemctl status /var/lib/cloud/nextcloud/data/carol"* ]]
-  [[ $output == *"app-cloud nextcloud-external alice/files testhost fail: cloud's external alice/files on host-testhost: error: Error while connecting"* ]]
+  [[ $output == *"app-cloud drive-root carol testhost fail: cloud's root carol on host-testhost: /var/lib/cloud/nextcloud/data/carol isn't mounted: systemctl status /var/lib/cloud/nextcloud/data/carol"* ]]
+  [[ $output == *"app-cloud drive-external alice/files testhost fail: cloud's external alice/files on host-testhost: error: Error while connecting"* ]]
 
-  echo 'other home carol ok' >"$said"
+  echo 'other root carol ok' >"$said"
   run o11n status app-cloud
-  [[ $output == *"app-cloud nextcloud-home carol testhost fail: host-testhost says nothing of cloud's home carol: o11n apply host-testhost"* ]]
+  [[ $output == *"app-cloud drive-root carol testhost fail: host-testhost says nothing of cloud's root carol: o11n apply host-testhost"* ]]
 }
 
-@test "status tells whether a nextcloud follows what the replicas of an allotment it mounts change" {
+@test "status tells whether a drive follows what the replicas of an allotment it mounts change" {
   local routes="testhost=testhost.local lorem=lorem.local"
   mock-host lorem
   O11N_ROUTES=$routes o11n host pull-ssh-key host-lorem
@@ -998,16 +1007,16 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   local said=$BATS_TEST_TMPDIR/nextcloud-lorem.local
 
   O11N_ROUTES=$routes run o11n status --list app-files
-  [[ $output == *"app-files nextcloud-changes testuser/testhost lorem"* ]]
-  [[ $output != *"app-cloud nextcloud-changes"* ]]
+  [[ $output == *"app-files drive-changes testuser/testhost lorem"* ]]
+  [[ $output != *"app-cloud drive-changes"* ]]
 
   printf '%s\n' 'files external testuser/testhost ok' 'files changes testuser/testhost ok' >"$said"
   O11N_ROUTES=$routes run o11n status app-files
-  [[ $output == *"app-files nextcloud-changes testuser/testhost lorem ok"* ]]
+  [[ $output == *"app-files drive-changes testuser/testhost lorem ok"* ]]
 
   printf '%s\n' 'files changes testuser/testhost nextcloud-changes-testuser-testhost.service is activating: journalctl -M files -u nextcloud-changes-testuser-testhost.service' >"$said"
   O11N_ROUTES=$routes run o11n status app-files
-  [[ $output == *"app-files nextcloud-changes testuser/testhost lorem fail: files's changes testuser/testhost on host-lorem: nextcloud-changes-testuser-testhost.service is activating"* ]]
+  [[ $output == *"app-files drive-changes testuser/testhost lorem fail: files's changes testuser/testhost on host-lorem: nextcloud-changes-testuser-testhost.service is activating"* ]]
 }
 
 @test "status tells whether an app's database has the collation version its host's postgresql has" {

@@ -15,12 +15,12 @@ clone.
 and which failed, on a terminal each as it ends, with what it took, and in a git checkout logs each to
 `dev/state/logs/<stage>.log`, and how it ended to `dev/state/logs/<stage>.json`, which the hooks read:
 
-- `dev/check.sh stamps` ~0.2s, every conflict marker a stamp's
+- `dev/check.sh stamps` ~0.1s, every conflict marker a stamp's
 - `dev/check.sh pending` ~0.2s, what is left to stamp
 - `dev/check.sh stamped` ~0.3s, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as
   `dev/write.sh` stamps it
-- `dev/check.sh format` ~3.3s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
-- `dev/check.sh lint` ~5.4s, statix, deadnix and shellcheck
+- `dev/check.sh format` ~1.8s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+- `dev/check.sh lint` ~3.5s, statix, deadnix and shellcheck
 - `dev/check.sh docs` ~1.3s, the references of the docs (`o11n-dev refs check`)
 - `dev/check.sh parts` ~0.1s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
 - `dev/check.sh index` ~4.3s, that `docs/index/` is as `dev/write.sh index` writes it (`o11n-dev index check`)
@@ -49,7 +49,7 @@ checkout that has it, with `$MACHINE_CLASS` set, `dev/check.sh` spools to `dev/s
 - `nix-eval-jobs bats eval` ~120s, an evaluation, of the stages named together that build jobs, in the order `vm`,
   `bats`, `eval`; one at a tree evaluated before runs none
 - `nix build .#stages.eval` ~10s, the build of a stage's jobs when none of them is in the store
-- `nix build .#stages.bats` ~97s, likewise
+- `nix build .#stages.bats` ~65s, likewise
 - `vmTests.<name>`, each VM test the builder ran, with the time its driver says its script took
 - `dev/check.sh <stage>`, each stage that builds no jobs.
 
@@ -76,9 +76,10 @@ entries for it are alike.
 type, its default and its description, under the part whose code declares it. The flake's `index` (`dev/index.nix`)
 reads them from `org/context.nix`, evaluated for `tests/inventories/base`, which holds nothing: a default computed from
 an entity's own config has a `defaultText`, as `lib.literalExpression` over the entity's options, the org's as
-`org.<option>`, or as `lib.literalMD` where it draws on more, or the index fails to evaluate. `o11n-dev index write`
-writes a doc for each part that has any, and removes the rest, as `dev/write.sh index` has it do. Each is a doc of the
-part it indexes, and stamped like any other, so that a change to a part's interface is stamped.
+`org.<option>`, or as `lib.literalMD` where it draws on more, or the index fails to evaluate. A kind's options are at
+`app.<kind>`, as an app of that kind has them (`org/types.nix`). `o11n-dev index write` writes a doc for each part that
+has any, and removes the rest, as `dev/write.sh index` has it do. Each is a doc of the part it indexes, and stamped like
+any other, so that a change to a part's interface is stamped.
 
 ## Write
 

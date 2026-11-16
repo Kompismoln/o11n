@@ -16,9 +16,75 @@ record of all allotments, each by <handle>@<host>: room on a host for a principa
 
 ### `app`
 
-`org/default.nix` · attribute set of (`<entity>` and its own options)
+`org/default.nix` · attribute set of (app and the options of its kind)
 
 record of all apps
+
+### `app.<django>.input`
+
+`org/apps/django.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system> has the app's django-app and scripts
+
+### `app.<django>.locationProxy`
+
+`org/apps/django.nix` · string
+
+Default: `"/"`
+
+the nginx location that django serves, the rest being static
+
+### `app.<django>.module`
+
+`org/apps/django.nix` · string
+
+the app's django module
+
+### `app.<django>.timeout`
+
+`org/apps/django.nix` · signed integer
+
+Default: `30`
+
+gunicorn's timeout, in seconds
+
+### `app.<django>.trustedOrigins`
+
+`org/apps/django.nix` · list of string
+
+Default: `[ ]`
+
+django's CSRF_TRUSTED_ORIGINS
+
+### `app.<jitsi>.keycloak`
+
+`org/apps/jitsi.nix` · impossible (empty enum)
+
+the keycloak app jitsi authenticates with
+
+### `app.<jitsi>.realm`
+
+`org/apps/jitsi.nix` · string
+
+the keycloak realm of jitsi's client
+
+### `app.<mobilizon>.from`
+
+`org/apps/mobilizon.nix` · string
+
+Default: `principal.mail.address`
+
+the address mobilizon's mail is from, which its principal sends as
+
+### `app.<mobilizon>.input`
+
+`org/apps/mobilizon.nix` · string
+
+Default: `name`
+
+the org's input whose packages.<system>.default is the app's mobilizon
 
 ### `app.<name>.altpoints`
 
@@ -44,102 +110,19 @@ Default: `"‹name›"`
 
 app's database
 
-### `app.<name>.django`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a django, which make it one
-
-### `app.<name>.django.input`
-
-`org/apps/django.nix` · string
-
-Default: `name`
-
-the org's input whose packages.<system> has the app's django-app and scripts
-
-### `app.<name>.django.locationProxy`
-
-`org/apps/django.nix` · string
-
-Default: `"/"`
-
-the nginx location that django serves, the rest being static
-
-### `app.<name>.django.module`
-
-`org/apps/django.nix` · string
-
-the app's django module
-
-### `app.<name>.django.timeout`
-
-`org/apps/django.nix` · signed integer
-
-Default: `30`
-
-gunicorn's timeout, in seconds
-
-### `app.<name>.django.trustedOrigins`
-
-`org/apps/django.nix` · list of string
-
-Default: `[ ]`
-
-django's CSRF_TRUSTED_ORIGINS
-
 ### `app.<name>.endpoint`
 
 `org/app.nix` · string
 
 canonical name on internet
 
-### `app.<name>.immich`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a immich, which make it one
-
-### `app.<name>.jitsi`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a jitsi, which make it one
-
-### `app.<name>.jitsi.keycloak`
-
-`org/apps/jitsi.nix` · impossible (empty enum)
-
-the keycloak app jitsi authenticates with
-
-### `app.<name>.jitsi.realm`
-
-`org/apps/jitsi.nix` · string
-
-the keycloak realm of jitsi's client
-
-### `app.<name>.keycloak`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a keycloak, which make it one
-
 ### `app.<name>.kind`
 
-`org/app.nix` · null or one of "django", "immich", "jitsi", "keycloak", "mobilizon", "nextcloud", "rolf", "wordpress"
+`org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mobilizon", "photos", "rolf", "wordpress"
 
-Default: the one of its kinds' tables that is set, or null
+Default: `null`
 
-the kind of the app, whose configuration in o11n's nixos/apps/ it gets: the one of its kinds' tables that is set, or
-null
+the kind of the app, whose options it has and whose configuration in o11n's nixos/apps/ it gets, or null
 
 ### `app.<name>.location`
 
@@ -148,191 +131,6 @@ null
 Default: `"/"`
 
 canonical path
-
-### `app.<name>.mobilizon`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a mobilizon, which make it one
-
-### `app.<name>.mobilizon.from`
-
-`org/apps/mobilizon.nix` · string
-
-Default: `principal.mail.address`
-
-the address mobilizon's mail is from, which its principal sends as
-
-### `app.<name>.mobilizon.input`
-
-`org/apps/mobilizon.nix` · string
-
-Default: `name`
-
-the org's input whose packages.<system>.default is the app's mobilizon
-
-### `app.<name>.nextcloud`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a nextcloud, which make it one
-
-### `app.<name>.nextcloud.keycloak`
-
-`org/apps/nextcloud.nix` · null or impossible (empty enum)
-
-Default: `null`
-
-the keycloak app nextcloud's users log in with, or null for nextcloud's own logins alone
-
-### `app.<name>.nextcloud.realm`
-
-`org/apps/nextcloud.nix` · string
-
-Default: `""`
-
-the keycloak realm of nextcloud's client
-
-### `app.<name>.nextcloud.storages`
-
-`org/apps/nextcloud.nix` · attribute set of attribute set of (submodule)
-
-Default: `{ }`
-
-the storages of each Nextcloud user, by user, then by name: a box or an adapter, which is their data, and the rest each
-a folder of its name in it, or, without either, in a folder no one can write in; a Keycloak user without one logs in to
-nothing they can write in
-
-### `app.<name>.nextcloud.storages.<name>.<name>.adapter`
-
-`org/apps/nextcloud.nix` · null or string
-
-Default: `null`
-
-the entity, by its handle, whose home is the user's data, as a box would be, which the app's hosts mount as nextcloud's
-user's and write in as the entity, or null
-
-### `app.<name>.nextcloud.storages.<name>.<name>.allotment`
-
-`org/apps/nextcloud.nix` · null or impossible (empty enum)
-
-Default: `null`
-
-the allotment, as <handle>@<host>, the storage reaches over SFTP, whose `sftp` has to have the app, or null
-
-### `app.<name>.nextcloud.storages.<name>.<name>.bind`
-
-`org/apps/nextcloud.nix` · null or string
-
-Default: `null`
-
-the directory on the app's hosts the storage is of, which nextcloud's user can write in, or null
-
-### `app.<name>.nextcloud.storages.<name>.<name>.box`
-
-`org/apps/nextcloud.nix` · null or (submodule)
-
-Default: `null`
-
-the SMB share that is the user's data, their files, versions and trash, which the user's other storages are folders in,
-or null
-
-### `app.<name>.nextcloud.storages.<name>.<name>.box.host`
-
-`org/apps/nextcloud.nix` · string
-
-the SMB server
-
-### `app.<name>.nextcloud.storages.<name>.<name>.box.key`
-
-`org/apps/nextcloud.nix` · string
-
-the entity, by its handle, whose smb-password it logs in with, which has to grant the app's hosts
-
-### `app.<name>.nextcloud.storages.<name>.<name>.box.login`
-
-`org/apps/nextcloud.nix` · string
-
-the user it logs in as
-
-### `app.<name>.nextcloud.storages.<name>.<name>.box.share`
-
-`org/apps/nextcloud.nix` · string
-
-the share on the server
-
-### `app.<name>.nextcloud.storages.<name>.<name>.sftp`
-
-`org/apps/nextcloud.nix` · null or (submodule)
-
-Default: `null`
-
-the SFTP server the storage reaches, or null
-
-### `app.<name>.nextcloud.storages.<name>.<name>.sftp.host`
-
-`org/apps/nextcloud.nix` · string
-
-the server, as nextcloud takes it: a name, or an IPv6 address in brackets
-
-### `app.<name>.nextcloud.storages.<name>.<name>.sftp.key`
-
-`org/apps/nextcloud.nix` · null or string
-
-Default: `null`
-
-the entity, by its handle, whose sftp-key the mount logs in with, which has to grant the app's hosts, or null for the
-app's
-
-### `app.<name>.nextcloud.storages.<name>.<name>.sftp.login`
-
-`org/apps/nextcloud.nix` · string
-
-the user it logs in as
-
-### `app.<name>.nextcloud.storages.<name>.<name>.sftp.root`
-
-`org/apps/nextcloud.nix` · string
-
-Default: `"/"`
-
-the directory on the server the mount is of
-
-### `app.<name>.nextcloud.storages.<name>.<name>.sharing`
-
-`org/apps/nextcloud.nix` · boolean
-
-Default: `false`
-
-whether the user can share from the storage, but a box or an adapter, nextcloud's enable_sharing
-
-### `app.<name>.rolf`
-
-`org/app.nix` · null or (submodule)
-
-Default: `null`
-
-the app's settings as a rolf, which make it one
-
-### `app.<name>.rolf.input`
-
-`org/apps/rolf.nix` · string
-
-Default: `name`
-
-the org's input whose packages.<system> has the site's packages
-
-### `app.<name>.rolf.source`
-
-`org/apps/rolf.nix` · string
-
-Default: `"files"`
-
-the folder in the app's home the site is built from
 
 ### `app.<name>.run-on-hosts`
 
@@ -366,13 +164,21 @@ Default: `"${scheme}://${endpoint}"`
 
 public url including scheme
 
-### `app.<name>.wordpress`
+### `app.<rolf>.input`
 
-`org/app.nix` · null or (submodule)
+`org/apps/rolf.nix` · string
 
-Default: `null`
+Default: `name`
 
-the app's settings as a wordpress, which make it one
+the org's input whose packages.<system> has the site's packages
+
+### `app.<rolf>.source`
+
+`org/apps/rolf.nix` · string
+
+Default: `"files"`
+
+the folder in the app's home the site is built from
 
 ### `build-hosts`
 
@@ -958,9 +764,35 @@ the vpn the service serves on, at its address on each host it's on, or null
 
 ### `store`
 
-`org/default.nix` · attribute set of (`<entity>`)
+`org/default.nix` · attribute set of (`<entity>` and its own options)
 
 record of all stores
+
+### `store.<name>.smb`
+
+`org/store.nix` · null or (submodule)
+
+Default: `null`
+
+the SMB share the store is, which it logs in to with its smb-password, or null
+
+### `store.<name>.smb.host`
+
+`org/store.nix` · string
+
+the SMB server
+
+### `store.<name>.smb.login`
+
+`org/store.nix` · string
+
+the user it logs in as
+
+### `store.<name>.smb.share`
+
+`org/store.nix` · string
+
+the share on the server
 
 ### `storePath`
 
@@ -1106,7 +938,7 @@ the entity's handle, as o11n, the org's files and its other entities name it
 
 Default: `null`
 
-numeric internal id used to seed other id's
+numeric internal id used to seed other id's, of the entity's class alone
 
 ### `<entity>.ids`
 
@@ -1125,8 +957,8 @@ Default: the `keys` `org/classes.nix` gives the entity's class, an age-key, and 
 `passwd` with `hasPasswd` and its `ssh-key` with `hasPublicKey`; a host's vpn `key` for each of its `vpns`, and its
 `luks-key` if one of its `disk-layouts` is `encrypted`; the keys its principal's `mail` and `state` give it; a service's
 `tls-cert` with a `namespace`, a host's `syncthing-<id>` for each allotment it has or keeps a replica of, an `sftp-key`
-for an app or host an allotment's `sftp` has and for an entity a nextcloud's `sftp.key` names, an `smb-password` for one
-a nextcloud's or an immich's boxes name, and the keys o11n's modules read of the services they name
+for an app or host an allotment's `sftp` has and for an entity a drive's `sftp.key` names, a store's `smb-password` with
+an `smb`, and the keys o11n's modules read of the services they name
 
 the entity's keys, each with its type: its class's, those its configuration adds, and those the org declares for it
 
@@ -1339,3 +1171,33 @@ the settings of the principal's state, its home, which only a principal with a h
 Default: the block `org/classes.nix` gives the entity's class, plus the entity's `id`
 
 posix user id
+
+### `<roots>`
+
+`org/apps/roots.nix`
+
+had by `app.<drive>`, `app.<photos>`
+
+### `<roots>.roots`
+
+`org/apps/roots.nix` · attribute set of ((submodule) or string convertible to it)
+
+Default: `{ }`
+
+each user's root, by user: where the app keeps the user's data in its own layout, a directory, `path`, of the store or
+the home that `entity` names, or just that entity
+
+### `<roots>.roots.<name>.entity`
+
+`org/apps/roots.nix` · string
+
+the entity, by its handle, the root is in: a store with an `smb` share, or, for a drive, a principal whose home is on
+the app's hosts
+
+### `<roots>.roots.<name>.path`
+
+`org/apps/roots.nix` · string
+
+Default: `kind`
+
+the directory in the share or the home that is the root, which has to be there

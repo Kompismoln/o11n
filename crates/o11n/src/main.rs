@@ -3,13 +3,13 @@ mod allotments;
 mod builder;
 mod deploy;
 mod dns;
+mod drive;
 mod export;
 mod groups;
 mod host;
 mod keycloak;
 mod keys;
 mod logs;
-mod nextcloud;
 mod openwrt;
 mod postgresql;
 mod remote;
@@ -62,6 +62,8 @@ enum Command {
     Export,
     /// What the export holds at the path of names given, a list one item a line.
     Get { path: Vec<String> },
+    /// The lowest id from 1 up that no entity of the class has.
+    NextId { class: String },
     /// The ids that contain the text.
     Search { text: String },
     /// The ids of the groups' members: *, <class>-*, <class>:<role>[+<role>]... or <class>-<name>.
@@ -444,6 +446,19 @@ fn query(org: &Export, json: &str, command: Command) -> Result<(), Error> {
     match command {
         Command::Export => print!("{json}"),
         Command::Get { path } => get(json, &path)?,
+        Command::NextId { class } => {
+            if !org.classes.contains_key(&class) {
+                return Err(Error::new(format!("no class {class}")));
+            }
+            let taken: Vec<u64> = org
+                .entities
+                .values()
+                .filter(|entity| entity.class == class)
+                .filter_map(|entity| entity.id)
+                .collect();
+            let bound = u64::try_from(taken.len()).unwrap_or(u64::MAX).saturating_add(1);
+            println!("{}", (1..=bound).find(|id| !taken.contains(id)).unwrap_or(bound));
+        }
         Command::Search { text } => lines(org.entities.keys().filter(|id| id.contains(&text))),
         Command::Entities { groups } => lines(org.expand(groups.iter().map(String::as_str))?),
         Command::Keys { of } => {
@@ -605,6 +620,7 @@ fn run(cli: Cli) -> Result<(), Error> {
     match cli.command {
         command @ (Command::Export
         | Command::Get { .. }
+        | Command::NextId { .. }
         | Command::Search { .. }
         | Command::Entities { .. }
         | Command::Keys { .. }

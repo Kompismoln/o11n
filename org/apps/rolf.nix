@@ -1,5 +1,5 @@
 {
-  app,
+  config,
   lib,
   ...
 }:
@@ -8,7 +8,7 @@
     input = lib.mkOption {
       description = "the org's input whose packages.<system> has the site's packages";
       type = lib.types.str;
-      default = app.name;
+      default = config.name;
       defaultText = lib.literalExpression "name";
     };
     source = lib.mkOption {

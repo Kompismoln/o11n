@@ -21,15 +21,15 @@ let
     port = 4000;
     user = app.name;
     # Policy: coolwsd listens on loopback alone, as it binds to no single address, at a port of the app's own, as
-    # each nextcloud on a host shares its network.
+    # each drive on a host shares its network.
     officePort = 9980 + app.ids.int;
   };
 
   package = pkgs.nextcloud35;
   shipped = pkgs.nextcloud35Packages.apps;
 
-  # Dependency: org/apps/nextcloud.nix derives the client, which the keycloak app keeps.
-  inherit (app.nextcloud) client;
+  # Dependency: org/apps/drive.nix derives the client, which the keycloak app keeps.
+  inherit (app) client;
   secret = "/run/secrets/oidc-secret";
   secretKey = "/run/secrets/secret-key";
 
@@ -52,7 +52,7 @@ let
     let
       occ = lib.getExe config.services.nextcloud.occ;
       keycloak = org.app.${client.keycloak};
-      realm = keycloak.keycloak.realms.${client.realm} or { displayName = client.realm; };
+      realm = keycloak.realms.${client.realm} or { displayName = client.realm; };
     in
     {
       services.nextcloud = {
@@ -194,16 +194,16 @@ let
         };
     };
 
-  # Policy: the users with storages are the drive's, which it makes as it starts, each of the realm's with a
-  # Keycloak, and of nextcloud's own without, whose password occ sets. A user nothing declares has a quota of nothing,
-  # which lets them write nothing of their own, and one with a home none, as the home is their data. A user's address
+  # Policy: the users with roots or storages are the drive's, which it makes as it starts, each of the realm's with a
+  # Keycloak, and of Nextcloud's own without, whose password occ sets. A user nothing declares has a quota of nothing,
+  # which lets them write nothing of their own, and one with a root none, as the root is their data. A user's address
   # book and calendar, which dav makes as they first log in, have none of its examples.
   users =
     { config, ... }:
     let
       occ = lib.getExe config.services.nextcloud.occ;
       psql = "${postgresql}/bin/psql -h /run/postgresql -U ${cfg.user} -d ${cfg.database} -tAX";
-      declared = app.nextcloud.users or { };
+      declared = app.users or { };
       made =
         user:
         if client != null then
@@ -233,11 +233,11 @@ let
           ''
           + lib.concatMapStrings (user: ''
             ${occ} user:setting ${user} files quota none
-          '') (lib.attrNames (lib.filterAttrs (_: boxed: boxed) declared));
+          '') (lib.attrNames (lib.filterAttrs (_: rooted: rooted) declared));
       };
     };
 
-  # Policy: a nextcloud is a drive: it has the apps of its files and of what its settings call for, and the ones
+  # Policy: a drive has the apps of its files and of what its settings call for, and the ones
   # Nextcloud keeps enabled, and nextcloud-apps disables any other each time it starts. The app store is closed.
   apps =
     { config, ... }:
@@ -290,11 +290,11 @@ let
       };
     };
 
-  mounts = app.nextcloud.mounts.${host.name} or [ ];
-  binds = app.nextcloud.binds or [ ];
+  mounts = app.mounts.${host.name} or [ ];
+  binds = app.binds or [ ];
   bindOf = bind: "/srv/binds/${bind.user}${bind.mountPoint}";
-  # Policy: a user without a home has the files no one can write in, which their other storages are folders in.
-  unboxed = lib.attrNames (lib.filterAttrs (_: boxed: !boxed) (app.nextcloud.users or { }));
+  # Policy: a user without a root has the files no one can write in, which their storages are folders in.
+  unrooted = lib.attrNames (lib.filterAttrs (_: rooted: !rooted) (app.users or { }));
   followed = lib.filter (mount: mount.server.changes or null != null) mounts;
   changesOf =
     mount: "nextcloud-changes-${mount.user}${lib.replaceStrings [ "/" ] [ "-" ] mount.mountPoint}";
@@ -302,11 +302,11 @@ let
   secretOf = handle: "${app.name}/${handle}/sftp-key";
   sftpKey = handle: "/run/secrets/sftp-keys/${handle}";
 
-  shares = app.nextcloud.shares or [ ];
-  # Policy: an adapter is a home, as a box is, its owner's, which the host mounts as the app's user's, and what's
-  # written there is written as its owner.
-  adapters = app.nextcloud.adapters or [ ];
-  homes = shares ++ adapters;
+  shares = app.shares or [ ];
+  # Policy: a root in an entity's home is its owner's, which the host mounts as the app's user's, and what's written
+  # there is written as its owner.
+  adapters = app.adapters or [ ];
+  roots = shares ++ adapters;
   contained = [
     app.secrets
   ]
@@ -318,8 +318,8 @@ let
   passwordOf = handle: "${app.name}/${handle}/smb-password";
   credentialsOf = user: "${app.name}/${user}-smb-credentials";
 
-  # Dependency: crates/o11n/src/nextcloud.rs reads this through switch-system nextcloud, a line each:
-  # <app> home <user> ok|<why not>, <app> external <user>/<folder> ok|<why not> and <app> changes <user>/<folder>
+  # Dependency: crates/o11n/src/drive.rs reads this through switch-system nextcloud, a line each:
+  # <app> root <user> ok|<why not>, <app> external <user>/<folder> ok|<why not> and <app> changes <user>/<folder>
   # ok|<why not>.
   status = pkgs.writeShellApplication {
     name = "nextcloud-status-${cfg.name}";
@@ -337,16 +337,16 @@ let
         timeout 60 nixos-container run ${cfg.name} -- nextcloud-occ "$@"
       }
     ''
-    + lib.concatMapStrings (home: ''
-      path=${lib.escapeShellArg (dataOf home.user)}
+    + lib.concatMapStrings (root: ''
+      path=${lib.escapeShellArg (dataOf root.user)}
       if ! timeout 20 mountpoint -q "$path"; then
-        say home ${home.user} "$path isn't mounted: systemctl status $path"
+        say root ${root.user} "$path isn't mounted: systemctl status $path"
       elif ! timeout 20 runuser -u ${cfg.user} -- test -w "$path"; then
-        say home ${home.user} "$path isn't writable as ${cfg.user}"
+        say root ${root.user} "$path isn't writable as ${cfg.user}"
       else
-        say home ${home.user} ok
+        say root ${root.user} ok
       fi
-    '') homes
+    '') roots
     + lib.optionalString (mounts ++ binds != [ ]) (
       ''
         listed=$(occ files_external:list --output=json 2>/dev/null) || listed=
@@ -580,7 +580,7 @@ in
       ) shares
     );
 
-    # Policy: the share is mounted as the app's user, and the container starts only once it is, so that Nextcloud never
+    # Policy: a root in a share is mounted as the app's user, and the container starts only once it is, so that Nextcloud never
     # writes the user's data to the directory beneath.
     fileSystems = lib.listToAttrs (
       map (
@@ -605,7 +605,7 @@ in
       ) shares
     );
 
-    environment.systemPackages = lib.optional (homes ++ mounts ++ binds != [ ]) status;
+    environment.systemPackages = lib.optional (roots ++ mounts ++ binds != [ ]) status;
 
     # Policy: the container connects as the host user with its uid, by peer authentication.
     assertions = [
@@ -620,7 +620,7 @@ in
     }) followed
     ++ map (adapter: {
       assertion = config.users.users ? ${adapter.owner};
-      message = "Nextcloud ${cfg.name} mounts ${adapter.user}'s home from ${adapter.path}, whose owner, ${adapter.owner}, isn't on ${host.name}: run the owner on ${host.name}, or drop the adapter.";
+      message = "Nextcloud ${cfg.name} mounts ${adapter.user}'s root from ${adapter.path}, whose owner, ${adapter.owner}, isn't on ${host.name}: run the owner on ${host.name}, or root ${adapter.user} elsewhere.";
     }) adapters
     ++ lib.mapAttrsToList (handle: key: {
       assertion = builtins.pathExists key.publicKey;
@@ -636,15 +636,17 @@ in
       containers = [ cfg.name ];
     };
 
-    systemd.tmpfiles.rules = lib.optionals (homes != [ ]) [
-      "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
-      "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
-    ];
+    systemd.tmpfiles.rules =
+      lib.optionals (roots != [ ]) [
+        "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
+        "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
+      ]
+      ++ map (adapter: "d '${adapter.path}' 0750 ${adapter.owner} ${adapter.owner} - -") adapters;
 
     system.fsPackages = lib.optional (adapters != [ ]) pkgs.bindfs;
 
     # Fact: a mount unit with nofail isn't ordered before local-fs.target, so it can follow systemd-tmpfiles-setup,
-    # which makes the home it mounts in.
+    # which makes the directories it mounts and mounts in.
     systemd.mounts = map (adapter: {
       what = adapter.path;
       where = dataOf adapter.user;
@@ -667,7 +669,7 @@ in
         restartTriggers = map (file: builtins.hashFile "sha256" file) (
           lib.unique (map (secret: secret.sopsFile) contained)
         );
-        unitConfig.RequiresMountsFor = map (home: dataOf home.user) homes;
+        unitConfig.RequiresMountsFor = map (root: dataOf root.user) roots;
         serviceConfig = {
           TimeoutStopSec = 10;
           KillMode = "mixed";
@@ -743,12 +745,12 @@ in
         ) keys
         // lib.listToAttrs (
           map (
-            home:
-            lib.nameValuePair "${datadir}/${home.user}" {
-              hostPath = dataOf home.user;
+            root:
+            lib.nameValuePair "${datadir}/${root.user}" {
+              hostPath = dataOf root.user;
               isReadOnly = false;
             }
-          ) homes
+          ) roots
           ++ map (
             bind:
             lib.nameValuePair (bindOf bind) {
@@ -762,7 +764,7 @@ in
               hostPath = "${pkgs.emptyDirectory}";
               isReadOnly = true;
             }
-          ) unboxed
+          ) unrooted
         );
 
         config = {
@@ -776,7 +778,7 @@ in
           ++ lib.optional (mounts ++ binds != [ ]) external;
           system.stateVersion = config.system.stateVersion;
 
-          systemd.tmpfiles.rules = map (user: "d '${datadir}/${user}' 0750 nextcloud nextcloud - -") unboxed;
+          systemd.tmpfiles.rules = map (user: "d '${datadir}/${user}' 0750 nextcloud nextcloud - -") unrooted;
 
           users.users.nextcloud.uid = cfg.uid;
           users.groups.nextcloud.gid = cfg.gid;
@@ -841,7 +843,7 @@ in
               forwarded_for_headers = [ "HTTP_X_FORWARDED_FOR" ];
               "simpleSignUpLink.shown" = false;
               # Accommodating for files_external:import, which leaves out the mount option the web UI sets: each
-              # storage, a box too, checks a folder for changes as it's opened, rather than never.
+              # storage, a root too, checks a folder for changes as it's opened, rather than never.
               filesystem_check_changes = 1;
               files_external_allow_create_new_local = binds != [ ];
             };

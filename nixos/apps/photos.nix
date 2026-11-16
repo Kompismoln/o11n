@@ -28,11 +28,11 @@ let
   pgPort = toString config.services.postgresql.settings.port;
   inherit (app.principal) mail;
 
-  # Dependency: org/apps/immich.nix derives the client, which the keycloak app keeps.
-  inherit (app.immich) client shares;
+  # Dependency: org/apps/photos.nix derives the client, which the keycloak app keeps.
+  inherit (app) client shares;
   keycloak = org.app.${client.keycloak};
-  realm = keycloak.keycloak.realms.${client.realm} or { displayName = client.realm; };
-  libraries = lib.attrNames app.immich.storages;
+  realm = keycloak.realms.${client.realm} or { displayName = client.realm; };
+  libraries = lib.attrNames app.roots;
 
   media = "/var/lib/immich";
   secret = "/run/secrets/oidc-secret";
@@ -46,7 +46,7 @@ let
   psql = "${postgresql}/bin/psql -h /run/postgresql -p ${pgPort} -d ${cfg.database} -qtAX -v ON_ERROR_STOP=1";
 
   # Policy: a user's library is their storage label, the Keycloak username they first logged in with, which no one
-  # changes; one with a box has no quota, as the box is their library, and any other a quota of nothing, as their
+  # changes; one with a root has no quota, as the root is their library, and any other a quota of nothing, as their
   # library would be the app's state.
   # Fact: Immich makes a user as they first log in, with no hook but its database, and reads the quota from there at
   # each request.
@@ -153,7 +153,7 @@ in
     assertions = [
       {
         assertion = keycloak.kind == "keycloak";
-        message = "${app.handle} logs in with ${client.keycloak}, which isn't a keycloak: name one under [app.${app.name}] immich.keycloak.";
+        message = "${app.handle} logs in with ${client.keycloak}, which isn't a keycloak: name one as keycloak under [app.${app.name}].";
       }
     ]
     ++ map (user: {
@@ -235,7 +235,7 @@ in
 
     system.fsPackages = lib.optional (shares != [ ]) pkgs.cifs-utils;
 
-    # Policy: a box is mounted as the app's user at its user's library, and the container starts only once each is,
+    # Policy: a root is mounted as the app's user at its user's library, and the container starts only once each is,
     # so that Immich never files a user's originals into the directory beneath.
     # Fact: a mount unit, unlike fileSystems, which a NixOS test's VM replaces with its own.
     systemd.mounts = map (share: {
@@ -368,7 +368,7 @@ in
             package = postgresql;
           };
           inherit settings;
-          # Policy: the server and its machine learning each listen on the app's own address, as each immich on a host
+          # Policy: the server and its machine learning each listen on the app's own address, as each photos app on a host
           # shares its network.
           machine-learning.environment = {
             IMMICH_HOST = lib.mkForce cfg.bindAddress;
