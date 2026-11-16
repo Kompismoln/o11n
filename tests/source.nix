@@ -87,45 +87,72 @@ in
         pkgs.statix
       ];
 
-  bats =
-    pkgs.runCommand "bats"
-      {
-        src = source (
-          fileset.unions [
-            ../.prettierrc.yaml
-            ../dev
-            ../nixos/services/locksmith.sh
-            ../nixos/services/torrent-server.sh
-            ../crates/o11n/test
-            ../settings.toml
-          ]
-        );
-        nativeBuildInputs = [
-          pkgs.age
-          pkgs.bats
-          pkgs.git
-          pkgs.jq
-          pkgs.libarchive
-          pkgs.nix
-          pkgs.nixfmt
-          o11n
-          o11n-dev
-          pkgs.openssh
-          pkgs.prettier
-          pkgs.rustfmt
-          pkgs.socat
-          pkgs.sops
-          pkgs.tree
-          pkgs.util-linux
-        ];
-      }
-      ''
-        cp -r $src src
-        chmod -R u+w src
-        patchShebangs src
-        export HOME=$TMPDIR O11N_TEST_EXPORT=${testExport}
-        export NIX_CONFIG='experimental-features = nix-command'
-        bats src/crates/o11n/test src/dev/test
-        touch $out
-      '';
+  # Optimization: the tests of o11n and those of dev/ are a job each, so that a change to one leaves the other built.
+  bats = {
+    bats-o11n =
+      pkgs.runCommand "bats-o11n"
+        {
+          src = source (
+            fileset.unions [
+              ../nixos/services/locksmith.sh
+              ../nixos/services/torrent-server.sh
+              ../crates/o11n/test
+            ]
+          );
+          nativeBuildInputs = [
+            pkgs.age
+            pkgs.bats
+            pkgs.git
+            pkgs.jq
+            pkgs.libarchive
+            pkgs.nix
+            o11n
+            pkgs.openssh
+            pkgs.socat
+            pkgs.sops
+            pkgs.util-linux
+          ];
+        }
+        ''
+          cp -r $src src
+          chmod -R u+w src
+          patchShebangs src
+          export HOME=$TMPDIR O11N_TEST_EXPORT=${testExport}
+          export NIX_CONFIG='experimental-features = nix-command'
+          bats src/crates/o11n/test
+          touch $out
+        '';
+
+    bats-dev =
+      pkgs.runCommand "bats-dev"
+        {
+          src = source (
+            fileset.unions [
+              ../.prettierrc.yaml
+              ../dev
+            ]
+          );
+          nativeBuildInputs = [
+            pkgs.bats
+            pkgs.git
+            pkgs.jq
+            pkgs.nix
+            pkgs.nixfmt
+            o11n-dev
+            pkgs.prettier
+            pkgs.rustfmt
+            pkgs.socat
+            pkgs.util-linux
+          ];
+        }
+        ''
+          cp -r $src src
+          chmod -R u+w src
+          patchShebangs src
+          export HOME=$TMPDIR
+          export NIX_CONFIG='experimental-features = nix-command'
+          bats src/dev/test
+          touch $out
+        '';
+  };
 }

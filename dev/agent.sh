@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over
+# Usage: ./dev/agent.sh session-start | turn-start | turn-end | hand-over
 #        | fetch-inputs [flake.lock] | lix-daemon <dir>.
 # The hooks of .claude/settings.json run session-start to turn-end, with a hook's JSON on stdin.
-# Each says nothing unless the agent has something to do, and exits 0, but tool-end and turn-end,
-# which exit 2 to tell the agent. hand-over runs at request "hand over"; fetch-inputs and lix-daemon
+# Each says nothing unless the agent has something to do, and exits 0, but turn-end, which exits 2
+# to tell the agent. hand-over runs at request "hand over"; fetch-inputs and lix-daemon
 # are the agent's tools, for a session's network and for a store of its own.
 set -euo pipefail
 
-USAGE="usage: ./dev/agent.sh session-start | turn-start | tool-end | turn-end | hand-over | fetch-inputs [flake.lock] | lix-daemon <dir>"
+USAGE="usage: ./dev/agent.sh session-start | turn-start | turn-end | hand-over | fetch-inputs [flake.lock] | lix-daemon <dir>"
 
 # Accommodating for a session's network, which refuses or rate-limits the forges' archives: an input
 # fetched over git at its locked revision lands at the path nix's github: or gitlab: fetcher would
@@ -73,7 +73,7 @@ ${NIX_CONFIG:-}" \
 
 command=${1:-}
 case $command in
-session-start | turn-start | tool-end | turn-end | hand-over | provision) ;;
+session-start | turn-start | turn-end | hand-over | provision) ;;
 fetch-inputs)
     fetch-inputs "${2:-flake.lock}"
     exit
@@ -90,7 +90,7 @@ esac
 
 event=""
 case $command in
-session-start | turn-start | tool-end | turn-end) [[ -t 0 ]] || event="$(cat)" ;;
+session-start | turn-start | turn-end) [[ -t 0 ]] || event="$(cat)" ;;
 esac
 
 cd "$(git rev-parse --show-toplevel)"
@@ -118,16 +118,10 @@ if [[ -z ${O11N_ROOT:-} && -f crates/o11n-dev/Cargo.toml ]]; then
     export O11N_ROOT=$PWD
 fi
 
-# Policy: what settings.toml has each hook refuse work for and tell of is read where errexit holds,
-# so that a settings.toml or an o11n-dev amiss stops the hook rather than have it check nothing, and
-# once the session is provisioned, as o11n-dev comes with that.
-declare -A REFUSES TELLS
+# Policy: what dev/settings.toml has hand-over tell of is read where errexit holds, so that a settings.toml or an
+# o11n-dev amiss stops it rather than have it check nothing.
+declare -A TELLS
 configure() {
-    local hook
-    for hook in session-start turn-start; do
-        REFUSES[$hook]="$(o11n-dev hook "$hook" refuse)"
-        TELLS[$hook]="$(o11n-dev hook "$hook" tell)"
-    done
     TELLS[hand-over]="$(o11n-dev hook hand-over tell)"
 }
 
@@ -145,11 +139,7 @@ session-start() {
     if remote && ! provisioned; then
         state+=(unprovisioned refused)
     else
-        configure
         builder-probed
-        if [[ ${state[*]} == fresh ]] && ! session-checked; then
-            state+=(refused)
-        fi
     fi
     echo "${state[*]}" >"$STARTED"
 }
@@ -161,10 +151,6 @@ builder-probed() {
     said="$(timeout 120 o11n remote info 2>&1)" && return
     echo "Tell the user that the remote builder, $O11N_REMOTE_BUILDER, doesn't answer, as below, so nothing can be built on it this session, and go on."
     echo "$said"
-}
-
-session-checked() {
-    hook-checked session-start
 }
 
 # Accommodating for bash, which ignores errexit wherever a status is tested: provisioning runs as a
@@ -208,10 +194,10 @@ turn-start() {
         read -ra state <"$STARTED"
         rm -f "$STARTED"
     fi
-    [[ " ${state[*]} " != *" refused "* ]] || refused=refused
-    [[ " ${state[*]} " == *" unprovisioned "* ]] || configure
     was="$(git rev-parse HEAD)"
-    if ! remote || [[ " ${state[*]} " == *" unprovisioned "* ]]; then
+    if [[ " ${state[*]} " == *" unprovisioned "* ]]; then
+        refused=refused
+    elif ! remote; then
         :
     elif [[ " ${state[*]} " == *" fresh "* ]] && rev="$(supplied)"; then
         if ! found "$rev"; then
@@ -219,20 +205,12 @@ turn-start() {
             refused=refused
         elif ! moved "$rev"; then
             refused=refused
-        elif [[ $(git rev-parse HEAD) != "$was" ]]; then
-            if provisioned && session-checked; then
-                [[ -z $refused ]] ||
-                    echo "Work isn't refused after all: $rev, the commit the prompt starts at, passes what session-start refused work for."
-                refused=""
-            else
-                refused=refused
-            fi
         fi
-    elif [[ -z $refused ]]; then
+    else
         synced
-        if [[ $(git rev-parse HEAD) != "$was" ]]; then
-            { provisioned && turn-checked; } || refused=refused
-        fi
+    fi
+    if [[ -z $refused && $(git rev-parse HEAD) != "$was" ]]; then
+        provisioned || refused=refused
     fi
     git rev-parse HEAD >"$TURN"
     if [[ -n $refused ]]; then
@@ -288,29 +266,6 @@ synced() {
     fi
 }
 
-turn-checked() {
-    hook-checked turn-start
-}
-
-hook-checked() {
-    local refuses=() tells=() refusing=() telling=() stage
-    read -ra refuses <<<"${REFUSES[$1]}"
-    read -ra tells <<<"${TELLS[$1]}"
-    checked "${refuses[@]}" "${tells[@]}"
-    ((${#failed[@]})) || return 0
-    for stage in "${failed[@]}"; do
-        if [[ " ${refuses[*]} " == *" $stage "* ]]; then
-            refusing+=("$stage")
-        else
-            telling+=("$stage")
-        fi
-    done
-    ((${#refusing[@]} == 0)) || refuse "$(named "${refusing[@]}")" details
-    ((${#telling[@]} == 0)) || echo "Tell the user about $(named "${telling[@]}"), with what follows, and go on."
-    sections
-    ((${#refusing[@]} == 0))
-}
-
 refuse() {
     echo "Work is refused, for $1: tell the user so${2:+, with what follows,} and commit no changes this turn."
 }
@@ -353,7 +308,6 @@ named() {
         parts) names+=("files the parts hold amiss") ;;
         index) names+=("an index that isn't written") ;;
         eval) names+=("failing evaluation tests") ;;
-        leaks) names+=("leaks") ;;
         bats) names+=("failing bats tests") ;;
         *) names+=("failing $stage") ;;
         esac
@@ -386,12 +340,6 @@ turn-end() {
             ended "$stepped fails, as below: see to it, and commit and push what turn-end wrote." "$said"
     fi
     step git push --quiet -u origin HEAD || ended "git push fails, as below: see to it, and push the branch." "$said"
-}
-
-# Accommodating for the environment's own Stop hook, which runs beside turn-end and has the turn go
-# on for commits turn-end is about to push: what the agent commits, turn-end sees to at once.
-tool-end() {
-    [[ -z $(git rev-list -n 1 HEAD --not --remotes) ]] || turn-end
 }
 
 ended() {
@@ -442,11 +390,10 @@ hand-over() {
 }
 
 # Accommodating for Claude Code, which adds what a hook says to the session only if it exits 0, and
-# what a PostToolUse or Stop hook says only if it exits 2.
+# what a Stop hook says only if it exits 2.
 case $command in
 session-start) session-start ;;
 turn-start) turn-start ;;
-tool-end) tool-end ;;
 turn-end) turn-end ;;
 hand-over) hand-over ;;
 provision) provision ;;

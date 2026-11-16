@@ -43,7 +43,15 @@ setup() {
 
   run dev/check.sh nowhere
   [ "$status" -eq 1 ]
-  [ "$output" = "no stage nowhere: stamps pending stamped format lint docs parts index eval leaks bats vm" ]
+  [ "$output" = "no stage nowhere: stamps pending stamped format lint docs parts index eval bats vm" ]
+}
+
+@test "on a terminal, check.sh says each stage named together as it ends, with what it took" {
+  run script -qec "dev/check.sh stamps docs" /dev/null
+  [ "$status" -eq 0 ]
+  [[ $output =~ "  stamps "[0-9.]+s ]]
+  [[ $output =~ "  docs "[0-9.]+s ]]
+  [[ $output == *"• docs"* ]]
 }
 
 @test "format checks the Nix, the Rust and the docs but those with stamps pending, which write.sh formats" {
@@ -75,35 +83,16 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
-@test "write.sh, given STAMPED, stamps each change to a doc since it" {
-  echo 'More.' >>doc.md
-  STAMPED=HEAD run dev/write.sh
-  [ "$status" -eq 0 ]
-  [ "${lines[0]}" = "against $(git log -1 --format='%h %s')" ]
-  [ "${lines[1]}" = "doc.md: 1 stamps" ]
-  grep -qxF "$opening" doc.md
-}
-
 indexed() {
   echo '{"x": [{"name": "o", "type": "int", "default": "1", "prose": false, "description": "Written.", "files": ["x.nix"]}]}' \
     >"$BATS_TEST_TMPDIR/index.json"
 }
 
-@test "write.sh writes the index, and, given STAMPED, stamps it" {
+@test "write.sh writes the index and, given STAMPED, stamps each change to a doc, and their stages of check.sh pass once it has" {
   indexed
-  STAMPED=HEAD run dev/write.sh
-  [ "$status" -eq 0 ]
-  [ "${lines[0]}" = "docs/index/x.md: written" ]
-  [ "${lines[2]}" = "docs/index/x.md: 1 stamps" ]
-  grep -qxF 'Written.' docs/index/x.md
-}
-
-@test "each stage write.sh writes has its stage of check.sh, which passes once it has written" {
-  indexed
-  echo '{a=1;}' >default.nix
   echo 'More.' >>doc.md
   export STAMPED=HEAD
-  for pair in format:format index:index stamps:stamped; do
+  for pair in index:index stamps:stamped; do
     run dev/check.sh "${pair#*:}"
     [ "$status" -ne 0 ]
     run dev/write.sh "${pair%%:*}"
@@ -111,6 +100,9 @@ indexed() {
     run dev/check.sh "${pair#*:}"
     [ "$status" -eq 0 ]
   done
+  grep -qxF 'Written.' docs/index/x.md
+  grep -qxF "$opening" doc.md
+  grep -qxF "$opening" docs/index/x.md
 
   unset STAMPED
   run dev/write.sh stamps
@@ -187,44 +179,39 @@ TOML
   [[ $output != *"default.nix"* ]]
 }
 
-@test "o11n-dev fails for an O11N_ROOT that holds no o11n-dev to build" {
-  O11N_ROOT=$PWD run o11n-dev main
-  [ "$status" -eq 1 ]
-  [ "$output" = "o11n-dev: O11N_ROOT, $PWD, holds no crates/o11n-dev to build" ]
-}
-
-@test "with MACHINE_CLASS set and dev/costs.tsv there, each stage spools what it took, which write.sh folds into it" {
+@test "with MACHINE_CLASS set and dev/costs.tsv there, each stage that passes spools what it took, which write.sh folds into it" {
   MACHINE_CLASS=container run dev/check.sh stamps
   [ "$status" -eq 0 ]
   [ ! -e dev/state/costs-spool.tsv ]
 
-  printf '2026-11-12T00:00:00Z\tcontainer\t12.0\t0\t0\tabc\tdev/check.sh lint\n' >dev/costs.tsv
-  printf '[costs]\nquoted = "container"\nquoted_in = ["doc.md"]\n' >settings.toml
-  printf -- '- `dev/check.sh lint` ~900s\n- `dev/check.sh docs` ~900s\n' >doc.md
+  printf '2026-11-12T00:00:00Z\tcontainer\t12.0\tabc\tdev/check.sh lint\n' >dev/costs.tsv
+  printf '[costs]\nquoted = "container"\nquoted_in = ["doc.md"]\n' >dev/settings.toml
+  printf -- '- `dev/check.sh lint` ~900s\n- `dev/check.sh index` ~900s\n' >doc.md
   MACHINE_CLASS=container run dev/check.sh stamps
   [ "$status" -eq 0 ]
+  MACHINE_CLASS=container run dev/check.sh stamps docs nowhere
+  [ "$status" -eq 1 ]
   MACHINE_CLASS=container run dev/check.sh stamps docs
   [ "$status" -eq 0 ]
   commit=$(git rev-parse --short HEAD)
-  [ "$(cut -f2,4- dev/state/costs-spool.tsv | sort)" = "container	0	0	$commit	dev/check.sh stamps
-container	0	0	$commit	dev/check.sh stamps docs
-container	0	1	$commit	dev/check.sh docs
-container	0	1	$commit	dev/check.sh stamps" ]
+  [ "$(cut -f2,4- dev/state/costs-spool.tsv | sort)" = "container	$commit	dev/check.sh docs
+container	$commit	dev/check.sh stamps
+container	$commit	dev/check.sh stamps" ]
 
   run dev/write.sh costs
   [ "$status" -eq 0 ]
-  [ "$output" = "dev/costs.tsv: 4 folded
+  [ "$output" = "dev/costs.tsv: 3 folded
 doc.md: figures rewritten" ]
   [ ! -e dev/state/costs-spool.tsv ]
-  [ "$(wc -l <dev/costs.tsv)" -eq 5 ]
+  [ "$(wc -l <dev/costs.tsv)" -eq 4 ]
   [ "$(cat doc.md)" = '- `dev/check.sh lint` ~12s
-- `dev/check.sh docs` ~900s' ]
+- `dev/check.sh index` ~900s' ]
   run dev/write.sh costs
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
 }
 
-@test "vm spools its evaluation, its build and each VM test the builder ran, with the time its driver says it took" {
+@test "vm spools its evaluation and each VM test the builder ran, with the time its driver says it took" {
   touch dev/costs.tsv
   {
     printf '#!%s\n' "$BASH"
@@ -250,11 +237,9 @@ NIX
   MACHINE_CLASS=container run dev/check.sh vm
   [ "$status" -eq 0 ]
   [[ $output == *"run the VM test script, in 30.48 seconds"* ]]
-  [ "$(cut -f7 dev/state/costs-spool.tsv)" = "nix-eval-jobs vm
-o11n remote build .#stages.vm
-vmTests.mail
-dev/check.sh vm" ]
-  [ "$(sed -n 3p dev/state/costs-spool.tsv | cut -f3,4)" = "30.5	0" ]
+  [ "$(cut -f5 dev/state/costs-spool.tsv)" = "nix-eval-jobs vm
+vmTests.mail" ]
+  [ "$(sed -n 2p dev/state/costs-spool.tsv | cut -f3)" = "30.5" ]
   [[ $(cat "$BATS_TEST_TMPDIR/nix-eval-jobs.log") == *"--select"* ]]
 }
 
@@ -293,18 +278,18 @@ NIX
   {
     printf '#!%s\n' "$BASH"
     cat <<'NIX'
-[[ $1 != eval ]] || echo '{"eval": 1, "leaks": 1}'
+[[ $1 != eval ]] || echo '{"eval": 1, "bats": 1}'
 NIX
   } >"$BATS_TEST_TMPDIR/bin/nix"
   {
     printf '#!%s\n' "$BASH"
     cat <<'NIX'
 echo '{"attrPath": ["0/eval/one"], "error": "error: broken"}'
-echo '{"attrPath": ["1/leaks/two"], "drvPath": "/nix/store/x-two.drv"}'
+echo '{"attrPath": ["1/bats/two"], "drvPath": "/nix/store/x-two.drv"}'
 NIX
   } >"$BATS_TEST_TMPDIR/bin/nix-eval-jobs"
   chmod +x "$BATS_TEST_TMPDIR"/bin/*
-  run dev/check.sh eval leaks
+  run dev/check.sh eval bats
   [ "$status" -eq 1 ]
   [[ $output == *"eval/one: error: broken"* ]]
   [ "${lines[-1]}" = "• failed: eval" ]
@@ -314,9 +299,9 @@ NIX
   printf '#!%s\necho "warning: noise" >&2\n[[ $1 != eval ]] || { echo "error: no jobs" >&2; exit 1; }\n' "$BASH" \
     >"$BATS_TEST_TMPDIR/bin/nix"
   chmod +x "$BATS_TEST_TMPDIR/bin/nix"
-  run timeout 60 dev/check.sh eval leaks
+  run timeout 60 dev/check.sh eval bats
   [ "$status" -eq 1 ]
   [[ $output == *"error: no jobs"* ]]
   [[ $output == *"evaluate: eval wasn't evaluated, as said above"* ]]
-  [ "${lines[-1]}" = "• failed: eval leaks" ]
+  [ "${lines[-1]}" = "• failed: eval bats" ]
 }

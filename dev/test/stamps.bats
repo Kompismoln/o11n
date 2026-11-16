@@ -17,20 +17,7 @@ commit() {
   git commit -q -m "${1:-work}"
 }
 
-@test "write needs a commit" {
-  echo one >doc.md
-  commit
-
-  run o11n-dev stamps write
-  [ "$status" -eq 1 ]
-  [ "$output" = "stamps: write: '' isn't a commit" ]
-
-  run o11n-dev stamps write nowhere
-  [ "$status" -eq 1 ]
-  [ "$output" = "stamps: write: 'nowhere' isn't a commit" ]
-}
-
-@test "write stamps each change since the commit, committed or not" {
+@test "write stamps each change since the commit, committed or not, and needs a commit" {
   printf 'one\ntwo\nthree\nfour\n' >doc.md
   commit signed
   printf 'one\nTWO\nthree\nfour\n' >doc.md
@@ -53,9 +40,17 @@ $opening
 $divider
 five
 $closing" ]
+
+  run o11n-dev stamps write
+  [ "$status" -eq 1 ]
+  [ "$output" = "stamps: write: '' isn't a commit" ]
+
+  run o11n-dev stamps write nowhere
+  [ "$status" -eq 1 ]
+  [ "$output" = "stamps: write: 'nowhere' isn't a commit" ]
 }
 
-@test "write stamps against what was signed at the commit, through its stamps pending" {
+@test "write stamps against what was signed at the commit, through its stamps pending, and leaves its stamps as they are" {
   printf 'one\ntwo\n' >doc.md
   commit signed
   printf 'one\nTWO\n' >doc.md
@@ -73,20 +68,13 @@ $divider
 ONE
 TWO
 $closing" ]
-}
-
-@test "write leaves its stamps as they are" {
-  printf 'one\ntwo\n' >doc.md
-  commit signed
-  printf 'one\nTWO\n' >doc.md
-  o11n-dev stamps write HEAD
 
   run o11n-dev stamps write HEAD
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = "nothing to write" ]
 }
 
-@test "write stamps a new doc whole, and a renamed one against its old name" {
+@test "write stamps a new doc whole, a renamed one against its old name, and leaves what isn't a doc, and a doc deleted, alone" {
   seq 1 10 >old.md
   commit signed
   git mv old.md new.md
@@ -106,22 +94,17 @@ $closing" ]
 $divider
 fresh
 $closing" ]
-}
 
-@test "write leaves what isn't a doc, and a doc deleted, alone" {
-  echo one >doc.md
-  echo one >notes.txt
   commit signed
-  git rm -q doc.md
+  git rm -q fresh.md
   echo two >notes.txt
-
   run o11n-dev stamps write HEAD
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = "nothing to write" ]
   [ "$(cat notes.txt)" = two ]
 }
 
-@test "check flags a conflict marker that isn't a stamp's, and a stamp that isn't closed" {
+@test "check flags a conflict marker that isn't a stamp's and a stamp that isn't closed, and passes stamps pending, which pending fails on" {
   printf 'one\n<<<<<<< HEAD\n' >merge.md
   printf 'one\n%s\ntwo\n%s\n' "$opening" "$divider" >open.md
 
@@ -133,9 +116,8 @@ $closing" ]
   run o11n-dev stamps pending
   [ "$status" -eq 1 ]
   [[ $output == *"flag: merge.md: line 2: a conflict marker that isn't a stamp's"* ]]
-}
 
-@test "check passes stamps pending, and pending fails on them until the operator stamps them" {
+  rm merge.md open.md
   printf 'one\ntwo\n' >doc.md
   commit signed
   printf 'one\nTWO\n' >doc.md

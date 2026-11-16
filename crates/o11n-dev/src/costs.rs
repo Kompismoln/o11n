@@ -21,25 +21,22 @@ pub struct Cost {
     pub when: String,
     pub machine: String,
     pub seconds: f64,
-    pub status: i32,
-    pub beside: u32,
     pub commit: String,
     pub command: String,
 }
 
 impl Cost {
     pub fn read(line: &str) -> Result<Cost, String> {
-        let fields: Vec<&str> = line.splitn(7, '\t').collect();
-        let [when, machine, seconds, status, beside, commit, command] = fields[..] else {
-            return Err(format!("costs: a line without its 7 columns: {line}"));
+        let fields: Vec<&str> = line.splitn(5, '\t').collect();
+        let [when, machine, seconds, commit, command] = fields[..] else {
+            return Err(format!("costs: a line without its 5 columns: {line}"));
         };
-        let number = |what: &str| format!("costs: {what} isn't a number: {line}");
         Ok(Cost {
             when: when.to_owned(),
             machine: machine.to_owned(),
-            seconds: seconds.parse().map_err(|_| number("seconds"))?,
-            status: status.parse().map_err(|_| number("status"))?,
-            beside: beside.parse().map_err(|_| number("beside"))?,
+            seconds: seconds
+                .parse()
+                .map_err(|_| format!("costs: seconds isn't a number: {line}"))?,
             commit: commit.to_owned(),
             command: command.to_owned(),
         })
@@ -61,13 +58,14 @@ fn read(paths: &[&Path]) -> Result<Vec<Cost>, String> {
     Ok(costs)
 }
 
-/// Each command's median over its RECENT latest passes on the machine, run alone.
+/// Each command's median over its RECENT latest costs on the machine.
+// Accommodating for git, whose union merge of the log leaves its lines out of order: the latest are told by when.
 pub fn medians(costs: &[Cost], machine: &str) -> BTreeMap<String, f64> {
     let mut held: BTreeMap<String, Vec<f64>> = BTreeMap::new();
+    let mut costs: Vec<&Cost> = costs.iter().filter(|cost| cost.machine == machine).collect();
+    costs.sort_by(|a, b| a.when.cmp(&b.when));
     for cost in costs {
-        if cost.machine == machine && cost.status == 0 && cost.beside == 0 {
-            held.entry(cost.command.clone()).or_default().push(cost.seconds);
-        }
+        held.entry(cost.command.clone()).or_default().push(cost.seconds);
     }
     held.into_iter()
         .map(|(command, took)| {
@@ -141,7 +139,7 @@ pub fn quoted(text: &str, took: &BTreeMap<String, f64>) -> String {
 }
 
 /// Folds the spool into the log, if there is one, and rewrites the figures the docs quote off it, of the machine class
-/// settings.toml names; says what it wrote.
+/// dev/settings.toml names; says what it wrote.
 pub fn write(spool: &Path, log: &Path, quoted_in: &[String], machine: Option<&str>) -> Result<Vec<String>, String> {
     let mut written = Vec::new();
     if !log.exists() {
@@ -204,13 +202,11 @@ mod tests {
     use super::{Cost, medians, quoted, write};
     use crate::stamps::{CLOSING, DIVIDER, OPENING};
 
-    fn cost(command: &str, seconds: f64, status: i32, beside: u32) -> Cost {
+    fn cost(command: &str, seconds: f64) -> Cost {
         Cost {
             when: "2026-11-12T00:00:00Z".to_owned(),
             machine: "container".to_owned(),
             seconds,
-            status,
-            beside,
             commit: "abc".to_owned(),
             command: command.to_owned(),
         }
@@ -218,8 +214,8 @@ mod tests {
 
     fn written(cost: &Cost) -> String {
         format!(
-            "{}\t{}\t{:.1}\t{}\t{}\t{}\t{}\n",
-            cost.when, cost.machine, cost.seconds, cost.status, cost.beside, cost.commit, cost.command
+            "{}\t{}\t{:.1}\t{}\t{}\n",
+            cost.when, cost.machine, cost.seconds, cost.commit, cost.command
         )
     }
 
@@ -232,30 +228,26 @@ mod tests {
 
     #[test]
     fn a_cost_reads_as_it_is_written() {
-        let line = written(&cost("dev/check.sh eval", 61.25, 0, 0));
-        assert_eq!(
-            Cost::read(line.trim_end()).unwrap(),
-            cost("dev/check.sh eval", 61.2, 0, 0)
-        );
+        let line = written(&cost("dev/check.sh lint", 61.25));
+        assert_eq!(Cost::read(line.trim_end()).unwrap(), cost("dev/check.sh lint", 61.2));
         assert!(Cost::read("one\ttwo").is_err());
     }
 
     #[test]
-    fn medians_weigh_recent_passes_run_alone_on_the_machine() {
-        let mut costs: Vec<Cost> = [900.0, 1.0, 2.0, 3.0, 4.0, 5.0]
-            .iter()
-            .map(|s| cost("dev/check.sh", *s, 0, 0))
-            .collect();
-        costs.push(cost("dev/check.sh", 99.0, 1, 0));
-        costs.push(cost("dev/check.sh", 99.0, 0, 2));
+    fn medians_weigh_the_latest_costs_on_the_machine_by_when() {
+        let mut costs: Vec<Cost> = [1.0, 2.0, 3.0, 4.0, 5.0].iter().map(|s| cost("x", *s)).collect();
+        costs.push(Cost {
+            when: "2026-11-11T00:00:00Z".to_owned(),
+            ..cost("x", 900.0)
+        });
         costs.push(Cost {
             machine: "devshell".to_owned(),
-            ..cost("dev/check.sh", 99.0, 0, 0)
+            ..cost("x", 99.0)
         });
-        assert_eq!(medians(&costs, "container"), took(&[("dev/check.sh", 3.0)]));
+        assert_eq!(medians(&costs, "container"), took(&[("x", 3.0)]));
         assert_eq!(
-            medians(&[cost("x", 1.0, 0, 0), cost("x", 2.0, 0, 0)], "container"),
-            took(&[("x", 1.5)])
+            medians(&[cost("y", 1.0), cost("y", 2.0)], "container"),
+            took(&[("y", 1.5)])
         );
     }
 
@@ -289,7 +281,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("o11n-dev-costs-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let (spool, log, doc) = (dir.join("spool"), dir.join("log"), dir.join("doc.md"));
-        fs::write(&spool, written(&cost("x", 61.25, 0, 0))).unwrap();
+        fs::write(&spool, written(&cost("x", 61.25))).unwrap();
         let docs = [doc.display().to_string()];
         assert_eq!(
             write(&spool, &log, &docs, Some("container")).unwrap(),

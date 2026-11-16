@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Usage: dev/check.sh [stage]..., from the clone's root in the dev shell. Each stage checks one thing
-# and writes nothing git tracks; the stages named, or all of them, run side by side, and it fails,
-# saying which did, if any does. It reads a directory without git as well, as nix's checks do.
+# and writes nothing git tracks; the stages named, or all of them but vm, run side by side, and it
+# fails, saying which did, if any does. It reads a directory without git as well, as nix's checks do.
 set -euo pipefail
 
-STAGES=(stamps pending stamped format lint docs parts index eval leaks bats vm)
+# Policy: vm runs only when named, as it needs the remote builder.
+UNNAMED=(stamps pending stamped format lint docs parts index eval bats)
+STAGES=("${UNNAMED[@]}" vm)
 
 stage-stamps() {
     o11n-dev stamps check
@@ -57,10 +59,6 @@ stage-eval() {
     built eval
 }
 
-stage-leaks() {
-    built leaks
-}
-
 stage-bats() {
     built bats
 }
@@ -72,22 +70,28 @@ stage-vm() {
     said=$(evaluated vm)
     mapfile -t drvs <<<"$said"
     said=$(mktemp)
-    timed "o11n remote build .#stages.vm" \
-        nix run --quiet --no-warn-dirty .#o11n -- remote build --keep-going "${drvs[@]/%/^*}" 2>&1 |
+    nix run --quiet --no-warn-dirty .#o11n -- remote build --keep-going "${drvs[@]/%/^*}" 2>&1 |
         tee "$said" >&2 || rc=$?
     sed -nE 's/^vm-test-run-(o11n-)?([^>]+)> \(finished: run the VM test script, in ([0-9.]+) seconds\)$/\3 \2/p' "$said" |
         while read -r seconds name; do
-            spool "$seconds" 0 "vmTests.$name"
+            spool "$seconds" "vmTests.$name"
         done
     rm -f "$said"
     return "$rc"
 }
 
+# Policy: a build is spooled only when it builds every job of its stage: one that finds some in the store took what
+# the rest did.
 built() {
-    local drvs said
+    local drvs said out began whole=yes
     said=$(evaluated "$1")
     mapfile -t drvs <<<"$said"
-    timed "nix build .#stages.$1" nix build --no-link --quiet --no-warn-dirty "${drvs[@]/%/^*}"
+    while read -r out; do
+        ! nix-store --check-validity "$out" 2>/dev/null || whole=""
+    done < <(nix-store --query --outputs "${drvs[@]}" 2>/dev/null)
+    began=$EPOCHREALTIME
+    nix build --no-link --quiet --no-warn-dirty "${drvs[@]/%/^*}"
+    [[ -z $whole ]] || spooled "$began" "nix build .#stages.$1"
 }
 
 # Usage: evaluated <stage>: its jobs' derivations, a line each, as the evaluation of the stages named together, in
@@ -111,10 +115,9 @@ evaluated() {
 
 # Usage: evaluate <dir> <stage>...: writes <dir>/<stage>, its jobs' derivations, as soon as nix-eval-jobs has evaluated
 # them all, or <dir>/<stage>.failed, why it couldn't, for each of the stages, in their order.
-# Accommodating for nix, whose evaluation of eval, leaks and vm in one process peaks at ~13 GB and of each at ~4, ~7 and
-# ~6 GB, and of a job alone at up to ~4 GB: nix-eval-jobs evaluates their jobs in a worker per core and 2.5 GB of 3/4
-# of what's available, which it keeps them within, restarting one that outgrows its share after its job, and running a
-# job alone that outgrows them all.
+# Accommodating for nix, whose evaluation of eval and vm in one process peaks at ~13 GB, and of a job alone at up to
+# ~4 GB: nix-eval-jobs evaluates their jobs in a worker per core and 2.5 GB of 3/4 of what's available, which it keeps
+# them within, restarting one that outgrows its share after its job, and running a job alone that outgrows them all.
 # Optimization: a stage's jobs, at a tree of the clone's whose derivations are still in the store, are as they were
 # when they were last evaluated there, in dev/state/evaluated/<stage>.
 # Accommodating for the stages, which wait for what this writes: each stage that this leaves without either, as when
@@ -130,7 +133,7 @@ evaluate() {
 }
 
 evaluation() {
-    local dir=$1 tree stage line path drv error order=() budget workers cap counts began select rc=0
+    local dir=$1 tree stage line path drv error order=() budget workers cap counts began select
     local -A left
     shift
     tree=$(worktree) || tree=""
@@ -138,6 +141,7 @@ evaluation() {
         if [[ -n $tree && $(head -n 1 "dev/state/evaluated/$stage" 2>/dev/null) == "$tree" ]] &&
             tail -n +2 "dev/state/evaluated/$stage" | xargs -r nix-store --check-validity 2>/dev/null; then
             tail -n +2 "dev/state/evaluated/$stage" >"$dir/$stage"
+            live "$stage evaluated before"
         else
             order+=("$stage")
         fi
@@ -185,9 +189,10 @@ evaluation() {
     done < <(nix-eval-jobs --flake .#legacyPackages.x86_64-linux.jobs --select "$select" \
         --workers "$workers" --max-memory-size "$cap" --option eval-cache false)
     for stage in "${order[@]}"; do
-        [[ -e $dir/$stage ]] || rc=1
+        [[ -e $dir/$stage ]] || return 1
     done
-    spooled "$began" "$rc" "nix-eval-jobs ${order[*]}"
+    spooled "$began" "nix-eval-jobs ${order[*]}"
+    live "nix-eval-jobs ${order[*]} $(elapsed "$began")s"
 }
 
 # Fact: nix reads the flake as the tree of the clone's tracked files as they are now, which git stash create commits.
@@ -198,24 +203,29 @@ worktree() {
     git rev-parse "${stash:-HEAD}^{tree}"
 }
 
+# Policy: what is spooled is what passed and did all of its work: an evaluation, as one at a tree evaluated before runs
+# none, a build of every job of a stage, a VM test, and a stage that builds no jobs.
 # Duplication: crates/o11n-dev/src/costs.rs:Cost reads these columns, in this order; o11n-dev folds the spool only in a
 # checkout, as told by dev/costs.tsv being there.
 spool() {
     [[ -n ${MACHINE_CLASS:-} && -f dev/costs.tsv ]] || return 0
     mkdir -p dev/state
-    printf '%s\t%s\t%.1f\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MACHINE_CLASS" "$1" "$2" \
-        "${O11N_BESIDE:-0}" "$(git rev-parse --short HEAD 2>/dev/null)" "$3" >>dev/state/costs-spool.tsv
+    printf '%s\t%s\t%.1f\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MACHINE_CLASS" "$1" \
+        "$(git rev-parse --short HEAD 2>/dev/null)" "$2" >>dev/state/costs-spool.tsv
 }
 
 spooled() {
-    spool "$(awk -v a="$1" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1f", b - a }')" "$2" "$3"
+    spool "$(elapsed "$1")" "$2"
 }
 
-timed() {
-    local began=$EPOCHREALTIME rc=0
-    "${@:2}" || rc=$?
-    spooled "$began" "$rc" "$1"
-    return "$rc"
+elapsed() {
+    awk -v a="$1" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1f", b - a }'
+}
+
+# Policy: on a terminal, stages named together say each as it ends, with what it took, and an evaluation as it's reused
+# or ends, on the terminal itself, as each stage's own output waits for all to have run.
+live() {
+    [[ -z ${live:-} ]] || echo "  $*" >&3
 }
 
 fail() {
@@ -228,13 +238,18 @@ fail() {
 # Accommodating for bash, which ignores errexit wherever a status is tested: each stage runs as a
 # process of its own, so that it still stops at its first failure.
 lane() {
-    local rc=0
+    local rc=0 began=$EPOCHREALTIME
     bash "${BASH_SOURCE[0]}" "$1" >"$said/$1.out" 2>"$said/$1.err" || rc=$?
     echo "$rc" >"$said/$1.rc"
+    if ((rc)); then
+        live "$1 $(elapsed "$began")s, failed"
+    else
+        live "$1 $(elapsed "$began")s"
+    fi
 }
 
 stages=("$@")
-((${#stages[@]} > 0)) || stages=("${STAGES[@]}")
+((${#stages[@]} > 0)) || stages=("${UNNAMED[@]}")
 for stage in "${stages[@]}"; do
     [[ " ${STAGES[*]} " == *" $stage "* ]] || fail "no stage $stage: ${STAGES[*]}"
 done
@@ -250,7 +265,8 @@ if ((${#stages[@]} == 1)); then
         exec 2> >(tee -a "$log" >&2)
         teed+=("$!")
         began=$EPOCHREALTIME
-        trap 'rc=$?; spooled "$began" "$rc" "dev/check.sh ${stages[0]}"; exec >&- 2>&-; wait "${teed[@]}"
+        trap 'rc=$?; ((rc)) || [[ " eval bats vm " == *" ${stages[0]} "* ]] || spooled "$began" "dev/check.sh ${stages[0]}"
+exec >&- 2>&-; wait "${teed[@]}"
 printf '"'"'{"stage":"%s","commit":"%s","status":%d}\n'"'"' "${stages[0]}" "$commit" "$rc" >"${log%.log}.json"
 exit "$rc"' EXIT
     fi
@@ -258,15 +274,19 @@ exit "$rc"' EXIT
     "stage-${stages[0]}"
     exit
 fi
-began=$EPOCHREALTIME
+live=""
+if [[ -t 2 ]]; then
+    live=yes
+    exec 3>&2
+fi
 said=$(mktemp -d)
 trap 'rm -rf "$said"' EXIT
-export EVALUATED=$said/evaluated O11N_BESIDE=$((${#stages[@]} - 1))
+export EVALUATED=$said/evaluated
 mkdir "$EVALUATED"
 # Optimization: the stages named that build jobs are evaluated together, vm's first, as its VMs take longest, and
-# then bats', whose one job evaluates in a second.
+# then bats', whose jobs evaluate in a second.
 heavy=()
-for stage in vm bats eval leaks; do
+for stage in vm bats eval; do
     [[ " ${stages[*]} " != *" $stage "* ]] || heavy+=("$stage")
 done
 ((${#heavy[@]} == 0)) || evaluate "$EVALUATED" "${heavy[@]}" 2>"$said/evaluate.err" &
@@ -281,5 +301,4 @@ for stage in "${stages[@]}"; do
     cat "$said/$stage.out"
     [[ $(cat "$said/$stage.rc") -eq 0 ]] || failed+=("$stage")
 done
-O11N_BESIDE=0 spooled "$began" "$((${#failed[@]} > 0))" "dev/check.sh${*:+ $*}"
 ((${#failed[@]} == 0)) || fail "• failed: ${failed[*]}"

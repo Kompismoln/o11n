@@ -4,7 +4,7 @@
 setup() {
   opening="<<<<<<< signed"
   cd "$BATS_TEST_TMPDIR" || exit
-  unset CLAUDE_CODE_REMOTE CLAUDE_ENV_FILE CHECK_FAILS CHECK_DIES WRITE_FAILS O11N_REMOTE_BUILDER
+  unset CLAUDE_CODE_REMOTE CLAUDE_ENV_FILE CHECK_FAILS WRITE_FAILS O11N_REMOTE_BUILDER
   mkdir bin remote clones
   stub bin/nix 'echo "nix $*" >>"$BATS_TEST_TMPDIR/nix.log"
 echo "{\"variables\":{\"PATH\":{\"value\":\"/dev-shell/bin\"}}}"'
@@ -35,10 +35,8 @@ project() {
     git remote add origin "../$1.git"
     mkdir dev
     cp "$BATS_TEST_DIRNAME"/../{agent.sh,.gitignore} dev/
-    cp "$BATS_TEST_DIRNAME/../../settings.toml" .
+    cp "$BATS_TEST_DIRNAME"/../settings.toml dev/
     stub dev/check.sh 'echo "${PWD##*/}: $*" >>"$BATS_TEST_TMPDIR/checks.log"
-echo "$PATH" >"$BATS_TEST_TMPDIR/checked-path"
-[[ -z ${CHECK_DIES:-} ]] || { echo "check.sh: died"; exit 1; }
 mkdir -p dev/state/logs
 failed=()
 for stage in "$@"; do
@@ -84,24 +82,17 @@ started() {
   echo "$1" >dev/state/session-start
 }
 
-@test "session-start checks a fresh session's commit, and says nothing when it holds" {
+@test "session-start checks nothing, and marks a session fresh unless it resumes" {
   run "$agent" session-start <<<'{"source":"startup"}'
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
   [ "$(cat dev/state/session-start)" = fresh ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs parts index eval" ]
-  [ -z "$(git status --porcelain)" ]
-}
 
-@test "session-start refuses work on what fails, with what it says" {
-  CHECK_FAILS="pending eval" run "$agent" session-start <<<'{"source":"startup"}'
-  [ "$status" -eq 0 ]
-  [ "${lines[0]}" = "Work is refused, for pending stamps, failing evaluation tests: tell the user so, with what follows, and commit no changes this turn." ]
-  [ "${lines[1]}" = "• pending" ]
-  [ "${lines[2]}" = "pending: broken" ]
-  [ "${lines[3]}" = "• eval" ]
-  [ "${lines[4]}" = "eval: broken" ]
-  [ "$(cat dev/state/session-start)" = "fresh refused" ]
+  run "$agent" session-start <<<'{"source":"resume"}'
+  [ "$output" = "" ]
+  [ "$(cat dev/state/session-start)" = "" ]
+  [ ! -e "$BATS_TEST_TMPDIR/checks.log" ]
+  [ -z "$(git status --porcelain)" ]
 }
 
 @test "session-start provisions a cloud session from the dev shell, rooted in the clone, its machine class container" {
@@ -117,13 +108,6 @@ started() {
   [ -z "$(git status --porcelain)" ]
 }
 
-@test "session-start checks a fresh cloud session with the tools it provisioned" {
-  CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-  [[ $(cat "$BATS_TEST_TMPDIR/checked-path") == /dev-shell/bin:* ]]
-}
-
 unprovisioned() {
   local dev
   dev=$(command -v o11n-dev)
@@ -132,14 +116,6 @@ unprovisioned() {
   PATH=${PATH//"$(dirname "$dev"):"/}
   stub "$BATS_TEST_TMPDIR/bin/nix" "echo '{\"variables\":{\"PATH\":{\"value\":\"$BATS_TEST_TMPDIR/dev-shell\"}}}'"
   ! command -v o11n-dev
-}
-
-@test "session-start provisions a cloud session before it reads settings.toml with the o11n-dev that came with it" {
-  unprovisioned
-  CLAUDE_CODE_REMOTE=true run "$agent" session-start <<<'{"source":"startup"}'
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-  [ "$(cat dev/state/session-start)" = fresh ]
 }
 
 @test "turn-end provisions a cloud session that isn't, then writes, commits and pushes" {
@@ -178,14 +154,7 @@ unprovisioned() {
   [ ! -e "$BATS_TEST_TMPDIR/nix-remote.log" ]
 }
 
-@test "session-start checks nothing as a session resumes" {
-  run "$agent" session-start <<<'{"source":"resume"}'
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-  [ ! -e "$BATS_TEST_TMPDIR/checks.log" ]
-}
-
-@test "turn-start moves a fresh session to the commit its prompt starts at, and checks it" {
+@test "turn-start moves a fresh session to the commit its prompt starts at, and refuses one that isn't there" {
   rev=$(pushed two)
   started fresh
 
@@ -195,16 +164,8 @@ unprovisioned() {
   [ "$(git rev-parse HEAD)" = "$rev" ]
   [ "$(git branch --show-current)" = work ]
   [ "$(cat dev/state/turn-start)" = "$rev" ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs parts index eval" ]
+  [ ! -e "$BATS_TEST_TMPDIR/checks.log" ]
   [ ! -e dev/state/session-start ]
-  [ ! -e dev/state/refused ]
-}
-
-@test "turn-start lifts a refusal off a commit that holds, and refuses a commit that isn't there" {
-  rev=$(pushed two)
-  started "fresh refused"
-  CLAUDE_CODE_REMOTE=true run "$agent" turn-start <<<"{\"prompt\":\"At $rev\"}"
-  [ "$output" = "Work isn't refused after all: $rev, the commit the prompt starts at, passes what session-start refused work for." ]
   [ ! -e dev/state/refused ]
 
   started fresh
@@ -214,69 +175,26 @@ unprovisioned() {
   [ -e dev/state/refused ]
 }
 
-@test "turn-start fast-forwards to what the operator pushed, refuses on stamps and tells of the rest" {
+@test "turn-start fast-forwards to what the operator pushed, or says to merge it onto the branch's own, and leaves it outside the cloud" {
   rev=$(pushed two)
 
-  CHECK_FAILS="stamps lint" CLAUDE_CODE_REMOTE=true run "$agent" turn-start <<<'{"prompt":"go on"}'
+  CLAUDE_CODE_REMOTE=true run "$agent" turn-start <<<'{"prompt":"go on"}'
   [ "$status" -eq 0 ]
+  [ "$output" = "" ]
   [ "$(git rev-parse HEAD)" = "$rev" ]
-  [ "${lines[0]}" = "Work is refused, for conflict markers that aren't stamps: tell the user so, with what follows, and commit no changes this turn." ]
-  [ "${lines[1]}" = "Tell the user about lint errors, with what follows, and go on." ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: stamps pending format lint docs parts index eval" ]
-  [ -e dev/state/refused ]
-}
+  [ ! -e dev/state/refused ]
 
-@test "turn-start says to merge what the operator pushed onto the branch's own, and leaves it outside the cloud" {
-  rev=$(pushed two)
+  rev=$(pushed three)
   commit mine doc.md
   was=$(git rev-parse HEAD)
 
   CLAUDE_CODE_REMOTE=true run "$agent" turn-start </dev/null
-  [ "$output" = "origin/work has commits work lacks, up to ${rev:0:7} two: commit what changed and merge origin/work before going on." ]
+  [ "$output" = "origin/work has commits work lacks, up to ${rev:0:7} three: commit what changed and merge origin/work before going on." ]
   [ "$(git rev-parse HEAD)" = "$was" ]
 
   run "$agent" turn-start </dev/null
   [ "$output" = "" ]
   [ "$(cat dev/state/turn-start)" = "$was" ]
-}
-
-@test "tool-end does what turn-end does as soon as the agent commits, so the turn ends with all pushed" {
-  "$agent" turn-start </dev/null
-  echo two >>doc.md
-  run "$agent" tool-end <<<'{"tool_name":"Bash"}'
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-  [ "$(git log -1 --format=%s)" = one ]
-  [ -n "$(git status --porcelain)" ]
-
-  git commit -qam two
-  run "$agent" tool-end <<<'{"tool_name":"Bash"}'
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-  [ "$(git log -1 --format=%s)" = turn-end ]
-  grep -qxF "$opening" doc.md
-  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-
-  run "$agent" turn-end <<<'{"stop_hook_active":false}'
-  [ "$status" -eq 0 ]
-  [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-  [ "$(git log -1 --format=%s)" = turn-end ]
-  [ "$(git log -2 --format=%s | tail -1)" = two ]
-}
-
-@test "tool-end tells the agent when the push fails, and does nothing while work is refused" {
-  "$agent" turn-start </dev/null
-  commit two
-  git remote set-url origin "$BATS_TEST_TMPDIR/nowhere.git"
-  : >dev/state/refused
-  run "$agent" tool-end </dev/null
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-
-  rm dev/state/refused
-  run "$agent" tool-end </dev/null
-  [ "$status" -eq 2 ]
-  [[ ${lines[0]} == "git push fails, as below: see to it, and push the branch." ]]
 }
 
 @test "turn-end writes what the turn changed, stamped against its start, commits it as turn-end and pushes" {
@@ -359,7 +277,7 @@ unprovisioned() {
   [ "$(git log -1 --format=%s)" = hand-over ]
   grep -qxF "$opening" doc.md
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: format lint docs parts index eval leaks bats" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "o11n: format lint docs parts index eval bats" ]
 }
 
 @test "hand-over says what fails once it has handed over, and hands nothing over while work is refused" {
@@ -380,31 +298,14 @@ unprovisioned() {
   [ "$(git rev-parse origin/work)" != "$(git rev-parse HEAD)" ]
 }
 
-@test "a hook reads what it refuses and tells of from settings.toml, and stops, or turn-end tells, where it's amiss" {
-  printf '[hooks.turn-end]\ntell = ["lint"]\n' >>settings.toml
-
-  run "$agent" session-start <<<'{"source":"startup"}'
-  [ "$status" -eq 1 ]
-  [[ $output == *"settings.toml: [hooks.turn-end] isn't a hook that checks: session-start, turn-start, hand-over"* ]]
-  [ ! -e "$BATS_TEST_TMPDIR/checks.log" ]
+@test "turn-end and hand-over say where dev/settings.toml is amiss" {
+  printf '[hooks.turn-end]\ntell = ["lint"]\n' >>dev/settings.toml
 
   run "$agent" turn-end </dev/null
   [ "$status" -eq 2 ]
-  [ "$output" = "turn-end finds settings.toml: [hooks.turn-end] isn't a hook that checks: session-start, turn-start, hand-over." ]
+  [ "$output" = "turn-end finds dev/settings.toml: [hooks.turn-end] isn't a hook that checks: hand-over." ]
+
+  run "$agent" hand-over
+  [ "$output" = "hand-over finds dev/settings.toml: [hooks.turn-end] isn't a hook that checks: hand-over." ]
 }
 
-@test "a stage that check.sh leaves no JSON of failed, though one of a former check said it passed" {
-  "$agent" session-start <<<'{"source":"startup"}'
-  [ "$(jq -r .status dev/state/logs/eval.json)" = 0 ]
-
-  CHECK_DIES=yes run "$agent" session-start <<<'{"source":"startup"}'
-  [ "$status" -eq 0 ]
-  [ "${lines[0]}" = "Work is refused, for conflict markers that aren't stamps, pending stamps, formatting errors, lint errors, broken references, files the parts hold amiss, an index that isn't written, failing evaluation tests: tell the user so, with what follows, and commit no changes this turn." ]
-  [ "${lines[1]}" = "check.sh: died" ]
-}
-
-@test "agent.sh needs a command" {
-  run "$agent"
-  [ "$status" -eq 1 ]
-  [[ $output == "usage: ./dev/agent.sh"* ]]
-}

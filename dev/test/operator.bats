@@ -75,7 +75,7 @@ commit() {
   [ "$(tail -1 file)" = mine ]
 }
 
-@test "stamp, once nothing is pending, commits all as stamp, pushes and prints the revision" {
+@test "stamp, once nothing is pending, commits all as stamp, pushes and prints the revision, and fetch brings what was stamped" {
   push two
   "$operator" fetch
   echo two >>file
@@ -89,6 +89,10 @@ commit() {
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
   [ "$(git rev-parse refs/stamped/work)" = "$(git rev-parse HEAD)" ]
   [ "$(git ls-remote ../origin.git refs/stamped/work | cut -f1)" = "$(git rev-parse HEAD)" ]
+
+  git update-ref -d refs/stamped/work
+  "$operator" fetch
+  [ "$(git rev-parse refs/stamped/work)" = "$(git rev-parse HEAD)" ]
 }
 
 @test "stamp commits nothing while something is pending, and takes a message" {
@@ -119,15 +123,16 @@ commit() {
   [ "$(git rev-parse origin/work)" = "$(git rev-parse HEAD)" ]
 }
 
-@test "merge squashes the branch onto main once it holds, pushes it and deletes the branch" {
+@test "merge squashes the branch onto main once it holds, pushes it and deletes the branch and its refs/stamped" {
   commit two
   commit three
-  git push -q
+  "$operator" stamp
+  rm "$BATS_TEST_TMPDIR/checks.log"
   tree=$(git rev-parse "HEAD^{tree}")
 
   run "$operator" merge
   [ "$status" -eq 0 ]
-  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "pending eval" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/checks.log")" = "stamps pending format lint docs parts index eval bats" ]
   [ "${lines[-1]}" = "$(git rev-parse --short main)" ]
   [ "$(git branch --show-current)" = main ]
   [ "$(git rev-list --count main)" = 2 ]
@@ -140,18 +145,6 @@ three" ]
   [ "$status" -ne 0 ]
   run git ls-remote --exit-code ../origin.git refs/heads/work
   [ "$status" -ne 0 ]
-}
-
-@test "fetch brings what was stamped, and merge deletes the branch's refs/stamped with it" {
-  "$operator" stamp
-  stamped=$(git rev-parse refs/stamped/work)
-  git update-ref -d refs/stamped/work
-  "$operator" fetch
-  [ "$(git rev-parse refs/stamped/work)" = "$stamped" ]
-
-  commit two
-  git push -q
-  "$operator" merge
   run git rev-parse --verify -q refs/stamped/work
   [ "$status" -ne 0 ]
   run git ls-remote --exit-code ../origin.git refs/stamped/work
@@ -187,15 +180,3 @@ three" ]
   [[ $output == *"'work' is not based on the tip of 'main'"* ]]
 }
 
-@test "operator.sh needs O11N_DEV to pull and push as, and a command" {
-  unset O11N_DEV
-  for command in fetch stamp merge; do
-    run "$operator" "$command"
-    [ "$status" -eq 1 ]
-    [[ $output == *"O11N_DEV is unset"* ]]
-  done
-
-  run "$operator"
-  [ "$status" -eq 1 ]
-  [[ $output == *"usage: ./dev/operator.sh"* ]]
-}

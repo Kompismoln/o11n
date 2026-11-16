@@ -29,7 +29,7 @@ setup() {
   git push -q -u origin main
 }
 
-@test "eval has the host build the stage at HEAD with o11n's revision, and exits as it did" {
+@test "eval has the host build the stage at HEAD with o11n's revision, exits as it did, and says so when the host doesn't finish" {
   printf 'evaluating\nnix-remote-eval: exit 3\n' >"$BATS_TEST_TMPDIR/answer"
 
   run o11n remote eval systems "$o11n"
@@ -43,9 +43,7 @@ setup() {
   run o11n remote eval eval
   [ "$status" -eq 0 ]
   [ "$(cat "$BATS_TEST_TMPDIR/url")" = "https://builder.example/nix-eval/eval/$(git rev-parse HEAD)" ]
-}
 
-@test "eval says so when the host doesn't finish" {
   echo "another evaluation is running" >"$BATS_TEST_TMPDIR/answer"
 
   CURL_STATUS=22 run o11n remote eval systems

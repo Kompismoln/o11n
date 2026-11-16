@@ -75,7 +75,7 @@ merge() {
 
     orig=$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)
     git checkout -q "$branch"
-    dev/check.sh pending eval >&2 || {
+    dev/check.sh stamps pending format lint docs parts index eval bats >&2 || {
         git checkout -q "$orig"
         die "'$branch' doesn't hold, for the above; nothing was merged"
     }

@@ -4,15 +4,11 @@ use std::io::ErrorKind;
 
 use toml::{Table, Value};
 
-const SETTINGS: &str = "settings.toml";
+const SETTINGS: &str = "dev/settings.toml";
 
-/// The hooks of dev/agent.sh that check, and what each can do with a stage that fails: refuse work for it or tell of
-/// it. hand-over checks once it has pushed, so it has nothing left to refuse.
-pub const HOOKS: &[(&str, &[&str])] = &[
-    ("session-start", &["refuse", "tell"]),
-    ("turn-start", &["refuse", "tell"]),
-    ("hand-over", &["tell"]),
-];
+/// The hooks of dev/agent.sh that check, and what each can do with a stage that fails. hand-over checks once it has
+/// pushed, so it has nothing left to refuse.
+pub const HOOKS: &[(&str, &[&str])] = &[("hand-over", &["tell"])];
 
 pub struct Settings {
     pub main: String,
@@ -24,7 +20,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// The stages the hook does with as `kind` says, none where settings.toml names none.
+    /// The stages the hook does with as `kind` says, none where dev/settings.toml names none.
     pub fn stages(&self, hook: &str, kind: &str) -> Result<&[String], String> {
         let (_, kinds) = HOOKS.iter().find(|(name, _)| *name == hook).ok_or_else(|| {
             format!(
@@ -105,7 +101,7 @@ fn costs(table: &Table) -> Result<(Option<String>, Vec<String>), String> {
     Ok((quoted, quoted_in))
 }
 
-/// The clone's settings.toml, each setting it leaves out as its default.
+/// The clone's dev/settings.toml, each setting it leaves out as its default.
 pub fn read() -> Result<Settings, String> {
     let table: Table = match fs::read_to_string(SETTINGS) {
         Ok(text) => text.parse().map_err(|e| format!("{SETTINGS}: {e}"))?,

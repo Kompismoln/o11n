@@ -97,8 +97,7 @@
                 o11n-dev = pkgs.callPackage ./packages/o11n-dev.nix { };
                 # Accommodating for orgs whose devShell still takes o11n-tools, which o11n now is.
                 o11n-tools = config.packages.o11n;
-              }
-              // pkgs.callPackages ./packages/dev.nix { inherit (config.packages) o11n o11n-dev; };
+              };
 
               legacyPackages.vmTests.deploy = import ./tests/vm/deploy.nix {
                 inherit pkgs;
@@ -176,21 +175,37 @@
                 part = "recovers";
               };
 
-              # Policy: the dev shell runs each package's source as it is, with what the package runs,
-              # bats, socat and libarchive for their tests, and cargo, rustc and clippy for o11n's crate.
+              # Policy: the dev shell runs each package's source as it is, with what o11n and the scripts of dev/ run,
+              # bats, socat and libarchive for their tests, and cargo, rustc and clippy for the crates.
               devShells.default = pkgs.mkShell {
                 packages = lib.unique (
-                  lib.concatMap (package: package.runtimeInputs or [ ]) (lib.attrValues config.packages)
+                  config.packages.o11n.runtimeInputs
                   ++ [
                     config.packages.gost
                     config.packages.o11n
                     config.packages.o11n-dev
                     pkgs.bats
                     pkgs.cargo
-                    pkgs.libarchive
                     pkgs.clippy
+                    pkgs.coreutils
+                    pkgs.deadnix
+                    pkgs.diffutils
+                    pkgs.findutils
+                    pkgs.gawk
+                    pkgs.git
+                    pkgs.gnugrep
+                    pkgs.gnused
+                    pkgs.jq
+                    pkgs.libarchive
+                    pkgs.nix-eval-jobs
+                    pkgs.nixfmt
+                    pkgs.prettier
                     pkgs.rustc
+                    pkgs.rustfmt
+                    pkgs.shellcheck
                     pkgs.socat
+                    pkgs.statix
+                    pkgs.util-linux
                   ]
                 );
                 shellHook = ''

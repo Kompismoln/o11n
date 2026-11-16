@@ -428,7 +428,7 @@ setup() {
   fails "not found"
 }
 
-@test "as runs the command with the entity's identity as sops', and its ssh-key in an agent" {
+@test "as runs the command with the entity's identity as sops' and its ssh-key in an agent, exits as it did, and leaves no agent or keys behind" {
   o11n identity create user-testadmin
   o11n secret generate user-testadmin ssh-key
 
@@ -436,11 +436,6 @@ setup() {
   succeeds
   [[ $output == *"$(cut -d' ' -f1,2 public-keys/user-testadmin-ssh-key.pub)"* ]]
   [[ $output == *$'\n'user-testadmin ]]
-}
-
-@test "as exits as the command did, and leaves no agent or keys behind" {
-  o11n identity create user-testadmin
-  o11n secret generate user-testadmin ssh-key
 
   # shellcheck disable=SC2016 # Accommodating for the command, whose variables expand as the entity's
   run o11n as user-testadmin bash -c 'echo "$SSH_AUTH_SOCK $SOPS_AGE_KEY_FILE $SSH_AGENT_PID"; exit 3'
@@ -452,8 +447,13 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
-@test "as leaves an agent it didn't start alone" {
+@test "as runs nothing as an entity it can't act as, and leaves an agent it didn't start alone" {
   o11n identity create user-testadmin
+
+  run o11n as user-testadmin touch "$BATS_TEST_TMPDIR/ran"
+  fails "there's no user-testadmin's ssh-key"
+  [ ! -e "$BATS_TEST_TMPDIR/ran" ]
+
   o11n secret generate user-testadmin ssh-key
   eval "$(ssh-agent -s)" >/dev/null
 
@@ -463,14 +463,6 @@ setup() {
   run ssh-add -l
   [ "$status" -eq 1 ]
   ssh-agent -k >/dev/null
-}
-
-@test "as runs nothing as an entity it can't act as" {
-  o11n identity create user-testadmin
-
-  run o11n as user-testadmin touch "$BATS_TEST_TMPDIR/ran"
-  fails "there's no user-testadmin's ssh-key"
-  [ ! -e "$BATS_TEST_TMPDIR/ran" ]
 }
 
 @test "ssh logs in to the host as the entity, with its ssh-key, or runs the command there" {
@@ -499,23 +491,6 @@ setup() {
   succeeds
   run sops decrypt --extract '["edited"]' enc/user-testuser.yaml
   [ "$output" = yes ]
-}
-
-@test "status checks each entity by what it has: its keys, its host's services, its url and its mail" {
-  run o11n status --list host-testhost host-lorem user-testuser user-admin
-  succeeds
-  [[ $output == *"host-testhost on-host luks-key"* ]]
-  [[ $output == *"host-testhost initrd-key"* ]]
-  [[ $output == *"org o11n"* ]]
-  [[ $output == *"host-testhost version"* ]]
-  [[ $output == *"host-testhost reboot"* ]]
-  [[ $output == *"host-testhost nix-daemon"* ]]
-  [[ $output == *"host-testhost submission mail.example.com"* ]]
-  [[ $output == *"user-testuser mail-login mail.example.com"* ]]
-  [[ $output == *"user-testuser secret passwd"* ]]
-  [[ $output != *"host-lorem nix-daemon"* ]]
-  [[ $output != *"user-admin mail-login"* ]]
-  [[ $output != *"public-key passwd"* ]]
 }
 
 @test "status checks a host's ssh-key on the connections it logs in with" {
@@ -600,7 +575,22 @@ setup() {
   [[ $output == *"host-testhost reboot fail: host-testhost runs kernel /nix/store/k1 boots as /nix/store/k2: reboot it"* ]]
 }
 
-@test "status says ok, fail or skip of each check, a skip for a secret it can't decrypt, and fails for a fail" {
+@test "status lists each entity's checks by what it has, says ok, fail or skip of each, a skip for a secret it can't decrypt, and with --failed only what fails" {
+  run o11n status --list host-testhost host-lorem user-testuser user-admin
+  succeeds
+  [[ $output == *"host-testhost on-host luks-key"* ]]
+  [[ $output == *"host-testhost initrd-key"* ]]
+  [[ $output == *"org o11n"* ]]
+  [[ $output == *"host-testhost version"* ]]
+  [[ $output == *"host-testhost reboot"* ]]
+  [[ $output == *"host-testhost nix-daemon"* ]]
+  [[ $output == *"host-testhost submission mail.example.com"* ]]
+  [[ $output == *"user-testuser mail-login mail.example.com"* ]]
+  [[ $output == *"user-testuser secret passwd"* ]]
+  [[ $output != *"host-lorem nix-daemon"* ]]
+  [[ $output != *"user-admin mail-login"* ]]
+  [[ $output != *"public-key passwd"* ]]
+
   mock-host testhost
   o11n identity create service-locksmith
   o11n secret generate service-locksmith ssh-key
@@ -631,6 +621,12 @@ setup() {
   SOPS_AGE_KEY_FILE=$BATS_TEST_TMPDIR/nobody run o11n status user-testuser
   [[ $output == *"user-testuser secret mail skip: "* ]]
   [[ $output == *"user-testuser mail-login mail.example.com skip: "* ]]
+
+  run o11n status --failed user-testuser
+  fails "checks failed"
+  [[ $output == *"user-testuser secret passwd fail: there's no user-testuser's passwd"* ]]
+  [[ $output != *" ok"* ]]
+  [[ $output != *" skip: "* ]]
 }
 
 # Usage: dns <name> <type> <type's code> <data>...: what the DNS stub of bin/curl answers name type with.
@@ -859,16 +855,6 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   sops set enc/host-testhost.yaml '["luks-key--1"]' '"luks1-Atzc2gtZWQyNTUxO\n"'
   run o11n status host-testhost
   [[ $output == *"host-testhost secret luks-key fail: host-testhost's luks-key in slot 1: the luks-key has a trailing newline"* ]]
-}
-
-@test "status --failed says only what fails, and fails as status does" {
-  o11n identity create user-testuser
-
-  run o11n status --failed user-testuser
-  fails "checks failed"
-  [[ $output == *"user-testuser secret passwd fail: there's no user-testuser's passwd"* ]]
-  [[ $output != *" ok"* ]]
-  [[ $output != *" skip: "* ]]
 }
 
 @test "an entity with no secrets of its own or another's is let be without an identity, until it has one" {

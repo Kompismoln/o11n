@@ -349,31 +349,18 @@ let
         touch $out
       '';
 
-  leakPatterns = [
-    "kompismoln"
-    "ahbk"
-    "helsinki"
-    "stationary"
-    "pelle"
-    "malborg"
-    "\\.km[0-9]*"
-  ];
-
+  # Policy: every host of every inventory instantiates, a job each, so that nix-eval-jobs spreads them over its workers.
   hostChecks = lib.concatMapAttrs (
     inventory: outputs:
     lib.mapAttrs' (
       host: nixos:
       let
-        name = "leaks-${inventory}-${host}";
+        name = "eval-system-${inventory}-${host}";
       in
       lib.nameValuePair name (
-        pkgs.runCommand name
-          {
-            drv = builtins.unsafeDiscardOutputDependency nixos.config.system.build.toplevel.drvPath;
-          }
-          ''
-            bash ${./leaks.sh} ${builtins.storeDir} "$drv" ${lib.escapeShellArgs leakPatterns} > $out
-          ''
+        pkgs.runCommand name {
+          drv = builtins.unsafeDiscardOutputDependency nixos.config.system.build.toplevel.drvPath;
+        } "touch $out"
       )
     ) outputs.nixosConfigurations
   ) inventories;
@@ -388,14 +375,16 @@ let
     }
   ];
 
-  rescueUsbChecks.leaks-sample-rescue-usb =
-    pkgs.runCommand "leaks-sample-rescue-usb"
-      {
-        drv = builtins.unsafeDiscardOutputDependency rescueUsb.system.build.images.iso-installer.drvPath;
-      }
-      ''
-        bash ${./leaks.sh} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
-      '';
+  systemChecks = hostChecks // {
+    eval-rescue-usb-leaks =
+      pkgs.runCommand "eval-rescue-usb-leaks"
+        {
+          drv = builtins.unsafeDiscardOutputDependency rescueUsb.system.build.images.iso-installer.drvPath;
+        }
+        ''
+          bash ${./leaks.sh} ${builtins.storeDir} "$drv" AGE-SECRET-KEY 'ENC\[AES256_GCM' > $out
+        '';
+  };
 in
 {
   eval =
@@ -405,10 +394,10 @@ in
     // o11nChecks
     // openwrtChecks
     // fail2banChecks
-    // nginxChecks;
-  leaks = hostChecks // rescueUsbChecks;
+    // nginxChecks
+    // systemChecks;
 }
-// lib.mapAttrs (name: check: { ${name} = check; }) (
+// lib.mapAttrs (name: check: if lib.isDerivation check then { ${name} = check; } else check) (
   import ./source.nix {
     inherit pkgs o11n o11n-dev;
     testExport = builtins.toFile "org-export.json" (

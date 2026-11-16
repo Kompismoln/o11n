@@ -27,8 +27,8 @@ code = ["org"]
 [parts.dev]
 stage = "drafted"
 layer = "dx"
-doc = "docs/dev.md"
-code = [".claude/settings.json", "dev", "packages/dev.nix", "settings.toml"]
+doc = "docs/parts/dev.md"
+code = [".claude/settings.json", "dev"]
 
 [parts.o11n-dev]
 stage = "drafted"

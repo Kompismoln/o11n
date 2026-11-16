@@ -2,9 +2,9 @@
 
 ## Environment
 
-`docs/dev.md` details `dev/`: the checks, the stamps, the operator's side, and the agent's hooks, which provision a
-cloud session. A session's first prompt names the commit it starts at, `At <rev>`. Where the hooks don't run, run
-`./dev/agent.sh` as they would (`docs/dev.md`, "Agent").
+`docs/parts/dev.md` details `dev/`: the checks, the stamps, the operator's side, and the agent's hooks, which provision
+a cloud session. A session's first prompt names the commit it starts at, `At <rev>`. Where the hooks don't run, run
+`./dev/agent.sh` as they would (`docs/parts/dev.md`, "Agent").
 
 - An org's `org.toml` is its source of truth, and `org/` reads it.
 - Archeology is not allowed unless said otherwise, the commit given has all you need.
@@ -23,7 +23,7 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
 - Kompismoln/org's devShell takes `o11n.packages.<system>.o11n-tools`, which is `o11n` now, and exports
   `O11N_ORG_ROOT=$PWD`. To try changes to o11n on the org, put the clone's `nix build .#o11n` first on its PATH.
 - Nix runs in single-user mode on this session's `/nix`. For a Lix daemon, as the remote builder runs, use
-  `./dev/agent.sh lix-daemon <dir>` (`docs/dev.md`, "Lix daemon").
+  `./dev/agent.sh lix-daemon <dir>` (`docs/parts/dev.md`, "Lix daemon").
 - A fixed-output fetch from a GitHub archive URL fails here too. Fetch the same revision over git into a directory named
   `source`, remove `.git`, and add it with `nix-store --add-fixed --recursive sha256 <dir>/source`; it lands at the path
   the fetch would have produced.
@@ -36,8 +36,6 @@ cloud session. A session's first prompt names the commit it starts at, `At <rev>
 - `builtins.pathExists drv.outPath` builds the derivation during evaluation.
 - `exportReferencesGraph` on a `.drv` also requires every output it refers to, so it can't read a build plan without
   building it; read the `.drv` files instead, as `tests/leaks.sh` does.
-- When searching store contents for short names, match whole words: store hashes can contain them (`ahbk` is valid
-  base32).
 - `nix flake check` stops at the first error; `--keep-going` shows them all.
 - `nix flake check --no-build` fails with "path … is not valid" when a source it would copy isn't in the store yet; run
   once without it.
@@ -85,8 +83,8 @@ These are for developers and ops, so:
 
 ## Tests and checks
 
-- `dev/check.sh` checks everything ~150s (`docs/dev.md`, "Check"), and `dev/costs.tsv` holds what each check took
-  (`docs/dev.md`, "Costs"): `o11n-dev costs show`.
+- `dev/check.sh` checks everything but the VM tests (`docs/parts/dev.md`, "Check"), and `dev/costs.tsv` holds what each
+  check took (`docs/parts/dev.md`, "Costs"): `o11n-dev costs show`.
 
 ### Bats
 
@@ -150,8 +148,8 @@ Use `generate-keys.sh`, with o11n on PATH.
 
 ## Documentation
 
-turn-end and hand-over stamp each change to a doc since what the operator last stamped (`docs/dev.md`, "Stamps"), and
-the operator stamps them before work proceeds.
+turn-end and hand-over stamp each change to a doc since what the operator last stamped (`docs/parts/dev.md`, "Stamps"),
+and the operator stamps them before work proceeds.
 
 - The primary document is `docs/o11n.md`: If a contradiction to it is discovered, stop, describe the landscape and
   provide options.

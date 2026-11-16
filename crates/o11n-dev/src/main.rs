@@ -26,11 +26,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// The commit to stamp against: refs/stamped/<branch> while HEAD is on it, else the commit the turn started at, in
-    /// dev/state/turn-start, else where HEAD left the main branch settings.toml names.
+    /// dev/state/turn-start, else where HEAD left the main branch dev/settings.toml names.
     Base,
-    /// The main branch settings.toml names.
+    /// The main branch dev/settings.toml names.
     Main,
-    /// The stages settings.toml has a hook of dev/agent.sh refuse work for or tell of when they fail, on a line.
+    /// The stages dev/settings.toml has a hook of dev/agent.sh tell of when they fail, on a line.
     Hook { hook: String, kind: String },
     /// The files that match any of the patterns, or every file without any, as git tracks them or would, or, in a
     /// directory without git, as they are under it; each that is a file now, NUL-separated. A pattern's `*` matches `/`.
@@ -56,9 +56,9 @@ enum Command {
     /// The systems of the org whose clone ORG names, with this clone's tree as their o11n.
     #[command(subcommand)]
     Systems(SystemsCommand),
-    /// What dev/check.sh's stages took, as it spools them to `dev/state/costs-spool.tsv` with `MACHINE_CLASS` set and
-    /// `dev/costs.tsv` there: a line each, with tab-separated columns: when, `MACHINE_CLASS`, seconds, exit status, how
-    /// many stages ran beside it, the commit and the command.
+    /// What dev/check.sh's checks took, as it spools them to `dev/state/costs-spool.tsv` with `MACHINE_CLASS` set and
+    /// `dev/costs.tsv` there: a line each, with tab-separated columns: when, `MACHINE_CLASS`, seconds, the commit and
+    /// the command.
     #[command(subcommand)]
     Costs(CostsCommand),
 }
@@ -66,8 +66,8 @@ enum Command {
 #[derive(Subcommand)]
 enum CostsCommand {
     /// Folds the spool into `dev/costs.tsv`, and rewrites each `~<n>s` figure of a list item whose first code span is a
-    /// command, in the docs settings.toml's `[costs]` `quoted_in` names, once it's 1.5 times off the median of the
-    /// command's 5 latest passes run alone on the machine class its `quoted` names; says what it wrote.
+    /// command, in the docs dev/settings.toml's `[costs]` `quoted_in` names, once it's 1.5 times off the median of the
+    /// command's 5 latest on the machine class its `quoted` names; says what it wrote.
     Write,
     /// Each command's median per machine class, as write would quote it.
     Show,
