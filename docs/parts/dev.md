@@ -23,7 +23,11 @@ and which failed, on a terminal each as it ends, with what it took, and in a git
 - `dev/check.sh pending` ~0.2s, what is left to stamp
 - `dev/check.sh stamped` ~0.3s, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as
   `dev/write.sh` stamps it
+<<<<<<< signed
 - `dev/check.sh format` ~4.4s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+=======
+- `dev/check.sh format` ~2.3s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+>>>>>>> @stamp
 - `dev/check.sh lint` ~6.3s, statix, deadnix and shellcheck
 - `dev/check.sh docs` ~2.1s, the references of the docs (`o11n-dev refs check`)
 - `dev/check.sh parts` ~0.2s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)

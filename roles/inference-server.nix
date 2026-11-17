@@ -1,4 +1,3 @@
-# roles/inference-server.nix
 {
   flake.nixosModules.inference-server =
     {
