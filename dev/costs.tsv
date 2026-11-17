@@ -720,3 +720,7 @@
 2026-11-17T15:47:35Z	container	7.0	e46c0808	dev/check.sh lint
 2026-11-17T15:48:15Z	container	43.8	e46c0808	nix build .#stages.bats
 2026-11-17T15:49:21Z	container	113.6	e46c0808	nix-eval-jobs bats eval
+2026-11-17T16:19:13Z	container	0.1	198145fb	dev/check.sh stamps
+2026-11-17T16:19:15Z	container	2.3	198145fb	dev/check.sh format
+2026-11-17T16:19:28Z	container	0.1	198145fb	dev/check.sh stamps
+2026-11-17T16:19:30Z	container	2.3	198145fb	dev/check.sh format

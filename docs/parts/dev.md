@@ -15,7 +15,11 @@ clone.
 and which failed, on a terminal each as it ends, with what it took, and in a git checkout logs each to
 `dev/state/logs/<stage>.log`, and how it ended to `dev/state/logs/<stage>.json`, which the hooks read:
 
+<<<<<<< signed
 - `dev/check.sh stamps` ~0.2s, every conflict marker a stamp's
+=======
+- `dev/check.sh stamps` ~0.1s, every conflict marker a stamp's
+>>>>>>> @stamp
 - `dev/check.sh pending` ~0.2s, what is left to stamp
 - `dev/check.sh stamped` ~0.3s, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as
   `dev/write.sh` stamps it
