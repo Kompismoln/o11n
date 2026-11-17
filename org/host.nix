@@ -202,7 +202,7 @@ in
     network = lib.mkOption {
       description = "networks to configure on host";
       default = { };
-      type = lib.types.attrsOf context.types.network.module;
+      type = lib.types.attrsOf (context.types.network.module config);
     };
     disk-layouts = lib.mkOption {
       description = "record of disk layouts that applies to host";

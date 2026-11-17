@@ -29,17 +29,27 @@ without `openwrt`, fail evaluation.
 dmz = "pelle"
 
 [host.pelle]
+id = 9
 behind = "windsor"
-network.eth = { interface = "enp5s0", mode = "dhcp", suffix = "::fba", address4 = "192.168.1.19" }
+network.eth = { interface = "enp5s0", mode = "dhcp" }
+network.wifi = { interface = "wlp4s0", mode = "dhcp", metric = 2048 }
 ```
 
 Its `address4` and `prefixLength4`, by default OpenWrt's `192.168.1.1` and 24, are its address on its lan, where `o11n`
-reaches it when its name doesn't answer, as a router on no vpn. From the hosts behind it, o11n derives:
+reaches it when its name doesn't answer, as a router on no vpn.
 
-- `lan`, for each of them, the network the router reaches it on: its one network with a `suffix`, which has an
-  `address4` in the router's lan, or evaluation fails; the router reserves the `address4` for it by DHCP
+A host behind it is on its lan on its network with `lan`, by default its dhcp network with the lowest metric where one
+network has it (`org/network.nix`): pelle's eth above. That network's `address4` and `suffix` are by default 10 past the
+host's id, `192.168.1.19` and `::19` for pelle, clear of the router's address and of OpenWrt's DHCP pool; either can be
+set as any other. From the hosts behind it, o11n derives:
+
+- `lan`, for each of them, its network with `lan`, whose `address4` is in the router's lan, neither the router's nor its
+  first or last, or evaluation fails; the router reserves the `address4` for it by DHCP
 - `forwards`, each port it listens on for its vpns (`docs/parts/vpns.md`), which the router forwards to it on IPv4 and
   lets in on IPv6 to its suffix in whatever prefix
+- `exposes`, the same for the web, ports 80 and 443, to each host behind it that serves the web, as an app of a kind on
+  an app-scheduler does, or a nix-remote or remote-builder-relay; on IPv4 to `web` alone, by default the one host that
+  does, as one address has each port once, or evaluation fails while two do; and for a torrent-server's `peerPort`
 - with a `dmz`, a host behind it or evaluation fails, all else on IPv4 forwarded to the dmz, after the forwards.
 
 ### GleSYS

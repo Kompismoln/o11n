@@ -665,6 +665,165 @@ in
     expected = true;
   };
 
+  # Policy: a host behind the router is on its dhcp network with the lowest metric there, 10 past its id, unless it
+  # says otherwise.
+  test_router_derives =
+    let
+      epsilon = network: {
+        host.epsilon = {
+          id = 6;
+          roles = [ ];
+          vpns = [ ];
+          users = [ ];
+          system = "x86_64-linux";
+          behind = "windsor";
+          inherit network;
+        };
+      };
+      lanOf =
+        change:
+        let
+          tried = builtins.tryEval (
+            builtins.deepSeq (alter change).org.host.windsor.router.lan.epsilon (alter change)
+            .org.host.windsor.router.lan.epsilon
+          );
+        in
+        if tried.success then { inherit (tried.value) interface suffix address4; } else null;
+      eth = {
+        interface = "eth0";
+        mode = "dhcp";
+      };
+      wifi = {
+        interface = "wlan0";
+        mode = "dhcp";
+      };
+    in
+    {
+      expr = {
+        lowest = lanOf (epsilon {
+          inherit eth;
+          wifi = wifi // {
+            metric = 2048;
+          };
+        });
+        tied = lanOf (epsilon {
+          inherit eth wifi;
+        });
+        chosen = lanOf (epsilon {
+          inherit eth;
+          wifi = wifi // {
+            lan = true;
+          };
+        });
+        given = lanOf (epsilon {
+          eth = eth // {
+            suffix = "::e";
+            address4 = "192.168.1.99";
+          };
+        });
+        outside = lanOf (
+          lib.recursiveUpdate (epsilon { inherit eth; }) { host.windsor.router.prefixLength4 = 29; }
+        );
+      };
+      expected = {
+        lowest = {
+          interface = "eth0";
+          suffix = "::16";
+          address4 = "192.168.1.16";
+        };
+        tied = null;
+        chosen = {
+          interface = "wlan0";
+          suffix = "::16";
+          address4 = "192.168.1.16";
+        };
+        given = {
+          interface = "eth0";
+          suffix = "::e";
+          address4 = "192.168.1.99";
+        };
+        outside = null;
+      };
+    };
+
+  # Policy: the router lets in to each host behind it that serves the web ports 80 and 443, on IPv4 to one alone, and
+  # to a torrent-server its peer port, both on IPv4 and on IPv6 by the suffix.
+  test_router_exposes =
+    let
+      served = {
+        role.builder.services = [ "nix-remote" ];
+        role.seeder.services = [ "torrent-server" ];
+        service.nix-remote.id = 20;
+        service.torrent-server = {
+          id = 21;
+          hosts.beta.peerPort = 51500;
+        };
+        host.alpha.roles = [ "builder" ];
+        host.beta.roles = [
+          "builder"
+          "seeder"
+        ];
+      };
+      rules =
+        change:
+        let
+          tried = builtins.tryEval (
+            let
+              firewall = (alter change).org.host.windsor.openwrt.changes.firewall;
+            in
+            builtins.deepSeq firewall (
+              lib.filter (
+                line:
+                (lib.hasInfix "_web" line || lib.hasInfix "_torrent" line)
+                && (
+                  lib.hasInfix "=redirect" line
+                  || lib.hasInfix "=rule" line
+                  || lib.hasInfix "dest_ip" line
+                  || lib.hasInfix "dest_port" line
+                )
+              ) (lib.splitString "\n" firewall)
+            )
+          );
+        in
+        if tried.success then tried.value else null;
+    in
+    {
+      expr = {
+        both = rules served;
+        web = rules (lib.recursiveUpdate served { host.windsor.router.web = "alpha"; });
+        notBehind = rules (lib.recursiveUpdate served { host.windsor.router.web = "gamma"; });
+      };
+      expected = {
+        both = null;
+        web = [
+          "uci set 'firewall.o11n_alpha_web_80=redirect'"
+          "uci set 'firewall.o11n_alpha_web_80.dest_ip=192.168.1.11'"
+          "uci set 'firewall.o11n_alpha_web_80.dest_port=80'"
+          "uci set 'firewall.o11n_alpha_web_443=redirect'"
+          "uci set 'firewall.o11n_alpha_web_443.dest_ip=192.168.1.11'"
+          "uci set 'firewall.o11n_alpha_web_443.dest_port=443'"
+          "uci set 'firewall.o11n_alpha_web_6=rule'"
+          "uci set 'firewall.o11n_alpha_web_6.dest_ip=::a/::ffff:ffff:ffff:ffff'"
+          "uci -q delete firewall.o11n_alpha_web_6.dest_port || :"
+          "uci add_list 'firewall.o11n_alpha_web_6.dest_port=80'"
+          "uci add_list 'firewall.o11n_alpha_web_6.dest_port=443'"
+          "uci set 'firewall.o11n_beta_web_6=rule'"
+          "uci set 'firewall.o11n_beta_web_6.dest_ip=::b/::ffff:ffff:ffff:ffff'"
+          "uci -q delete firewall.o11n_beta_web_6.dest_port || :"
+          "uci add_list 'firewall.o11n_beta_web_6.dest_port=80'"
+          "uci add_list 'firewall.o11n_beta_web_6.dest_port=443'"
+          "uci set 'firewall.o11n_beta_torrent_51500=redirect'"
+          "uci set 'firewall.o11n_beta_torrent_51500.dest_ip=192.168.1.12'"
+          "uci set 'firewall.o11n_beta_torrent_51500.dest_port=51500'"
+          "uci set 'firewall.o11n_beta_torrent_6=rule'"
+          "uci set 'firewall.o11n_beta_torrent_6.dest_ip=::b/::ffff:ffff:ffff:ffff'"
+          "uci -q delete firewall.o11n_beta_torrent_6.dest_port || :"
+          "uci add_list 'firewall.o11n_beta_torrent_6.dest_port=51500'"
+        ];
+        notBehind = null;
+      };
+    };
+
   test_router_refuses = {
     expr =
       let

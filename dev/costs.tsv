@@ -698,3 +698,10 @@
 2026-11-17T13:22:37Z	container	5.3	cd124b68	dev/check.sh lint
 2026-11-17T13:23:14Z	container	37.7	cd124b68	nix build .#stages.bats
 2026-11-17T13:24:01Z	container	89.3	cd124b68	nix-eval-jobs bats eval
+2026-11-17T13:31:21Z	container	0.1	cd124b68	dev/check.sh stamps
+2026-11-17T13:31:21Z	container	0.2	cd124b68	dev/check.sh parts
+2026-11-17T13:31:22Z	container	1.3	cd124b68	dev/check.sh docs
+2026-11-17T13:31:24Z	container	3.6	cd124b68	dev/check.sh format
+2026-11-17T13:31:25Z	container	4.5	cd124b68	dev/check.sh index
+2026-11-17T13:31:26Z	container	4.8	cd124b68	dev/check.sh lint
+2026-11-17T13:33:17Z	container	116.3	cd124b68	nix-eval-jobs bats eval

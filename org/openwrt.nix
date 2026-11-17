@@ -202,6 +202,42 @@ let
           target = "ACCEPT";
         })
       ]) router.forwards
+      ++ lib.concatMap (
+        exposed:
+        let
+          named = "${exposed.host}_${exposed.name}";
+        in
+        lib.optionals exposed.ipv4 (
+          map (
+            port:
+            section (o11nName "${named}_${toString port}") {
+              _type = "redirect";
+              name = "${exposed.host}-${exposed.name}-${toString port}";
+              src = "wan";
+              dest = "lan";
+              inherit (exposed) proto;
+              src_dport = port;
+              dest_ip = (lan exposed.host).address4;
+              dest_port = port;
+              family = "ipv4";
+              target = "DNAT";
+            }
+          ) exposed.ports
+        )
+        ++ [
+          (section (o11nName "${named}_6") {
+            _type = "rule";
+            name = "${exposed.host}-${exposed.name}-ipv6";
+            src = "wan";
+            dest = "lan";
+            inherit (exposed) proto;
+            dest_ip = "${(lan exposed.host).suffix}/::ffff:ffff:ffff:ffff";
+            dest_port = exposed.ports;
+            family = "ipv6";
+            target = "ACCEPT";
+          })
+        ]
+      ) router.exposes
       ++ lib.optional (router.dmz != null) (
         section (o11nName "dmz") {
           _type = "redirect";
