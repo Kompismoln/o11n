@@ -103,7 +103,7 @@ h2 {
 }
 
 .brand img {
-  height: 2rem;
+  height: var(--logo-height, 2rem);
   width: auto;
 }
 

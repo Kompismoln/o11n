@@ -20,7 +20,7 @@
   <link rel="icon" href="{{ org.logo }}">
   {%- endif %}
   <link rel="stylesheet" href="/portal.css">
-  <style>:root { --accent: {{ org.accent | safe }}; }</style>
+  <style>:root { --accent: {{ org.accent | safe }}; --logo-height: {{ org.logoHeight | safe }}; }</style>
   {%- if org.auth %}
   <script type="application/json" id="auth-config">{{ org.auth | json_encode() | safe }}</script>
   <script type="module" src="/auth.js"></script>

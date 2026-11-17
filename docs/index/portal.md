@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # `portal`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
@@ -56,6 +54,14 @@ Default: `null`
 
 the logo the site shows, by the path of a file in the org, or null
 
+### `app.<portal>.logoHeight`
+
+`org/apps/portal.nix` · string
+
+Default: `"2rem"`
+
+the height of the logo in the site's header, as CSS takes it
+
 ### `app.<portal>.realm`
 
 `org/apps/portal.nix` · string
@@ -71,4 +77,3 @@ the keycloak realm of the site's client
 Default: `[ ]`
 
 the apps the site lists, in its order, each described in the content's front matter, under extra.services.<app>
->>>>>>> @stamp

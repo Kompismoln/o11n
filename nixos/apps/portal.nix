@@ -47,7 +47,7 @@ let
     inherit (org) name contact;
     logo =
       if app.logo == null then null else "/logo.${lib.last (lib.splitString "." (baseNameOf app.logo))}";
-    inherit (app) accent;
+    inherit (app) accent logoHeight;
     services = map (name: {
       inherit name;
       inherit (org.app.${name}) url kind;

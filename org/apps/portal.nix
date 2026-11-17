@@ -30,6 +30,11 @@
       default = null;
       example = "assets/logo.svg";
     };
+    logoHeight = lib.mkOption {
+      description = "the height of the logo in the site's header, as CSS takes it";
+      type = lib.types.str;
+      default = "2rem";
+    };
     accent = lib.mkOption {
       description = "the site's accent color, as CSS takes it";
       type = lib.types.str;

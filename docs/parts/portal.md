@@ -40,7 +40,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
 - Each section of the start page is in the header, by its title. One with `extra.on_index = <n>` has its first `n` pages
   on the start page too, as a blog's latest posts with `sort_by = "date"`.
 - Each language has its feed, of the pages with a `date`, at `atom.xml` there.
-- `logo`, a file in the org, is in the header and the site's icon, and `accent`, a CSS color, its buttons and links'.
+- `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
+  buttons and links'.
 - o11n has the site's templates, style and script (`nixos/apps/portal/`), and a page that isn't there is the site's
   `404.html`.
 
