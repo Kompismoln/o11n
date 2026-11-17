@@ -10,6 +10,7 @@ let
     blog
     calendar
     cloud
+    www
     ;
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
   inherit (shared)
@@ -32,6 +33,7 @@ let
         ${nodes.web.networking.primaryIPAddress} = [
           auth.endpoint
           cloud.endpoint
+          www.endpoint
         ];
       };
       security.pki.certificateFiles = [ "${tls}/ca.crt" ];
@@ -56,6 +58,61 @@ let
         pkgs
         ;
     };
+
+  portal =
+    {
+      lib,
+      org,
+      pkgs,
+      ...
+    }:
+    import ../../nixos/apps/portal.nix {
+      app = www;
+      inherit lib org pkgs;
+    };
+
+  # Fact: a visitor's browser, which runs the portal's script as it would, with nothing of the test's in between.
+  visitor =
+    pkgs.writers.writePython3Bin "visitor"
+      {
+        libraries = [ pkgs.python3Packages.playwright ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import json
+        import sys
+        from playwright.sync_api import sync_playwright
+
+        said = {}
+        with sync_playwright() as p:
+            # Accommodating for the inventory's portal, at http, where a browser has no WebCrypto, which PKCE takes,
+            # unless the origin is taken as secure.
+            browser = p.chromium.launch(channel="chromium", args=["--unsafely-treat-insecure-origin-as-secure=${www.url}"])
+            # Accommodating for Chromium, which trusts its own store rather than the test's CA in the system's bundle.
+            page = browser.new_page(ignore_https_errors=True)
+            page.on("pageerror", lambda error: print("pageerror:", error, file=sys.stderr))
+            page.set_default_timeout(15000)
+            page.goto("${www.url}/en/blog/")
+            page.click('[data-auth="login"]')
+            page.fill("#username", "alice")
+            page.fill("#password", sys.argv[1])
+            page.click("#kc-login")
+            page.wait_for_selector('[data-auth="name"]', state="visible")
+            said["returned"] = page.url
+            said["name"] = page.text_content('[data-auth="name"]')
+            page.goto("${cloud.url}/login")
+            page.wait_for_url("${cloud.url}/apps/**")
+            said["sso"] = page.url
+            page.goto("${www.url}/en/blog/")
+            page.click('[data-auth="logout"]')
+            page.wait_for_selector('[data-auth="login"]', state="visible")
+            said["logged_out"] = page.url
+            page.click('[data-auth="login"]')
+            page.wait_for_selector("#username")
+            said["asked_again"] = page.url.startswith("${auth.url}/realms/")
+            browser.close()
+        print(json.dumps(said))
+      '';
 in
 pkgs.testers.runNixOSTest {
   name = "o11n-keycloak";
@@ -96,6 +153,7 @@ pkgs.testers.runNixOSTest {
           ../../nixos/org/mail.nix
           ../../nixos/apps/keycloak.nix
           nextcloud
+          portal
           (principal cloud)
           (principal org.user.alice)
           (principal blog)
@@ -138,8 +196,10 @@ pkgs.testers.runNixOSTest {
         environment.systemPackages = [
           o11n
           pkgs.jq
+          visitor
         ];
-        virtualisation.memorySize = 3072;
+        environment.variables.PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+        virtualisation.memorySize = 4096;
         virtualisation.cores = 2;
       };
   };
@@ -262,6 +322,13 @@ pkgs.testers.runNixOSTest {
         assert landed.startswith("${cloud.url}/") and "/apps/files" in landed and "user_oidc" not in landed, landed
         users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
         assert list(users) == ["alice"] and users["alice"]["backend"] == "user_oidc", users
+
+    with subtest("the portal logs in with its client and back to where it was, which logs in the realm's other apps"):
+        said = json.loads(web.succeed("visitor \"alice's\""))
+        assert said["returned"] == "${www.url}/en/blog/", said
+        assert said["name"] == "Alice Example", said
+        assert said["sso"].startswith("${cloud.url}/apps/"), said
+        assert said["logged_out"] == "${www.url}/en/blog/" and said["asked_again"], said
 
     with subtest("a Keycloak user without storages logs in, writes nothing, and logs out"):
         carol = {

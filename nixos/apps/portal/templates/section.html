@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="wrap">
+  <h1>{{ section.title }}</h1>
+  {%- if section.content %}
+  <div class="prose">{{ section.content | safe }}</div>
+  {%- endif %}
+  <ul class="posts">
+    {%- for post in section.pages %}
+    <li>
+      <a href="{{ post.permalink | safe }}">{{ post.title }}</a>
+      {%- if post.date %}<time datetime="{{ post.date }}">{{ post.date | date(format="%Y-%m-%d") }}</time>{% endif %}
+      {%- if post.description %}<p>{{ post.description }}</p>{% endif %}
+    </li>
+    {%- endfor %}
+  </ul>
+</section>
+{% endblock content %}

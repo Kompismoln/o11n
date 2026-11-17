@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="wrap">
+  <h1>404</h1>
+  <p>{{ trans(key="not_found", lang=lang) }}</p>
+  <p><a href="/">{{ trans(key="home", lang=lang) }}</a></p>
+</section>
+{% endblock content %}

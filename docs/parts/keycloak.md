@@ -22,9 +22,10 @@ included.
   reads a role.
 - An app whose kind derives a client, as jitsi does (`org/apps/jitsi.nix`), has it in the realm it names, of the
   keycloak it names, which keeps it as it keeps a realm: made when it's missing, and put over what it was, by its
-  `clientId`, leaving what isn't declared of it be. The keycloak fails evaluation for a client in a realm it doesn't
-  keep. Jitsi's is public, with PKCE, and redirects to its `/static/sso.html`, which its sign-in reads from the same
-  client (`nixos/apps/jitsi.nix`).
+  `clientId`, leaving what isn't declared of it be. A portal's is public too, with PKCE, and returns to any of the
+  portal's pages (`docs/parts/portal.md`). The keycloak fails evaluation for a client in a realm it doesn't keep.
+  Jitsi's is public, with PKCE, and redirects to its `/static/sso.html`, which its sign-in reads from the same client
+  (`nixos/apps/jitsi.nix`).
 - A confidential client has a secret, its app's `oidc-secret`, which the keycloak's host decrypts and puts as the
   client's. A drive's is one, with its `keycloak` and `realm` (`org/apps/drive.nix`), and a photos app's
   (`org/apps/photos.nix`).

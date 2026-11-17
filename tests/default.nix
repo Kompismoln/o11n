@@ -240,6 +240,29 @@ let
 
   # Policy: a WordPress site's server, as the host's nginx runs it, passes WordPress's entry points to PHP, which isn't
   # there to answer (502), and denies PHP it only includes, PHP in uploads and dotfiles (403).
+  # Policy: the portal lists the apps it names, in its order, described in each language, and logs in with the client
+  # its keycloak keeps.
+  portalChecks.eval-portal-mail =
+    let
+      inherit (inventories.mail.nixosConfigurations.web) config;
+    in
+    pkgs.runCommand "eval-portal-mail"
+      {
+        nativeBuildInputs = [ pkgs.jq ];
+        site = config.services.nginx.virtualHosts."www.example.com".root;
+        clients = config.systemd.services.keycloak-realms.environment.CLIENTS;
+      }
+      ''
+        listed() { grep -o 'card-\(title\|url\)">[^<]*' "$site/$1" | cut -d'>' -f2 | tr '\n' ' '; }
+        [[ $(listed index.html) == "Moln cloud.example.com Möten meet.example.com auth auth.example.com " ]]
+        [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com " ]]
+        grep -qF '"clientId":"www","issuer":"http://auth.example.com/realms/example"' "$site/index.html"
+        grep -qF 'href="http://www.example.com/en/blog/first/"' "$site/en/index.html"
+        jq -e '.[] | select(.representation.clientId == "www") | .realm == "example" and .representation.publicClient
+          and .representation.redirectUris == ["http://www.example.com/*"]' <<<"$clients"
+        touch $out
+      '';
+
   nginxChecks.eval-nginx-wordpress =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -396,6 +419,7 @@ in
     // openwrtChecks
     // fail2banChecks
     // nginxChecks
+    // portalChecks
     // systemChecks;
 }
 // lib.mapAttrs (name: check: if lib.isDerivation check then { ${name} = check; } else check) (

@@ -116,6 +116,19 @@ keycloak = "auth"
 realm = "example"
 roots.alice = "store-box"
 
+# Fact: a portal whose public client auth keeps, which lists the apps with an endpoint.
+[app.www]
+id = 6
+endpoint = "www.example.com"
+ssl = false
+run-on-hosts = ["web"]
+principal.hasPublicKey = false
+kind = "portal"
+logo = "site-logo.svg"
+keycloak = "auth"
+realm = "example"
+services = ["cloud", "meet", "auth"]
+
 [store.box]
 id = 0
 smb = { host = "mx.example.com", share = "alice", login = "alice" }

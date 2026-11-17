@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+{%- set org = config.extra -%}
+<section class="hero">
+  <div class="wrap">
+    <h1>{{ section.title }}</h1>
+    {%- if section.description %}
+    <p class="lead">{{ section.description }}</p>
+    {%- endif %}
+    <div class="prose">{{ section.content | safe }}</div>
+  </div>
+</section>
+{%- if org.services %}
+<section class="wrap" id="services">
+  <h2>{{ trans(key="services", lang=lang) }}</h2>
+  <ul class="cards">
+    {%- set described = section.extra.services | default(value=[]) %}
+    {%- for service in org.services %}
+    {%- if service.name in described %}{% set about = described[service.name] %}{% else %}{% set about = [] %}{% endif %}
+    <li class="card">
+      <a href="{{ service.url }}">
+        <span class="card-title">{{ about.title | default(value=service.name) }}</span>
+        {%- if about.text %}
+        <span class="card-text">{{ about.text }}</span>
+        {%- endif %}
+        <span class="card-url">{{ service.url | replace(from="https://", to="") | replace(from="http://", to="") }}</span>
+      </a>
+    </li>
+    {%- endfor %}
+  </ul>
+</section>
+{%- endif %}
+{%- for path in section.subsections %}
+{%- set sub = get_section(path=path) %}
+{%- if sub.extra.on_index and sub.pages %}
+<section class="wrap">
+  <h2>{{ sub.title }}</h2>
+  <ul class="posts">
+    {%- for post in sub.pages %}
+    {%- if loop.index <= sub.extra.on_index %}
+    <li>
+      <a href="{{ post.permalink | safe }}">{{ post.title }}</a>
+      {%- if post.date %}<time datetime="{{ post.date }}">{{ post.date | date(format="%Y-%m-%d") }}</time>{% endif %}
+      {%- if post.description %}<p>{{ post.description }}</p>{% endif %}
+    </li>
+    {%- endif %}
+    {%- endfor %}
+  </ul>
+  <p><a href="{{ sub.permalink | safe }}">{{ sub.title }} →</a></p>
+</section>
+{%- endif %}
+{%- endfor %}
+{% endblock content %}

@@ -118,7 +118,8 @@ canonical name on internet
 
 ### `app.<name>.kind`
 
-`org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mobilizon", "photos", "rolf", "wordpress"
+`org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mobilizon", "photos", "portal", "rolf",
+"wordpress"
 
 Default: `null`
 

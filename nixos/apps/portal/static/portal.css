@@ -1,0 +1,294 @@
+:root {
+  --accent: #2563eb;
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --text: #1c1917;
+  --muted: #57534e;
+  --line: #e7e5e4;
+  --radius: 14px;
+  --width: 64rem;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0a09;
+    --surface: #1c1917;
+    --text: #f5f5f4;
+    --muted: #a8a29e;
+    --line: #292524;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: Inter, Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  margin: 0 0 0.5em;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin: 2.5rem 0 1rem;
+}
+
+.bar,
+.wrap {
+  max-width: var(--width);
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.site-header {
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.site-header .bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-height: 4rem;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand img {
+  height: 2rem;
+  width: auto;
+}
+
+.nav {
+  display: flex;
+  gap: 1.25rem;
+  flex: 1;
+}
+
+.nav a,
+.tools a {
+  text-decoration: none;
+  color: var(--muted);
+}
+
+.nav a:hover,
+.tools a:hover {
+  color: var(--accent);
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.95rem;
+}
+
+.auth .who {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.button {
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+}
+
+.button:hover {
+  filter: brightness(1.1);
+}
+
+.link {
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.link:hover {
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.hero {
+  padding: clamp(3rem, 10vw, 6rem) 0 2rem;
+  background: radial-gradient(60rem 24rem at 10% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
+}
+
+.lead {
+  font-size: 1.25rem;
+  color: var(--muted);
+  max-width: 40rem;
+}
+
+.prose {
+  max-width: 42rem;
+}
+
+.prose img {
+  max-width: 100%;
+}
+
+.prose pre {
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.prose code {
+  font-family: "Source Code Pro", ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+.cards {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+.card a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  height: 100%;
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-decoration: none;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+
+.card a:hover {
+  border-color: var(--accent);
+  color: inherit;
+  transform: translateY(-2px);
+}
+
+.card-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.card-text {
+  color: var(--muted);
+  flex: 1;
+}
+
+.card-url {
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
+}
+
+.posts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.posts li {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.posts a {
+  font-weight: 600;
+}
+
+.posts time {
+  margin-left: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.posts p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.site-footer {
+  margin-top: 4rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-footer .bar {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+[hidden] {
+  display: none !important;
+}
