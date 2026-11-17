@@ -140,7 +140,7 @@ fn failed(error: &Error) -> Outcome {
 }
 
 impl Org {
-    pub fn reached(&self, host: &str) -> Result<String, Outcome> {
+    fn reached(&self, host: &str) -> Result<String, Outcome> {
         let id = format!("host-{host}");
         self.reachable(self.entity(&id).map_err(|error| failed(&error))?)?;
         Ok(id)

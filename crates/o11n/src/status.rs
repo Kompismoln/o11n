@@ -5,11 +5,11 @@ use std::sync::{Mutex, mpsc};
 use crate::Error;
 use crate::builder::Builder;
 use crate::dns;
-use crate::export::{Entity, Smb};
+use crate::export::Entity;
 use crate::keys::Kind;
 use crate::ssh;
 use crate::store::{Org, Secret};
-use crate::util::{self, TempDir, run};
+use crate::util::{self, TempDir};
 
 // Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>, on this port.
 const SUBMISSION: u16 = 587;
@@ -58,9 +58,6 @@ pub enum Check {
     TorrentServer,
     MediaServer(String),
     MediaArr(String, &'static str),
-    Smb,
-    SmbRoot(String),
-    SmbReach(String),
 }
 
 impl Check {
@@ -100,9 +97,6 @@ impl Check {
             Self::TorrentServer => "torrent-server".into(),
             Self::MediaServer(name) => format!("media-server {name}"),
             Self::MediaArr(name, app) => format!("media-server {name} {app}"),
-            Self::Smb => "smb".into(),
-            Self::SmbRoot(path) => format!("smb-root {path}"),
-            Self::SmbReach(host) => format!("smb-reach {host}"),
         }
     }
 }
@@ -350,11 +344,6 @@ impl Org {
         if let Some(url) = &entity.url {
             checks.push(Check::Url(url.clone()));
         }
-        if let Some(smb) = &entity.smb {
-            checks.push(Check::Smb);
-            checks.extend(smb.roots.iter().map(|path| Check::SmbRoot(path.clone())));
-            checks.extend(smb.hosts.iter().map(|host| Check::SmbReach(host.clone())));
-        }
         if let (Some(keycloak), Some(mail)) = (&entity.keycloak, &entity.mail)
             && mail.send
         {
@@ -434,7 +423,21 @@ impl Org {
             Check::TorrentServer => self.torrent_server_outcome(id, entity)?,
             Check::MediaServer(name) => self.media_server_outcome(entity, name)?,
             Check::MediaArr(name, app) => self.media_arr_outcome(entity, name, app)?,
-            Check::NixDaemon => Self::nix_daemon_outcome(id, entity)?,
+            Check::NixDaemon => {
+                let endpoint = Self::endpoint(id, entity).map_err(fail)?;
+                // Fact: 401 is the builder's nginx refusing a request without the bearer, and 404 its gost, where a
+                // proxy adds the bearer, as a Claude session's does.
+                fails(
+                    Builder::new(endpoint, None)
+                        .probe()
+                        .and_then(|answer| match answer.as_str() {
+                            "401" | "404" => Ok(()),
+                            answer => Err(Error::new(format!(
+                                "https://{endpoint}/nix-daemon/probe answers {answer}, not 401 or 404"
+                            ))),
+                        }),
+                )
+            }
             Check::NixStore => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;
                 let token = self.builder_token(endpoint)?;
@@ -462,9 +465,6 @@ impl Org {
             Check::Openwrt => self.openwrt_outcome(id, entity)?,
             Check::Lan(host) => self.lan_outcome(id, entity, host)?,
             Check::Glesys(record) => self.glesys_outcome(id, entity, record)?,
-            Check::Smb => self.smb_outcome(id, entity, "ls")?,
-            Check::SmbRoot(path) => self.smb_outcome(id, entity, &format!("cd \"{path}\""))?,
-            Check::SmbReach(host) => self.smb_reach_outcome(entity, host)?,
         })
     }
 
@@ -872,89 +872,6 @@ impl Org {
             curl.arg("-K").arg(config);
         }
         curled(curl.stdin(std::process::Stdio::null())).map(|_| ())
-    }
-
-    fn nix_daemon_outcome(id: &str, entity: &Entity) -> Result<Outcome, Outcome> {
-        let endpoint = Self::endpoint(id, entity).map_err(|error| Outcome::Fail(error.to_string()))?;
-        // Fact: 401 is the builder's nginx refusing a request without the bearer, and 404 its gost, where a
-        // proxy adds the bearer, as a Claude session's does.
-        Ok(fails(Builder::new(endpoint, None).probe().and_then(
-            |answer| match answer.as_str() {
-                "401" | "404" => Ok(()),
-                answer => Err(Error::new(format!(
-                    "https://{endpoint}/nix-daemon/probe answers {answer}, not 401 or 404"
-                ))),
-            },
-        )))
-    }
-
-    fn smb_outcome(&self, id: &str, entity: &Entity, command: &str) -> Result<Outcome, Outcome> {
-        let smb = entity.smb.as_ref().ok_or_else(|| Outcome::Skip("no smb".into()))?;
-        // Policy: o11n doesn't carry samba, which is several hundred MiB, for these alone.
-        if !std::env::var_os("PATH")
-            .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join("smbclient").is_file()))
-        {
-            return Err(Outcome::Skip("smbclient isn't on PATH: nix shell nixpkgs#samba".into()));
-        }
-        let password = needs(self.required(Secret {
-            id,
-            key: "smb-password",
-            slot: 0,
-        }))?;
-        Ok(fails(Self::smbclient(smb, &password, command)))
-    }
-
-    // Policy: a share is reachable from a host that mounts it when the host connects to the server's port 445, before
-    // the host has what the mount needs.
-    fn smb_reach_outcome(&self, entity: &Entity, host: &str) -> Result<Outcome, Outcome> {
-        let smb = entity.smb.as_ref().ok_or_else(|| Outcome::Skip("no smb".into()))?;
-        let id = self.reached(host)?;
-        let acting = needs(self.acting("service-rescue"))?;
-        let mut ssh = self
-            .pinned_ssh(&id, "root", acting.command("ssh"))
-            .map_err(|error| Outcome::Fail(error.to_string()))?;
-        let server = smb.host.replace('\'', r"'\''");
-        Ok(fails(
-            run(
-                ssh.command
-                    .args(["timeout", "20", "bash", "-c", "': </dev/tcp/\"$0\"/445'"])
-                    .arg(format!("'{server}'")),
-                None,
-            )
-            .map(|_| ())
-            .map_err(|error| match error.to_string().trim() {
-                "ssh:" => Error::new(format!(
-                    "{} doesn't answer on port 445 from {host} within 20 seconds",
-                    smb.host
-                )),
-                _ => error,
-            }),
-        ))
-    }
-
-    // Dependency: nixos/apps/drive.nix and nixos/apps/photos.nix mount a share over SMB 3.1.1, sealed; -s /dev/null
-    // keeps the operator's own smb.conf out of it.
-    fn smbclient(smb: &Smb, password: &str, command: &str) -> Result<(), Error> {
-        let temp = TempDir::new()?;
-        let auth = temp.file("smb", &format!("username = {}\npassword = {password}\n", smb.login))?;
-        run(
-            Command::new("smbclient")
-                .arg(format!("//{}/{}", smb.host, smb.share))
-                .args([
-                    "-s",
-                    "/dev/null",
-                    "-m",
-                    "SMB3",
-                    "--client-protection=encrypt",
-                    "-t",
-                    "20",
-                    "-A",
-                ])
-                .arg(auth)
-                .args(["-c", command]),
-            None,
-        )
-        .map(|_| ())
     }
 
     pub fn status(&self, groups: &[String], list: bool, failed_only: bool) -> Result<(), Error> {

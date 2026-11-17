@@ -60,10 +60,6 @@ root)
 		fi
 		;;
 	systemctl) cat "$BATS_TEST_TMPDIR/trigger-$fqdn" 2>/dev/null || echo ;;
-	timeout)
-		echo "$*" >>"$BATS_TEST_TMPDIR/timeout-$fqdn"
-		[[ ! -e $BATS_TEST_TMPDIR/smb-unreachable-$fqdn ]] || exit 124
-		;;
 	"uname -m;"*)
 		cat "$BATS_TEST_TMPDIR/machine-$fqdn"
 		[[ ! -e $BATS_TEST_TMPDIR/mounted-$fqdn ]] || echo mounted

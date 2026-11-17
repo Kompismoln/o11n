@@ -127,7 +127,7 @@ carol.files = { sftp = { host = "files.example.com", login = "carol", key = "sto
 - An allotment that a replica syncs has two writers, Nextcloud and Syncthing, which nothing coordinates.
 
 A user's root, where the drive keeps their data and these folders' trash and versions, is no allotment's: it's a
-directory of a store's share (`docs/parts/drive.md`).
+directory of a store's share or of a principal's home (`docs/parts/drive.md`).
 
 ## Status
 
