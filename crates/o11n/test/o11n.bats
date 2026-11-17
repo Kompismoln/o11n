@@ -609,6 +609,18 @@ setup() {
   [[ $output == *"host-testhost version fail: host-testhost runs the org's tree sha256-old, not this one's $tree, and o11n sha256-old, not the one the org pins, $pinned: o11n apply host-testhost"* ]]
 }
 
+@test "host facts writes what nixos-facter has on the host, as service-nix-switch, and stages it" {
+  git init -q .
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  o11n identity create service-nix-switch
+  run o11n host facts host-testhost
+  succeeds
+  [[ $output == *"wrote hosts/testhost/facter.json"* ]]
+  [ "$(cat hosts/testhost/facter.json)" = '{"facts of": "testhost.local"}' ]
+  git ls-files --error-unmatch hosts/testhost/facter.json >/dev/null
+}
+
 @test "status tells whether a host boots another kernel than it runs" {
   mock-host testhost
   o11n host pull-ssh-key host-testhost

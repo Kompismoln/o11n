@@ -886,9 +886,9 @@ in
             let
               inherit (alter (lib.recursiveUpdate { store.files.smb = smb; } change)) org;
             in
-            builtins.deepSeq [ org.app.cloud.shares org.app.cloud.adapters ] (
+            builtins.deepSeq [ org.app.cloud.shares org.app.cloud.homes ] (
               map (share: "${share.user} //${share.host}/${share.share}") org.app.cloud.shares
-              ++ map (adapter: "${adapter.user} ${adapter.path}") org.app.cloud.adapters
+              ++ map (home: "${home.user} ${home.path}") org.app.cloud.homes
             )
           );
         in
@@ -973,11 +973,11 @@ in
         app.site = site;
         app.cloud.roots.rolf = "app-site";
       };
-      inherit (altered.org.app.cloud) adapters binds users;
+      inherit (altered.org.app.cloud) homes binds users;
     in
     {
       expr = {
-        inherit adapters binds;
+        inherit homes binds;
         rolf = users.rolf or null;
         site = { inherit (altered.org.app.site) input source; };
         export = {
@@ -985,7 +985,7 @@ in
         };
       };
       expected = {
-        adapters = [
+        homes = [
           {
             user = "rolf";
             path = "${altered.org.app.site.principal.home}/drive";

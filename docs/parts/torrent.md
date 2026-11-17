@@ -35,8 +35,8 @@ which it takes peers on, TCP and UDP, open in the host's firewall (`nixos/servic
   from it as the principal's too, while it reaches nothing else of the principal's
 - a download goes into its directory as it is, a file still downloading by its name with `.part` after it
 - its RPC answers on loopback alone, and its state is in `/var/lib/torrent-server`, where the host keeps it
-- a host behind a router reaches peers that dial it once the router forwards `peerPort` to it, as a `uci` redirect does
-  (`docs/parts/openwrt.md`).
+- a host behind a router reaches peers that dial it on its `peerPort`, which the router forwards to it on IPv4 and lets
+  in on IPv6 (`docs/parts/networks.md`).
 
 Where a download goes is `o11n.torrent-server` of the host's configuration: by default an allotment's `path` for each
 allotment, and the one there is when there's one; the media-server files them in its library (`docs/parts/media.md`).

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "system": "x86_64-linux",
+  "hardware": {
+    "graphics_card": [
+      { "index": 55, "sysfs_bus_id": "0000:00:02.0", "vendor": { "hex": "8086" } },
+      { "index": 34, "sysfs_bus_id": "0000:02:00.0", "vendor": { "hex": "10de" } },
+      { "index": 12, "sysfs_bus_id": "0000:03:00.0", "vendor": { "hex": "1234" } }
+    ],
+    "monitor": [{ "attached_to": 34 }]
+  }
+}

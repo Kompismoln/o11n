@@ -391,6 +391,9 @@ enum HostCommand {
     },
     /// Writes the ssh-key the host answers with as its public key.
     PullSshKey { id: String },
+    /// Writes the host's facts as hosts/<host>/facter.json, as nixos-facter has them on the host, run there as root
+    /// by service-nix-switch.
+    Facts { id: String },
 }
 
 #[derive(Debug)]
@@ -579,6 +582,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             HostCommand::Push { id, key, from } => org.push_to_host(&id, &key, from.read()?)?,
             HostCommand::Revoke { id, key, slot } => org.revoke_on_host(&id, &key, slot)?,
             HostCommand::PullSshKey { id } => org.pull_ssh_key(&id)?,
+            HostCommand::Facts { id } => org.host_facts(&id)?,
         },
         Command::As { id, command } => org.run_as(&id, &command)?,
         Command::Ssh {

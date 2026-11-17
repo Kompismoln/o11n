@@ -122,9 +122,9 @@ let
   };
 
   # Fact: as org/apps/drive.nix derives it for roots.rolf = "app-site", site's home /var/lib/site, at drive.
-  adapts = lib.recursiveUpdate app {
+  homed = lib.recursiveUpdate app {
     users.rolf = true;
-    adapters = [
+    homes = [
       {
         user = "rolf";
         path = "/var/lib/site/drive";
@@ -696,7 +696,7 @@ in
   # the host.
   test_drive_roots_in_a_home =
     let
-      cfg = evalApp adapts app.principal.uid;
+      cfg = evalApp homed app.principal.uid;
       container = cfg.containers.cloud;
       where = "/var/lib/cloud/nextcloud/data/rolf";
     in

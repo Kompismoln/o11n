@@ -36,3 +36,15 @@ A store is what the org keeps outside of its hosts. One with `smb`, a share on a
 smb = { host = "box.example.com", share = "alice", login = "alice" }
 grants = ["host-web"]
 ```
+
+## Graphics
+
+A host's `gpus` are its facter report's graphics cards, by PCI address and vendor, those with the most monitors attached
+first, as the report has a monitor attached to a card (`org/host.nix`):
+
+- a host with an NVIDIA card runs NVIDIA's driver, its open kernel modules at the version `nixos/nvidia.nix` pins, and
+  not nouveau (`nixos/org/system.nix`)
+- on a host with more than one, Hyprland renders on the first, the one the monitors are on, and copies to the others, as
+  udev links each at `/dev/dri/o11n-gpu-<index>` for `AQ_DRM_DEVICES` (`nixos/org/hyprland.nix`)
+- where the first is NVIDIA's, Hyprland draws the cursor itself, as NVIDIA's hardware cursor flickers and screen sharing
+  leaves it out, and VA-API and GLX take NVIDIA's libraries (`home/org/hyprland.nix`).

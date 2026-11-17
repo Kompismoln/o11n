@@ -305,8 +305,8 @@ let
   shares = app.shares or [ ];
   # Policy: a root in an entity's home is its owner's, which the host mounts as the app's user's, and what's written
   # there is written as its owner.
-  adapters = app.adapters or [ ];
-  roots = shares ++ adapters;
+  homes = app.homes or [ ];
+  roots = shares ++ homes;
   contained = [
     app.secrets
   ]
@@ -325,9 +325,11 @@ let
     name = "nextcloud-status-${cfg.name}";
     runtimeInputs = [
       pkgs.coreutils
+      pkgs.gnugrep
       pkgs.jq
       pkgs.nixos-container
       pkgs.util-linux
+      config.systemd.package
     ];
     text = ''
       say() {
@@ -340,7 +342,9 @@ let
     + lib.concatMapStrings (root: ''
       path=${lib.escapeShellArg (dataOf root.user)}
       if ! timeout 20 mountpoint -q "$path"; then
-        say root ${root.user} "$path isn't mounted: systemctl status $path"
+        unit=$(systemd-escape -p --suffix=mount "$path")
+        said=$(journalctl -b -u "$unit" -t mount -o cat --no-pager 2>/dev/null | grep -F 'mount error' | tail -n 1) || said=
+        say root ${root.user} "$path isn't mounted: ''${said:+$said: }systemctl status $path"
       elif ! timeout 20 runuser -u ${cfg.user} -- test -w "$path"; then
         say root ${root.user} "$path isn't writable as ${cfg.user}"
       else
@@ -618,10 +622,10 @@ in
       assertion = builtins.pathExists mount.server.changes.hostKey;
       message = "Nextcloud ${cfg.name} follows what changes in ${mount.user}'s ${mount.mountPoint} on ${mount.server.host} by ssh, verifying its host's ssh-key, which it has none of: o11n host pull-ssh-key on that host.";
     }) followed
-    ++ map (adapter: {
-      assertion = config.users.users ? ${adapter.owner};
-      message = "Nextcloud ${cfg.name} mounts ${adapter.user}'s root from ${adapter.path}, whose owner, ${adapter.owner}, isn't on ${host.name}: run the owner on ${host.name}, or root ${adapter.user} elsewhere.";
-    }) adapters
+    ++ map (home: {
+      assertion = config.users.users ? ${home.owner};
+      message = "Nextcloud ${cfg.name} mounts ${home.user}'s root from ${home.path}, whose owner, ${home.owner}, isn't on ${host.name}: run the owner on ${host.name}, or root ${home.user} elsewhere.";
+    }) homes
     ++ lib.mapAttrsToList (handle: key: {
       assertion = builtins.pathExists key.publicKey;
       message = "Nextcloud ${cfg.name} logs in to an external storage with ${handle}'s sftp-key, which it has none of: o11n secret generate ${handle} sftp-key.";
@@ -641,26 +645,26 @@ in
         "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
         "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
       ]
-      ++ map (adapter: "d '${adapter.path}' 0750 ${adapter.owner} ${adapter.owner} - -") adapters;
+      ++ map (home: "d '${home.path}' 0750 ${home.owner} ${home.owner} - -") homes;
 
-    system.fsPackages = lib.optional (adapters != [ ]) pkgs.bindfs;
+    system.fsPackages = lib.optional (homes != [ ]) pkgs.bindfs;
 
     # Fact: a mount unit with nofail isn't ordered before local-fs.target, so it can follow systemd-tmpfiles-setup,
     # which makes the directories it mounts and mounts in.
-    systemd.mounts = map (adapter: {
-      what = adapter.path;
-      where = dataOf adapter.user;
+    systemd.mounts = map (home: {
+      what = home.path;
+      where = dataOf home.user;
       type = "fuse.bindfs";
       options = lib.concatStringsSep "," [
         "force-user=${cfg.user}"
         "force-group=${cfg.user}"
-        "create-for-user=${adapter.owner}"
-        "create-for-group=${adapter.owner}"
+        "create-for-user=${home.owner}"
+        "create-for-group=${home.owner}"
         "nofail"
       ];
       after = [ "systemd-tmpfiles-setup.service" ];
       wantedBy = [ "multi-user.target" ];
-    }) adapters;
+    }) homes;
 
     systemd.services = {
       # Fact: the container binds each secret's file as it starts, and a switch to another of its values restarts

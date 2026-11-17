@@ -101,6 +101,9 @@ in
         disable_autoreload = true;
       };
 
+      # Fact: a hardware cursor on NVIDIA flickers, and screen sharing leaves it out.
+      cursor.no_hardware_cursors = (lib.head (host.gpus ++ [ { vendor = null; } ])).vendor == "nvidia";
+
       animations = {
         enabled = true;
         animation = [

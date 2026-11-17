@@ -177,12 +177,14 @@ entities
       };
     };
 
-  network.module = lib.types.submoduleWith {
-    modules = [ ./network.nix ];
-    specialArgs = {
-      inherit context;
+  network.module =
+    host:
+    lib.types.submoduleWith {
+      modules = [ ./network.nix ];
+      specialArgs = {
+        inherit context host;
+      };
     };
-  };
 
   mailserver.module = lib.types.submoduleWith {
     modules = [ ./mailserver.nix ];

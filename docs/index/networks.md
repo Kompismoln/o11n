@@ -18,7 +18,7 @@ ipv6 host address (not CIDR)
 
 `org/network.nix` · null or string
 
-Default: `null`
+Default: on the `lan`, 10 past the host's id in its router's lan, or else null
 
 ipv4 host address
 
@@ -83,6 +83,15 @@ Whether to enable onlink for gateway.
 `org/network.nix` · string
 
 interface associated with the network
+
+### `host.<name>.network.<name>.lan`
+
+`org/network.nix` · boolean
+
+Default: for a host `behind` a router, whether this is its dhcp network with the lowest metric, if one network has it
+
+whether the router the host is `behind` reaches it on this network, the one it reserves its `address4` on and forwards
+to
 
 ### `host.<name>.network.<name>.mac`
 
@@ -164,7 +173,7 @@ Whether to enable ipv6 kernel address rotation.
 
 `org/network.nix` · null or string matching the pattern ::[0-9a-f]{1,4}(:[0-9a-f]{1,4}){0,3}
 
-Default: `null`
+Default: on the `lan`, `::` and 10 past the host's id, as the last octet of its `address4` reads, or else null
 
 the ipv6 interface identifier, as ::fba, that a dhcp network forms its address with from the prefix its router
 advertises, rather than asking the router for one; null leaves it to the kernel and the router
@@ -192,6 +201,15 @@ the router's IPv4 address on its lan, which o11n reaches it at where its name do
 Default: `null`
 
 the host behind the router that what isn't forwarded otherwise is forwarded to on IPv4, or null
+
+### `host.<name>.router.exposes`
+
+`org/router.nix` · list of raw value
+
+Default: the web to each host behind the router that serves it, and each torrent-server's peerPort
+
+what the router lets in to the hosts behind it beyond their vpns, each `{ host, name, proto, ports, ipv4 }`: ports 80
+and 443 to each host that serves the web, on IPv4 to `web` alone, and to a torrent-server its peerPort
 
 ### `host.<name>.router.forwards`
 
@@ -236,10 +254,10 @@ the names whose A record is the router's WAN address, each `<name>.<domain>` of 
 
 `org/router.nix` · lazy attribute set of raw value
 
-Default: for each host whose `behind` is the router, its one network with a `suffix`
+Default: for each host whose `behind` is the router, its one network with `lan`
 
-for each host behind the router, the network the router reaches it on: its one network with a `suffix`, which has an
-`address4`
+for each host behind the router, the network the router reaches it on: its one network with `lan`, which has a `suffix`
+and an `address4`
 
 ### `host.<name>.router.prefixLength4`
 
@@ -248,3 +266,12 @@ for each host behind the router, the network the router reaches it on: its one n
 Default: `24`
 
 the prefix length of the router's lan, which each host behind it has its address4 in
+
+### `host.<name>.router.web`
+
+`org/router.nix` · null or impossible (empty enum)
+
+Default: the one host behind the router that serves the web, as an app of a kind on an app-scheduler does, or a
+nix-remote or remote-builder-relay
+
+the host behind the router that it forwards ports 80 and 443 to on IPv4, which one address has but once, or null

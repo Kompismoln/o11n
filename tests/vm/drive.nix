@@ -15,7 +15,7 @@ let
       bob = false;
       rolf = true;
     };
-    adapters = [
+    homes = [
       {
         user = "rolf";
         path = "/var/lib/site/drive";

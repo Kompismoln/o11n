@@ -55,12 +55,14 @@ o11n derives:
   alone, so that it takes none from its WAN whatever its firewall lets in, over what `uci` sets of them
 - `/etc/dropbear/authorized_keys`, the ssh-keys of the host's `users` and service-rescue's, as root on a NixOS host
   takes
-- for a `router`, from its `address4`, `prefixLength4`, `lan`, `forwards` and `dmz`:
+- for a `router`, from its `address4`, `prefixLength4`, `lan`, `forwards`, `exposes` and `dmz`:
   - `network.lan`'s address, `ipaddr`
   - a DHCP reservation, `dhcp.o11n_<host>`, for the host's `mac`, or without one for the name it asks with, which
     networkd sends as the host's
   - for each forward, a redirect on IPv4, `firewall.o11n_<host>_<vpn>`, and a rule on IPv6,
     `firewall.o11n_<host>_<vpn>_6`
+  - for each of `exposes`, a redirect on IPv4 for each of its ports, `firewall.o11n_<host>_<name>_<port>`, where it has
+    `ipv4`, and a rule on IPv6 for all of them, `firewall.o11n_<host>_<name>_6`
   - with a `dmz`, its redirect, `firewall.o11n_dmz`, after the others.
 
 `/etc/o11n/uci` is a script that makes all of the changes, stops at the first that fails, and commits them.

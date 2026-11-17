@@ -64,6 +64,33 @@ in
       default = context.path + "/hosts/${config.name}/facter.json";
       type = lib.types.path;
     };
+    gpus = lib.mkOption {
+      description = "the host's graphics cards, as its facter report has them, each `{ bus, vendor, monitors }`: its PCI address, nvidia, intel, amd or its PCI vendor id, and how many monitors are attached to it";
+      internal = true;
+      readOnly = true;
+      type = lib.types.listOf lib.types.raw;
+      default =
+        let
+          report =
+            if config.hardwareReport == "facter" && builtins.pathExists config.facterFile then
+              (lib.importJSON config.facterFile).hardware or { }
+            else
+              { };
+          vendors = {
+            "10de" = "nvidia";
+            "8086" = "intel";
+            "1002" = "amd";
+          };
+        in
+        lib.sort (one: other: one.monitors > other.monitors) (
+          map (card: {
+            bus = card.sysfs_bus_id;
+            vendor = vendors.${card.vendor.hex} or card.vendor.hex;
+            monitors = lib.count (monitor: monitor.attached_to or null == card.index) (report.monitor or [ ]);
+          }) (report.graphics_card or [ ])
+        );
+      defaultText = lib.literalMD "the `graphics_card`s of the facter report, those with the most monitors attached first";
+    };
     luksKeyFile = lib.mkOption {
       description = "path in the initrd to the key that unlocks the host's luks devices";
       type = lib.types.str;
@@ -202,7 +229,7 @@ in
     network = lib.mkOption {
       description = "networks to configure on host";
       default = { };
-      type = lib.types.attrsOf context.types.network.module;
+      type = lib.types.attrsOf (context.types.network.module config);
     };
     disk-layouts = lib.mkOption {
       description = "record of disk layouts that applies to host";

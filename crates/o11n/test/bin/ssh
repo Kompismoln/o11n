@@ -73,6 +73,7 @@ nix-switch)
 	allotments) cat "$BATS_TEST_TMPDIR/allotments-$fqdn" 2>/dev/null || true ;;
 	databases) cat "$BATS_TEST_TMPDIR/databases-$fqdn" 2>/dev/null || true ;;
 	nextcloud) cat "$BATS_TEST_TMPDIR/nextcloud-$fqdn" 2>/dev/null || true ;;
+	facts) echo "{\"facts of\": \"$fqdn\"}" ;;
 	esac
 	;;
 logs)

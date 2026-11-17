@@ -50,7 +50,22 @@ let
     ''} $out/flake.nix
   '';
 
-  orgExport = pkgs.writeText "org-export.json" (builtins.toJSON outputs.org.export);
+  # Accommodating for the sample, which has no other and stranded: each is web under its name, as the routes reach web
+  # for them.
+  orgExport = pkgs.writeText "org-export.json" (
+    builtins.toJSON (
+      outputs.org.export
+      // {
+        entities =
+          outputs.org.export.entities
+          // lib.listToAttrs (
+            map (
+              name: lib.nameValuePair "host-${name}" (outputs.org.export.entities.host-web // { inherit name; })
+            ) (lib.remove "web" standIns)
+          );
+      }
+    )
+  );
 
   # Policy: without their context, so that the test doesn't build them itself.
   standIn = lib.genAttrs standIns (

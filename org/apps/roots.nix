@@ -9,7 +9,7 @@ let
 
   # Policy: a drive's root can be an entity's home, which the host mounts as the app's user's; a photos app's is a
   # share alone.
-  homes = config.kind == "drive";
+  homed = config.kind == "drive";
 
   # Dependency: org/types.nix gives these kinds this module.
   rooted = [
@@ -74,7 +74,7 @@ let
           };
         };
       }
-    else if homes && home != "/var/empty" then
+    else if homed && home != "/var/empty" then
       {
         inherit user;
         home = {
@@ -83,7 +83,7 @@ let
         };
       }
     else
-      throw "${at}: ${root.entity} is no store with an smb share${lib.optionalString homes ", nor a principal with a home"}: set its smb${lib.optionalString homes ", or its principal.hasHome"}."
+      throw "${at}: ${root.entity} is no store with an smb share${lib.optionalString homed ", nor a principal with a home"}: set its smb${lib.optionalString homed ", or its principal.hasHome"}."
   ) config.roots;
 in
 {
@@ -111,7 +111,7 @@ in
       );
       defaultText = lib.literalMD "each of `roots` in a store with an `smb`, at its `path` in the share";
     };
-    adapters = lib.mkOption {
+    homes = lib.mkOption {
       description = "each root of an entity's home, with its user, the directory and its owner";
       internal = true;
       readOnly = true;
