@@ -18,7 +18,10 @@ realm = "example"
 
 [app.drive.roots]
 alice = "store-alice"
+<<<<<<< signed
 carol = "app-site"
+=======
+>>>>>>> @stamp
 
 [app.drive.storages]
 alice.web = { allotment = "user-alice@web", sharing = true }
@@ -54,6 +57,7 @@ which the home made anew has none of, and restarts until coolwsd answers. Its di
 
 A user's root is where Nextcloud keeps their data, in its own layout: their `files/`, `files_trashbin/`,
 `files_versions/`, `uploads/` and `cache/`, the trash and versions of their storages among them. `roots` gives each
+<<<<<<< signed
 user's, by user, as the entity it's in and a directory there, `path`, `drive` by default, which has to be there
 (`org/apps/roots.nix`):
 
@@ -65,12 +69,25 @@ user's, by user, as the entity it's in and a directory there, `path`, `drive` by
   same place under the app's home, as the app's user's, written as the principal. What the principal writes there is the
   user's: a rolf app's home is one, whose `source`, `drive/files`, is the user's files. Neither names the other but the
   root. An owner that isn't on the drive's hosts fails evaluation.
+=======
+user's, by user, as the store with an `smb` share it's in and a directory there, `path`, `drive` by default, which has
+to be there (`org/apps/roots.nix`). Each of the app's hosts mounts `//<host>/<share>/<path>` at
+`<home>/nextcloud/data/<user>` under the app's home, as the app's user, over SMB 3.1.1, encrypted, logging in as the
+share's `login` with the store's `smb-password`, which the store has to grant the app's hosts. So one share holds a
+drive's root and a photos app's, each in a directory of its own (`docs/parts/photos.md`).
+>>>>>>> @stamp
 
 The container starts only once each root is mounted, so that Nextcloud never writes a user's data into the directory
 beneath: a root that doesn't mount keeps the whole drive down, and the host boots without it. Nextcloud reads a root at
+<<<<<<< signed
 the same place in the container, `/var/lib/nextcloud/data/<user>`, wherever it's mounted from. A root that names an
 entity of neither kind, or no entity of the org's, fails evaluation, as do two roots in one directory, two apps' or two
 users': give each but one a `path`.
+=======
+the same place in the container, `/var/lib/nextcloud/data/<user>`. A root that names anything but a store with an `smb`,
+or no entity of the org's, fails evaluation, as do two roots in one directory, two apps' or two users': give each but
+one a `path`.
+>>>>>>> @stamp
 
 ## Storages
 
@@ -136,23 +153,37 @@ oneshots put back as they start.
   does, `trashbin_retention_obligation` and `versions_retention_obligation`: Nextcloud's own default deletes only for
   room, which a user without a quota never runs out of.
 - Its home is a principal's state (`docs/parts/state.md`): with `state.archives` it's archived with its database's dump
+<<<<<<< signed
   in it. A root is its entity's to keep, a share's its server's and one in a home its principal's, archived with that
   home: an archive of the drive reads its home without what's mounted in it. The database's records of a root's trash
   and versions are archived with the drive, and a root on its own schedule.
+=======
+  in it. A root is its share's server's to keep: an archive of the drive reads its home without what's mounted in it.
+  The database's records of a root's trash and versions are archived with the drive, and a root on its own schedule.
+>>>>>>> @stamp
 
 ## Testing
 
 - `tests/nixos/drive.nix` evaluates its apps, office, login, retention, secret, instanceid, the roots it mounts and the
   storages it binds, and `tests/inventories/allotments/tests.nix` the roots and storages an org declares, their paths
+<<<<<<< signed
   and collisions, and a root in a rolf app's home.
+=======
+  and collisions.
+>>>>>>> @stamp
 - `vmTests.drive` converts a document with its office, keeps its discovery, restarts it with its home made anew and its
+<<<<<<< signed
   database as it was, writes in a bind and not in files without a root, and writes in a root in an entity's home as the
   entity and reads what the entity writes there.
+=======
+  database as it was, and writes in a bind and not in files without a root.
+>>>>>>> @stamp
 - `vmTests.keycloak` (`docs/parts/keycloak.md`) runs the login, a Keycloak user without a root who logs in, can't write
   and logs out, the user of Nextcloud's own it disables, and the apps it keeps.
 
 ## Migrating: Kompismoln/org's drive and drive-dev to roots
 
+<<<<<<< signed
 Each root moves into a directory of its share or home, `drive/`, which Nextcloud reads at the same place as before, so
 its database stays as it is. Do drive-dev, on stationary, first, and drive, on helsinki, once drive-dev is as it should
 be, with `app` the app's name. Kompismoln/org declares the roots: each store's `smb`, `[app.drive.roots]`, and
@@ -164,19 +195,43 @@ sverigesval's `source = "drive/files"`.
    ```sh
    systemctl stop container@$app $site
    ```
+=======
+Each root moves into a directory of its share, `drive/`, which Nextcloud reads at the same place as before, so its
+database stays as it is. Do drive-dev, on stationary, first, and drive, on helsinki, once drive-dev is as it should be,
+with `app` the app's name. Kompismoln/org declares the roots: each store's `smb` and `[app.drive.roots]`.
+>>>>>>> @stamp
 
+<<<<<<< signed
 2. Move rolf's root into `drive/` in the site's home, each of Nextcloud's directories that's there:
+=======
+1. Stop the container, as root on the host, `o11n ssh service-rescue <host> --user root`:
+>>>>>>> @stamp
 
    ```sh
+<<<<<<< signed
    cd /var/lib/$site && install -d -o $site -g $site drive
    for dir in files files_trashbin files_versions uploads cache; do [[ -e $dir ]] && mv $dir drive/; done
+=======
+   systemctl stop container@$app
+>>>>>>> @stamp
    ```
 
+<<<<<<< signed
    and, for drive, each user's into `drive/` in their store's share: on the storage box, make `drive` at the share's
    root and move each of the same directories that's there into it.
+=======
+2. Move each user's root into `drive/` in their store's share: on the storage box, make `drive` at the share's root and
+   move each of Nextcloud's directories that's there, `files`, `files_trashbin`, `files_versions`, `uploads` and
+   `cache`, into it.
+>>>>>>> @stamp
 
+<<<<<<< signed
 3. Apply the host; the container starts once each root is mounted from its directory, and the site builds from
    `drive/files`. `o11n status app-<app>` has `drive-root <user> <host> ok` for each.
+=======
+3. Apply the host; the container starts once each root is mounted from its directory. `o11n status app-<app>` has
+   `drive-root <user> <host> ok` for each.
+>>>>>>> @stamp
 
 ## Work in progress
 

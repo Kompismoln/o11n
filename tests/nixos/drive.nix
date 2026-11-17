@@ -1,6 +1,5 @@
 {
   lib,
-  pkgs,
   evalNixosModule,
 }:
 let
@@ -117,18 +116,6 @@ let
             sopsFile = "/enc/store-box.yaml";
           };
         };
-      }
-    ];
-  };
-
-  # Fact: as org/apps/drive.nix derives it for roots.rolf = "app-site", site's home /var/lib/site, at drive.
-  adapts = lib.recursiveUpdate app {
-    users.rolf = true;
-    adapters = [
-      {
-        user = "rolf";
-        path = "/var/lib/site/drive";
-        owner = "site";
       }
     ];
   };
@@ -688,59 +675,6 @@ in
         };
         examples = true;
         local_allowed = true;
-      };
-    };
-
-  # Policy: a root in an entity's home is a directory there, its owner's, which the host makes and mounts as
-  # Nextcloud's user's, written as the owner, and binds into the container as the user's data, once the owner is on
-  # the host.
-  test_drive_roots_in_a_home =
-    let
-      cfg = evalApp adapts app.principal.uid;
-      container = cfg.containers.cloud;
-      where = "/var/lib/cloud/nextcloud/data/rolf";
-    in
-    {
-      expr = {
-        mounts = map (mount: {
-          inherit (mount)
-            what
-            where
-            type
-            options
-            after
-            ;
-        }) (lib.filter (mount: mount.type == "fuse.bindfs") cfg.systemd.mounts);
-        data = { inherit (container.bindMounts."/var/lib/nextcloud/data/rolf") hostPath isReadOnly; };
-        files = container.bindMounts ? "/var/lib/nextcloud/data/rolf/files";
-        requires = lib.elem where cfg.systemd.services."container@cloud".unitConfig.RequiresMountsFor;
-        quota = lib.hasInfix "user:setting rolf files quota none" container.config.systemd.services.nextcloud-users.script;
-        bindfs = lib.elem pkgs.bindfs cfg.system.fsPackages;
-        made = lib.elem "d '/var/lib/site/drive' 0750 site site - -" cfg.systemd.tmpfiles.rules;
-        failed = failed cfg;
-      };
-      expected = {
-        mounts = [
-          {
-            what = "/var/lib/site/drive";
-            inherit where;
-            type = "fuse.bindfs";
-            options = "force-user=cloud,force-group=cloud,create-for-user=site,create-for-group=site,nofail";
-            after = [ "systemd-tmpfiles-setup.service" ];
-          }
-        ];
-        data = {
-          hostPath = where;
-          isReadOnly = false;
-        };
-        files = false;
-        requires = true;
-        quota = true;
-        bindfs = true;
-        made = true;
-        failed = [
-          "Nextcloud cloud mounts rolf's root from /var/lib/site/drive, whose owner, site, isn't on web: run the owner on web, or root rolf elsewhere."
-        ];
       };
     };
 }

@@ -875,8 +875,7 @@ in
       };
     };
 
-  # Policy: a root is a directory of a store's share or of an entity's home, its kind's name by default, which no
-  # other root is; a photos app's is a share's alone.
+  # Policy: a root is a directory of a store's share, its kind's name by default, which no other root is.
   test_roots =
     let
       roots =
@@ -886,9 +885,8 @@ in
             let
               inherit (alter (lib.recursiveUpdate { store.files.smb = smb; } change)) org;
             in
-            builtins.deepSeq [ org.app.cloud.shares org.app.cloud.adapters ] (
+            builtins.deepSeq org.app.cloud.shares (
               map (share: "${share.user} //${share.host}/${share.share}") org.app.cloud.shares
-              ++ map (adapter: "${adapter.user} ${adapter.path}") org.app.cloud.adapters
             )
           );
         in
@@ -941,11 +939,22 @@ in
         unknown = roots { app.cloud.roots.alice = "store-nobody"; };
         photosShare = photos "store-files";
         photosHome = photos "user-alice";
+        export = {
+          inherit
+            ((alter {
+              store.files.smb = smb;
+              app.cloud.roots.alice = "store-files";
+            }).org.export.entities.app-cloud.drive
+            )
+            roots
+            external
+            ;
+        };
       };
       expected = {
         share = [ "alice //files.example.com/files/drive" ];
         path = [ "alice //files.example.com/files/old" ];
-        home = [ "alice ${outputs.org.user.alice.principal.home}/drive" ];
+        home = null;
         twice = null;
         apart = [
           "alice //files.example.com/files/drive"
@@ -955,51 +964,8 @@ in
         unknown = null;
         photosShare = true;
         photosHome = false;
-      };
-    };
-
-  # Policy: a root in an entity's home is its owner's, and neither the owner nor the drive names the other but in the
-  # root.
-  test_drive_roots_in_a_home =
-    let
-      site = {
-        id = 9;
-        endpoint = "site.example.com";
-        run-on-hosts = [ "laptop" ];
-        principal.members = [ "nginx" ];
-        kind = "rolf";
-      };
-      altered = alter {
-        app.site = site;
-        app.cloud.roots.rolf = "app-site";
-      };
-      inherit (altered.org.app.cloud) adapters binds users;
-    in
-    {
-      expr = {
-        inherit adapters binds;
-        rolf = users.rolf or null;
-        site = { inherit (altered.org.app.site) input source; };
         export = {
-          inherit (altered.org.export.entities.app-cloud.drive) roots external;
-        };
-      };
-      expected = {
-        adapters = [
-          {
-            user = "rolf";
-            path = "${altered.org.app.site.principal.home}/drive";
-            owner = "site";
-          }
-        ];
-        binds = [ ];
-        rolf = true;
-        site = {
-          input = "site";
-          source = "files";
-        };
-        export = {
-          roots = [ "rolf" ];
+          roots = [ "alice" ];
           external = [
             "alice/zhost"
             "lisa/files"

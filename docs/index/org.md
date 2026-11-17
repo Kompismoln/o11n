@@ -1211,15 +1211,24 @@ had by `app.<drive>`, `app.<photos>`
 
 Default: `{ }`
 
+<<<<<<< signed
 each user's root, by user: where the app keeps the user's data in its own layout, a directory, `path`, of the store or
 the home that `entity` names, or just that entity
+=======
+each user's root, by user: where the app keeps the user's data in its own layout, a directory, `path`, of the share of
+the store that `entity` names, or just that store
+>>>>>>> @stamp
 
 ### `<roots>.roots.<name>.entity`
 
 `org/apps/roots.nix` · string
 
+<<<<<<< signed
 the entity, by its handle, the root is in: a store with an `smb` share, or, for a drive, a principal whose home is on
 the app's hosts
+=======
+the store, by its handle, the root is in, which has an `smb` share
+>>>>>>> @stamp
 
 ### `<roots>.roots.<name>.path`
 
@@ -1227,4 +1236,8 @@ the app's hosts
 
 Default: `kind`
 
+<<<<<<< signed
 the directory in the share or the home that is the root, which has to be there
+=======
+the directory in the share that is the root, which has to be there
+>>>>>>> @stamp

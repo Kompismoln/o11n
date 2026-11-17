@@ -303,10 +303,6 @@ let
   sftpKey = handle: "/run/secrets/sftp-keys/${handle}";
 
   shares = app.shares or [ ];
-  # Policy: a root in an entity's home is its owner's, which the host mounts as the app's user's, and what's written
-  # there is written as its owner.
-  adapters = app.adapters or [ ];
-  roots = shares ++ adapters;
   contained = [
     app.secrets
   ]
@@ -346,7 +342,7 @@ let
       else
         say root ${root.user} ok
       fi
-    '') roots
+    '') shares
     + lib.optionalString (mounts ++ binds != [ ]) (
       ''
         listed=$(occ files_external:list --output=json 2>/dev/null) || listed=
@@ -580,7 +576,7 @@ in
       ) shares
     );
 
-    # Policy: a root in a share is mounted as the app's user, and the container starts only once it is, so that Nextcloud never
+    # Policy: a root is mounted as the app's user, and the container starts only once it is, so that Nextcloud never
     # writes the user's data to the directory beneath.
     fileSystems = lib.listToAttrs (
       map (
@@ -605,7 +601,7 @@ in
       ) shares
     );
 
-    environment.systemPackages = lib.optional (roots ++ mounts ++ binds != [ ]) status;
+    environment.systemPackages = lib.optional (shares ++ mounts ++ binds != [ ]) status;
 
     # Policy: the container connects as the host user with its uid, by peer authentication.
     assertions = [
@@ -618,10 +614,6 @@ in
       assertion = builtins.pathExists mount.server.changes.hostKey;
       message = "Nextcloud ${cfg.name} follows what changes in ${mount.user}'s ${mount.mountPoint} on ${mount.server.host} by ssh, verifying its host's ssh-key, which it has none of: o11n host pull-ssh-key on that host.";
     }) followed
-    ++ map (adapter: {
-      assertion = config.users.users ? ${adapter.owner};
-      message = "Nextcloud ${cfg.name} mounts ${adapter.user}'s root from ${adapter.path}, whose owner, ${adapter.owner}, isn't on ${host.name}: run the owner on ${host.name}, or root ${adapter.user} elsewhere.";
-    }) adapters
     ++ lib.mapAttrsToList (handle: key: {
       assertion = builtins.pathExists key.publicKey;
       message = "Nextcloud ${cfg.name} logs in to an external storage with ${handle}'s sftp-key, which it has none of: o11n secret generate ${handle} sftp-key.";
@@ -636,31 +628,10 @@ in
       containers = [ cfg.name ];
     };
 
-    systemd.tmpfiles.rules =
-      lib.optionals (roots != [ ]) [
-        "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
-        "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
-      ]
-      ++ map (adapter: "d '${adapter.path}' 0750 ${adapter.owner} ${adapter.owner} - -") adapters;
-
-    system.fsPackages = lib.optional (adapters != [ ]) pkgs.bindfs;
-
-    # Fact: a mount unit with nofail isn't ordered before local-fs.target, so it can follow systemd-tmpfiles-setup,
-    # which makes the directories it mounts and mounts in.
-    systemd.mounts = map (adapter: {
-      what = adapter.path;
-      where = dataOf adapter.user;
-      type = "fuse.bindfs";
-      options = lib.concatStringsSep "," [
-        "force-user=${cfg.user}"
-        "force-group=${cfg.user}"
-        "create-for-user=${adapter.owner}"
-        "create-for-group=${adapter.owner}"
-        "nofail"
-      ];
-      after = [ "systemd-tmpfiles-setup.service" ];
-      wantedBy = [ "multi-user.target" ];
-    }) adapters;
+    systemd.tmpfiles.rules = lib.optionals (shares != [ ]) [
+      "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
+      "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
+    ];
 
     systemd.services = {
       # Fact: the container binds each secret's file as it starts, and a switch to another of its values restarts
@@ -669,7 +640,7 @@ in
         restartTriggers = map (file: builtins.hashFile "sha256" file) (
           lib.unique (map (secret: secret.sopsFile) contained)
         );
-        unitConfig.RequiresMountsFor = map (root: dataOf root.user) roots;
+        unitConfig.RequiresMountsFor = map (share: dataOf share.user) shares;
         serviceConfig = {
           TimeoutStopSec = 10;
           KillMode = "mixed";
@@ -750,7 +721,7 @@ in
               hostPath = dataOf root.user;
               isReadOnly = false;
             }
-          ) roots
+          ) shares
           ++ map (
             bind:
             lib.nameValuePair (bindOf bind) {
