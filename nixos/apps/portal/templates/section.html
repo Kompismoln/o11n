@@ -7,12 +7,21 @@
   {%- endif %}
   <ul class="posts">
     {%- for post in section.pages %}
+    {%- if post.title %}
     <li>
       <a href="{{ post.permalink | safe }}">{{ post.title }}</a>
       {%- if post.date %}<time datetime="{{ post.date }}">{{ post.date | date(format="%Y-%m-%d") }}</time>{% endif %}
       {%- if post.description %}<p>{{ post.description }}</p>{% endif %}
     </li>
+    {%- endif %}
     {%- endfor %}
   </ul>
+  <div class="notes">
+    {%- for note in section.pages %}
+    {%- if not note.title %}
+    {% include "partials/note.html" %}
+    {%- endif %}
+    {%- endfor %}
+  </div>
 </section>
 {% endblock content %}

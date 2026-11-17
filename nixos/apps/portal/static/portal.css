@@ -357,3 +357,53 @@ main > .wrap:first-child {
 [hidden] {
   display: none !important;
 }
+
+.notes {
+  display: grid;
+  gap: 1rem;
+  max-width: 42rem;
+}
+
+.note {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.note-text > :first-child {
+  margin-top: 0;
+}
+
+.note-text > :last-child {
+  margin-bottom: 0;
+}
+
+.note-commit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: baseline;
+  padding: 0.6rem 0.8rem;
+  border-radius: calc(var(--radius) / 2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.note-commit code {
+  font-family: "Source Code Pro", ui-monospace, monospace;
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
+}
+
+.note-subject {
+  flex: 1 1 16rem;
+}
+
+.note-date {
+  font-size: 0.85rem;
+  text-decoration: none;
+}

@@ -87,6 +87,7 @@ let
     translations = strings.${defaultLanguage};
     extra = lib.filterAttrsRecursive (_: value: value != null) data;
     languages = lib.genAttrs (lib.tail app.languages) (language: {
+      title = org.name;
       generate_feeds = true;
       feed_filenames = [ "atom.xml" ];
       translations = strings.${language};

@@ -41,11 +41,33 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   text or a page: a page with `draft = true` isn't on the site, so a section of drafts alone waits to be written. One
   with `extra.on_index = <n>` has its first `n` pages on the start page too, as a blog's latest posts with
   `sort_by = "date"`.
-- Each language has its feed, of the pages with a `date`, at `atom.xml` there.
+- Each language has its feed, of the pages with a `date`, at `atom.xml` there; a note's entry is titled by its text.
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
   buttons and links'.
 - o11n has the site's templates, style and script (`nixos/apps/portal/`), and a page that isn't there is the site's
   `404.html`.
+
+### Notes
+
+A page without a `title` is a note: short, its text all there is to it, shown whole wherever pages are listed, in its
+section, on the start page, and at its own address, which its date links to (`nixos/apps/portal/templates/partials/`). A
+section of notes is any section, as `notes/`, `sort_by = "date"`, its pages without titles. A note may name a commit,
+which it's shown with, linked on GitHub, or at `url`:
+
+```toml
++++
+date = 2026-11-17T17:29:00Z
+
+[extra.commit]
+repo = "Kompismoln/o11n"
+rev = "72f009123e7ea8e47d64f8c2984a5bb2e0365ae2"
+subject = "rescue-usb with phone-home"
++++
+
+The rescue stick phones home.
+```
+
+The site has a commit's repo, rev and subject only as the note gives them: it fetches nothing.
 
 ## Login
 
@@ -79,13 +101,13 @@ visitor's address as its Reply-To (`nixos/apps/portal/invites.py`).
 ## Testing
 
 `eval-portal-mail` builds `tests/inventories/mail`'s portal, `www` on `web`, and checks that it lists its services in
-their order in each language, that a section is in the header once it has a page, and that the keycloak keeps its
-client. `vmTests.keycloak` serves it beside the keycloak, where a browser logs alice in from a page of it and back
-there, finds no form for an invite, is logged in to the drive without being asked again, and logs out, after which the
-portal's login asks again. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and
-refuses an address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an
-address.
+their order in each language, that a section is in the header once it has a page, that its notes are shown on the start
+page and in their section, one with its commit and one without, and that the keycloak keeps its client.
+`vmTests.keycloak` serves it beside the keycloak, where a browser logs alice in from a page of it and back there, finds
+no form for an invite, is logged in to the drive without being asked again, and logs out, after which the portal's login
+asks again. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and refuses an
+address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an address.
 
 ## Work in progress
 
-- The org's latest commits, and a status page of its apps, linked from the portal.
+- A status page of the org's apps, linked from the portal.

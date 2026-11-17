@@ -1,0 +1,14 @@
+<article class="note">
+  <div class="note-text prose">{{ note.content | safe }}</div>
+  {%- if note.extra.commit %}
+  {%- set commit = note.extra.commit %}
+  <a class="note-commit" href="{{ commit.url | default(value="https://github.com/" ~ commit.repo ~ "/commit/" ~ commit.rev) }}">
+    <code>{{ commit.rev[:7] }}</code>
+    <span class="note-subject">{{ commit.subject }}</span>
+    <span class="muted">{{ commit.repo }}</span>
+  </a>
+  {%- endif %}
+  {%- if note.date %}
+  <a class="note-date muted" href="{{ note.permalink | safe }}"><time datetime="{{ note.date }}">{{ note.date | date(format="%Y-%m-%d") }}</time></a>
+  {%- endif %}
+</article>

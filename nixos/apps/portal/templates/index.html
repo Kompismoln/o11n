@@ -61,7 +61,7 @@
   <h2>{{ sub.title }}</h2>
   <ul class="posts">
     {%- for post in sub.pages %}
-    {%- if loop.index <= sub.extra.on_index %}
+    {%- if loop.index <= sub.extra.on_index and post.title %}
     <li>
       <a href="{{ post.permalink | safe }}">{{ post.title }}</a>
       {%- if post.date %}<time datetime="{{ post.date }}">{{ post.date | date(format="%Y-%m-%d") }}</time>{% endif %}
@@ -70,6 +70,13 @@
     {%- endif %}
     {%- endfor %}
   </ul>
+  <div class="notes">
+    {%- for note in sub.pages %}
+    {%- if loop.index <= sub.extra.on_index and not note.title %}
+    {% include "partials/note.html" %}
+    {%- endif %}
+    {%- endfor %}
+  </div>
   <p><a href="{{ sub.permalink | safe }}">{{ sub.title }} →</a></p>
 </section>
 {%- endif %}

@@ -240,8 +240,8 @@ let
 
   # Policy: a WordPress site's server, as the host's nginx runs it, passes WordPress's entry points to PHP, which isn't
   # there to answer (502), and denies PHP it only includes, PHP in uploads and dotfiles (403).
-  # Policy: the portal lists the apps it names, in its order, described in each language, and logs in with the client
-  # its keycloak keeps.
+  # Policy: the portal lists the apps it names, in its order, described in each language, shows a page without a title as
+  # a note, with the commit it names, and logs in with the client its keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -258,6 +258,12 @@ let
         [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com " ]]
         grep -qF '"clientId":"www","issuer":"http://auth.example.com/realms/example"' "$site/index.html"
         grep -qF 'href="http://www.example.com/en/blog/first/"' "$site/en/index.html"
+        [[ $(grep -c 'class="note"' "$site/en/index.html") == 2 && $(grep -c 'class="note"' "$site/notes/index.html") == 2 ]]
+        grep -qF 'href="https://github.com/Kompismoln/o11n/commit/72f009123e7ea8e47d64f8c2984a5bb2e0365ae2"' "$site/notes/rescue/index.html"
+        grep -qF '<code>72f0091</code>' "$site/en/notes/index.html"
+        ! grep -qF 'note-commit' "$site/en/notes/hello/index.html" || exit 1
+        grep -qF '<title>Test AB</title>' "$site/en/atom.xml"
+        grep -qF '<title>A note without a commit.</title>' "$site/en/atom.xml"
         grep -qF '<a href="http://www.example.com/policy/">Villkor</a>' "$site/index.html"
         ! grep -qF 'href="http://www.example.com/en/policy/"' "$site/en/index.html"
         jq -e '.[] | select(.representation.clientId == "www") | .realm == "example" and .representation.publicClient
