@@ -258,6 +258,8 @@ let
         [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com " ]]
         grep -qF '"clientId":"www","issuer":"http://auth.example.com/realms/example"' "$site/index.html"
         grep -qF 'href="http://www.example.com/en/blog/first/"' "$site/en/index.html"
+        grep -qF '<a href="http://www.example.com/policy/">Villkor</a>' "$site/index.html"
+        ! grep -qF 'href="http://www.example.com/en/policy/"' "$site/en/index.html"
         jq -e '.[] | select(.representation.clientId == "www") | .realm == "example" and .representation.publicClient
           and .representation.redirectUris == ["http://www.example.com/*"]' <<<"$clients"
         touch $out

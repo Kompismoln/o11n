@@ -37,8 +37,10 @@
         <a href="{{ home }}#services">{{ trans(key="services", lang=lang) }}</a>
         {%- set root = get_section(path="_index" ~ suffix ~ ".md", metadata_only=true) %}
         {%- for path in root.subsections %}
-        {%- set sub = get_section(path=path, metadata_only=true) %}
+        {%- set sub = get_section(path=path) %}
+        {%- if sub.content or sub.pages %}
         <a href="{{ sub.permalink | safe }}">{{ sub.title }}</a>
+        {%- endif %}
         {%- endfor %}
       </nav>
       <div class="tools">

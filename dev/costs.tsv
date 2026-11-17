@@ -767,3 +767,10 @@
 2026-11-17T20:04:30Z	container	5.3	dc9ef3c1	dev/check.sh lint
 2026-11-17T20:04:30Z	container	5.6	dc9ef3c1	dev/check.sh index
 2026-11-17T20:05:48Z	container	83.7	dc9ef3c1	nix-eval-jobs bats eval
+2026-11-17T20:20:26Z	container	0.2	c328de68	dev/check.sh stamps
+2026-11-17T20:20:26Z	container	0.3	c328de68	dev/check.sh parts
+2026-11-17T20:20:28Z	container	2.6	c328de68	dev/check.sh docs
+2026-11-17T20:20:30Z	container	4.2	c328de68	dev/check.sh format
+2026-11-17T20:20:32Z	container	6.2	c328de68	dev/check.sh index
+2026-11-17T20:20:32Z	container	6.4	c328de68	dev/check.sh lint
+2026-11-17T20:21:55Z	container	89.1	c328de68	nix-eval-jobs bats eval
