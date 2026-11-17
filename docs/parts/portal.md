@@ -37,9 +37,10 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   text = "Files, calendar and contacts."
   ```
 
-- Each section of the start page is in the header, by its title, once it has text or a page: a page with `draft = true`
-  isn't on the site, so a section of drafts alone waits to be written. One with `extra.on_index = <n>` has its first `n`
-  pages on the start page too, as a blog's latest posts with `sort_by = "date"`.
+- The header has the sections of the start page alone, by their titles, in the order of their `weight`, each once it has
+  text or a page: a page with `draft = true` isn't on the site, so a section of drafts alone waits to be written. One
+  with `extra.on_index = <n>` has its first `n` pages on the start page too, as a blog's latest posts with
+  `sort_by = "date"`.
 - Each language has its feed, of the pages with a `date`, at `atom.xml` there.
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
   buttons and links'.

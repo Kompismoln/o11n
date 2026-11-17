@@ -34,7 +34,6 @@
         <span>{{ config.title }}</span>
       </a>
       <nav class="nav">
-        <a href="{{ home }}#services">{{ trans(key="services", lang=lang) }}</a>
         {%- set root = get_section(path="_index" ~ suffix ~ ".md", metadata_only=true) %}
         {%- for path in root.subsections %}
         {%- set sub = get_section(path=path) %}
