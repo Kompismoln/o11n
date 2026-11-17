@@ -253,11 +253,22 @@ in
       ];
       after = [
         "network-online.target"
-        "systemd-tmpfiles-setup.service"
+        "${cfg.name}-library.service"
       ];
       wants = [ "network-online.target" ];
+      requires = [ "${cfg.name}-library.service" ];
       wantedBy = [ "multi-user.target" ];
     }) shares;
+
+    # Fact: systemd makes a mount's missing parents as root, which Immich then can't write its library's marker in;
+    # tmpfiles makes them first only as the host boots, not as a switch starts a new mount.
+    systemd.services."${cfg.name}-library" = lib.mkIf (shares != [ ]) {
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = "install -d -m 0700 -o ${cfg.user} -g ${cfg.user} ${cfg.home} ${cfg.home}/library";
+    };
 
     # Fact: nspawn refuses to start a container whose bind's host path is missing.
     # Policy: an archive of the app's state leaves out the thumbnails and the videos encoded for the web, which Immich
@@ -265,7 +276,6 @@ in
     systemd.tmpfiles.rules = [
       "f+ '${app.principal.home}/.resticignore' 0644 ${cfg.user} ${cfg.user} - immich/thumbs/\\nimmich/encoded-video/\\n"
       "d '${cfg.home}' 0700 ${cfg.user} ${cfg.user} - -"
-      "d '${cfg.home}/library' 0700 ${cfg.user} ${cfg.user} - -"
       "d '${cfg.cache}' 0700 ${cfg.user} ${cfg.user} - -"
     ];
 
