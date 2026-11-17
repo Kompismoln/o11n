@@ -100,6 +100,9 @@ let
             page.wait_for_selector('[data-auth="name"]', state="visible")
             said["returned"] = page.url
             said["name"] = page.text_content('[data-auth="name"]')
+            page.goto("${www.url}/en/")
+            page.wait_for_selector('[data-auth="name"]', state="visible")
+            said["invite_hidden"] = page.is_hidden("#invite")
             page.goto("${cloud.url}/login")
             page.wait_for_url("${cloud.url}/apps/**")
             said["sso"] = page.url
@@ -155,6 +158,7 @@ pkgs.testers.runNixOSTest {
           nextcloud
           portal
           (principal cloud)
+          (principal www)
           (principal org.user.alice)
           (principal blog)
           (principal calendar)
@@ -349,6 +353,7 @@ pkgs.testers.runNixOSTest {
         said = json.loads(web.succeed("visitor \"alice's\""))
         assert said["returned"] == "${www.url}/en/blog/", said
         assert said["name"] == "Alice Example", said
+        assert said["invite_hidden"], said
         assert said["sso"].startswith("${cloud.url}/apps/"), said
         assert said["logged_out"] == "${www.url}/en/blog/" and said["asked_again"], said
 

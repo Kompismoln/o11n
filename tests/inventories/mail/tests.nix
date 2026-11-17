@@ -39,6 +39,7 @@ in
         app-auth = "on";
         app-blog = "auto";
         app-calendar = "auto";
+        app-www = "on";
         user-alice = "on";
       };
       wordpress = true;

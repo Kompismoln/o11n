@@ -30,6 +30,30 @@
   </ul>
 </section>
 {%- endif %}
+{%- if org.invites %}
+<section class="wrap invite" id="invite" data-auth="guest">
+  <h2>{{ trans(key="invite_title", lang=lang) }}</h2>
+  <p class="muted">{{ trans(key="invite_text", lang=lang) }}</p>
+  <p class="notice" data-invite="sent" hidden>{{ trans(key="invite_sent", lang=lang) }}</p>
+  <p class="notice error" data-invite="invalid" hidden>{{ trans(key="invite_invalid", lang=lang) }}</p>
+  <p class="notice error" data-invite="failed" hidden>{{ trans(key="invite_failed", lang=lang) }} <a href="mailto:{{ org.contact }}">{{ org.contact }}</a></p>
+  <form class="invite-form" method="post" action="/invite">
+    <input type="hidden" name="back" value="{{ section.path }}">
+    <input type="hidden" name="lang" value="{{ lang }}">
+    <label>{{ trans(key="invite_email", lang=lang) }}
+      <input type="email" name="email" required maxlength="254" autocomplete="email">
+    </label>
+    <label>{{ trans(key="invite_note", lang=lang) }}
+      <textarea name="note" rows="3" maxlength="2000"></textarea>
+    </label>
+    <label class="trap" aria-hidden="true">Website
+      <input type="text" name="website" tabindex="-1" autocomplete="off">
+    </label>
+    <button type="submit" class="button">{{ trans(key="invite_send", lang=lang) }}</button>
+  </form>
+  <script type="module" src="/invite.js"></script>
+</section>
+{%- endif %}
 {%- for path in section.subsections %}
 {%- set sub = get_section(path=path) %}
 {%- if sub.extra.on_index and sub.pages %}

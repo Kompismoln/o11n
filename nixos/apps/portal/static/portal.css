@@ -289,6 +289,63 @@ h2 {
   padding-bottom: 1.5rem;
 }
 
+.invite-form {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 32rem;
+  margin-top: 1rem;
+}
+
+.invite-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.invite-form input,
+.invite-form textarea {
+  font: inherit;
+  font-weight: 400;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+}
+
+.invite-form input:focus,
+.invite-form textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-color: var(--accent);
+}
+
+.invite-form .button {
+  justify-self: start;
+  padding: 0.55rem 1.25rem;
+}
+
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.notice {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  max-width: 32rem;
+}
+
+.notice.error {
+  border-color: #dc2626;
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+}
+
 [hidden] {
   display: none !important;
 }

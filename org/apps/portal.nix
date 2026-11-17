@@ -45,6 +45,12 @@
       type = lib.types.listOf context.types.app.ref;
       default = [ ];
     };
+    invites = lib.mkOption {
+      description = "the address the site's form mails a visitor's request for an invite to, or null for no form";
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "join@example.com";
+    };
     keycloak = lib.mkOption {
       description = "the keycloak app the site's visitors log in with, or null for no login";
       type = lib.types.nullOr context.types.app.ref;

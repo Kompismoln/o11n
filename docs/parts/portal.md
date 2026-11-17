@@ -14,7 +14,9 @@ logo = "assets/logo.svg"
 accent = "#30667c"
 keycloak = "auth"
 realm = "example"
-services = ["drive", "meet", "auth"]
+services = ["drive", "meet", "photos"]
+invites = "join@example.com"
+principal.mail.send = true
 ```
 
 ## Content
@@ -58,15 +60,33 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
   app with a session of its own, as a drive, keeps it until it ends.
 - The token is the tab's alone, and the site's script reads nothing from it but the name it shows.
 
+## Invites
+
+With `invites`, an address, the start page has a form where a visitor asks for an account: their address, and a message
+if they like. It mails the request to `invites`, as the portal, which has to send mail (`principal.mail.send`), with the
+visitor's address as its Reply-To, and with a link to add a user in the realm's admin console where the portal has a
+`keycloak` (`nixos/apps/portal/invites.py`).
+
+- nginx passes a POST to `/invite` alone to `<app>-invites`, a service of the portal's user on its own address, of 16
+  KiB at most, and 4 at once from an address, then one a minute; more are answered 429.
+- The service takes an address of one mailbox alone, and sends the visitor back to the page of the form, on the site,
+  where the form tells them it's sent, or that the address doesn't look right, or to write to the org's `contact`.
+- A request that fills in the form's field that people don't see, a bot's, is told it's sent, and isn't.
+- The form isn't on the page for a visitor who is logged in.
+- An invite is the realm's: add a user with the visitor's address in the admin console, and send them Update Password
+  from its Credentials, which mails them a link to set their password, with the realm's registration off.
+
 ## Testing
 
 `eval-portal-mail` builds `tests/inventories/mail`'s portal, `www` on `web`, and checks that it lists its services in
-their order in each language, and that the keycloak keeps its client. `vmTests.keycloak` serves it beside the keycloak,
-where a browser logs alice in from a page of it and back there, is logged in to the drive without being asked again, and
-logs out of both.
+their order in each language, that a section is in the header once it has a page, and that the keycloak keeps its
+client. `vmTests.keycloak` serves it beside the keycloak, where a browser logs alice in from a page of it and back
+there, finds no form for an invite, is logged in to the drive without being asked again, and logs out, after which the
+portal's login asks again. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and
+refuses an address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an
+address.
 
 ## Work in progress
 
-- An invite: a form where one asks for an account with their address, which mails the org, and an invite link from
-  Keycloak.
+- `o11n` inviting a visitor itself, as the keycloak's `o11n` client: the user made in the realm, and its mail sent.
 - The org's latest commits, and a status page of its apps, linked from the portal.

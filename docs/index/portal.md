@@ -23,6 +23,14 @@ Default: `"site"`
 the directory in the org of the site's markdown, as Zola's content directory, in the default language and each other's
 `<name>.<language>.md`
 
+### `app.<portal>.invites`
+
+`org/apps/portal.nix` · null or string
+
+Default: `null`
+
+the address the site's form mails a visitor's request for an invite to, or null for no form
+
 ### `app.<portal>.keycloak`
 
 `org/apps/portal.nix` · null or impossible (empty enum)

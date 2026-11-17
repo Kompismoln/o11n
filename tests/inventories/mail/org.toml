@@ -116,14 +116,18 @@ keycloak = "auth"
 realm = "example"
 roots.alice = "store-box"
 
-# Fact: a portal whose public client auth keeps, which lists the apps with an endpoint.
+# Fact: a portal whose public client auth keeps, which lists the apps with an endpoint, and mails requests for an
+# invite to elsewhere's carol, whose mail the mail test reads.
 [app.www]
 id = 6
 endpoint = "www.example.com"
 ssl = false
 run-on-hosts = ["web"]
+grants = ["host:app-scheduler", "host:mailserver"]
 principal.hasPublicKey = false
+principal.mail.send = true
 kind = "portal"
+invites = "carol@elsewhere.test"
 logo = "site-logo.svg"
 keycloak = "auth"
 realm = "example"

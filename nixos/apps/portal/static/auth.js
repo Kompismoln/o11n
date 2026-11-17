@@ -80,6 +80,7 @@ function show() {
   root.querySelector('[data-auth="login"]').hidden = Boolean(who);
   root.querySelector('[data-auth="who"]').hidden = !who;
   if (who) root.querySelector('[data-auth="name"]').textContent = who.name || who.preferred_username;
+  for (const element of document.querySelectorAll('[data-auth="guest"]')) element.hidden = Boolean(who);
   root.hidden = false;
 }
 
