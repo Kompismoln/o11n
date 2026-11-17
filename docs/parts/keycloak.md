@@ -22,10 +22,16 @@ included.
   reads a role.
 - An app whose kind derives a client, as jitsi does (`org/apps/jitsi.nix`), has it in the realm it names, of the
   keycloak it names, which keeps it as it keeps a realm: made when it's missing, and put over what it was, by its
+<<<<<<< signed
+  `clientId`, leaving what isn't declared of it be. The keycloak fails evaluation for a client in a realm it doesn't
+  keep. Jitsi's is public, with PKCE, and redirects to its `/static/sso.html`, which its sign-in reads from the same
+  client (`nixos/apps/jitsi.nix`).
+=======
   `clientId`, leaving what isn't declared of it be. A portal's is public too, with PKCE, and returns to any of the
   portal's pages (`docs/parts/portal.md`). The keycloak fails evaluation for a client in a realm it doesn't keep.
   Jitsi's is public, with PKCE, and redirects to its `/static/sso.html`, which its sign-in reads from the same client
   (`nixos/apps/jitsi.nix`).
+>>>>>>> @stamp
 - A confidential client has a secret, its app's `oidc-secret`, which the keycloak's host decrypts and puts as the
   client's. A drive's is one, with its `keycloak` and `realm` (`org/apps/drive.nix`), and a photos app's
   (`org/apps/photos.nix`).
@@ -56,7 +62,12 @@ server is down.
 
 ## Setting up: Kompismoln/org's keycloak as auth.kompismoln.se
 
+<<<<<<< signed
+Kompismoln/org's keycloak was set up by hand, with the admin password `initialAdminPassword` gave it and since changed,
+and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't keep.
+=======
 Kompismoln/org's keycloak was set up by hand, with the admin password `initialAdminPassword` gave it and since changed.
+>>>>>>> @stamp
 
 1. Archive its state to pelle daily, and have it send mail, as it tells of a failed archive, under `[app.keycloak]` in
    `org.toml`, as `docs/parts/state.md` does for klimatkalendern:
@@ -99,8 +110,14 @@ Kompismoln/org's keycloak was set up by hand, with the admin password `initialAd
 4. See that it archives and mails: `o11n status app-keycloak` has `archive pelle helsinki` and
    `keycloak-mail kompismoln`.
 
+<<<<<<< signed
+5. Move jitsi into `kompismoln`, with `keycloak = "keycloak"` and `realm = "kompismoln"` under `[app.jitsi]`, and apply
+   helsinki: `keycloak-realms` puts jitsi's client over the one `kompismoln` had, and jitsi's sign-in moves with it.
+   Then move the friends' accounts out of `jitsi-realm`, or invite them anew, and delete it in the admin console.
+=======
 5. Have jitsi sign in with `kompismoln`, with `keycloak = "keycloak"` and `realm = "kompismoln"` under `[app.jitsi]`,
    and apply helsinki: `keycloak-realms` keeps jitsi's client there, and jitsi's sign-in is the realm's.
+>>>>>>> @stamp
 
 6. Have each drive's users log in with `kompismoln`, under `[app.drive]` and `[app.drive-dev]`:
 

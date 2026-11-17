@@ -745,3 +745,11 @@
 2026-11-17T17:25:49Z	container	5.4	5c323db2	dev/check.sh lint
 2026-11-17T17:27:47Z	container	123.3	5c323db2	nix-eval-jobs bats eval
 2026-11-17T17:28:48Z	container	180.5	5c323db2	nix build .#stages.bats
+2026-11-17T18:41:09Z	container	0.2	1858a109	dev/check.sh stamps
+2026-11-17T18:41:09Z	container	0.2	1858a109	dev/check.sh pending
+2026-11-17T18:41:09Z	container	0.3	1858a109	dev/check.sh parts
+2026-11-17T18:41:12Z	container	2.8	1858a109	dev/check.sh docs
+2026-11-17T18:41:14Z	container	5.1	1858a109	dev/check.sh format
+2026-11-17T18:41:15Z	container	5.8	1858a109	dev/check.sh index
+2026-11-17T18:41:16Z	container	6.4	1858a109	dev/check.sh lint
+2026-11-17T18:42:53Z	container	103.9	1858a109	nix-eval-jobs bats eval

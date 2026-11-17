@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 +++
 title = "Test AB"
 description = "A cloud for alice and bob."
@@ -8,3 +10,4 @@ text = "Files and calendar."
 +++
 
 Welcome.
+>>>>>>> @stamp
