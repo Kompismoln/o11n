@@ -19,14 +19,19 @@ let
     ];
     text = ''
       usage() {
-        echo "usage: build-system <flake store path> <host>" >&2
+        echo "usage: build-system <flake store path> <host>..." >&2
         exit 1
       }
 
-      [[ $# -eq 2 ]] || usage
-      flake=$1 host=$2
-      [[ $flake =~ ^${builtins.storeDir}/[0-9a-z]{32}-[0-9A-Za-z+._-]+$ && $host =~ ^[0-9A-Za-z_-]+$ ]] ||
-        usage
+      [[ $# -ge 2 ]] || usage
+      flake=$1
+      shift
+      [[ $flake =~ ^${builtins.storeDir}/[0-9a-z]{32}-[0-9A-Za-z+._-]+$ ]] || usage
+      installables=()
+      for host in "$@"; do
+        [[ $host =~ ^[0-9A-Za-z_][0-9A-Za-z_-]*$ ]] || usage
+        installables+=("path:$flake#nixosConfigurations.$host.config.system.build.toplevel")
+      done
       nix-store --check-validity "$flake"
 
       # Accommodating for nix-build, which has no home of its own for nix's caches.
@@ -34,8 +39,7 @@ let
       export HOME
       trap 'rm -rf "$HOME"' EXIT
 
-      nix build --no-link --print-out-paths --option accept-flake-config false \
-        "path:$flake#nixosConfigurations.$host.config.system.build.toplevel"
+      nix build --no-link --print-out-paths --option accept-flake-config false "''${installables[@]}"
     '';
   };
 

@@ -975,7 +975,7 @@ dns() {
 
 lorem_routes="testhost=testhost.local lorem=lorem.local"
 
-@test "apply builds on the first build host that answers of those the host fetches from" {
+@test "apply builds each host on the first build host that answers of those it fetches from, all first with --unit" {
   O11N_ROUTES="lorem=lorem.local" run o11n apply lorem
   fails "no build host lorem fetches from answers, of testhost: set BUILD_HOST, as BUILD_HOST=localhost"
 
@@ -984,6 +984,13 @@ lorem_routes="testhost=testhost.local lorem=lorem.local"
 
   O11N_ROUTES="$lorem_routes" run o11n apply lorem --build-host ipsum
   fails "ipsum is not in build-hosts"
+
+  O11N_ROUTES="$lorem_routes" run o11n apply lorem testhost
+  [ "$status" -ne 0 ]
+  [[ $output != *"use testhost to build testhost"* ]]
+
+  O11N_ROUTES="$lorem_routes" run o11n apply lorem testhost --unit
+  [[ $output == *"use testhost to build lorem (at lorem.local)"*"use testhost to build testhost (at testhost.local)"* ]]
 }
 
 test_identity_root_1=AGE-SECRET-KEY-1DJDMVRRC7UNF8HSKVSGQCWFNMJ5HTRT6HT2MDML9JZ54GCW8TYNSSWWL8D
