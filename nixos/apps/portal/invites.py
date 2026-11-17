@@ -1,12 +1,13 @@
 import email.message
 import http.server
 import re
+import shlex
 import socket
 import subprocess
 import sys
 import urllib.parse
 
-account, to, admin, host, port = sys.argv[1:6]
+account, to, invite, host, port = sys.argv[1:6]
 
 # Policy: an address is one mailbox, whatever its syntax would allow, so that it can't name others in Reply-To.
 ADDRESS = re.compile(r"[^@\s<>,;:\"'()\[\]\\]+@[^@\s<>,;:\"'()\[\]\\]+\.[^@\s<>,;:\"'()\[\]\\]+")
@@ -21,8 +22,8 @@ def request(address, note, page, language):
     if note:
         body += [note, ""]
     body.append("Reply to this mail to answer them.")
-    if admin:
-        body.append(f"To invite them, add a user with their address, and send them Update Password from its Credentials: {admin}")
+    if invite:
+        body.append(f"To invite them: {invite} {shlex.quote(address)}")
     message.set_content("\n".join(body) + "\n")
     return message.as_bytes()
 

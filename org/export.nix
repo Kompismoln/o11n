@@ -116,7 +116,18 @@ let
       };
     }
     // lib.optionalAttrs (entity.class == "app" && entity.kind == "keycloak") {
-      keycloak.realms = lib.attrNames entity.realms;
+      keycloak = {
+        realms = lib.attrNames entity.realms;
+        # Dependency: crates/o11n/src/keycloak.rs sends one it invites to a portal of the realm once they've set their
+        # password.
+        portals =
+          map
+            (portal: {
+              inherit (portal) realm url;
+              inherit (portal.client.representation) clientId;
+            })
+            (lib.filter (app: app.kind == "portal" && app.keycloak == entity.name) (lib.attrValues config.app));
+      };
     }
     // lib.optionalAttrs (entity.class == "host") {
       inherit (entity)

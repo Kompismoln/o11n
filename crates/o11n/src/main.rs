@@ -187,6 +187,9 @@ enum Command {
     /// Builds each host's system and switches the host to it, which substitutes it from the build host, one host after
     /// the other.
     Apply(Apply),
+    /// Invites one to the org's keycloak: makes them a user of the realm, and has Keycloak mail them a link to set their
+    /// password, which then leads to the realm's portal, if it has one.
+    Invite(keycloak::Invite),
     /// Encrypts each sops file to its recipients, and each identity to itself, its actors and the root identities, as
     /// the org declares them, where they aren't already.
     Reencrypt {
@@ -608,6 +611,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             org.build_all(&build.hosts, build.on.build_host.as_deref(), &build.nix_options)?
         ),
         Command::Apply(apply) => org.apply(&apply.hosts, apply.on.build_host.as_deref(), apply.unit)?,
+        Command::Invite(invite) => org.invite(&invite)?,
         Command::Reencrypt { rotate } => org.reencrypt(rotate)?,
         Command::Reset { host, how } => org.reset(&host, how)?,
         Command::Unit {

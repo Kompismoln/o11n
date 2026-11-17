@@ -226,7 +226,6 @@ pkgs.testers.runNixOSTest {
   testScript =
     { nodes, ... }:
     ''
-      import quopri
       import re
       import shlex
 
@@ -338,10 +337,9 @@ pkgs.testers.runNixOSTest {
           headers = received("Invite request: dave@example.org")
           authenticated(headers, "www@${endpoint}")
           assert re.search(r"^Reply-To: dave@example\.org$", headers, re.M), headers
-          body = internet.succeed("doveadm fetch -u carol@${elsewhere} body.text header subject 'Invite request: dave@example.org'")
-          body = quopri.decodestring(body.removeprefix("body.text:\n")).decode()
+          body = internet.succeed("doveadm fetch -u carol@${elsewhere} text.utf8 header subject 'Invite request: dave@example.org'")
           assert "Hej, jag vill gärna vara med." in body, body
-          assert "${org.app.auth.url}/admin/master/console/#/example/users/add-user" in body, body
+          assert "To invite them: o11n invite --keycloak auth --realm example dave@example.org" in body, body
 
       with subtest("the portal takes one address alone, and answers on the site's own pages"):
           for address in ["not-an-address", "eve@example.org, mallory@example.org", "eve@example.org\r\nBcc: mallory@example.org"]:

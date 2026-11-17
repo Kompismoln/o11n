@@ -47,6 +47,19 @@ Nextcloud's own logins are closed (`docs/parts/drive.md`), and user_oidc asks fo
 `o11n` with the app's `admin-client-secret`, Keycloak sends the realm's test mail, with the realm's own settings, to the
 app's own inbox, and the check fails with what Keycloak says when it can't (`crates/o11n/src/keycloak.rs`).
 
+## Invites
+
+A realm's registration is off, so an account is an invite: `o11n invite <address>` logs in as `o11n` with the app's
+`admin-client-secret`, makes a user of the address in the realm, its name the address's local part or `--username`, and
+has Keycloak mail them a link to set their password, which lasts `--days`, 7 by default (`crates/o11n/src/keycloak.rs`).
+
+- `--keycloak` and `--realm` name the app and realm, which the org's only ones are by default.
+- An address the realm has a user of already isn't invited again, and o11n names the user.
+- Once they've set their password, the realm's profile asks for their name, and the link leads on to a portal of the
+  realm, if there is one, as its client (`docs/parts/portal.md`).
+- When Keycloak can't send the mail, the user is removed again, and o11n fails with what Keycloak says: the invite can
+  be made again.
+
 ## Testing
 
 `vmTests.keycloak` (`tests/vm/keycloak.nix`) runs `tests/inventories/mail`'s `auth` on `web`, beside its mail server on
@@ -54,7 +67,9 @@ app's own inbox, and the check fails with what Keycloak says when it can't (`cra
 puts back as declared after it's changed by hand, its audience mapper included, which makes its tokens for `meet`, and
 `cloud`'s, a drive on `web` too, with its secret: the drive's login sends alice to the realm, which makes alice its
 user, bob, a user of Nextcloud's own, is disabled, and the drive keeps its apps. `o11n status` has Keycloak mail the app
-over verified TLS, and fail with what Keycloak says when the server is down.
+over verified TLS, and fail with what Keycloak says when the server is down. `o11n invite` invites the app's own
+address, whose mail a browser follows to set a password and a name, and lands on the portal; it refuses alice's, who has
+an account, and an invite whose mail fails leaves no user.
 
 ## Setting up: Kompismoln/org's keycloak as auth.kompismoln.se
 

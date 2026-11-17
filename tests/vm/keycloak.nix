@@ -116,6 +116,45 @@ let
             browser.close()
         print(json.dumps(said))
       '';
+
+  # Fact: one invited, who follows the link in their mail, sets their password, and goes on as Keycloak offers.
+  invited =
+    pkgs.writers.writePython3Bin "invited"
+      {
+        libraries = [ pkgs.python3Packages.playwright ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import sys
+        from playwright.sync_api import sync_playwright
+
+        link, password = sys.argv[1:3]
+        with sync_playwright() as p:
+            browser = p.chromium.launch(channel="chromium")
+            page = browser.new_page()
+            page.on("pageerror", lambda error: print("pageerror:", error, file=sys.stderr))
+            page.set_default_timeout(15000)
+            page.goto(link)
+            proceed = page.get_by_text("Click here to proceed")
+            if proceed.count():
+                proceed.click()
+            page.fill("#password-new", password)
+            page.fill("#password-confirm", password)
+            page.locator("[type=submit]").click()
+            # Fact: the realm's profile asks for a name, which the invite leaves to them.
+            page.fill("#firstName", "Auth")
+            page.fill("#lastName", "Example")
+            page.locator("[type=submit]").click()
+            back = page.get_by_text("Back to Application")
+            try:
+                back.wait_for(timeout=5000)
+                back.click()
+            except Exception:
+                pass
+            page.wait_for_url("${www.url}/**")
+            print(page.url)
+            browser.close()
+      '';
 in
 pkgs.testers.runNixOSTest {
   name = "o11n-keycloak";
@@ -201,6 +240,7 @@ pkgs.testers.runNixOSTest {
           o11n
           pkgs.jq
           visitor
+          invited
         ];
         environment.variables.PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
         virtualisation.memorySize = 4096;
@@ -434,6 +474,25 @@ pkgs.testers.runNixOSTest {
         user, query = "-u ${auth.principal.mail.address}", "header from ${auth.principal.mail.address}"
         mx.wait_until_succeeds(f"doveadm search {user} {query} | grep -q .", timeout=60)
 
+    tools = "cd ${outputs.context.path} && O11N_ORG_ROOT=$PWD O11N_EXPORT=${orgExport} SOPS_AGE_KEY_FILE=$PWD/keys/root-1"
+
+    with subtest("o11n invites one: a user of the realm, mailed a link to set their password, which leads to the portal"):
+        out = web.succeed(f"{tools} o11n invite ${auth.principal.mail.address} 2>&1")
+        assert "invited ${auth.principal.mail.address} to ${realm} as auth" in out, out
+        user = admin("${realm}/users?username=auth&exact=true")[0]
+        assert user["email"] == "${auth.principal.mail.address}" and user["enabled"], user
+        mailbox, query = "-u ${auth.principal.mail.address}", "header subject 'Update Your Account'"
+        mx.wait_until_succeeds(f"doveadm search {mailbox} {query} | grep -q .", timeout=60)
+        text = html.unescape(mx.succeed(f"doveadm fetch {mailbox} text.utf8 {query}"))
+        link = re.search(r"${pkgs.lib.escapeRegex auth.url}/realms/${realm}/login-actions/action-token\?[^\s\"<>]+", text)
+        assert link and "This link will expire within 7 days." in text, text
+        landed = web.succeed(f"invited '{link.group(0)}' \"auth's\"").strip()
+        assert landed.startswith("${www.url}/"), landed
+
+    with subtest("o11n invites no one who has an account already"):
+        out = web.fail(f"{tools} o11n invite alice@example.com 2>&1")
+        assert "alice@example.com has an account in ${realm} already: alice" in out, out
+
     with subtest("a realm whose mail fails fails the check, with what Keycloak says"):
         mx.succeed("systemctl stop postfix.service")
         out = web.succeed(
@@ -441,5 +500,10 @@ pkgs.testers.runNixOSTest {
             " SOPS_AGE_KEY_FILE=$PWD/keys/root-1 o11n status app-auth 2>&1 || true"
         )
         assert "app-auth keycloak-mail ${realm} fail: ${auth.url}/admin/realms/${realm}/testSMTPConnection answers 500" in out, out
+
+    with subtest("an invite whose mail isn't sent is undone, so that it can be made again"):
+        out = web.fail(f"{tools} o11n invite bob@example.com 2>&1")
+        assert "execute-actions-email answers 500" in out, out
+        assert admin("${realm}/users?username=bob&exact=true") == [], out
   '';
 }

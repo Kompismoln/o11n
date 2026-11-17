@@ -119,10 +119,10 @@ let
     builtins.readFile ./portal/invites.py
   );
 
-  # Dependency: Keycloak's admin console has a realm's new user at this route.
-  admin = lib.optionalString (
+  # Dependency: crates/o11n/src/keycloak.rs invites one to a keycloak's realm.
+  invite = lib.optionalString (
     app.keycloak != null
-  ) "${org.app.${app.keycloak}.url}/admin/master/console/#/${app.realm}/users/add-user";
+  ) "o11n invite --keycloak ${app.keycloak} --realm ${app.realm}";
 in
 {
   assertions = [
@@ -170,7 +170,7 @@ in
         invites
         app.handle
         app.invites
-        admin
+        invite
         app.principal.bindAddress
         (toString invitesPort)
       ];

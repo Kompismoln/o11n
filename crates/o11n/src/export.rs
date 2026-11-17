@@ -114,6 +114,16 @@ pub struct Openwrt {
 #[derive(Debug, Deserialize)]
 pub struct Keycloak {
     pub realms: Vec<String>,
+    #[serde(default)]
+    pub portals: Vec<Portal>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Portal {
+    pub realm: String,
+    pub url: String,
+    pub client_id: String,
 }
 
 #[derive(Debug, Deserialize)]

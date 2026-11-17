@@ -64,8 +64,7 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
 
 With `invites`, an address, the start page has a form where a visitor asks for an account: their address, and a message
 if they like. It mails the request to `invites`, as the portal, which has to send mail (`principal.mail.send`), with the
-visitor's address as its Reply-To, and with a link to add a user in the realm's admin console where the portal has a
-`keycloak` (`nixos/apps/portal/invites.py`).
+visitor's address as its Reply-To (`nixos/apps/portal/invites.py`).
 
 - nginx passes a POST to `/invite` alone to `<app>-invites`, a service of the portal's user on its own address, of 16
   KiB at most, and 4 at once from an address, then one a minute; more are answered 429.
@@ -73,8 +72,8 @@ visitor's address as its Reply-To, and with a link to add a user in the realm's 
   where the form tells them it's sent, or that the address doesn't look right, or to write to the org's `contact`.
 - A request that fills in the form's field that people don't see, a bot's, is told it's sent, and isn't.
 - The form isn't on the page for a visitor who is logged in.
-- An invite is the realm's: add a user with the visitor's address in the admin console, and send them Update Password
-  from its Credentials, which mails them a link to set their password, with the realm's registration off.
+- The mail ends with the command that invites the visitor, `o11n invite`, with the portal's keycloak and realm, and the
+  visitor's address quoted for a shell (`docs/parts/keycloak.md`).
 
 ## Testing
 
@@ -88,5 +87,4 @@ address.
 
 ## Work in progress
 
-- `o11n` inviting a visitor itself, as the keycloak's `o11n` client: the user made in the realm, and its mail sent.
 - The org's latest commits, and a status page of its apps, linked from the portal.
