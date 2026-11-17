@@ -55,8 +55,7 @@ server is down.
 
 ## Setting up: Kompismoln/org's keycloak as auth.kompismoln.se
 
-Kompismoln/org's keycloak was set up by hand, with the admin password `initialAdminPassword` gave it and since changed,
-and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't keep.
+Kompismoln/org's keycloak was set up by hand, with the admin password `initialAdminPassword` gave it and since changed.
 
 1. Archive its state to pelle daily, and have it send mail, as it tells of a failed archive, under `[app.keycloak]` in
    `org.toml`, as `docs/parts/state.md` does for klimatkalendern:
@@ -99,9 +98,8 @@ and the realm `jitsi-realm`, which jitsi's client is in and which o11n doesn't k
 4. See that it archives and mails: `o11n status app-keycloak` has `archive pelle helsinki` and
    `keycloak-mail kompismoln`.
 
-5. Move jitsi into `kompismoln`, with `keycloak = "keycloak"` and `realm = "kompismoln"` under `[app.jitsi]`, and apply
-   helsinki: `keycloak-realms` puts jitsi's client over the one `kompismoln` had, and jitsi's sign-in moves with it.
-   Then move the friends' accounts out of `jitsi-realm`, or invite them anew, and delete it in the admin console.
+5. Have jitsi sign in with `kompismoln`, with `keycloak = "keycloak"` and `realm = "kompismoln"` under `[app.jitsi]`,
+   and apply helsinki: `keycloak-realms` keeps jitsi's client there, and jitsi's sign-in is the realm's.
 
 6. Have each drive's users log in with `kompismoln`, under `[app.drive]` and `[app.drive-dev]`:
 
