@@ -18,7 +18,7 @@ and which failed, on a terminal each as it ends, with what it took, and in a git
 <<<<<<< signed
 - `dev/check.sh stamps` ~0.1s, every conflict marker a stamp's
 =======
-- `dev/check.sh stamps` ~0.2s, every conflict marker a stamp's
+- `dev/check.sh stamps` ~0.1s, every conflict marker a stamp's
 >>>>>>> @stamp
 - `dev/check.sh pending` ~0.2s, what is left to stamp
 - `dev/check.sh stamped` ~0.3s, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as
