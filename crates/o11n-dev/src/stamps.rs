@@ -111,6 +111,13 @@ fn marked(then: &str, now: &str) -> Result<String, String> {
     }
 }
 
+// Policy: a portal's content in a test inventory is what the portal builds from, not a doc, and Zola reads no stamp.
+const UNSTAMPED: &str = "tests/inventories/*/site/*";
+
+fn stamped(path: &str) -> bool {
+    !files::globbed(UNSTAMPED, path)
+}
+
 /// Each doc changed since the commit, with the path it had then, if any.
 fn changes(base: &str) -> Result<Vec<(String, Option<String>)>, String> {
     let listed = git::run(&["diff", "-z", "--name-status", "-M", base, "--", "*.md"])?;
@@ -159,6 +166,7 @@ fn changes(base: &str) -> Result<Vec<(String, Option<String>)>, String> {
             .filter(|path| !path.is_empty())
             .map(|path| (path.to_owned(), None)),
     );
+    changed.retain(|(path, _)| stamped(path));
     Ok(changed)
 }
 
@@ -223,7 +231,10 @@ pub fn scan(pending: bool, dir: Option<&str>) -> Result<Vec<String>, String> {
         std::env::set_current_dir(dir).map_err(|e| format!("stamps: {dir}: {e}"))?;
     }
     let mut flags = Vec::new();
-    for path in files::matching(&["*.md".to_owned()])? {
+    for path in files::matching(&["*.md".to_owned()])?
+        .into_iter()
+        .filter(|path| stamped(path))
+    {
         let text = read(&path)?;
         match side(Side::Applied, &path, &text) {
             Err(why) => flags.push(why),
@@ -239,7 +250,15 @@ pub fn scan(pending: bool, dir: Option<&str>) -> Result<Vec<String>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CLOSING, DIVIDER, OPENING, Side, side};
+    use super::{CLOSING, DIVIDER, OPENING, Side, side, stamped};
+
+    #[test]
+    fn a_portals_content_in_a_test_inventory_is_no_doc() {
+        assert!(!stamped("tests/inventories/mail/site/_index.md"));
+        assert!(!stamped("tests/inventories/mail/site/blog/first.en.md"));
+        assert!(stamped("tests/inventories/mail/README.md"));
+        assert!(stamped("docs/parts/portal.md"));
+    }
 
     #[test]
     fn a_side_keeps_what_is_outside_the_stamps() {

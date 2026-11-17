@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 +++
 title = "Test AB"
 description = "Moln för alice och bob."
@@ -13,4 +11,3 @@ title = "Möten"
 +++
 
 Välkommen.
->>>>>>> @stamp

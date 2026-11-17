@@ -1,6 +1,3 @@
-<<<<<<< signed
-=======
 +++
 title = "Policies"
 +++
->>>>>>> @stamp

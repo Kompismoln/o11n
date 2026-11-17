@@ -105,6 +105,9 @@ A stamp is a git conflict in a doc, from `<<<<<<< signed` to `=======` as the op
 writes them, flags a conflict marker that isn't a stamp's, and the stamps pending. The operator stamps them before work
 proceeds.
 
+A doc is a `*.md` but a portal's content in a test inventory, `tests/inventories/*/site/`, which the portal builds from
+and Zola reads no stamp in (`crates/o11n-dev/src/stamps.rs`).
+
 The hooks write them against `o11n-dev base`: `refs/stamped/<branch>`, which `./dev/operator.sh stamp` sets, what the
 operator last stamped. Until a branch has one, against the commit the turn started at, or else where the branch left the
 main branch `dev/settings.toml` names, so that what wasn't stamped is stamped again rather than left out.
