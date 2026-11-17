@@ -116,19 +116,26 @@ let
       };
     }
     // lib.optionalAttrs (entity.class == "store" && entity.smb != null) {
-      smb = {
-        inherit (entity.smb) host share login;
-        roots = lib.sort lib.lessThan (
-          lib.unique (
-            lib.concatMap (
-              app:
-              map (share: lib.removePrefix "${entity.smb.share}/" share.share) (
-                lib.filter (share: share.key.handle == entity.handle) (app.shares or [ ])
-              )
-            ) (lib.attrValues config.app)
-          )
-        );
-      };
+      smb =
+        let
+          mounting = lib.filter (
+            app: lib.any (share: share.key.handle == entity.handle) (app.shares or [ ])
+          ) (lib.attrValues config.app);
+        in
+        {
+          inherit (entity.smb) host share login;
+          roots = lib.sort lib.lessThan (
+            lib.unique (
+              lib.concatMap (
+                app:
+                map (share: lib.removePrefix "${entity.smb.share}/" share.share) (
+                  lib.filter (share: share.key.handle == entity.handle) app.shares
+                )
+              ) mounting
+            )
+          );
+          hosts = lib.sort lib.lessThan (lib.unique (lib.concatMap (app: app.run-on-hosts) mounting));
+        };
     }
     // lib.optionalAttrs (entity.class == "app" && entity.kind == "keycloak") {
       keycloak.realms = lib.attrNames entity.realms;

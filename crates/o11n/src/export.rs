@@ -99,6 +99,7 @@ pub struct Smb {
     pub share: String,
     pub login: String,
     pub roots: Vec<String>,
+    pub hosts: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

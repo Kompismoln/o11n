@@ -145,9 +145,9 @@ Use `generate-keys.sh`, with o11n on PATH.
 - o11n needs nix, sops and ssh on PATH, and curl and gost for `o11n remote`. `nix build .#o11n` gives o11n, and
   `nix build .#nixpkgs.legacyPackages.x86_64-linux.<package>` each of the others from o11n's own nixpkgs.
 =======
-- o11n needs nix, sops and ssh on PATH, curl and gost for `o11n remote`, and smbclient for a store's `o11n status`.
-  `nix build .#o11n` gives o11n, and `nix build .#nixpkgs.legacyPackages.x86_64-linux.<package>` each of the others from
-  o11n's own nixpkgs.
+- o11n needs nix, sops and ssh on PATH, curl and gost for `o11n remote`, and smbclient, which it doesn't carry, for a
+  store's `smb` checks. `nix build .#o11n` gives o11n, and `nix build .#nixpkgs.legacyPackages.x86_64-linux.<package>`
+  each of the others from o11n's own nixpkgs.
 >>>>>>> @stamp
 - In tests, compare with the files on disk (`builtins.readFile ./public-keys/...`) rather than with values computed by
   the same o11n code that is under test.

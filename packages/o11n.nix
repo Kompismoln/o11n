@@ -6,7 +6,6 @@
   makeWrapper,
   openssh,
   rustPlatform,
-  samba,
   sops,
 }:
 let
@@ -15,7 +14,6 @@ let
     curl
     gost
     openssh
-    samba
     sops
   ];
 in

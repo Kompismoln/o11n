@@ -60,6 +60,7 @@ pub enum Check {
     MediaArr(String, &'static str),
     Smb,
     SmbRoot(String),
+    SmbReach(String),
 }
 
 impl Check {
@@ -101,6 +102,7 @@ impl Check {
             Self::MediaArr(name, app) => format!("media-server {name} {app}"),
             Self::Smb => "smb".into(),
             Self::SmbRoot(path) => format!("smb-root {path}"),
+            Self::SmbReach(host) => format!("smb-reach {host}"),
         }
     }
 }
@@ -351,6 +353,7 @@ impl Org {
         if let Some(smb) = &entity.smb {
             checks.push(Check::Smb);
             checks.extend(smb.roots.iter().map(|path| Check::SmbRoot(path.clone())));
+            checks.extend(smb.hosts.iter().map(|host| Check::SmbReach(host.clone())));
         }
         if let (Some(keycloak), Some(mail)) = (&entity.keycloak, &entity.mail)
             && mail.send
@@ -461,6 +464,7 @@ impl Org {
             Check::Glesys(record) => self.glesys_outcome(id, entity, record)?,
             Check::Smb => self.smb_outcome(id, entity, "ls")?,
             Check::SmbRoot(path) => self.smb_outcome(id, entity, &format!("cd \"{path}\""))?,
+            Check::SmbReach(host) => self.smb_reach_outcome(entity, host)?,
         })
     }
 
@@ -886,12 +890,46 @@ impl Org {
 
     fn smb_outcome(&self, id: &str, entity: &Entity, command: &str) -> Result<Outcome, Outcome> {
         let smb = entity.smb.as_ref().ok_or_else(|| Outcome::Skip("no smb".into()))?;
+        // Policy: o11n doesn't carry samba, which is several hundred MiB, for these alone.
+        if !std::env::var_os("PATH")
+            .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join("smbclient").is_file()))
+        {
+            return Err(Outcome::Skip("smbclient isn't on PATH: nix shell nixpkgs#samba".into()));
+        }
         let password = needs(self.required(Secret {
             id,
             key: "smb-password",
             slot: 0,
         }))?;
         Ok(fails(Self::smbclient(smb, &password, command)))
+    }
+
+    // Policy: a share is reachable from a host that mounts it when the host connects to the server's port 445, before
+    // the host has what the mount needs.
+    fn smb_reach_outcome(&self, entity: &Entity, host: &str) -> Result<Outcome, Outcome> {
+        let smb = entity.smb.as_ref().ok_or_else(|| Outcome::Skip("no smb".into()))?;
+        let id = self.reached(host)?;
+        let acting = needs(self.acting("service-rescue"))?;
+        let mut ssh = self
+            .pinned_ssh(&id, "root", acting.command("ssh"))
+            .map_err(|error| Outcome::Fail(error.to_string()))?;
+        let server = smb.host.replace('\'', r"'\''");
+        Ok(fails(
+            run(
+                ssh.command
+                    .args(["timeout", "20", "bash", "-c", "': </dev/tcp/\"$0\"/445'"])
+                    .arg(format!("'{server}'")),
+                None,
+            )
+            .map(|_| ())
+            .map_err(|error| match error.to_string().trim() {
+                "ssh:" => Error::new(format!(
+                    "{} doesn't answer on port 445 from {host} within 20 seconds",
+                    smb.host
+                )),
+                _ => error,
+            }),
+        ))
     }
 
     // Dependency: nixos/apps/drive.nix and nixos/apps/photos.nix mount a share over SMB 3.1.1, sealed; -s /dev/null

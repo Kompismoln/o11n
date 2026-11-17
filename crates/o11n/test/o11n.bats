@@ -1200,6 +1200,26 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   [[ $output == *"store-box smb fail: smbclient: session setup failed: NT_STATUS_LOGON_FAILURE"* ]]
 }
 
+@test "status connects to a store's smb server on port 445 from each host that mounts its share" {
+  run o11n status --list store-box
+  [[ $output == *"store-box smb-reach testhost"* ]]
+
+  mock-host testhost
+  o11n host pull-ssh-key host-testhost
+  run o11n status store-box
+  [[ $output == *"store-box smb-reach testhost skip: "* ]]
+
+  o11n identity create service-rescue
+  o11n secret generate service-rescue ssh-key
+  run o11n status store-box
+  [[ $output == *"store-box smb-reach testhost ok"* ]]
+  grep -qxF "timeout 20 bash -c ': </dev/tcp/\"\$0\"/445' 'box.example.com'" "$BATS_TEST_TMPDIR/timeout-testhost.local"
+
+  touch "$BATS_TEST_TMPDIR/smb-unreachable-testhost.local"
+  run o11n status store-box
+  [[ $output == *"store-box smb-reach testhost fail: box.example.com doesn't answer on port 445 from testhost within 20 seconds"* ]]
+}
+
 @test "status has Keycloak test each realm's mail, logged in as its o11n client with the app's admin-client-secret" {
   run o11n status --list app-auth
   [[ $output == *"app-auth keycloak-mail example"* ]]
