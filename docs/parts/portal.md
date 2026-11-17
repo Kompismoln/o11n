@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # Portal
 
 A portal is the org's website: a static site that Zola builds from the org's markdown, with the apps it names listed at
@@ -71,4 +69,3 @@ logs out of both.
 - An invite: a form where one asks for an account with their address, which mails the org, and an invite link from
   Keycloak.
 - The org's latest commits, and a status page of its apps, linked from the portal.
->>>>>>> @stamp
