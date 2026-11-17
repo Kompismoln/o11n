@@ -115,6 +115,21 @@ let
         hosts = entity.run-on-hosts;
       };
     }
+    // lib.optionalAttrs (entity.class == "store" && entity.smb != null) {
+      smb = {
+        inherit (entity.smb) host share login;
+        roots = lib.sort lib.lessThan (
+          lib.unique (
+            lib.concatMap (
+              app:
+              map (share: lib.removePrefix "${entity.smb.share}/" share.share) (
+                lib.filter (share: share.key.handle == entity.handle) (app.shares or [ ])
+              )
+            ) (lib.attrValues config.app)
+          )
+        );
+      };
+    }
     // lib.optionalAttrs (entity.class == "app" && entity.kind == "keycloak") {
       keycloak.realms = lib.attrNames entity.realms;
     }

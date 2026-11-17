@@ -1172,6 +1172,34 @@ test_luks_key_2="luks2-roGxnLozh/+wBGot"
   [[ $output == *"app-auth collation testhost fail: host-testhost has no database auth: o11n apply host-testhost"* ]]
 }
 
+@test "status logs in to a store's smb share with its smb-password, and finds each root's directory there" {
+  run o11n status --list store-box
+  [[ $output == *"store-box smb"* ]]
+  [[ $output == *"store-box smb-root drive"* ]]
+
+  run o11n status store-box
+  [[ $output == *"store-box smb skip: "* ]]
+
+  o11n identity create store-box
+  o11n secret generate store-box smb-password
+  local password
+  password=$(o11n secret show store-box smb-password)
+
+  SMB_PASSWORD=$password SMB_DIRS=drive run o11n status store-box
+  [[ $output == *"store-box smb ok"* ]]
+  [[ $output == *"store-box smb-root drive ok"* ]]
+  grep -qF "smbclient //box.example.com/carol -s /dev/null -m SMB3 --client-protection=encrypt" "$BATS_TEST_TMPDIR/smbclient"
+  grep -qxF "username = carol" "$BATS_TEST_TMPDIR/smbclient"
+  grep -qxF "password = $password" "$BATS_TEST_TMPDIR/smbclient"
+
+  SMB_PASSWORD=$password run o11n status store-box
+  [[ $output == *"store-box smb ok"* ]]
+  [[ $output == *'store-box smb-root drive fail: smbclient: cd \drive\: NT_STATUS_OBJECT_NAME_NOT_FOUND'* ]]
+
+  SMB_PASSWORD=other run o11n status store-box
+  [[ $output == *"store-box smb fail: smbclient: session setup failed: NT_STATUS_LOGON_FAILURE"* ]]
+}
+
 @test "status has Keycloak test each realm's mail, logged in as its o11n client with the app's admin-client-secret" {
   run o11n status --list app-auth
   [[ $output == *"app-auth keycloak-mail example"* ]]

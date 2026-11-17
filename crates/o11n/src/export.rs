@@ -89,6 +89,16 @@ pub struct Entity {
     pub openwrt: Option<Openwrt>,
     #[serde(default)]
     pub router: Option<Router>,
+    #[serde(default)]
+    pub smb: Option<Smb>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Smb {
+    pub host: String,
+    pub share: String,
+    pub login: String,
+    pub roots: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

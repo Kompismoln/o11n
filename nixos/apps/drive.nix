@@ -321,9 +321,11 @@ let
     name = "nextcloud-status-${cfg.name}";
     runtimeInputs = [
       pkgs.coreutils
+      pkgs.gnugrep
       pkgs.jq
       pkgs.nixos-container
       pkgs.util-linux
+      config.systemd.package
     ];
     text = ''
       say() {
@@ -336,7 +338,9 @@ let
     + lib.concatMapStrings (root: ''
       path=${lib.escapeShellArg (dataOf root.user)}
       if ! timeout 20 mountpoint -q "$path"; then
-        say root ${root.user} "$path isn't mounted: systemctl status $path"
+        unit=$(systemd-escape -p --suffix=mount "$path")
+        said=$(journalctl -b -u "$unit" -t mount -o cat --no-pager 2>/dev/null | grep -F 'mount error' | tail -n 1) || said=
+        say root ${root.user} "$path isn't mounted: ''${said:+$said: }systemctl status $path"
       elif ! timeout 20 runuser -u ${cfg.user} -- test -w "$path"; then
         say root ${root.user} "$path isn't writable as ${cfg.user}"
       else

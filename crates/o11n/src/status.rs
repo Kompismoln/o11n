@@ -5,11 +5,11 @@ use std::sync::{Mutex, mpsc};
 use crate::Error;
 use crate::builder::Builder;
 use crate::dns;
-use crate::export::Entity;
+use crate::export::{Entity, Smb};
 use crate::keys::Kind;
 use crate::ssh;
 use crate::store::{Org, Secret};
-use crate::util::{self, TempDir};
+use crate::util::{self, TempDir, run};
 
 // Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>, on this port.
 const SUBMISSION: u16 = 587;
@@ -58,6 +58,8 @@ pub enum Check {
     TorrentServer,
     MediaServer(String),
     MediaArr(String, &'static str),
+    Smb,
+    SmbRoot(String),
 }
 
 impl Check {
@@ -97,6 +99,8 @@ impl Check {
             Self::TorrentServer => "torrent-server".into(),
             Self::MediaServer(name) => format!("media-server {name}"),
             Self::MediaArr(name, app) => format!("media-server {name} {app}"),
+            Self::Smb => "smb".into(),
+            Self::SmbRoot(path) => format!("smb-root {path}"),
         }
     }
 }
@@ -344,6 +348,10 @@ impl Org {
         if let Some(url) = &entity.url {
             checks.push(Check::Url(url.clone()));
         }
+        if let Some(smb) = &entity.smb {
+            checks.push(Check::Smb);
+            checks.extend(smb.roots.iter().map(|path| Check::SmbRoot(path.clone())));
+        }
         if let (Some(keycloak), Some(mail)) = (&entity.keycloak, &entity.mail)
             && mail.send
         {
@@ -423,21 +431,7 @@ impl Org {
             Check::TorrentServer => self.torrent_server_outcome(id, entity)?,
             Check::MediaServer(name) => self.media_server_outcome(entity, name)?,
             Check::MediaArr(name, app) => self.media_arr_outcome(entity, name, app)?,
-            Check::NixDaemon => {
-                let endpoint = Self::endpoint(id, entity).map_err(fail)?;
-                // Fact: 401 is the builder's nginx refusing a request without the bearer, and 404 its gost, where a
-                // proxy adds the bearer, as a Claude session's does.
-                fails(
-                    Builder::new(endpoint, None)
-                        .probe()
-                        .and_then(|answer| match answer.as_str() {
-                            "401" | "404" => Ok(()),
-                            answer => Err(Error::new(format!(
-                                "https://{endpoint}/nix-daemon/probe answers {answer}, not 401 or 404"
-                            ))),
-                        }),
-                )
-            }
+            Check::NixDaemon => Self::nix_daemon_outcome(id, entity)?,
             Check::NixStore => {
                 let endpoint = Self::endpoint(id, entity).map_err(fail)?;
                 let token = self.builder_token(endpoint)?;
@@ -465,6 +459,8 @@ impl Org {
             Check::Openwrt => self.openwrt_outcome(id, entity)?,
             Check::Lan(host) => self.lan_outcome(id, entity, host)?,
             Check::Glesys(record) => self.glesys_outcome(id, entity, record)?,
+            Check::Smb => self.smb_outcome(id, entity, "ls")?,
+            Check::SmbRoot(path) => self.smb_outcome(id, entity, &format!("cd \"{path}\""))?,
         })
     }
 
@@ -872,6 +868,55 @@ impl Org {
             curl.arg("-K").arg(config);
         }
         curled(curl.stdin(std::process::Stdio::null())).map(|_| ())
+    }
+
+    fn nix_daemon_outcome(id: &str, entity: &Entity) -> Result<Outcome, Outcome> {
+        let endpoint = Self::endpoint(id, entity).map_err(|error| Outcome::Fail(error.to_string()))?;
+        // Fact: 401 is the builder's nginx refusing a request without the bearer, and 404 its gost, where a
+        // proxy adds the bearer, as a Claude session's does.
+        Ok(fails(Builder::new(endpoint, None).probe().and_then(
+            |answer| match answer.as_str() {
+                "401" | "404" => Ok(()),
+                answer => Err(Error::new(format!(
+                    "https://{endpoint}/nix-daemon/probe answers {answer}, not 401 or 404"
+                ))),
+            },
+        )))
+    }
+
+    fn smb_outcome(&self, id: &str, entity: &Entity, command: &str) -> Result<Outcome, Outcome> {
+        let smb = entity.smb.as_ref().ok_or_else(|| Outcome::Skip("no smb".into()))?;
+        let password = needs(self.required(Secret {
+            id,
+            key: "smb-password",
+            slot: 0,
+        }))?;
+        Ok(fails(Self::smbclient(smb, &password, command)))
+    }
+
+    // Dependency: nixos/apps/drive.nix and nixos/apps/photos.nix mount a share over SMB 3.1.1, sealed; -s /dev/null
+    // keeps the operator's own smb.conf out of it.
+    fn smbclient(smb: &Smb, password: &str, command: &str) -> Result<(), Error> {
+        let temp = TempDir::new()?;
+        let auth = temp.file("smb", &format!("username = {}\npassword = {password}\n", smb.login))?;
+        run(
+            Command::new("smbclient")
+                .arg(format!("//{}/{}", smb.host, smb.share))
+                .args([
+                    "-s",
+                    "/dev/null",
+                    "-m",
+                    "SMB3",
+                    "--client-protection=encrypt",
+                    "-t",
+                    "20",
+                    "-A",
+                ])
+                .arg(auth)
+                .args(["-c", command]),
+            None,
+        )
+        .map(|_| ())
     }
 
     pub fn status(&self, groups: &[String], list: bool, failed_only: bool) -> Result<(), Error> {
