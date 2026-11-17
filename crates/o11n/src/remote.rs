@@ -434,18 +434,8 @@ impl Org {
     }
 
     fn facts(&self, stick: &Stick, agent: &Agent, host: &str) -> Result<(), Error> {
-        let relative = format!("hosts/{host}/facter.json");
-        let path = self.root.join(&relative);
         let facts = run(stick.ssh(agent).arg("nixos-facter"), None)?;
-        crate::util::write(&path, &facts, false)?;
-        run(
-            Command::new("git")
-                .arg("-C")
-                .arg(&self.root)
-                .args(["add", "--intent-to-add"])
-                .arg(&relative),
-            None,
-        )?;
+        let relative = self.write_facts(host, &facts)?;
         log(format!("wrote {relative}; its disks:"));
         status(stick.ssh(agent).arg("ls -l /dev/disk/by-id/ | grep -v -- -part"))
     }

@@ -5,6 +5,10 @@
   ...
 }:
 {
+  # Policy: a host with an NVIDIA card runs NVIDIA's driver, which a desktop on nouveau has neither a hardware cursor
+  # nor a picture without artifacts with.
+  imports = lib.optional (lib.any (gpu: gpu.vendor == "nvidia") host.gpus) ../nvidia.nix;
+
   time.timeZone = org.timezone;
   i18n.defaultLocale = org.locale;
   system.stateVersion = host.stateVersion;

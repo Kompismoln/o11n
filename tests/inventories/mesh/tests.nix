@@ -824,6 +824,28 @@ in
       };
     };
 
+  # Policy: a host's graphics cards are its facter report's, the one a monitor is attached to first.
+  test_gpus = {
+    expr = (alter { host.alpha.facterFile = ./hybrid-facter.json; }).org.host.alpha.gpus;
+    expected = [
+      {
+        bus = "0000:02:00.0";
+        vendor = "nvidia";
+        monitors = 1;
+      }
+      {
+        bus = "0000:00:02.0";
+        vendor = "intel";
+        monitors = 0;
+      }
+      {
+        bus = "0000:03:00.0";
+        vendor = "1234";
+        monitors = 0;
+      }
+    ];
+  };
+
   test_router_refuses = {
     expr =
       let

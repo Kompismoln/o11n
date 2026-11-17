@@ -6,6 +6,7 @@ use base64::engine::general_purpose::STANDARD;
 use crate::Error;
 use crate::keys::{self, Kind};
 use crate::ssh::Ssh;
+use crate::status::Outcome;
 use crate::store::{Org, Secret};
 use crate::util::{TempDir, log, run};
 
@@ -191,5 +192,34 @@ impl Org {
     pub fn pull_ssh_key(&self, id: &str) -> Result<(), Error> {
         let scanned = self.scanned_ssh_key(id)?;
         self.write(&self.public_path(id, "ssh-key")?, &scanned, false)
+    }
+
+    // Dependency: nixos/services/nix-switch.nix has switch-system facts run nixos-facter as root.
+    pub fn host_facts(&self, id: &str) -> Result<(), Error> {
+        let entity = self.entity(id)?;
+        let facts = self
+            .switch_system(id, entity, "facts")
+            .map_err(|outcome| match outcome {
+                Outcome::Fail(why) | Outcome::Skip(why) => Error::new(why),
+                Outcome::Ok => Error::new(format!("{id} said nothing")),
+            })?;
+        let relative = self.write_facts(&entity.name, &facts)?;
+        log(format!("wrote {relative}"));
+        Ok(())
+    }
+
+    // Policy: a host's facts are staged, so that the org's flake, which reads only what git tracks, has them.
+    pub fn write_facts(&self, host: &str, facts: &str) -> Result<String, Error> {
+        let relative = format!("hosts/{host}/facter.json");
+        crate::util::write(&self.root.join(&relative), facts, false)?;
+        run(
+            Command::new("git")
+                .arg("-C")
+                .arg(&self.root)
+                .args(["add", "--intent-to-add"])
+                .arg(&relative),
+            None,
+        )?;
+        Ok(relative)
     }
 }

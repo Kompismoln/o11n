@@ -7,7 +7,10 @@
 let
   switchSystem = pkgs.writeShellApplication {
     name = "switch-system";
-    runtimeInputs = [ config.nix.package ];
+    runtimeInputs = [
+      config.nix.package
+      pkgs.nixos-facter
+    ];
     text = ''
       profile=/nix/var/nix/profiles/system
       generation=''${1:-}
@@ -68,8 +71,10 @@ let
           fi
         done
         exit 0
+      elif [[ $generation == facts ]]; then
+        exec nixos-facter
       elif [[ -n $generation ]]; then
-        echo "usage: switch-system [store path | generation | status | allotments | databases | nextcloud]" >&2
+        echo "usage: switch-system [store path | generation | status | allotments | databases | nextcloud | facts]" >&2
         exit 1
       fi
 
