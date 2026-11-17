@@ -105,11 +105,29 @@ let
           api -G --data-urlencode "clientId=$(jq -r .clientId <<<"$client")" "${local}/admin/realms/$realm/clients" |
             jq -r '.[0].id // empty'
         )
+        mappers=$(jq -c '.protocolMappers // []' <<<"$client")
+        client=$(jq -c 'del(.protocolMappers)' <<<"$client")
         if [[ -z $id ]]; then
           api -X POST --data-binary @- "${local}/admin/realms/$realm/clients" <<<"$client"
+          id=$(
+            api -G --data-urlencode "clientId=$(jq -r .clientId <<<"$client")" "${local}/admin/realms/$realm/clients" |
+              jq -er '.[0].id'
+          )
         else
           api -X PUT --data-binary @- "${local}/admin/realms/$realm/clients/$id" <<<"$client"
         fi
+
+        # Fact: Keycloak's update of a client leaves its protocol mappers be, so each declared one is kept by its name.
+        models="${local}/admin/realms/$realm/clients/$id/protocol-mappers/models"
+        held=$(api "$models")
+        jq -c '.[]' <<<"$mappers" | while IFS= read -r mapper; do
+          mapper_id=$(jq -r --argjson mapper "$mapper" '.[] | select(.name == $mapper.name) | .id' <<<"$held")
+          if [[ -z $mapper_id ]]; then
+            api -X POST --data-binary @- "$models" <<<"$mapper"
+          else
+            jq -c --arg id "$mapper_id" '.id = $id' <<<"$mapper" | api -X PUT --data-binary @- "$models/$mapper_id"
+          fi
+        done
       done
 
       id=$(api "${local}/admin/realms/master/clients?clientId=${client}" | jq -er '.[0].id')

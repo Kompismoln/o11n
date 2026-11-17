@@ -323,6 +323,28 @@ pkgs.testers.runNixOSTest {
         users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
         assert list(users) == ["alice"] and users["alice"]["backend"] == "user_oidc", users
 
+    with subtest("meet's tokens are for meet, which its prosody accepts, by a mapper that's kept as declared"):
+        alice = admin("${realm}/users?username=alice")[0]
+        meet = client("meet")
+        models = f"${realm}/clients/{meet['id']}/protocol-mappers/models"
+
+        def audience():
+            token = admin(
+                f"${realm}/clients/{meet['id']}/evaluate-scopes/generate-example-access-token?userId={alice['id']}&scope=openid"
+            )
+            aud = token.get("aud", [])
+            return aud if isinstance(aud, list) else [aud]
+
+        assert "meet" in audience(), audience()
+        mapper = [model for model in admin(models) if model["name"] == "audience"][0]
+        web.succeed(
+            f"curl -sSf -X DELETE -H 'X-Forwarded-Proto: https' -H 'Authorization: Bearer {token()}'"
+            f" ${local}/admin/realms/{models}/{mapper['id']}"
+        )
+        assert "meet" not in audience() and "account" not in audience(), audience()
+        web.succeed("systemctl restart keycloak-realms.service")
+        assert "meet" in audience(), audience()
+
     with subtest("the portal logs in with its client and back to where it was, which logs in the realm's other apps"):
         said = json.loads(web.succeed("visitor \"alice's\""))
         assert said["returned"] == "${www.url}/en/blog/", said

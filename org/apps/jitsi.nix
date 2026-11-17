@@ -37,8 +37,21 @@ in
           directAccessGrantsEnabled = false;
           serviceAccountsEnabled = false;
           # Policy: its tokens carry no roles, as it reads none, rather than every role, as Keycloak's full scope,
-          # which it deprecates, gives.
+          # which it deprecates, gives; so their audience is jitsi itself, which prosody accepts, rather than
+          # `account`, which Keycloak adds only for the account client's roles.
           fullScopeAllowed = false;
+          protocolMappers = [
+            {
+              name = "audience";
+              protocol = "openid-connect";
+              protocolMapper = "oidc-audience-mapper";
+              config = {
+                "included.client.audience" = config.name;
+                "access.token.claim" = "true";
+                "id.token.claim" = "false";
+              };
+            }
+          ];
           redirectUris = [ "${url}/static/sso.html" ];
           webOrigins = [ url ];
           attributes = {

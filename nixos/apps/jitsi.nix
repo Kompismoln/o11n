@@ -151,7 +151,7 @@ in
       # Fact: asap_* is the jitsi handbook's; the default log includes debug; prosody needs ssl for its certificate.
       extraConfig = ''
         asap_accepted_issuers = { "${issuer}" }
-        asap_accepted_audiences = { "account" }
+        asap_accepted_audiences = { "${client.clientId}" }
         asap_require_room_claim = false;
         log = { { to = "syslog", levels = { min = "info" } } }
         interfaces = { "127.0.0.1", "::1" }
