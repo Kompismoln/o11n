@@ -3,6 +3,9 @@
 What a host lets in from outside its vpns, and what bans those who try it. A host with the `server` role runs fail2ban
 (`nixos/org/fail2ban.nix`): one failure bans for a day, longer each time, unless a jail says otherwise, and the org's
 own addresses, `<prefix>::/48` and `<prefix4>.0.0/16`, are spared, as sshd's penalties spare them (`nixos/org/ssh.nix`).
+It bans with nftables, in sets of its own table, `inet f2b-table`, as iptables refuses the chain of a jail whose name is
+over 24 characters, as a jail named after an app can be. `vmTests.mailboxes` bans an address in each of `mx`'s jails,
+one of them named that long, and finds it in the jail's set.
 
 ## Points and jails
 

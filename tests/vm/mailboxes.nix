@@ -79,6 +79,8 @@ pkgs.testers.runNixOSTest {
       ];
       _module.args.host = org.host.mx;
       networking.firewall.allowedTCPPorts = [ 993 ];
+      # Fact: a jail named as long as wordpress-klarabergkonsult, whose iptables chain would be refused.
+      services.fail2ban.jails.wordpress-klarabergkonsult.settings.filter = "sshd";
       # Fact: the principals' passwords, which the test logs in with.
       sops.secrets = lib.genAttrs' [ admin alice auth ] (
         entity: lib.nameValuePair "${entity.name}/mail" { inherit (entity.secrets) sopsFile; }
@@ -210,6 +212,14 @@ pkgs.testers.runNixOSTest {
           mx.wait_until_succeeds(
               "fail2ban-client status roundcube-auth | grep -q 'Total failed:\\s*3'", timeout=30
           )
+
+      with subtest("each jail's ban reaches the firewall"):
+          jails = mx.succeed("fail2ban-client status | sed -n 's/.*Jail list:\\s*//p'").replace(",", " ").split()
+          assert jails, "no jails"
+          for jail in jails:
+              mx.succeed(f"fail2ban-client set {jail} banip 192.0.2.77")
+              mx.succeed(f"${pkgs.nftables}/bin/nft list set inet f2b-table addr-set-{jail} | grep -qF 192.0.2.77")
+              mx.succeed(f"fail2ban-client set {jail} unbanip 192.0.2.77")
 
       with subtest("dmarc-reports archives a clean report, flags trouble and what isn't a report, prunes the old"):
           for eml in ["${clean}", "${trouble}", "${loose}", "${hosted}", "${shared}", "${noise}"]:
