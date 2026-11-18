@@ -14,7 +14,11 @@ logo = "assets/logo.svg"
 accent = "#30667c"
 keycloak = "auth"
 realm = "example"
+<<<<<<< signed
 services = ["drive", "meet", "photos"]
+=======
+services = ["drive", "meet", "photos", "mail"]
+>>>>>>> @stamp
 invites = "join@example.com"
 principal.mail.send = true
 ```
@@ -29,7 +33,12 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   each language it's in.
 - The start page is the content's `_index.md`: its `title` and `description` head it, then its text.
 - The start page lists each app of `services`, in their order, by `extra.services.<app>` in its front matter, `title`
+<<<<<<< signed
   and `text`, or its name without, and its `url`, which the org gives it:
+=======
+  and `text`, or its name without, and its `url`, which the org gives it, a mail app's its webmail
+  (`docs/parts/mail.md`):
+>>>>>>> @stamp
 
   ```toml
   [extra.services.drive]

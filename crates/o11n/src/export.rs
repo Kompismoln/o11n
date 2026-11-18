@@ -15,8 +15,6 @@ pub struct Export {
     pub namespaces: Vec<String>,
     #[serde(default)]
     pub build_hosts: Vec<String>,
-    #[serde(default)]
-    pub mailserver: Option<Mailserver>,
     pub classes: BTreeMap<String, Class>,
     pub entities: BTreeMap<String, Entity>,
 }
@@ -75,6 +73,9 @@ pub struct Entity {
     pub served: BTreeMap<String, String>,
     #[serde(default)]
     pub mail: Option<Mail>,
+    // Dependency: org/export.nix gives an app of kind mail its server's settings.
+    #[serde(default)]
+    pub mailserver: Option<Mailserver>,
     #[serde(default)]
     pub url: Option<String>,
     #[serde(default)]
@@ -159,6 +160,8 @@ pub struct Mail {
     pub send: bool,
     #[serde(default)]
     pub send_as: Vec<String>,
+    #[serde(default)]
+    pub server: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

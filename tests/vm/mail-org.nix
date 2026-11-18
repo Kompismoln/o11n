@@ -6,8 +6,7 @@
 }:
 let
   inherit (pkgs) lib;
-  inherit (outputs.org.mailserver) endpoint;
-  fqdn = "mail.${endpoint}";
+  fqdn = outputs.org.app.mail.endpoint;
   elsewhere = "elsewhere.test";
   receiver = "mx.${elsewhere}";
   # Fact: the endpoints of the apps that are served over https in a test, whose certificates the test's CA signs.
@@ -52,7 +51,8 @@ rec {
     };
   };
 
-  # Accommodating for the test's network, which has no ACME server and no root for kresd to iterate from.
+  # Accommodating for the test's network, which has no ACME server and no root for kresd to iterate from: the server and
+  # nginx serve the test's certificate.
   mailserver = {
     mailserver = {
       localDnsResolver = false;
@@ -63,10 +63,34 @@ rec {
       };
     };
     security.acme.certs = lib.mkForce { };
+    services.nginx.virtualHosts.${fqdn} = {
+      useACMEHost = lib.mkForce null;
+      sslCertificate = "${tls}/mail.crt";
+      sslCertificateKey = "${tls}/mail.key";
+    };
     services.postfix-tlspol.configurePostfix = lib.mkForce false;
     virtualisation.memorySize = 2048;
     virtualisation.cores = 2;
   };
+
+  # Duplication: as roles/app-scheduler.nix imports an app's kind, with the app.
+  mailApp =
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
+    import ../../nixos/apps/mail.nix {
+      app = outputs.org.app.mail;
+      inherit (outputs) org;
+      inherit
+        config
+        lib
+        pkgs
+        o11nInputs
+        ;
+    };
 
   # Duplication: as nixos/org/principals.nix makes them.
   principal = entity: {

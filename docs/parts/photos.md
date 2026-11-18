@@ -30,7 +30,11 @@ are:
   checks the file's hash as it moves it
 - it doesn't back up its database, which is dumped into the app's home as any other's (`docs/parts/state.md`), nor
   checks for new versions
+<<<<<<< signed
 - with `principal.mail.send`, it mails as the app, logging in to submission on `mail.<endpoint>` with its `mail` key.
+=======
+- with `principal.mail.send`, it mails as the app, logging in to submission on its mail server with its `mail` key.
+>>>>>>> @stamp
 
 ## Login
 

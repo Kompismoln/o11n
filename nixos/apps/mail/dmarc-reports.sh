@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Dependency: nixos/services/dmarc-reports.nix sets DMARC_SERVER, the mail server, which it logs in to over imaps and
+# Dependency: nixos/apps/mail.nix sets DMARC_SERVER, the mail server, which it logs in to over imaps and
 # whose addresses send the org's mail, DMARC_LOGIN and DMARC_PASSWORD, the file of the login's password, and
 # DMARC_RETENTION, the days Archive keeps a report.
 work=$(mktemp -d)

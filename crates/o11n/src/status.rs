@@ -5,13 +5,13 @@ use std::sync::{Mutex, mpsc};
 use crate::Error;
 use crate::builder::Builder;
 use crate::dns;
-use crate::export::Entity;
+use crate::export::{Entity, Mailserver};
 use crate::keys::Kind;
 use crate::ssh;
 use crate::store::{Org, Secret};
 use crate::util::{self, TempDir};
 
-// Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>, on this port.
+// Dependency: nixos/apps/mail.nix serves submission at the app's endpoint, on this port.
 const SUBMISSION: u16 = 587;
 
 // Dependency: nixos/services/nix-remote.nix and nixos/services/remote-builder-relay.nix serve the builder's daemon on
@@ -249,33 +249,31 @@ impl Org {
                 checks.push(Check::NixDaemon);
                 checks.push(Check::NixStore);
             }
-            if let Some(mailserver) = &self.export.mailserver
-                && entity.services.iter().any(|service| service == "mailserver")
-            {
-                checks.push(Check::Submission(format!("mail.{}", mailserver.endpoint)));
-                // Policy: a domain with mailboxes is to receive at the server, and one a principal's address is on,
-                // which it sends as, is to pass a receiver's SPF, DKIM and DMARC.
-                for (domain, settings) in &mailserver.domains {
-                    if settings.mailbox {
-                        checks.push(Check::Mx(domain.clone()));
-                    }
-                    if settings.sent {
-                        checks.push(Check::Spf(domain.clone()));
-                        checks.push(Check::Dkim(domain.clone()));
-                        checks.push(Check::Dmarc(domain.clone()));
-                    }
+        }
+        if let Some(mailserver) = &entity.mailserver {
+            checks.push(Check::Submission(mailserver.endpoint.clone()));
+            // Policy: a domain with mailboxes is to receive at the server, and one a principal's address is on, which
+            // it sends as, is to pass a receiver's SPF, DKIM and DMARC.
+            for (domain, settings) in &mailserver.domains {
+                if settings.mailbox {
+                    checks.push(Check::Mx(domain.clone()));
+                }
+                if settings.sent {
+                    checks.push(Check::Spf(domain.clone()));
+                    checks.push(Check::Dkim(domain.clone()));
+                    checks.push(Check::Dmarc(domain.clone()));
                 }
             }
         }
         checks.extend(Self::serving_checks(entity));
-        if let (Some(mailserver), Some(_)) = (&self.export.mailserver, &entity.mail)
+        if let (Ok(mailserver), Some(_)) = (self.mail_server(entity), &entity.mail)
             && entity.keys.contains_key("mail")
         {
-            checks.push(Check::MailLogin(format!("mail.{}", mailserver.endpoint)));
+            checks.push(Check::MailLogin(mailserver.endpoint.clone()));
         }
-        // Policy: a domain a principal sends as beyond the org's addresses is the principal's, as are its SPF, DKIM
-        // and DMARC.
-        if let (Some(mailserver), Some(mail)) = (&self.export.mailserver, &entity.mail)
+        // Policy: a domain a principal sends as beyond its server's is the principal's, as are its SPF, DKIM and
+        // DMARC.
+        if let (Ok(mailserver), Some(mail)) = (self.mail_server(entity), &entity.mail)
             && mail.send
         {
             let mut domains: Vec<&str> = mail
@@ -457,10 +455,10 @@ impl Org {
                 }))?;
                 fails(Self::submission(server, Some((address, &password))))
             }
-            Check::Mx(domain) => fails(self.mx(domain)),
-            Check::Spf(domain) => fails(self.spf(domain)),
-            Check::Dkim(domain) => fails(self.dkim(domain)),
-            Check::Dmarc(domain) => fails(self.dmarc(domain)),
+            Check::Mx(domain) => fails(self.mx(entity, domain)),
+            Check::Spf(domain) => fails(self.spf(entity, domain)),
+            Check::Dkim(domain) => fails(self.dkim(entity, domain)),
+            Check::Dmarc(domain) => fails(self.dmarc(entity, domain)),
             Check::KeycloakMail(realm) => self.keycloak_mail(id, entity, realm)?,
             Check::Openwrt => self.openwrt_outcome(id, entity)?,
             Check::Lan(host) => self.lan_outcome(id, entity, host)?,
@@ -468,18 +466,26 @@ impl Org {
         })
     }
 
-    fn mail_server(&self) -> Result<String, Error> {
-        self.export
+    // Policy: a mail app's checks are of its own server, a principal's of the server of its address's domain.
+    fn mail_server<'e>(&'e self, entity: &'e Entity) -> Result<&'e Mailserver, Error> {
+        if let Some(mailserver) = &entity.mailserver {
+            return Ok(mailserver);
+        }
+        let server = entity
+            .mail
+            .as_ref()
+            .and_then(|mail| mail.server.as_deref())
+            .ok_or_else(|| Error::new(format!("{} has mail on no domain a mail app serves", entity.name)))?;
+        self.entity(&format!("app-{server}"))?
             .mailserver
             .as_ref()
-            .map(|mailserver| format!("mail.{}", mailserver.endpoint))
-            .ok_or_else(|| Error::new("the org has no [mailserver]"))
+            .ok_or_else(|| Error::new(format!("app-{server} is no app of kind mail")))
     }
 
-    fn mx(&self, domain: &str) -> Result<(), Error> {
-        let server = self.mail_server()?;
+    fn mx(&self, entity: &Entity, domain: &str) -> Result<(), Error> {
+        let server = &self.mail_server(entity)?.endpoint;
         let exchangers = dns::exchangers(domain)?;
-        if exchangers.contains(&server) {
+        if exchangers.contains(server) {
             return Ok(());
         }
         Err(Error::new(format!(
@@ -493,9 +499,9 @@ impl Org {
     }
 
     // Policy: from each address of the server, which is where it sends from.
-    fn spf(&self, domain: &str) -> Result<(), Error> {
-        let server = self.mail_server()?;
-        let addresses = dns::addresses(&server)?;
+    fn spf(&self, entity: &Entity, domain: &str) -> Result<(), Error> {
+        let server = &self.mail_server(entity)?.endpoint;
+        let addresses = dns::addresses(server)?;
         if addresses.is_empty() {
             return Err(Error::new(format!("{server} has no address")));
         }
@@ -515,13 +521,8 @@ impl Org {
         )))
     }
 
-    fn dkim(&self, domain: &str) -> Result<(), Error> {
-        let selector = self
-            .export
-            .mailserver
-            .as_ref()
-            .map(|mailserver| mailserver.dkim_selector.as_str())
-            .unwrap_or_default();
+    fn dkim(&self, entity: &Entity, domain: &str) -> Result<(), Error> {
+        let selector = &self.mail_server(entity)?.dkim_selector;
         let name = format!("{selector}._domainkey.{domain}");
         // Fact: a DKIM record's v= is optional, and its p= the key, empty for one revoked.
         let keys: Vec<String> = dns::lookup(&name, dns::Type::Txt)?
@@ -534,7 +535,7 @@ impl Org {
             })
             .filter(|key| !key.is_empty())
             .collect();
-        // Dependency: nixos/services/mailserver.nix keeps the server's keys under /var/dkim, on storage on a host
+        // Dependency: nixos/apps/mail.nix keeps the server's keys under /var/dkim, on storage on a host
         // that preserves.
         match keys.as_slice() {
             [_] => Ok(()),
@@ -548,7 +549,7 @@ impl Org {
         }
     }
 
-    fn dmarc(&self, domain: &str) -> Result<(), Error> {
+    fn dmarc(&self, entity: &Entity, domain: &str) -> Result<(), Error> {
         let name = format!("_dmarc.{domain}");
         let record = dns::record(&name, "v=DMARC1")?;
         let tag = |name: &str| {
@@ -566,12 +567,7 @@ impl Org {
                 )));
             }
         }
-        let Some(reports) = self
-            .export
-            .mailserver
-            .as_ref()
-            .and_then(|mailserver| mailserver.reports.as_deref())
-        else {
+        let Some(reports) = self.mail_server(entity)?.reports.as_deref() else {
             return Ok(());
         };
         // Fact: a rua URI may end in !<size>, the largest report the address takes.
@@ -583,7 +579,7 @@ impl Org {
         });
         if !sent {
             return Err(Error::new(format!(
-                "{name} sends its aggregate reports elsewhere than {reports}, which dmarc-reports reads: add mailto:{reports} to its rua"
+                "{name} sends its aggregate reports elsewhere than {reports}, which its mail server reads as its principal: add mailto:{reports} to its rua"
             )));
         }
         // Fact: a receiver sends a domain's reports to an address on another, but for a subdomain of it or one it's a

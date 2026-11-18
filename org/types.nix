@@ -51,6 +51,7 @@ let
     drive = ./apps/drive.nix;
     jitsi = ./apps/jitsi.nix;
     keycloak = ./apps/keycloak.nix;
+    mail = ./apps/mail.nix;
     mobilizon = ./apps/mobilizon.nix;
     photos = ./apps/photos.nix;
     portal = ./apps/portal.nix;
@@ -126,7 +127,12 @@ entities
   class = with lib.types; enum (lib.attrNames context.classes);
   flake = lib.types.lazyAttrsOf lib.types.anything;
 
-  domain.module = lib.types.submodule ./domain.nix;
+  domain.module = lib.types.submoduleWith {
+    modules = [ ./domain.nix ];
+    specialArgs = {
+      inherit context;
+    };
+  };
   disk.module = lib.types.submodule ./disk.nix;
 
   ids.module = lib.types.submoduleWith {
@@ -187,13 +193,6 @@ entities
         inherit context host;
       };
     };
-
-  mailserver.module = lib.types.submoduleWith {
-    modules = [ ./mailserver.nix ];
-    specialArgs = {
-      inherit context;
-    };
-  };
 
   # Policy: a file the org names by its path in the org is one, or the org fails to evaluate where it's read.
   orgFile =

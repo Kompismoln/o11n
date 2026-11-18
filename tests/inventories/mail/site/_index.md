@@ -14,6 +14,9 @@ text = "Filer och kalender."
 
 [extra.services.meet]
 title = "Möten"
+
+[extra.services.mail]
+title = "E-post"
 +++
 
 Välkommen.

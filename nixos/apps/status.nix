@@ -8,7 +8,6 @@
 let
   port = 8080;
   portal = lib.mapNullable (name: org.app.${name}) app.portal;
-  mail = "mail.${org.mailserver.endpoint}";
 
   # Policy: a certificate is a failure a week before it expires, three weeks after ACME would have renewed it.
   certified = [ "[CERTIFICATE_EXPIRATION] > 168h" ];
@@ -23,32 +22,38 @@ let
     client.ignore-redirect = true;
   };
 
-  mailPorts = group: [
-    {
-      inherit group;
-      name = "${mail} submission";
-      url = "starttls://${mail}:587";
-      inherit (app) interval;
-      conditions = [ "[CONNECTED] == true" ] ++ certified;
-    }
-    {
-      inherit group;
-      name = "${mail} imaps";
-      url = "tls://${mail}:993";
-      inherit (app) interval;
-      conditions = [ "[CONNECTED] == true" ] ++ certified;
-    }
-    {
-      inherit group;
-      name = "${mail} smtp";
-      url = "tcp://${mail}:25";
-      inherit (app) interval;
-      conditions = [ "[CONNECTED] == true" ];
-    }
-  ];
+  # Dependency: nixos/apps/mail.nix serves submission, imaps and smtp at the app's endpoint.
+  mailPorts =
+    group: name:
+    let
+      mail = org.app.${name}.endpoint;
+    in
+    [
+      {
+        inherit group;
+        name = "${mail} submission";
+        url = "starttls://${mail}:587";
+        inherit (app) interval;
+        conditions = [ "[CONNECTED] == true" ] ++ certified;
+      }
+      {
+        inherit group;
+        name = "${mail} imaps";
+        url = "tls://${mail}:993";
+        inherit (app) interval;
+        conditions = [ "[CONNECTED] == true" ] ++ certified;
+      }
+      {
+        inherit group;
+        name = "${mail} smtp";
+        url = "tcp://${mail}:25";
+        inherit (app) interval;
+        conditions = [ "[CONNECTED] == true" ];
+      }
+    ];
 in
 {
-  assertions = [
+  assertions = builtins.seq app.mail [
     {
       assertion =
         lib.count (other: other.kind == "status" && lib.elem host.name other.run-on-hosts) (
@@ -57,8 +62,8 @@ in
       message = "${host.name} runs more than one status app, as it runs one Gatus: run app.${app.name} on another host.";
     }
     {
-      assertion = app.groups != { } || app.mail != null;
-      message = "app.${app.name} watches nothing: set groups, or mail, under [app.${app.name}].";
+      assertion = app.groups != { };
+      message = "app.${app.name} watches nothing: set groups under [app.${app.name}].";
     }
   ];
 
@@ -88,9 +93,15 @@ in
       // lib.optionalAttrs (portal != null && portal.logo != null) {
         logo = "${portal.url}/logo.${lib.last (lib.splitString "." (baseNameOf portal.logo))}";
       };
-      endpoints =
-        lib.concatLists (lib.mapAttrsToList (group: map (watched group)) app.groups)
-        ++ lib.optionals (app.mail != null) (mailPorts app.mail);
+      endpoints = lib.concatLists (
+        lib.mapAttrsToList (
+          group:
+          lib.concatMap (
+            name:
+            [ (watched group name) ] ++ lib.optionals (org.app.${name}.kind == "mail") (mailPorts group name)
+          )
+        ) app.groups
+      );
     }
     // lib.optionalAttrs (app.announcements != [ ]) {
       inherit (app) announcements;

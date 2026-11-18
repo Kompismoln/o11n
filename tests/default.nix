@@ -76,7 +76,8 @@ let
         [[ $(o11n entities 'host:remote-builder+server' 'user-*' | tr '\n' ' ') == "host-gw user-admin " ]]
         [[ $(o11n search tunnel) == service-reverse-tunnel ]]
         [[ $(o11n get build-hosts) == gw ]]
-        [[ $(o11n status --list host-gw | grep -E 'nix-daemon|submission' | tr '\n' ' ') == "host-gw nix-daemon host-gw submission mail.example.com " ]]
+        [[ $(o11n status --list host-gw | grep nix-daemon) == "host-gw nix-daemon" ]]
+        [[ $(o11n status --list app-mail | grep submission) == "app-mail submission mail.example.com" ]]
         [[ $(o11n status --list host-web | grep nix-daemon) == "host-web nix-daemon" ]]
         [[ -f $org/$(o11n path public-key host-gw ssh-key) && -f $org/$(o11n path sops-file user-admin) ]]
         [[ -f $org/$(o11n path identity user-admin) ]]
@@ -306,8 +307,8 @@ let
       }
       ''
         listed() { grep -o 'card-\(title\|url\)">[^<]*' "$site/$1" | cut -d'>' -f2 | tr '\n' ' '; }
-        [[ $(listed index.html) == "Moln cloud.example.com Möten meet.example.com auth auth.example.com " ]]
-        [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com " ]]
+        [[ $(listed index.html) == "Moln cloud.example.com Möten meet.example.com auth auth.example.com E-post mail.example.com " ]]
+        [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com mail mail.example.com " ]]
         grep -qF '<h2>Det vi har</h2>' "$site/index.html" && grep -qF '<h2>Vill du vara med?</h2>' "$site/index.html"
         grep -qF '<h2>Services</h2>' "$site/en/index.html" && grep -qF '<h2>Want an account?</h2>' "$site/en/index.html"
         grep -qF '"clientId":"www","issuer":"http://auth.example.com/realms/example"' "$site/index.html"

@@ -38,8 +38,8 @@ done
 o11n identity create user-admin
 o11n secret generate user-admin mail
 
-o11n identity create service-dmarc-reports
-o11n secret generate service-dmarc-reports mail
+o11n identity create app-mail
+o11n secret generate app-mail mail
 
 for app in blog calendar; do
     o11n identity create "app-$app"

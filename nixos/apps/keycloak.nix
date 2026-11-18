@@ -32,9 +32,9 @@ let
     editUsernameAllowed = false;
     resetPasswordAllowed = true;
     bruteForceProtected = true;
-    # Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>, on 587 with STARTTLS.
+    # Dependency: nixos/apps/mail.nix serves submission at the app's endpoint, on 587 with STARTTLS.
     smtpServer = {
-      host = "mail.${org.mailserver.endpoint}";
+      host = if mail.server == null then "" else org.app.${mail.server}.endpoint;
       port = "587";
       starttls = "true";
       ssl = "false";
@@ -153,7 +153,7 @@ in
 
   assertions =
     lib.optional (realms != { }) {
-      assertion = org.mailserver != null && mail.send && mail.inbox;
+      assertion = mail.server != null && mail.send && mail.inbox;
       message = "${app.handle}'s realms send mail, as for a password reset, which Keycloak tests by mailing the app itself: set principal.mail = { inbox = true, send = true } under [app.${app.name}].";
     }
     ++ map (client: {

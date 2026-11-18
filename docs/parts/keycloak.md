@@ -14,7 +14,11 @@ included.
 - Each of its `realms` is a realm that `keycloak-realms`, a oneshot after Keycloak, logs in as `o11n` to keep as
   declared each time it runs: created when it's missing, and its settings put, with its display name. Registration is
   off, and a user can't rename their account, as an app matches a user by username; a user can reset their password.
+<<<<<<< signed
 - A realm mails as the app, which logs in to submission on `mail.<endpoint>` with its `mail` key, so an app with realms
+=======
+- A realm mails as the app, which logs in to submission on its mail server with its `mail` key, so an app with realms
+>>>>>>> @stamp
   has `principal.mail = { inbox = true, send = true }`, or fails evaluation.
 - `o11n`'s account has the app's address, where Keycloak sends a realm's test mail.
 - No client has Keycloak's full scope, which it deprecates: `o11n` has the master realm's `admin` role in its scope

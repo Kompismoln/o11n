@@ -7,7 +7,8 @@ let
   inherit (pkgs) lib;
   inherit (outputs) org;
   inherit (org.app) blog calendar www;
-  inherit (org.mailserver) dkimSelector endpoint;
+  inherit (org.app.mail) dkimSelector;
+  inherit (org) endpoint;
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
   inherit (shared)
     fqdn
@@ -110,7 +111,8 @@ pkgs.testers.runNixOSTest {
           resolving
           shared.mailserver
           ../../nixos/preserve.nix
-          ../../nixos/services/mailserver.nix
+          shared.mailApp
+          (principal org.app.mail)
         ];
         _module.args.host = org.host.mx;
         networking.firewall.allowedTCPPorts = [ 587 ];

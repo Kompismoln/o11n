@@ -4,6 +4,7 @@ prefix = "fd12:3456:7890"
 prefix4 = "10.0"
 timezone = "Europe/Stockholm"
 locale = "en_US.UTF-8"
+postgres = "17"
 root-identities = ["root-1"]
 build-hosts = ["gw"]
 
@@ -24,9 +25,6 @@ gateway = "gw"
 namespace = "sample"
 dns = ["gw"]
 
-[mailserver]
-dkimSelector = "s1"
-
 [domain."example.com"]
 mailbox = true
 
@@ -38,7 +36,7 @@ rescueMode = true
 boot = "grub"
 endpoint = "gw.example.com"
 users = ["admin"]
-roles = ["peer", "server", "remote-builder", "substituter", "mailserver"]
+roles = ["peer", "server", "remote-builder", "substituter", "mailserver", "app-scheduler"]
 vpns = ["wg0"]
 system = "x86_64-linux"
 stateVersion = "26.05"
@@ -96,7 +94,8 @@ services = ["archive"]
 stores = ["archives"]
 
 [role.mailserver]
-services = ["mailserver", "dmarc-reports"]
+
+[role.app-scheduler]
 
 [service.rescue]
 grants = ["host-*"]
@@ -146,14 +145,6 @@ principal.hasPublicKey = false
 principal.mail.send = true
 grants = ["host:archive", "host:mailserver"]
 
-[service.mailserver]
-
-[service.dmarc-reports]
-id = 12
-principal.hasPublicKey = false
-principal.mail = { inbox = true, send = true }
-grants = ["host:mailserver"]
-
 [service.domain-sample]
 grants = ["host:archive"]
 
@@ -162,5 +153,14 @@ id = 0
 principal.hasPublicKey = false
 principal.hasSFTP = false
 
-# Fact: every class needs a table, even when empty.
-[app]
+# Fact: the mail server, whose principal reads the DMARC reports in its inbox.
+[app.mail]
+id = 0
+endpoint = "mail.example.com"
+run-on-hosts = ["gw"]
+grants = ["host:mailserver"]
+principal.hasHome = false
+principal.hasPublicKey = false
+principal.mail = { address = "dmarc-reports@example.com", inbox = true, send = true }
+kind = "mail"
+dkimSelector = "s1"

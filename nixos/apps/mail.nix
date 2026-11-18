@@ -1,6 +1,6 @@
 {
+  app,
   config,
-  host,
   o11nInputs,
   lib,
   org,
@@ -9,26 +9,34 @@
 }:
 
 let
-  domains = lib.attrValues org.domain;
   domainOf = address: lib.last (lib.splitString "@" address);
-  mailboxDomains = map (domain: domain.name) (lib.filter (domain: domain.mailbox) domains);
-  relayDomains = map (domain: domain.name) (lib.filter (domain: !domain.mailbox) domains);
+  mailboxDomains = map (domain: domain.name) (lib.filter (domain: domain.mailbox) app.domains);
+  relayDomains = map (domain: domain.name) (lib.filter (domain: !domain.mailbox) app.domains);
 
-  # Accommodating for an org without [mailserver], which an assertion asks for before anything reads it.
-  cfg =
-    if org.mailserver == null then
-      {
-        inherit (org) endpoint;
-        dkimSelector = "";
-        admin = "";
-      }
-    else
-      org.mailserver;
-
-  # Policy: a principal with an inbox or that sends has an account, at its address, which it logs in to as itself.
-  mailing = lib.filter (
+  # Policy: a principal with an inbox or that sends has an account, at its address, on the server of its address's
+  # domain, which it logs in to as itself.
+  mailed = lib.filter (
     entity: entity.principal != null && (entity.principal.mail.inbox || entity.principal.mail.send)
   ) (lib.attrValues org.entities);
+  mailing = lib.filter (entity: entity.principal.mail.server == app.name) mailed;
+  unserved = lib.filter (entity: entity.principal.mail.server == null) mailed;
+
+  dmarc = pkgs.writeShellApplication {
+    name = "dmarc-reports";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+      getent
+      gnused
+      gzip
+      ripmime
+      unzip
+      xmlstarlet
+    ];
+    text = builtins.readFile ./mail/dmarc-reports.sh;
+  };
+  reading = app.principal != null && app.principal.mail.inbox;
+  php = string: "'${lib.replaceStrings [ "\\" "'" ] [ "\\\\" "\\'" ] string}'";
   inboxes = lib.filter (entity: entity.principal.mail.inbox) mailing;
   byHandle = lib.listToAttrs (map (entity: lib.nameValuePair entity.handle entity) mailing);
 
@@ -40,7 +48,7 @@ let
         map lib.toLower ([ entity.principal.mail.address ] ++ entity.principal.mail.aliases)
       )
     ) null inboxes;
-  admin = ownerOf cfg.admin;
+  admin = ownerOf app.admin;
 
   # Policy: each domain with mailboxes has a postmaster, as RFC 5321 asks, the admin where no principal is.
   postmasters = lib.filter (address: ownerOf address == null) (
@@ -162,8 +170,13 @@ let
   '';
 in
 {
-  imports = [
+  # Fact: nixos-mailserver's module is a function, which a second mail app on the host would declare the options of
+  # again, so the app's host is checked before it's imported.
+  imports = builtins.seq app.host [
     o11nInputs.nixos-mailserver.nixosModules.default
+    ../nginx.nix
+    ../org/mail.nix
+    ../postgresql.nix
   ];
 
   config = {
@@ -183,14 +196,18 @@ in
 
     assertions = [
       {
-        assertion = org.mailserver != null;
-        message = "${host.name} has the mailserver service, which takes its settings from [mailserver]: declare it.";
+        assertion = admin != null;
+        message = "app.${app.name}'s admin, ${app.admin}, hears of what goes wrong, and is no principal's address or alias with an inbox on it: make it one, or set admin under [app.${app.name}].";
       }
       {
-        assertion = org.mailserver == null || admin != null;
-        message = "[mailserver]'s admin, ${cfg.admin}, hears of what goes wrong, and is no principal's address or alias with an inbox: make it one, or set admin under [mailserver].";
+        assertion = app.domains != [ ];
+        message = "app.${app.name} is the mail server of no domain: set mail = \"${app.name}\" under the [domain] it serves.";
       }
     ]
+    ++ map (entity: {
+      assertion = false;
+      message = "${entity.handle} has mail at ${entity.principal.mail.address}, on no domain a mail app serves: declare [domain.\"${domainOf entity.principal.mail.address}\"] with mail, or set principal.mail.address.";
+    }) unserved
     ++ lib.concatMap (
       entity:
       let
@@ -229,10 +246,6 @@ in
       in
       [
         {
-          assertion = lib.elem (domainOf mail.address) (mailboxDomains ++ relayDomains);
-          message = "${entity.handle} has mail at ${mail.address}, on no domain of the org's: declare [domain.\"${domainOf mail.address}\"], or set principal.mail.address.";
-        }
-        {
           assertion = !mail.inbox || lib.elem (domainOf mail.address) mailboxDomains;
           message = "${entity.handle}'s inbox is at ${mail.address}, whose domain has no mailbox: set mailbox under [domain.\"${domainOf mail.address}\"], or principal.mail.address.";
         }
@@ -261,7 +274,7 @@ in
             lib.elem (domainOf address) (mailboxDomains ++ relayDomains)
             && (!lib.hasPrefix "@" address || lib.elem (domainOf address) relayDomains)
             && lib.length claimants == 1;
-          message = "${entity.handle} sends as ${address}, which is to be an address or @<domain>, on a domain of the org's, any address on it only where it has no mailbox, and no other principal's address, alias or sendAs: change principal.mail.sendAs.";
+          message = "${entity.handle} sends as ${address}, which is to be an address or @<domain>, on a domain app.${app.name}, its mail server, serves, any address on it only where it has no mailbox, and no other principal's address, alias or sendAs: change principal.mail.sendAs.";
         }
       ) mail.sendAs
     ) mailing;
@@ -282,11 +295,11 @@ in
     mailserver = {
       enable = true;
       stateVersion = 3;
-      fqdn = "mail.${cfg.endpoint}";
+      fqdn = app.endpoint;
       storage.path = config.o11n.preserve.onStorage "/var/vmail";
       dkim = {
         keyDirectory = config.o11n.preserve.onStorage "/var/dkim";
-        defaults.selector = cfg.dkimSelector;
+        defaults.selector = app.dkimSelector;
       };
       domains = mailboxDomains;
       domainsWithoutMailbox = relayDomains;
@@ -337,7 +350,11 @@ in
       webroot = "/var/lib/acme/acme-challenge";
     };
 
-    services.nginx.virtualHosts.${config.mailserver.fqdn}.useACMEHost = config.mailserver.fqdn;
+    services.nginx.virtualHosts.${config.mailserver.fqdn} = {
+      useACMEHost = config.mailserver.fqdn;
+      enableACME = false;
+      forceSSL = true;
+    };
 
     services.rspamd.localLuaRules = fromLogin;
 
@@ -387,7 +404,8 @@ in
       }
     );
 
-    # Policy: a password is tried on submission and imaps alone, where a principal's own client may mistype it.
+    # Policy: a password is tried on submission and imaps, where a principal's own client may mistype it, and on
+    # Roundcube's login.
     services.fail2ban.jails =
       let
         login = filter: {
@@ -402,6 +420,14 @@ in
       {
         postfix-sasl = login "postfix[mode=auth]";
         dovecot = login "dovecot[mode=normal]";
+        # Dependency: fail2ban's roundcube-auth filter reads Roundcube's own log, which it writes to syslog.
+        roundcube-auth.settings = {
+          filter = "roundcube-auth";
+          backend = "systemd";
+          port = "http,https";
+          maxretry = 5;
+          findtime = "1h";
+        };
       };
 
     # Policy: nothing sends but a principal logged in as itself, on submission alone, whose sender restrictions smtp
@@ -411,7 +437,7 @@ in
       submissionOptions.smtpd_sender_login_maps = lib.mkForce "hash:/etc/postfix/vaccounts,pcre:${senderLogins}";
       settings.main = {
         smtpd_sasl_auth_enable = lib.mkForce false;
-        myorigin = cfg.endpoint;
+        myorigin = domainOf app.admin;
         mynetworks = lib.mkForce [ ];
         authorized_submit_users = [
           "root"
@@ -419,6 +445,78 @@ in
         ];
       };
       transport = lib.concatMapStringsSep "\n" (domain: "${domain} smtp:") relayDomains;
+    };
+
+    # Policy: the app's url is Roundcube's, where a principal logs in with its own mail password, which Roundcube logs
+    # in to imaps and submission with, as its own client would.
+    services.roundcube = {
+      enable = true;
+      hostName = config.mailserver.fqdn;
+      maxAttachmentSize = config.mailserver.messageSizeLimit / 1024 / 1024;
+      extraConfig = ''
+        $config['imap_host'] = 'ssl://${config.mailserver.fqdn}:993';
+        $config['smtp_host'] = 'tls://${config.mailserver.fqdn}:587';
+        $config['smtp_user'] = '%u';
+        $config['smtp_pass'] = '%p';
+        $config['product_name'] = ${php org.name};
+      '';
+    };
+
+    o11n.postgresql.databases.${config.services.roundcube.database.dbname}.user =
+      config.services.roundcube.database.username;
+
+    # Policy: the app's principal, with an inbox, is the address the org's rua names, and reads the reports there.
+    o11n.mail.failures."${app.name}-dmarc-reports" = lib.mkIf reading app.handle;
+
+    systemd.services."${app.name}-dmarc-reports" = lib.mkIf reading {
+      description = "Read the DMARC reports in ${app.principal.mail.address}'s inbox";
+      wants = [ "network-online.target" ];
+      after = [ "network-online.target" ];
+      environment = {
+        DMARC_SERVER = config.mailserver.fqdn;
+        DMARC_LOGIN = app.principal.mail.address;
+        DMARC_PASSWORD = config.sops.secrets."${app.name}/mail".path;
+        DMARC_RETENTION = toString org.logRetention;
+      };
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = lib.getExe dmarc;
+        User = app.name;
+        Group = app.name;
+        CapabilityBoundingSet = "";
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        NoNewPrivileges = true;
+        PrivateDevices = true;
+        PrivateTmp = true;
+        ProtectClock = true;
+        ProtectControlGroups = true;
+        ProtectHome = true;
+        ProtectHostname = true;
+        ProtectKernelLogs = true;
+        ProtectKernelModules = true;
+        ProtectKernelTunables = true;
+        ProtectProc = "invisible";
+        ProtectSystem = "strict";
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = "@system-service";
+      };
+    };
+
+    systemd.timers."${app.name}-dmarc-reports" = lib.mkIf reading {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "hourly";
+        Persistent = true;
+      };
     };
   };
 }
