@@ -98,7 +98,11 @@ server's to keep.
 a Samba share on `mx`: Immich is initialized with the app as its admin, which no one logs in as, alice logs in with the
 realm and what alice uploads is filed in that root, carol, with no root, logs in and uploads nothing, a quota and a
 storage label changed by hand are as declared, the container made anew keeps what alice has, and alice logged out of the
-realm is logged out of the app. `tests/inventories/allotments/tests.nix` has a photos app's root in a share alone.
+realm is logged out of the app. Of a drop folder of alice's, written in as the drive's bindfs would: what's dropped
+before alice first logs in waits, and is taken with the next drop after, which takes photos into the library, deletes
+them and a duplicate, and leaves a text file and a `.part`. `tests/inventories/allotments/tests.nix` has a photos app's
+root in a share alone, and a drop folder of a user with a root, on the hosts the drive runs on, and
+`tests/nixos/drive.nix` the drive's bindfs of it.
 
 ## Setting up: Kompismoln/org's photos and photos-dev
 
@@ -147,9 +151,33 @@ photos-dev, on stationary, first, and photos, on helsinki, once photos-dev is as
 
 3. Each user logs in with "Log in with Kompismoln", and their phone's Immich app with the endpoint as its server.
 
+## Drop folders
+
+A drive's storage of kind `photos` is a drop folder of a photos app's (`docs/parts/drive.md`): what its user puts there,
+the app takes into their library and deletes, so that a file is in the drive or in the library, not both.
+
+```toml
+[app.drive.storages.alice]
+"Till bilder" = { photos = "photos" }
+```
+
+- Each user's drop folders are in `<home>/drop/<user>` under the app's home, which the container binds at
+  `/var/lib/immich-drop`.
+- `immich-drop-<user>`, in the container after `immich-users`, follows what's written or moved in there, and once it's
+  been quiet for 5 seconds, and as it starts, uploads it with Immich's CLI as the user, deleting each file Immich then
+  has, as a duplicate too. Immich files it in their library as any upload. What isn't a photo or video by its extension,
+  as a Nextcloud upload's `.part` file, stays.
+- It uploads with an API key of the user's, `o11n-drop`, with `asset.upload` and `user.read`, which it makes in the
+  database as it starts, replacing the one before, and keeps in its runtime directory alone, as Immich makes a key only
+  for the user who asks.
+- A user is Immich's only once they first log in: until then, what they drop waits, and is taken with their next drop
+  after that, or as the importer next starts. A key deleted in Immich fails an upload, which restarts the importer with
+  a new one.
+- The drive sees a file taken as it next opens the folder, as Nextcloud checks a storage for changes as it's opened.
+
 ## Work in progress
 
 - Nothing says how a photos app is in `o11n status`.
 - Nothing maps Keycloak's groups or roles to Immich's admins.
 - A user's library is a share or nothing: an allotment isn't one yet.
-- Nothing gets photos from a drive into a photos app.
+- Nothing shows a user's library in a drive.

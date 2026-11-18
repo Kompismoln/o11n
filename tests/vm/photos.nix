@@ -5,7 +5,24 @@
 }:
 let
   inherit (outputs) org;
-  inherit (org.app) auth photos;
+  inherit (org.app) auth;
+  # Fact: the inventory's photos, with a drop folder of alice's as org/apps/drive.nix derives it for a drive cloud's
+  # storages.alice.Bilder.photos = "photos", whose drive the test doesn't run: it writes there as the drive's bindfs
+  # would, as the app.
+  drop = "${org.app.photos.principal.home}/drop/alice/cloud/Bilder";
+  photos = org.app.photos // {
+    drops = [
+      {
+        mountPoint = "/Bilder";
+        user = "alice";
+        sharing = false;
+        photos = "photos";
+        drive = "cloud";
+        path = drop;
+        owner = "photos";
+      }
+    ];
+  };
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
   inherit (shared)
     tls
@@ -18,9 +35,12 @@ let
   share = "/srv/box/alice";
   root = "${share}/photos";
 
-  picture = pkgs.runCommand "red.jpg" { nativeBuildInputs = [ pkgs.imagemagick ]; } ''
-    magick -size 16x16 xc:red $out
-  '';
+  pictureOf =
+    colour:
+    pkgs.runCommand "${colour}.jpg" { nativeBuildInputs = [ pkgs.imagemagick ]; } ''
+      magick -size 16x16 xc:${colour} $out
+    '';
+  picture = pictureOf "red";
 
   # Fact: the box's server and the apps' endpoints, as the internet's DNS would answer.
   resolving =
@@ -261,6 +281,22 @@ pkgs.testers.runNixOSTest {
         )
         assert not status.startswith("2"), status
 
+    def dropped(name, source):
+        web.succeed(f"install -o photos -g photos -m 0640 {source} '${drop}/{name}'")
+
+    def originals(user):
+        return sql(
+            'select "originalFileName" from asset join "user" on "user".id = asset."ownerId"'
+            f" where \"storageLabel\" = '{user}' order by 1"
+        ).split()
+
+    with subtest("what's dropped for a user who hasn't logged in waits for them"):
+        dropped("blue.jpg", "${pictureOf "blue"}")
+        web.wait_until_succeeds(
+            "nixos-container run photos -- journalctl -u immich-drop-alice | grep -q 'is no user of photos'", timeout=120
+        )
+        web.succeed("test -f '${drop}/blue.jpg'")
+
     with subtest("a Keycloak user with a box logs in, and what they upload is filed in it"):
         member("alice")
         session = login("alice")
@@ -270,6 +306,19 @@ pkgs.testers.runNixOSTest {
         body, status = upload("alice")
         assert status == "201", f"{status} {body}"
         mx.wait_until_succeeds("test -f ${root}/2024/2024-05-06/red.jpg", timeout=120)
+
+    with subtest("what's dropped is taken into its user's library and deleted, and what Immich doesn't take stays"):
+        dropped("green.jpg", "${pictureOf "green"}")
+        dropped("red.jpg", "${picture}")
+        dropped("notes.txt", "${pkgs.writeText "notes.txt" "notes"}")
+        dropped("yellow.jpg.ocTransferId1.part", "${pictureOf "yellow"}")
+        web.wait_until_succeeds(
+            "! test -e '${drop}/green.jpg' && ! test -e '${drop}/blue.jpg' && ! test -e '${drop}/red.jpg'", timeout=120
+        )
+        assert originals("alice") == ["blue.jpg", "green.jpg", "red.jpg"], originals("alice")
+        left = web.succeed("ls '${drop}'").split()
+        assert left == ["notes.txt", "yellow.jpg.ocTransferId1.part"], left
+        mx.wait_until_succeeds("ls ${root}/*/*/green.jpg", timeout=120)
 
     with subtest("a Keycloak user without a box logs in, and can upload nothing"):
         member("carol")
@@ -288,7 +337,8 @@ pkgs.testers.runNixOSTest {
         web.succeed("systemctl restart container@photos.service")
         web.wait_until_succeeds("nixos-container run photos -- systemctl is-active immich-users.service", timeout=300)
         assets = answer("alice", "POST", "search/metadata", "-H 'Content-Type: application/json'", "--data-raw '{}'")
-        assert [asset["originalFileName"] for asset in assets["assets"]["items"]] == ["red.jpg"], assets
+        names = sorted(asset["originalFileName"] for asset in assets["assets"]["items"])
+        assert names == ["blue.jpg", "green.jpg", "red.jpg"], assets
         admins = sql('select count(*) from "user" where "isAdmin"')
         assert admins == "1", admins
 

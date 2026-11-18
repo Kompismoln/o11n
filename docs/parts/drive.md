@@ -79,6 +79,11 @@ users': give each but one a `path`.
 - `bind`: a directory on the app's hosts, which nextcloud's user can write in, bound into the container and mounted as a
   local storage at a folder of its name.
 - `allotment` and `sftp`: an allotment or another SFTP server, at a folder of its name (`docs/parts/allotments.md`).
+- `photos`: a photos app's drop folder, whose photos and videos the photos app takes into the user's library there,
+  deleting them (`docs/parts/photos.md`). It's a directory of the photos app's, `<home>/drop/<user>/<drive>/<folder>`,
+  which the host mounts with bindfs at `<home>/nextcloud/drops/<user>/<folder>` under the drive's home, as the app's
+  user's, written as the photos app, and Nextcloud has as a bind. One whose photos app has no root of the user, or
+  doesn't run on each of the drive's hosts, fails evaluation.
 
 Each is a folder in its user's root. A user without a root has files no one can write in: an empty directory of the Nix
 store, bound read-only, with each of their storages a folder in it. What they keep there of Nextcloud's, the trash and

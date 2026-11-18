@@ -47,6 +47,11 @@ let
         );
         default = null;
       };
+      photos = lib.mkOption {
+        description = "the photos app the storage is a drop folder of, which takes what's put there into the user's library there, deleting it, or null";
+        type = lib.types.nullOr context.types.app.ref;
+        default = null;
+      };
       sharing = lib.mkOption {
         description = "whether the user can share from the storage, Nextcloud's enable_sharing";
         type = lib.types.bool;
@@ -64,6 +69,7 @@ let
     "bind"
     "allotment"
     "sftp"
+    "photos"
   ];
 
   # Policy: a storage is of one kind, a folder of its name in its user's root.
@@ -75,7 +81,7 @@ let
         set = lib.filter (kind: storage.${kind} != null) kinds;
       in
       if lib.length set != 1 then
-        throw "app.${config.name}.storages.${user}.${name}: a storage is a bind, an allotment or an sftp server: set one of them${
+        throw "app.${config.name}.storages.${user}.${name}: a storage is a bind, an allotment, an sftp server or a photos app's drop folder: set one of them${
           lib.optionalString (set != [ ]) ", not ${lib.concatStringsSep " and " set}"
         }."
       else
@@ -93,6 +99,30 @@ let
         )
       ) checked
     );
+
+  # Policy: a drop folder is a directory in its photos app's home, which the photos app takes from on the host they
+  # both run on, for a user it has a root of, as one without could upload nothing.
+  drop =
+    storage:
+    let
+      at = "app.${config.name}.storages.${storage.user}.${storage.name}";
+      photos = org.app.${storage.photos};
+      elsewhere = lib.subtractLists photos.run-on-hosts config.run-on-hosts;
+    in
+    if photos.kind != "photos" then
+      throw "${at}: ${storage.photos} is no photos app: name one of kind photos."
+    else if !(photos.roots ? ${storage.user}) then
+      throw "${at}: ${storage.photos} has no root of ${storage.user}, whose library could take nothing: set app.${storage.photos}.roots.${storage.user}."
+    else if elsewhere != [ ] then
+      throw "${at}: ${storage.photos} doesn't run on ${lib.concatStringsSep " and " elsewhere}, where ${config.name} does, which a drop folder is a directory of: run both on the same hosts."
+    else
+      {
+        mountPoint = "/${storage.name}";
+        inherit (storage) user sharing photos;
+        drive = config.name;
+        path = "${photos.principal.home}/drop/${storage.user}/${config.name}/${storage.name}";
+        owner = photos.name;
+      };
 
   servers =
     user: folder: mount:
@@ -154,6 +184,14 @@ in
         path = storage.bind;
       }) (ofKind "bind");
       defaultText = lib.literalMD "each bind of `storages`, at its name";
+    };
+    drops = lib.mkOption {
+      description = "each drop folder, at its folder, for its user, with the photos app and the directory in its home it's of, its owner, and whether it can be shared from";
+      internal = true;
+      readOnly = true;
+      type = lib.types.listOf lib.types.raw;
+      default = map drop (ofKind "photos");
+      defaultText = lib.literalMD "each photos drop folder of `storages`, at its name";
     };
     users = lib.mkOption {
       description = "the Nextcloud users with a root or storages, each with whether they have a root";

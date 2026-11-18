@@ -133,6 +133,22 @@ let
     ];
   };
 
+  # Fact: as org/apps/drive.nix derives it for storages.alice.Bilder.photos = "photos", photos' home /var/lib/photos.
+  dropping = lib.recursiveUpdate app {
+    users.alice = false;
+    drops = [
+      {
+        mountPoint = "/Bilder";
+        user = "alice";
+        sharing = false;
+        photos = "photos";
+        drive = "cloud";
+        path = "/var/lib/photos/drop/alice/cloud/Bilder";
+        owner = "photos";
+      }
+    ];
+  };
+
   evalApp =
     app: uid:
     evalNixosModule [
@@ -740,6 +756,44 @@ in
         made = true;
         failed = [
           "Nextcloud cloud mounts rolf's root from /var/lib/site/drive, whose owner, site, isn't on web: run the owner on web, or root rolf elsewhere."
+        ];
+      };
+    };
+
+  # Policy: a drop folder is a directory of its photos app's, which the host mounts as Nextcloud's user's, written as
+  # the photos app, and Nextcloud has as a bind at its folder, once the photos app is on the host.
+  test_drive_drops =
+    let
+      cfg = evalApp dropping app.principal.uid;
+      container = cfg.containers.cloud;
+      where = "/var/lib/cloud/nextcloud/drops/alice/Bilder";
+    in
+    {
+      expr = {
+        mounts = map (mount: {
+          inherit (mount) what where options;
+        }) (lib.filter (mount: mount.type == "fuse.bindfs") cfg.systemd.mounts);
+        bind = { inherit (container.bindMounts."/srv/binds/alice/Bilder") hostPath isReadOnly; };
+        requires = lib.elem where cfg.systemd.services."container@cloud".unitConfig.RequiresMountsFor;
+        local = lib.hasInfix "/srv/binds/alice/Bilder" container.config.systemd.services.nextcloud-external.script;
+        failed = failed cfg;
+      };
+      expected = {
+        mounts = [
+          {
+            what = "/var/lib/photos/drop/alice/cloud/Bilder";
+            inherit where;
+            options = "force-user=cloud,force-group=cloud,create-for-user=photos,create-for-group=photos,nofail";
+          }
+        ];
+        bind = {
+          hostPath = where;
+          isReadOnly = false;
+        };
+        requires = true;
+        local = true;
+        failed = [
+          "Nextcloud cloud mounts alice's /Bilder from /var/lib/photos/drop/alice/cloud/Bilder, a drop folder of photos, which isn't on web: run photos on web."
         ];
       };
     };

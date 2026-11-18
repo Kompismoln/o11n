@@ -291,7 +291,16 @@ let
     };
 
   mounts = app.mounts.${host.name} or [ ];
-  binds = app.binds or [ ];
+  # Policy: a drop folder is a bind of its directory in its photos app's home, which the host mounts as the app's
+  # user's, and what's written there is written as the photos app.
+  drops = app.drops or [ ];
+  dropOf = drop: "${cfg.home}/drops/${drop.user}${drop.mountPoint}";
+  binds =
+    (app.binds or [ ])
+    ++ map (drop: {
+      inherit (drop) mountPoint user sharing;
+      path = dropOf drop;
+    }) drops;
   bindOf = bind: "/srv/binds/${bind.user}${bind.mountPoint}";
   # Policy: a user without a root has the files no one can write in, which their storages are folders in.
   unrooted = lib.attrNames (lib.filterAttrs (_: rooted: !rooted) (app.users or { }));
@@ -307,6 +316,15 @@ let
   # there is written as its owner.
   homes = app.homes or [ ];
   roots = shares ++ homes;
+  bound =
+    map (home: {
+      inherit (home) path owner;
+      at = dataOf home.user;
+    }) homes
+    ++ map (drop: {
+      inherit (drop) path owner;
+      at = dropOf drop;
+    }) drops;
   contained = [
     app.secrets
   ]
@@ -622,6 +640,10 @@ in
       assertion = builtins.pathExists mount.server.changes.hostKey;
       message = "Nextcloud ${cfg.name} follows what changes in ${mount.user}'s ${mount.mountPoint} on ${mount.server.host} by ssh, verifying its host's ssh-key, which it has none of: o11n host pull-ssh-key on that host.";
     }) followed
+    ++ map (drop: {
+      assertion = config.users.users ? ${drop.owner};
+      message = "Nextcloud ${cfg.name} mounts ${drop.user}'s ${drop.mountPoint} from ${drop.path}, a drop folder of ${drop.photos}, which isn't on ${host.name}: run ${drop.photos} on ${host.name}.";
+    }) drops
     ++ map (home: {
       assertion = config.users.users ? ${home.owner};
       message = "Nextcloud ${cfg.name} mounts ${home.user}'s root from ${home.path}, whose owner, ${home.owner}, isn't on ${host.name}: run the owner on ${host.name}, or root ${home.user} elsewhere.";
@@ -641,30 +663,31 @@ in
     };
 
     systemd.tmpfiles.rules =
-      lib.optionals (roots != [ ]) [
+      lib.optionals (roots ++ drops != [ ]) [
         "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
-        "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
       ]
+      ++ lib.optional (roots != [ ]) "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
+      ++ lib.optional (drops != [ ]) "d '${cfg.home}/drops' 0750 ${cfg.user} ${cfg.user} - -"
       ++ map (home: "d '${home.path}' 0750 ${home.owner} ${home.owner} - -") homes;
 
-    system.fsPackages = lib.optional (homes != [ ]) pkgs.bindfs;
+    system.fsPackages = lib.optional (bound != [ ]) pkgs.bindfs;
 
     # Fact: a mount unit with nofail isn't ordered before local-fs.target, so it can follow systemd-tmpfiles-setup,
     # which makes the directories it mounts and mounts in.
-    systemd.mounts = map (home: {
-      what = home.path;
-      where = dataOf home.user;
+    systemd.mounts = map (mount: {
+      what = mount.path;
+      where = mount.at;
       type = "fuse.bindfs";
       options = lib.concatStringsSep "," [
         "force-user=${cfg.user}"
         "force-group=${cfg.user}"
-        "create-for-user=${home.owner}"
-        "create-for-group=${home.owner}"
+        "create-for-user=${mount.owner}"
+        "create-for-group=${mount.owner}"
         "nofail"
       ];
       after = [ "systemd-tmpfiles-setup.service" ];
       wantedBy = [ "multi-user.target" ];
-    }) homes;
+    }) bound;
 
     systemd.services = {
       # Fact: the container binds each secret's file as it starts, and a switch to another of its values restarts
@@ -673,7 +696,7 @@ in
         restartTriggers = map (file: builtins.hashFile "sha256" file) (
           lib.unique (map (secret: secret.sopsFile) contained)
         );
-        unitConfig.RequiresMountsFor = map (root: dataOf root.user) roots;
+        unitConfig.RequiresMountsFor = map (root: dataOf root.user) roots ++ map dropOf drops;
         serviceConfig = {
           TimeoutStopSec = 10;
           KillMode = "mixed";
