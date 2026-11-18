@@ -119,7 +119,8 @@ keycloak = "auth"
 realm = "example"
 roots.alice = "store-box"
 
-# Fact: the mail server, whose principal reads the DMARC reports in its inbox, the address the domains' rua names.
+# Fact: the mail server, whose principal reads the DMARC reports in its inbox, the address the domains' rua names, and
+# which keeps the records of example.com and example.org at GleSYS, as eval-mail-glesys plays it.
 [app.mail]
 id = 8
 endpoint = "mail.example.com"
@@ -130,6 +131,8 @@ principal.hasPublicKey = false
 principal.mail = { address = "dmarc-reports@example.com", inbox = true, send = true }
 kind = "mail"
 dkimSelector = "s1"
+keys.glesys-key = "passphrase"
+glesys = { account = "CL12345", dmarc = "quarantine", zones = ["example.com", "example.org"] }
 
 # Fact: a portal whose public client auth keeps, which lists the apps with an endpoint, and mails requests for an
 # invite to elsewhere's carol, whose mail the mail test reads.

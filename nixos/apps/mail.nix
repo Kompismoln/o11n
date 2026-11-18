@@ -36,6 +36,62 @@ let
     text = builtins.readFile ./mail/dmarc-reports.sh;
   };
   reading = app.principal != null && app.principal.mail.inbox;
+
+  # Policy: the server keeps the records its mail is read by in the zones it can write, as it alone has its DKIM keys:
+  # each zone's MX, with a mailbox, its DKIM key and its DMARC record, and an SPF record where there's none, and, in
+  # the zone of the reports' address, each other domain's authorization to send its reports there (RFC 7489, 7.1).
+  inherit (app) glesys;
+  reports = if reading then app.principal.mail.address else null;
+  reportsDomain = lib.mapNullable domainOf reports;
+  related = inner: outer: inner == outer || lib.hasSuffix ".${outer}" inner;
+  zones = lib.genAttrs (if glesys == null then [ ] else glesys.zones) (
+    zone:
+    lib.optional (lib.elem zone mailboxDomains) {
+      kind = "mx";
+      host = "@";
+      data = app.endpoint;
+    }
+    ++ [
+      {
+        kind = "spf";
+        host = "@";
+        data = "v=spf1 a:${app.endpoint} -all";
+      }
+      {
+        kind = "dkim";
+        host = "${app.dkimSelector}._domainkey";
+        data = "${zone}.${app.dkimSelector}.txt";
+      }
+      {
+        kind = "dmarc";
+        host = "_dmarc";
+        data = "v=DMARC1; p=${glesys.dmarc}${lib.optionalString reading "; rua=mailto:${reports}"}";
+      }
+    ]
+    ++ lib.optionals (zone == reportsDomain) (
+      map
+        (domain: {
+          kind = "authorize";
+          host = "${domain}._report._dmarc";
+          data = "";
+        })
+        (
+          lib.filter (domain: !related domain zone && !related zone domain) (
+            map (domain: domain.name) app.domains
+          )
+        )
+    )
+  );
+  glesysScript = pkgs.writeShellApplication {
+    name = "glesys";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+      gnugrep
+      jq
+    ];
+    text = builtins.readFile ./mail/glesys.sh;
+  };
   php = string: "'${lib.replaceStrings [ "\\" "'" ] [ "\\\\" "\\'" ] string}'";
   inboxes = lib.filter (entity: entity.principal.mail.inbox) mailing;
   byHandle = lib.listToAttrs (map (entity: lib.nameValuePair entity.handle entity) mailing);
@@ -200,6 +256,26 @@ in
         message = "app.${app.name}'s admin, ${app.admin}, hears of what goes wrong, and is no principal's address or alias with an inbox on it: make it one, or set admin under [app.${app.name}].";
       }
       {
+        assertion =
+          glesys == null
+          || lib.all (zone: lib.elem zone (map (domain: domain.name) app.domains)) glesys.zones;
+        message = "app.${app.name}.glesys.zones has ${
+          lib.concatStringsSep ", " (
+            lib.filter (zone: !lib.elem zone (map (domain: domain.name) app.domains)) (
+              if glesys == null then [ ] else glesys.zones
+            )
+          )
+        }, which the server isn't the mail of: drop it, or set mail = \"${app.name}\" under its [domain].";
+      }
+      {
+        assertion = glesys == null || app.principal != null && app.keys ? ${glesys.key};
+        message = "app.${app.name} keeps its zones' records as its principal, with the API key ${
+          if glesys == null then "" else glesys.key
+        }: give it an id, and keys.${
+          if glesys == null then "" else glesys.key
+        } = \"passphrase\", whose secret is the account's key.";
+      }
+      {
         assertion = app.domains != [ ];
         message = "app.${app.name} is the mail server of no domain: set mail = \"${app.name}\" under the [domain] it serves.";
       }
@@ -279,18 +355,27 @@ in
       ) mail.sendAs
     ) mailing;
 
-    sops.secrets = lib.listToAttrs (
-      map (
-        entity:
-        lib.nameValuePair "${entity.name}/mail-sha512" {
-          inherit (entity.secrets) sopsFile;
-          restartUnits = [
-            "dovecot.service"
-            "postfix.service"
-          ];
-        }
-      ) mailing
-    );
+    sops.secrets =
+      lib.listToAttrs (
+        map (
+          entity:
+          lib.nameValuePair "${entity.name}/mail-sha512" {
+            inherit (entity.secrets) sopsFile;
+            restartUnits = [
+              "dovecot.service"
+              "postfix.service"
+            ];
+          }
+        ) mailing
+      )
+      // lib.optionalAttrs (glesys != null) {
+        "${app.name}/${glesys.key}" = {
+          inherit (app.secrets) sopsFile;
+          owner = app.name;
+          group = app.name;
+          mode = "0400";
+        };
+      };
 
     mailserver = {
       enable = true;
@@ -515,6 +600,51 @@ in
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnCalendar = "hourly";
+        Persistent = true;
+      };
+    };
+
+    o11n.mail.failures."${app.name}-glesys" = lib.mkIf (glesys != null) app.handle;
+
+    systemd.services."${app.name}-glesys" = lib.mkIf (glesys != null) {
+      description = "Keep the mail records of ${lib.concatStringsSep ", " glesys.zones} in GleSYS's DNS";
+      wantedBy = [ "multi-user.target" ];
+      # Dependency: rspamd makes each domain's DKIM key as it starts.
+      wants = [
+        "network-online.target"
+        "rspamd.service"
+      ];
+      after = [
+        "network-online.target"
+        "rspamd.service"
+      ];
+      environment = {
+        GLESYS_ACCOUNT = glesys.account;
+        GLESYS_KEY = config.sops.secrets."${app.name}/${glesys.key}".path;
+        GLESYS_API = "https://api.glesys.com";
+        GLESYS_ZONES = pkgs.writeText "${app.name}-glesys-zones.json" (builtins.toJSON zones);
+        DKIM_DIR = config.mailserver.dkim.keyDirectory;
+      };
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = lib.getExe glesysScript;
+        User = app.name;
+        Group = app.name;
+        NoNewPrivileges = true;
+        PrivateTmp = true;
+        ProtectHome = true;
+        ProtectSystem = "strict";
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+        ];
+      };
+    };
+
+    systemd.timers."${app.name}-glesys" = lib.mkIf (glesys != null) {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "daily";
         Persistent = true;
       };
     };

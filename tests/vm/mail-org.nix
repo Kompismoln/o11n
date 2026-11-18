@@ -51,8 +51,8 @@ rec {
     };
   };
 
-  # Accommodating for the test's network, which has no ACME server and no root for kresd to iterate from: the server and
-  # nginx serve the test's certificate.
+  # Accommodating for the test's network, which has no ACME server, no root for kresd to iterate from and no GleSYS: the
+  # server and nginx serve the test's certificate, and keep no records.
   mailserver = {
     mailserver = {
       localDnsResolver = false;
@@ -69,6 +69,7 @@ rec {
       sslCertificateKey = "${tls}/mail.key";
     };
     services.postfix-tlspol.configurePostfix = lib.mkForce false;
+    systemd.services.mail-glesys.enable = false;
     virtualisation.memorySize = 2048;
     virtualisation.cores = 2;
   };

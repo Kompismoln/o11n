@@ -40,6 +40,7 @@ o11n secret generate user-admin mail
 
 o11n identity create app-mail
 o11n secret generate app-mail mail
+o11n secret generate app-mail glesys-key
 
 for app in blog calendar; do
     o11n identity create "app-$app"

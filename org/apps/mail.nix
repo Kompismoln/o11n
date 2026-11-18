@@ -16,6 +16,40 @@
       default = "admin@${context.org.endpoint}";
       defaultText = lib.literalExpression ''"admin@''${org.endpoint}"'';
     };
+    glesys = lib.mkOption {
+      description = "the GleSYS account whose DNS holds the records the server's mail is read by, in each of `zones`, or null";
+      default = null;
+      type = lib.types.nullOr (
+        lib.types.submodule {
+          options = {
+            account = lib.mkOption {
+              description = "the account, as GleSYS names it";
+              type = lib.types.str;
+              example = "CL12345";
+            };
+            key = lib.mkOption {
+              description = "the app's secret that is the account's API key, which may list, add and update its DNS records";
+              type = lib.types.str;
+              default = "glesys-key";
+            };
+            dmarc = lib.mkOption {
+              description = "the policy each zone's DMARC record asks a receiver to take with mail that fails it";
+              type = lib.types.enum [
+                "none"
+                "quarantine"
+                "reject"
+              ];
+              default = "none";
+            };
+            zones = lib.mkOption {
+              description = "the server's domains whose zones are the account's, which it keeps the records of";
+              type = lib.types.listOf lib.types.str;
+              example = [ "example.com" ];
+            };
+          };
+        }
+      );
+    };
     host = lib.mkOption {
       description = "the host the server runs on, its one of run-on-hosts, which runs no other mail app";
       internal = true;

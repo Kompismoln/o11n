@@ -147,6 +147,33 @@ to authorize it (`docs/parts/o11n.md`, "Status").
 the address's to authorize it (`docs/parts/o11n.md`, "Status").
 >>>>>>> @stamp
 
+## DNS at GleSYS
+
+With `glesys`, a mail app keeps the records its mail is read by in each of `zones`, its domains whose DNS is the
+account's: as it starts, after rspamd has made the DKIM keys, and daily, `<app>-glesys` lists each zone's records with
+the account's API key, the app's secret `key`, and adds or updates what isn't as follows (`nixos/apps/mail/glesys.sh`):
+
+```toml
+[app.mail]
+keys.glesys-key = "passphrase"
+glesys = { account = "CL12345", dmarc = "quarantine", zones = ["example.com", "example.org"] }
+```
+
+- With a mailbox, an MX `10 <endpoint>.` where none is the server.
+- An SPF record, `v=spf1 a:<endpoint> -all`, where there's none: one that is there is the org's, as when the domain
+  sends through others too.
+- `<dkimSelector>._domainkey`, the server's key of the domain, as it's in the key directory.
+- `_dmarc`, `v=DMARC1; p=<dmarc>`, `none` by default, and `rua=mailto:` the app's address with an inbox, as it is
+  whatever was there.
+- In the zone of that address, `<domain>._report._dmarc` TXT `v=DMARC1` for each of its domains unrelated to it, as
+  `o11n status`'s `dmarc` asks, where there's one of none.
+
+It deletes nothing, and says what it changed, a line each, in the unit's log. A zone it can't list or a record it can't
+write fails the unit, which mails the admin (see Failures). The key needs the domain API alone, and can be limited to
+the server's addresses. `eval-mail-glesys` runs it on `tests/inventories/mail`'s zones against curl's stub of the API,
+which adds an MX, updates a stale DKIM key and a DMARC record without `rua`, leaves an SPF record and an authorization
+that are there, and fails on a zone it can't list.
+
 ## Sending
 
 Nothing sends but a principal logged in as itself, on submission: the server trusts no network to relay, smtp takes no
@@ -275,6 +302,13 @@ Nothing on helsinki moves: the mailboxes, the DKIM keys, rspamd's and Roundcube'
 4. In `[app.status]`, drop `mail` and add `groups.Mail = ["mail"]`.
 5. In `[app.www]`, add `"mail"` to `services`, and describe it in `site/_index.md` and `site/_index.en.md` under
    `[extra.services.mail]`.
+6. Keep the records of kompismoln.se, ahbk.se and esse.nu, which are GleSYS's: under `[app.mail]`,
+   `keys.glesys-key = "passphrase"` and
+   `glesys = { account = "cl44748", dmarc = "quarantine", zones = ["kompismoln.se", "ahbk.se", "esse.nu"] }`, and a
+   key of the account's for the domain API, limited to helsinki's addresses, stored with
+   `o11n secret generate app-mail glesys-key --from <file>`. Their DMARC records become `p=quarantine`, as esse.nu's
+   was, with `rua=mailto:dmarc-reports@kompismoln.se`, and kompismoln.se gets each other domain's authorization; esse.nu
+   keeps its SPF record, which names websupport's and mandrill's.
 >>>>>>> @stamp
 
 ## Work in progress
