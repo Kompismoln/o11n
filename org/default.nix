@@ -96,9 +96,15 @@
       type = lib.types.attrsOf context.types.vpn.module;
     };
     mailserver = lib.mkOption {
-      description = "main mailserver";
+      description = "nothing: the mail server is an app of kind mail, which [mailserver] was";
+      internal = true;
       default = null;
-      type = lib.types.nullOr context.types.mailserver.module;
+      type = lib.types.raw;
+      apply =
+        mailserver:
+        lib.throwIf (mailserver != null)
+          "[mailserver] is gone: drop it from org.toml, and declare the mail server an app of kind mail on a host with the app-scheduler role, with its dkimSelector and admin, and mail.<endpoint> its endpoint, as [app.mail] kind = \"mail\", endpoint = \"mail.${config.endpoint}\", run-on-hosts = [...]."
+          mailserver;
     };
     flake = lib.mkOption {
       description = "nothing: the hosts' nix registry calls the o11n they're built from o11n";
@@ -187,6 +193,20 @@
     service = lib.mkOption {
       description = "record of all services";
       type = lib.types.attrsOf context.types.service.module;
+      apply =
+        services:
+        let
+          gone = lib.filter (name: services ? ${name}) [
+            "mailserver"
+            "webmail"
+            "dmarc-reports"
+          ];
+        in
+        lib.throwIf (gone != [ ])
+          "[service.${lib.head gone}] is gone: the mail server, its webmail and its DMARC reports are an app of kind mail, which reads the reports in its own inbox, as its principal; drop ${
+            lib.concatMapStringsSep ", " (name: "[service.${name}]") gone
+          } and the roles' services of them from org.toml, and declare the app."
+          services;
     };
     app = lib.mkOption {
       description = "record of all apps";

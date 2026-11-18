@@ -41,7 +41,7 @@ let
   passwordOf = handle: "${app.name}/${handle}/smb-password";
   credentialsOf = user: "${app.name}/${user}-smb-credentials";
   local = "http://[${cfg.bindAddress}]:${toString cfg.port}";
-  sending = mail.send && org.mailserver != null;
+  sending = mail.send && mail.server != null;
 
   psql = "${postgresql}/bin/psql -h /run/postgresql -p ${pgPort} -d ${cfg.database} -qtAX -v ON_ERROR_STOP=1";
 
@@ -129,13 +129,13 @@ let
     machineLearning.urls = [ "http://[${cfg.bindAddress}]:${toString cfg.learningPort}" ];
   }
   // lib.optionalAttrs sending {
-    # Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>, on 587 with STARTTLS.
+    # Dependency: nixos/apps/mail.nix serves submission at the app's endpoint, on 587 with STARTTLS.
     notifications.smtp = {
       enabled = true;
       from = mail.address;
       replyTo = mail.address;
       transport = {
-        host = "mail.${org.mailserver.endpoint}";
+        host = org.app.${mail.server}.endpoint;
         port = 587;
         secure = false;
         username = mail.address;

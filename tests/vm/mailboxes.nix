@@ -8,7 +8,7 @@ let
   inherit (outputs) org;
   inherit (org.user) admin alice;
   inherit (org.app) auth;
-  reports = org.service.dmarc-reports;
+  reports = org.app.mail;
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
   inherit (shared)
     fqdn
@@ -72,19 +72,11 @@ pkgs.testers.runNixOSTest {
         shared.mailserver
         ../../nixos/preserve.nix
         ../../nixos/org/fail2ban.nix
-        ../../nixos/services/mailserver.nix
-        ../../nixos/services/webmail.nix
-        ../../nixos/services/dmarc-reports.nix
+        shared.mailApp
         (principal reports)
       ];
       _module.args.host = org.host.mx;
       networking.firewall.allowedTCPPorts = [ 993 ];
-      # Accommodating for the test's network, which has no ACME server: nginx serves the test's certificate.
-      services.nginx.virtualHosts.${fqdn} = {
-        useACMEHost = lib.mkForce null;
-        sslCertificate = "${tls}/mail.crt";
-        sslCertificateKey = "${tls}/mail.key";
-      };
       # Fact: the principals' passwords, which the test logs in with.
       sops.secrets = lib.genAttrs' [ admin alice auth ] (
         entity: lib.nameValuePair "${entity.name}/mail" { inherit (entity.secrets) sopsFile; }
@@ -206,21 +198,21 @@ pkgs.testers.runNixOSTest {
           for eml in ["${clean}", "${trouble}", "${noise}"]:
               mx.succeed(f"doveadm save -u ${login reports} -m INBOX < {eml}")
           mx.succeed("doveadm save -u ${login reports} -m Archive < ${old}")
-          mx.fail("systemctl start dmarc-reports.service")
+          mx.fail("systemctl start mail-dmarc-reports.service")
           assert mails("${login reports}", "mailbox Archive subject clean") == "1"
           assert mails("${login reports}", "mailbox Archive subject old") == "0"
           assert mails("${login reports}", "mailbox INBOX flagged") == "2"
           assert mails("${login reports}", "mailbox INBOX") == "2"
-          said = mx.succeed("journalctl -u dmarc-reports.service")
+          said = mx.succeed("journalctl -u mail-dmarc-reports.service")
           assert "receiver.test's report trouble on example.com: 2 from ${mx}, ${fqdn}'s, fail SPF as example.com" in said, said
           assert "holds no DMARC report: Not a report" in said, said
 
       with subtest("the admin hears of what's flagged, which isn't read again"):
           mx.wait_until_succeeds(
-              "doveadm search -u ${login admin} header subject 'mx: dmarc-reports.service failed' | grep -q .", timeout=60
+              "doveadm search -u ${login admin} header subject 'mx: mail-dmarc-reports.service failed' | grep -q .", timeout=60
           )
-          body = mx.succeed("doveadm fetch -u ${login admin} text.utf8 header subject 'mx: dmarc-reports.service failed'")
+          body = mx.succeed("doveadm fetch -u ${login admin} text.utf8 header subject 'mx: mail-dmarc-reports.service failed'")
           assert "fail SPF as example.com" in body, body
-          mx.succeed("systemctl start dmarc-reports.service")
+          mx.succeed("systemctl start mail-dmarc-reports.service")
     '';
 }

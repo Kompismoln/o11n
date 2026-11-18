@@ -118,7 +118,7 @@ canonical name on internet
 
 ### `app.<name>.kind`
 
-`org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mobilizon", "photos", "portal", "rolf",
+`org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mail", "mobilizon", "photos", "portal", "rolf",
 "status", "wordpress"
 
 Default: `null`
@@ -212,22 +212,6 @@ contact
 Default: `{ }`
 
 domains managed by organisation
-
-### `domain.<name>.mailbox`
-
-`org/domain.nix` · boolean
-
-Default: `false`
-
-Whether to enable mailbox.
-
-### `domain.<name>.name`
-
-`org/domain.nix` · string
-
-Default: `"‹name›"`
-
-domain name
 
 ### `endpoint`
 
@@ -614,14 +598,6 @@ Default: `14`
 
 days each host keeps its logs, the journal and nginx's, and fail2ban its record of bans, by which a repeat offender's
 ban grows
-
-### `mailserver`
-
-`org/default.nix` · null or (submodule)
-
-Default: `null`
-
-main mailserver
 
 ### `name`
 

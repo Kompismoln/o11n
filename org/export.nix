@@ -81,6 +81,7 @@ let
               inbox
               send
               sendAs
+              server
               ;
           };
         }
@@ -113,6 +114,26 @@ let
           ) (lib.attrValues entity.mounts)
         );
         hosts = entity.run-on-hosts;
+      };
+    }
+    // lib.optionalAttrs (entity.class == "app" && entity.kind == "mail") {
+      mailserver = {
+        inherit (entity) endpoint dkimSelector;
+        domains = lib.listToAttrs (
+          map (
+            domain:
+            lib.nameValuePair domain.name {
+              inherit (domain) mailbox;
+              sent = lib.elem domain.name sentDomains;
+            }
+          ) entity.domains
+        );
+        # Dependency: nixos/apps/mail.nix reads the reports in the app's own inbox.
+        reports =
+          if entity.principal != null && entity.principal.mail.inbox then
+            entity.principal.mail.address
+          else
+            null;
       };
     }
     // lib.optionalAttrs (entity.class == "app" && entity.kind == "keycloak") {
@@ -177,16 +198,6 @@ let
     secrets.identityFile = "keys/root-${name}";
   };
 
-  # Dependency: nixos/services/dmarc-reports.nix reads the reports in the service's inbox.
-  reports =
-    let
-      service = config.service.dmarc-reports or null;
-    in
-    if service != null && service.principal != null && service.principal.mail.inbox then
-      service
-    else
-      null;
-
   # Policy: a domain is sent from when a principal that sends has its address on it; one it has a sendAs on is its own.
   sentDomains = lib.concatMap (
     entity:
@@ -201,28 +212,22 @@ in
     internal = true;
     readOnly = true;
     type = lib.types.raw;
-    default = builtins.seq config.ops {
-      inherit (config)
-        name
-        endpoint
-        namespaces
-        build-hosts
-        root-identities
-        ;
-      mailserver = lib.mapNullable (mailserver: {
-        inherit (mailserver) endpoint dkimSelector;
-        domains = lib.mapAttrs (name: domain: {
-          inherit (domain) mailbox;
-          sent = lib.elem name sentDomains;
-        }) config.domain;
-        reports = lib.mapNullable (service: service.principal.mail.address) reports;
-      }) config.mailserver;
-      inherit (context) classes;
-      entities =
-        lib.genAttrs' (lib.unique (
-          map (lib.removePrefix "root-") config.root-identities ++ lib.attrNames config.root
-        )) (name: lib.nameValuePair "root-${name}" (root name))
-        // lib.mapAttrs (_: exported) config.entities;
-    };
+    default = builtins.seq config.ops (
+      builtins.seq config.mailserver {
+        inherit (config)
+          name
+          endpoint
+          namespaces
+          build-hosts
+          root-identities
+          ;
+        inherit (context) classes;
+        entities =
+          lib.genAttrs' (lib.unique (
+            map (lib.removePrefix "root-") config.root-identities ++ lib.attrNames config.root
+          )) (name: lib.nameValuePair "root-${name}" (root name))
+          // lib.mapAttrs (_: exported) config.entities;
+      }
+    );
   };
 }

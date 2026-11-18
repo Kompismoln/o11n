@@ -232,10 +232,10 @@ in
                   };
                 }
                 // lib.optionalAttrs mail.send {
-                  # Dependency: nixos/services/mailserver.nix serves submission as mail.<endpoint>.
+                  # Dependency: nixos/apps/mail.nix serves submission at the app's endpoint.
                   "Mobilizon.Web.Email.Mailer" = rec {
                     adapter = elixirConf.lib.mkAtom "Swoosh.Adapters.SMTP";
-                    relay = "mail.${org.mailserver.endpoint}";
+                    relay = if mail.server == null then "" else org.app.${mail.server}.endpoint;
                     port = 587;
                     username = mail.address;
                     password = elixirConf.lib.mkGetEnv { envVariable = "O11N_MAIL_PASSWORD"; };

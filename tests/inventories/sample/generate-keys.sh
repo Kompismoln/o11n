@@ -41,10 +41,11 @@ for service in rescue locksmith reverse-tunnel nix-build nix-switch nix-push egr
     o11n secret generate "service-$service" ssh-key
 done
 
-for service in archive dmarc-reports; do
-    o11n identity create "service-$service"
-    o11n secret generate "service-$service" mail
-done
+o11n identity create service-archive
+o11n secret generate service-archive mail
+
+o11n identity create app-mail
+o11n secret generate app-mail mail
 
 o11n secret generate service-rescue passwd
 o11n secret hash service-rescue passwd >public-keys/service-rescue-passwd.sha512

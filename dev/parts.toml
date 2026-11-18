@@ -98,13 +98,13 @@ stage = "drafted"
 layer = "domain"
 doc = "docs/parts/mail.md"
 code = [
+  "nixos/apps/mail.nix",
+  "nixos/apps/mail/dmarc-reports.sh",
+  "nixos/apps/mail/glesys.sh",
   "nixos/org/mail.nix",
-  "nixos/services/dmarc-reports.nix",
-  "nixos/services/dmarc-reports.sh",
-  "nixos/services/mailserver.nix",
-  "nixos/services/webmail.nix",
+  "org/apps/mail.nix",
+  "org/domain.nix",
   "org/mail.nix",
-  "org/mailserver.nix",
 ]
 
 [parts.o11n]

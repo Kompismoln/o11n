@@ -15,6 +15,7 @@ let
         address = "auth@example.com";
         inbox = true;
         send = true;
+        server = "mail";
       };
     };
     secrets.sopsFile = ../inventories/mail/enc/app-auth.yaml;
@@ -52,6 +53,10 @@ let
       kind = "wordpress";
     };
     other.kind = null;
+    mail = {
+      kind = "mail";
+      endpoint = "mail.example.com";
+    };
   };
 
   evalWith =
@@ -96,7 +101,6 @@ let
             inherit app;
             org = {
               postgres = "17";
-              mailserver.endpoint = "example.com";
               app = apps realm;
             };
             host.name = "web";

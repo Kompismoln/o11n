@@ -185,7 +185,8 @@ pkgs.testers.runNixOSTest {
         resolving
         shared.mailserver
         ../../nixos/preserve.nix
-        ../../nixos/services/mailserver.nix
+        shared.mailApp
+        (principal org.app.mail)
       ];
       _module.args.host = org.host.mx;
       networking.firewall.allowedTCPPorts = [ 587 ];
@@ -412,10 +413,10 @@ pkgs.testers.runNixOSTest {
         assert said["sso"].startswith("${cloud.url}/apps/"), said
         assert said["logged_out"] == "${www.url}/en/blog/" and said["asked_again"], said
 
-    with subtest("the status page watches the apps of its groups and the mail server, and announces"):
+    with subtest("the status page watches the apps of its groups, and the mail server's webmail and ports, and announces"):
         statuses = "curl -sSf http://${status.endpoint}/api/v1/endpoints/statuses"
         # Fact: Gatus checks first as it starts, before the apps answer, and again an interval later.
-        web.wait_until_succeeds(f"{statuses} | jq -e 'length == 6 and all(.[]; .results[-1].success)'", timeout=300)
+        web.wait_until_succeeds(f"{statuses} | jq -e 'length == 7 and all(.[]; .results[-1].success)'", timeout=300)
         announced = json.loads(web.succeed("curl -sSf http://${status.endpoint}/api/v1/config"))["announcements"]
         assert [a["message"] for a in announced] == ["The status page is up."], announced
 

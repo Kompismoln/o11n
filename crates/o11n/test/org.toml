@@ -68,13 +68,6 @@ grants = [
   "host-*",
 ]
 
-[service.mailserver]
-
-[service.dmarc-reports]
-id = 0
-principal.hasPublicKey = false
-principal.mail.inbox = true
-
 [service.logs]
 
 [service.nix-remote]
@@ -84,9 +77,6 @@ principal.mail.inbox = true
 [service.media-server]
 vpn = "wg0"
 principal.hasPublicKey = false
-
-[mailserver]
-dkimSelector = "mail"
 
 [domain."example.com"]
 mailbox = true
@@ -99,9 +89,19 @@ mailbox = false
 [role.testrole]
 
 [role.serving]
-services = ["locksmith", "logs", "mailserver", "nix-remote", "nix-switch", "torrent-server", "media-server"]
+services = ["locksmith", "logs", "nix-remote", "nix-switch", "torrent-server", "media-server"]
 
 [role.lorem]
+
+[app.mail]
+id = 9
+endpoint = "mail.example.com"
+run-on-hosts = ["testhost"]
+principal.hasHome = false
+principal.hasPublicKey = false
+principal.mail = { address = "dmarc-reports@example.com", inbox = true }
+kind = "mail"
+dkimSelector = "mail"
 
 [app.auth]
 id = 0

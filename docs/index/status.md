@@ -26,7 +26,7 @@ what the page announces, newest first, as Gatus's announcements: an incident, ma
 
 Default: `{ }`
 
-the apps the page watches at their url, by the group it shows them in
+the apps the page watches at their url, and a mail app at its ports too, by the group it shows them in
 
 ### `<status>.interval`
 
@@ -35,14 +35,6 @@ the apps the page watches at their url, by the group it shows them in
 Default: `"2m"`
 
 how often each check runs, as Gatus takes it
-
-### `<status>.mail`
-
-`org/apps/status.nix` · null or string
-
-Default: `null`
-
-the group the page shows the mail server's ports in, mail.<endpoint>'s submission, imaps and smtp, or null for none
 
 ### `<status>.message`
 

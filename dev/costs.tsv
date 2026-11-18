@@ -869,3 +869,33 @@
 2026-11-18T11:46:23Z	container	16.7	9868d55	dev/check.sh index
 2026-11-18T11:48:52Z	container	164.7	9868d55	nix-eval-jobs bats eval
 2026-11-18T11:50:13Z	container	217.7	9868d55	nix build .#stages.bats
+2026-11-18T17:03:31Z	container	3.0	e5df556c	dev/check.sh format
+2026-11-18T17:03:32Z	container	4.1	e5df556c	dev/check.sh lint
+2026-11-18T17:05:51Z	container	0.1	e5df556c	dev/check.sh parts
+2026-11-18T17:05:52Z	container	1.3	e5df556c	dev/check.sh docs
+2026-11-18T17:05:55Z	container	3.5	e5df556c	dev/check.sh index
+2026-11-18T17:05:55Z	container	3.7	e5df556c	dev/check.sh lint
+2026-11-18T17:06:05Z	container	0.1	e5df556c	dev/check.sh parts
+2026-11-18T17:06:06Z	container	1.5	e5df556c	dev/check.sh docs
+2026-11-18T17:06:08Z	container	2.8	e5df556c	dev/check.sh format
+2026-11-18T17:06:09Z	container	3.9	e5df556c	dev/check.sh index
+2026-11-18T17:06:09Z	container	3.9	e5df556c	dev/check.sh lint
+2026-11-18T17:10:30Z	container	0.2	e5df556c	dev/check.sh parts
+2026-11-18T17:10:31Z	container	1.4	e5df556c	dev/check.sh docs
+2026-11-18T17:10:33Z	container	3.1	e5df556c	dev/check.sh format
+2026-11-18T17:10:33Z	container	3.6	e5df556c	dev/check.sh index
+2026-11-18T17:10:33Z	container	4.0	e5df556c	dev/check.sh lint
+2026-11-18T17:10:53Z	container	1.3	e5df556c	dev/check.sh docs
+2026-11-18T17:10:55Z	container	2.9	e5df556c	dev/check.sh format
+2026-11-18T17:45:51Z	container	0.1	d90b0d26	dev/check.sh parts
+2026-11-18T17:45:52Z	container	1.3	d90b0d26	dev/check.sh docs
+2026-11-18T17:45:53Z	container	2.4	d90b0d26	dev/check.sh format
+2026-11-18T17:45:54Z	container	3.5	d90b0d26	dev/check.sh index
+2026-11-18T17:45:54Z	container	3.6	d90b0d26	dev/check.sh lint
+2026-11-18T17:46:12Z	container	1.3	d90b0d26	dev/check.sh docs
+2026-11-18T17:46:13Z	container	2.3	d90b0d26	dev/check.sh format
+2026-11-18T17:49:11Z	container	1.2	d90b0d26	dev/check.sh docs
+2026-11-18T17:49:13Z	container	2.6	d90b0d26	dev/check.sh format
+2026-11-18T17:49:14Z	container	3.6	d90b0d26	dev/check.sh lint
+2026-11-18T17:52:13Z	container	2.2	7575635d	dev/check.sh format
+2026-11-18T17:52:14Z	container	3.2	7575635d	dev/check.sh lint

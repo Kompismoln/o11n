@@ -152,7 +152,7 @@ in
       {
         gw = uids // {
           nix-remote = 2010;
-          dmarc-reports = 2012;
+          mail = 3000;
         };
         web = uids // {
           archive = 2011;
@@ -172,8 +172,8 @@ in
         "admin/passwd-sha512" = "user-admin.yaml";
         "admin/restic-key" = "user-admin.yaml";
         "archive/mail-sha512" = "service-archive.yaml";
-        "dmarc-reports/mail" = "service-dmarc-reports.yaml";
-        "dmarc-reports/mail-sha512" = "service-dmarc-reports.yaml";
+        "mail/mail" = "app-mail.yaml";
+        "mail/mail-sha512" = "app-mail.yaml";
         "nix-remote/secret-key" = "service-nix-remote.yaml";
         "nix-remote/ssh-key" = "service-nix-remote.yaml";
         "nix-serve/nix-sign" = "service-nix-serve.yaml";
@@ -251,7 +251,7 @@ in
     expected = {
       gw = {
         accounts = {
-          service-dmarc-reports = {
+          app-mail = {
             from = "dmarc-reports@example.com";
             set_from_header = "on";
           };
@@ -279,18 +279,18 @@ in
   };
 
   # Policy: an archive that fails mails the admin as the principal it archives, the archive service as itself, and
-  # dmarc-reports as itself.
+  # the mail app's DMARC reports as the app.
   test_mail_failures = {
     expr = {
       inherit (web.config.systemd.services."state-archive@user-admin:web") onFailure;
       archive = web.config.systemd.services.archive.onFailure;
-      dmarc-reports = gw.config.systemd.services.dmarc-reports.onFailure;
+      dmarc-reports = gw.config.systemd.services.mail-dmarc-reports.onFailure;
       tellers = lib.filter (lib.hasPrefix "mail-failure-") (lib.attrNames web.config.systemd.services);
     };
     expected = {
       onFailure = [ "mail-failure-user-admin@%n.service" ];
       archive = [ "mail-failure-service-archive@%n.service" ];
-      dmarc-reports = [ "mail-failure-service-dmarc-reports@%n.service" ];
+      dmarc-reports = [ "mail-failure-app-mail@%n.service" ];
       tellers = [
         "mail-failure-service-archive@"
         "mail-failure-user-admin@"

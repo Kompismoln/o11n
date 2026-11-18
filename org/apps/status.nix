@@ -1,4 +1,5 @@
 {
+  config,
   context,
   lib,
   ...
@@ -6,7 +7,7 @@
 {
   options = {
     groups = lib.mkOption {
-      description = "the apps the page watches at their url, by the group it shows them in";
+      description = "the apps the page watches at their url, and a mail app at its ports too, by the group it shows them in";
       type = lib.types.attrsOf (lib.types.listOf context.types.app.ref);
       default = { };
       example = {
@@ -17,10 +18,15 @@
       };
     };
     mail = lib.mkOption {
-      description = "the group the page shows the mail server's ports in, mail.<endpoint>'s submission, imaps and smtp, or null for none";
-      type = lib.types.nullOr lib.types.str;
+      description = "nothing: a mail app in groups has its ports watched, which mail named the group of";
+      internal = true;
       default = null;
-      example = "Mail";
+      type = lib.types.raw;
+      apply =
+        mail:
+        lib.throwIf (mail != null)
+          "app.${config.name}.mail is gone: drop it, and list the mail app in a group of app.${config.name}.groups, as groups.${mail} = [\"<app>\"], which watches its ports."
+          mail;
     };
     interval = lib.mkOption {
       description = "how often each check runs, as Gatus takes it";

@@ -9,11 +9,16 @@
   options = {
     address = lib.mkOption {
       description = "the address the principal receives at with an inbox, and sends as";
-      default = "${entity.name}@${
-        (if context.org.mailserver == null then context.org else context.org.mailserver).endpoint
-      }";
-      defaultText = lib.literalMD "`<name>@<endpoint>`, the mail server's endpoint";
+      default = "${entity.name}@${context.org.endpoint}";
+      defaultText = lib.literalMD "`<name>@<endpoint>`, the org's endpoint";
       type = lib.types.str;
+    };
+    server = lib.mkOption {
+      description = "the app of kind mail the principal logs in to, its address's domain's `mail`, or null for an address on no domain of the org's, or one without";
+      readOnly = true;
+      type = lib.types.nullOr lib.types.str;
+      default = context.org.domain.${lib.last (lib.splitString "@" config.address)}.mail or null;
+      defaultText = lib.literalMD "the `mail` of the domain of `address`";
     };
     inbox = lib.mkOption {
       description = "whether the principal has a mailbox on the mail server, at its address and its aliases";

@@ -6,28 +6,84 @@ place in that.
 
 ## Options
 
-### `mailserver.admin`
+### `app.<mail>.admin`
 
-`org/mailserver.nix` · string
+`org/apps/mail.nix` · string
 
-Default: `"admin@${endpoint}"`
+Default: `"admin@${org.endpoint}"`
 
-the address that hears of what goes wrong on the org's hosts, such as a unit that fails, a principal's address or alias
-with an inbox, which is postmaster of each domain with a mailbox no principal is postmaster of
+the address that hears of what goes wrong, a unit that fails on a host whose principal sends through the server, a
+principal's address or alias with an inbox on it, which is postmaster of each of its domains with a mailbox no principal
+is postmaster of
 
-### `mailserver.dkimSelector`
+### `app.<mail>.dkimSelector`
 
-`org/mailserver.nix` · string
+`org/apps/mail.nix` · string
 
-the selector of the mail server's dkim keys
+the selector of the server's dkim keys
 
-### `mailserver.endpoint`
+### `app.<mail>.glesys`
 
-`org/mailserver.nix` · string
+`org/apps/mail.nix` · null or (submodule)
 
-Default: `"example.com"`
+Default: `null`
 
-the domain the mail server is mail.<endpoint> of, and the principals' addresses are on by default
+the GleSYS account whose DNS holds the records the server's mail is read by, in each of `zones`, or null
+
+### `app.<mail>.glesys.account`
+
+`org/apps/mail.nix` · string
+
+the account, as GleSYS names it
+
+### `app.<mail>.glesys.dmarc`
+
+`org/apps/mail.nix` · one of "none", "quarantine", "reject"
+
+Default: `"none"`
+
+the policy each zone's DMARC record asks a receiver to take with mail that fails it
+
+### `app.<mail>.glesys.key`
+
+`org/apps/mail.nix` · string
+
+Default: `"glesys-key"`
+
+the app's secret that is the account's API key, which may list, add and update its DNS records
+
+### `app.<mail>.glesys.zones`
+
+`org/apps/mail.nix` · list of string
+
+Default: `[ ]`
+
+the server's domains whose zones are the account's, which it keeps the records of
+
+### `domain.<name>.mail`
+
+`org/domain.nix` · null or impossible (empty enum)
+
+Default: the org's app of kind mail, if it has one alone, or else `null`
+
+the app of kind mail that is the domain's mail server, which its principals' addresses log in to and its mail is signed
+by, or null
+
+### `domain.<name>.mailbox`
+
+`org/domain.nix` · boolean
+
+Default: `false`
+
+Whether to enable mailbox.
+
+### `domain.<name>.name`
+
+`org/domain.nix` · string
+
+Default: `"‹name›"`
+
+domain name
 
 ## Types
 
@@ -41,7 +97,7 @@ had by `<principal>.mail`
 
 `org/mail.nix` · string
 
-Default: `<name>@<endpoint>`, the mail server's endpoint
+Default: `<name>@<endpoint>`, the org's endpoint
 
 the address the principal receives at with an inbox, and sends as
 
@@ -87,3 +143,12 @@ Default: `[ ]`
 
 the other addresses the principal sends as, each an address or, as @<domain>, any address on a domain of the org's
 without a mailbox
+
+### `<mail>.server`
+
+`org/mail.nix` · null or string
+
+Default: the `mail` of the domain of `address`
+
+the app of kind mail the principal logs in to, its address's domain's `mail`, or null for an address on no domain of the
+org's, or one without

@@ -637,7 +637,7 @@ setup() {
 }
 
 @test "status lists each entity's checks by what it has, says ok, fail or skip of each, a skip for a secret it can't decrypt, and with --failed only what fails" {
-  run o11n status --list host-testhost host-lorem user-testuser user-admin
+  run o11n status --list host-testhost host-lorem user-testuser user-admin app-mail
   succeeds
   [[ $output == *"host-testhost on-host luks-key"* ]]
   [[ $output == *"host-testhost initrd-key"* ]]
@@ -645,7 +645,7 @@ setup() {
   [[ $output == *"host-testhost version"* ]]
   [[ $output == *"host-testhost reboot"* ]]
   [[ $output == *"host-testhost nix-daemon"* ]]
-  [[ $output == *"host-testhost submission mail.example.com"* ]]
+  [[ $output == *"app-mail submission mail.example.com"* ]]
   [[ $output == *"user-testuser mail-login mail.example.com"* ]]
   [[ $output == *"user-testuser secret passwd"* ]]
   [[ $output != *"host-lorem nix-daemon"* ]]
@@ -660,7 +660,7 @@ setup() {
   o11n identity create user-testuser
   o11n secret generate user-testuser mail
 
-  run o11n status host-testhost user-testuser
+  run o11n status host-testhost user-testuser app-mail
   fails "checks failed"
   [[ $output == *"host-testhost identity ok"* ]]
   [[ $output == *"host-testhost recipients ok"* ]]
@@ -668,7 +668,7 @@ setup() {
   [[ $output == *"host-testhost on-host age-key ok"* ]]
   [[ $output == *"host-testhost nix-daemon ok"* ]]
   [[ $output == *"host-testhost nix-store skip: "* ]]
-  [[ $output == *"host-testhost submission mail.example.com ok"* ]]
+  [[ $output == *"app-mail submission mail.example.com ok"* ]]
   [[ $output == *"host-testhost public-key wg0-key fail: there's no public-keys/host-testhost-wg0-key.pub"* ]]
   [[ $output == *"user-testuser secret mail ok"* ]]
   [[ $output == *"user-testuser secret passwd fail: there's no user-testuser's passwd"* ]]
@@ -702,13 +702,13 @@ dns() {
 }
 
 @test "status checks the DNS of the mail server's domains as a receiver reads it" {
-  run o11n status --list host-testhost user-testuser user-admin
-  [[ $output == *"host-testhost mx example.com"* ]]
-  [[ $output == *"host-testhost spf example.com"* ]]
-  [[ $output == *"host-testhost dkim example.com"* ]]
-  [[ $output == *"host-testhost dmarc example.com"* ]]
-  [[ $output != *"host-testhost mx example.org"* ]]
-  [[ $output != *"host-testhost spf example.org"* ]]
+  run o11n status --list app-mail user-testuser user-admin
+  [[ $output == *"app-mail mx example.com"* ]]
+  [[ $output == *"app-mail spf example.com"* ]]
+  [[ $output == *"app-mail dkim example.com"* ]]
+  [[ $output == *"app-mail dmarc example.com"* ]]
+  [[ $output != *"app-mail mx example.org"* ]]
+  [[ $output != *"app-mail spf example.org"* ]]
   [[ $output == *"user-testuser spf example.org"* ]]
   [[ $output == *"user-testuser dkim example.org"* ]]
   [[ $output == *"user-testuser dmarc example.org"* ]]
@@ -723,23 +723,23 @@ dns() {
   dns _spf.example.com TXT 16 '"v=spf1 ip4:192.0.2.0/24 ip6:2001:db8::/32 -all"'
   dns mail._domainkey.example.com TXT 16 '"v=DKIM1; k=rsa; " "p=MIIB"'
   dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject; rua=mailto:other@example.net,mailto:Dmarc-Reports@example.com!10m"'
-  run o11n status host-testhost
-  [[ $output == *"host-testhost mx example.com ok"* ]]
-  [[ $output == *"host-testhost spf example.com ok"* ]]
-  [[ $output == *"host-testhost dkim example.com ok"* ]]
-  [[ $output == *"host-testhost dmarc example.com ok"* ]]
+  run o11n status app-mail
+  [[ $output == *"app-mail mx example.com ok"* ]]
+  [[ $output == *"app-mail spf example.com ok"* ]]
+  [[ $output == *"app-mail dkim example.com ok"* ]]
+  [[ $output == *"app-mail dmarc example.com ok"* ]]
   grep -q "^curl -sS --max-time 20 --get -H accept: application/dns-json --data-urlencode name=example.com --data-urlencode type=TXT https://cloudflare-dns.com/dns-query$" "$BATS_TEST_TMPDIR/curl"
 
   dns example.com MX 15 "10 other.example.net."
   dns example.com TXT 16 '"v=spf1 ip4:192.0.2.1 ~all"'
   rm "$BATS_TEST_TMPDIR/dns/mail._domainkey.example.com.TXT"
   dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject"' '"v=DMARC1; p=none"'
-  run o11n status host-testhost
+  run o11n status app-mail
   fails "checks failed"
-  [[ $output == *"host-testhost mx example.com fail: example.com's MX is other.example.net, not mail.example.com, so its mailboxes get no mail: publish example.com MX 10 mail.example.com"* ]]
-  [[ $output == *"host-testhost spf example.com fail: SPF of example.com gives softfail for 2001:db8::1, which mail.example.com sends from: add a:mail.example.com to it"* ]]
-  [[ $output == *"host-testhost dkim example.com fail: mail._domainkey.example.com has no DKIM key"* ]]
-  [[ $output == *"host-testhost dmarc example.com fail: _dmarc.example.com has 2 v=DMARC1 records, which receivers take as none: keep one"* ]]
+  [[ $output == *"app-mail mx example.com fail: example.com's MX is other.example.net, not mail.example.com, so its mailboxes get no mail: publish example.com MX 10 mail.example.com"* ]]
+  [[ $output == *"app-mail spf example.com fail: SPF of example.com gives softfail for 2001:db8::1, which mail.example.com sends from: add a:mail.example.com to it"* ]]
+  [[ $output == *"app-mail dkim example.com fail: mail._domainkey.example.com has no DKIM key"* ]]
+  [[ $output == *"app-mail dmarc example.com fail: _dmarc.example.com has 2 v=DMARC1 records, which receivers take as none: keep one"* ]]
 
   dns example.org TXT 16 '"v=spf1 a:mail.example.com -all"'
   dns mail._domainkey.example.org TXT 16 '"p=MIIB"'
@@ -749,10 +749,10 @@ dns() {
   [[ $output == *"user-testuser dmarc example.org fail: _dmarc.example.org has no v=DMARC1 record"* ]]
 }
 
-@test "status checks that a domain's DMARC reports reach dmarc-reports, which another domain authorizes" {
+@test "status checks that a domain's DMARC reports reach the mail server's principal, which another domain authorizes" {
   dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject"'
-  run o11n status host-testhost
-  [[ $output == *"host-testhost dmarc example.com fail: _dmarc.example.com sends its aggregate reports elsewhere than dmarc-reports@example.com, which dmarc-reports reads: add mailto:dmarc-reports@example.com to its rua"* ]]
+  run o11n status app-mail
+  [[ $output == *"app-mail dmarc example.com fail: _dmarc.example.com sends its aggregate reports elsewhere than dmarc-reports@example.com, which its mail server reads as its principal: add mailto:dmarc-reports@example.com to its rua"* ]]
 
   dns _dmarc.example.org TXT 16 '"v=DMARC1; p=reject; rua=mailto:dmarc-reports@example.com"'
   run o11n status user-testuser

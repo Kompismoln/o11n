@@ -76,7 +76,8 @@ let
         [[ $(o11n entities 'host:remote-builder+server' 'user-*' | tr '\n' ' ') == "host-gw user-admin " ]]
         [[ $(o11n search tunnel) == service-reverse-tunnel ]]
         [[ $(o11n get build-hosts) == gw ]]
-        [[ $(o11n status --list host-gw | grep -E 'nix-daemon|submission' | tr '\n' ' ') == "host-gw nix-daemon host-gw submission mail.example.com " ]]
+        [[ $(o11n status --list host-gw | grep nix-daemon) == "host-gw nix-daemon" ]]
+        [[ $(o11n status --list app-mail | grep submission) == "app-mail submission mail.example.com" ]]
         [[ $(o11n status --list host-web | grep nix-daemon) == "host-web nix-daemon" ]]
         [[ -f $org/$(o11n path public-key host-gw ssh-key) && -f $org/$(o11n path sops-file user-admin) ]]
         [[ -f $org/$(o11n path identity user-admin) ]]
@@ -291,8 +292,9 @@ let
 
   # Policy: a WordPress site's server, as the host's nginx runs it, passes WordPress's entry points to PHP, which isn't
   # there to answer (502), and denies PHP it only includes, PHP in uploads and dotfiles (403).
-  # Policy: the portal lists the apps it names, in its order, described in each language, shows a page without a title as
-  # a note, with the commit it names, and logs in with the client its keycloak keeps.
+  # Policy: the portal lists the apps it names, in its order, described in each language, under the content's headings
+  # or its own, shows a page without a title as a note, with the commit it names, and logs in with the client its
+  # keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -305,8 +307,10 @@ let
       }
       ''
         listed() { grep -o 'card-\(title\|url\)">[^<]*' "$site/$1" | cut -d'>' -f2 | tr '\n' ' '; }
-        [[ $(listed index.html) == "Moln cloud.example.com Möten meet.example.com auth auth.example.com " ]]
-        [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com " ]]
+        [[ $(listed index.html) == "Moln cloud.example.com Möten meet.example.com auth auth.example.com E-post mail.example.com " ]]
+        [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com mail mail.example.com " ]]
+        grep -qF '<h2>Det vi har</h2>' "$site/index.html" && grep -qF '<h2>Vill du vara med?</h2>' "$site/index.html"
+        grep -qF '<h2>Services</h2>' "$site/en/index.html" && grep -qF '<h2>Want an account?</h2>' "$site/en/index.html"
         grep -qF '"clientId":"www","issuer":"http://auth.example.com/realms/example"' "$site/index.html"
         grep -qF 'href="http://www.example.com/en/blog/first/"' "$site/en/index.html"
         [[ $(grep -c 'class="note"' "$site/en/index.html") == 2 && $(grep -c 'class="note"' "$site/notes/index.html") == 2 ]]
@@ -320,6 +324,86 @@ let
         ! grep -qF 'href="http://www.example.com/en/policy/"' "$site/en/index.html"
         jq -e '.[] | select(.representation.clientId == "www") | .realm == "example" and .representation.publicClient
           and .representation.redirectUris == ["http://www.example.com/*"]' <<<"$clients"
+        touch $out
+      '';
+
+  # Policy: the mail server adds an MX where none is its own and an SPF record where there's none, makes its DKIM key and
+  # DMARC record what they are to be, and authorizes each other domain's reports in the reports' zone, against a GleSYS
+  # that curl's stub plays.
+  portalChecks.eval-mail-glesys =
+    let
+      inherit (inventories.mail.nixosConfigurations.mx) config;
+      unit = config.systemd.services.mail-glesys;
+      record = recordid: host: type: data: {
+        inherit
+          recordid
+          host
+          type
+          data
+          ;
+      };
+      zone = records: builtins.toJSON { response.records = records; };
+    in
+    pkgs.runCommand "eval-mail-glesys"
+      {
+        nativeBuildInputs = [ pkgs.jq ];
+        inherit (unit.environment) GLESYS_ACCOUNT GLESYS_ZONES;
+        comZone = zone [
+          (record 1 "example.com" "TXT" "v=spf1 include:_spf.example.net -all")
+          (record 2 "_dmarc" "TXT" "v=DMARC1; p=none;")
+          (record 3 "s1._domainkey" "TXT" ''"v=DKIM1; k=rsa; " "p=STALE"'')
+          (record 4 "example.org._report._dmarc" "TXT" "v=DMARC1")
+          (record 5 "@" "MX" "20 mx.other.test.")
+        ];
+        orgZone = zone [
+          (record 10 "@" "MX" "10 mx.websupport.test.")
+          (record 11 "_dmarc" "TXT" "v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@example.com")
+        ];
+      }
+      ''
+        mkdir bin zones dkim
+        printf '%s' "$comZone" > zones/example.com.json
+        printf '%s' "$orgZone" > zones/example.org.json
+        for domain in example.com example.org; do
+          printf 's1._domainkey IN TXT ( "v=DKIM1; k=rsa; "\n\t"p=KEY-%s" ) ;\n' $domain > dkim/$domain.s1.txt
+        done
+        cat > bin/curl <<'EOF'
+        #!${pkgs.bash}/bin/bash
+        method=''${*: -1}
+        method=''${method##*/}
+        fields=() config=
+        while (($#)); do
+          case $1 in
+          --data-urlencode) fields+=("$2"); shift ;;
+          -K) config=$2; shift ;;
+          esac
+          shift
+        done
+        grep -q '^user = "CL12345:' "$config" || exit 22
+        if [[ $method == listrecords ]]; then
+          cat "$ZONES/''${fields[0]#domainname=}.json"
+        else
+          echo "$method ''${fields[*]}" >> "$CALLS"
+          echo '{"response":{"status":{"code":200}}}'
+        fi
+        EOF
+        chmod +x bin/curl
+        echo key > key
+        PATH=$PWD/bin:$PATH ZONES=$PWD/zones CALLS=$PWD/calls GLESYS_KEY=$PWD/key GLESYS_API=https://glesys.test \
+          DKIM_DIR=$PWD/dkim bash ${../nixos/apps/mail/glesys.sh} > said
+        diff calls - <<'EOF'
+        addrecord domainname=example.com host=@ type=MX data=10 mail.example.com. ttl=3600
+        updaterecord recordid=3 data=v=DKIM1; k=rsa; p=KEY-example.com
+        updaterecord recordid=2 data=v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@example.com
+        addrecord domainname=example.com host=example.net._report._dmarc type=TXT data=v=DMARC1 ttl=3600
+        addrecord domainname=example.org host=@ type=TXT data=v=spf1 a:mail.example.com -all ttl=3600
+        addrecord domainname=example.org host=s1._domainkey type=TXT data=v=DKIM1; k=rsa; p=KEY-example.org ttl=3600
+        EOF
+        grep -qxF '_dmarc.example.com TXT: v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@example.com, was v=DMARC1; p=none;' said
+        rm zones/example.org.json
+        ! PATH=$PWD/bin:$PATH ZONES=$PWD/zones CALLS=$PWD/calls GLESYS_KEY=$PWD/key GLESYS_API=https://glesys.test \
+          DKIM_DIR=$PWD/dkim bash ${../nixos/apps/mail/glesys.sh} 2> failed || exit 1
+        grep -q '^example.org: listing its records failed' failed
         touch $out
       '';
 
