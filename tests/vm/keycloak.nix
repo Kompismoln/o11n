@@ -548,7 +548,7 @@ pkgs.testers.runNixOSTest {
         )
         for name in ["alice", "nobody", "alice", "nobody", "alice"]:
             said = mx.succeed(f"{login} -d username={name}")
-            assert said == "401", said
+            assert said == "400", said
         web.wait_until_succeeds(f"fail2ban-client get keycloak-auth banned | grep -qF {address}", timeout=60)
         banned = web.succeed("fail2ban-client get keycloak-auth banned")
         assert "203.0.113.9" not in banned, banned
