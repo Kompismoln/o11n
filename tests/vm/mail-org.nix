@@ -1,4 +1,5 @@
-# What a test of tests/inventories/mail runs its hosts with, in a network without the internet's ACME or wg0.
+# Fact: what a test of tests/inventories/mail runs its hosts with, in a network without the internet's ACME, GleSYS or
+# wg0.
 {
   pkgs,
   o11nInputs,

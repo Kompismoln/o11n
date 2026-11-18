@@ -1,4 +1,3 @@
-# nixos/org/mail.nix
 {
   config,
   host,

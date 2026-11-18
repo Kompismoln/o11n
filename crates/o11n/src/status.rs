@@ -466,7 +466,6 @@ impl Org {
         })
     }
 
-    // Policy: a mail app's checks are of its own server, a principal's of the server of its address's domain.
     fn mail_server<'e>(&'e self, entity: &'e Entity) -> Result<&'e Mailserver, Error> {
         if let Some(mailserver) = &entity.mailserver {
             return Ok(mailserver);

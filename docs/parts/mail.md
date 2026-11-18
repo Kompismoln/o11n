@@ -145,7 +145,6 @@ to authorize it (`docs/parts/o11n.md`, "Status").
 =======
 `o11n status`'s `dmarc` takes each of the server's domains' `rua` to name the app's address, and a domain unrelated to
 the address's to authorize it (`docs/parts/o11n.md`, "Status").
->>>>>>> @stamp
 
 ## DNS at GleSYS
 
@@ -173,6 +172,7 @@ write fails the unit, which mails the admin (see Failures). The key needs the do
 the server's addresses. `eval-mail-glesys` runs it on `tests/inventories/mail`'s zones against curl's stub of the API,
 which adds an MX, updates a stale DKIM key and a DMARC record without `rua`, leaves an SPF record and an authorization
 that are there, and fails on a zone it can't list.
+>>>>>>> @stamp
 
 ## Sending
 
