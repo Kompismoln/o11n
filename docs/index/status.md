@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 # `status`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
@@ -69,3 +71,4 @@ when, in RFC 3339
 `org/apps/status.nix` · one of "outage", "warning", "information", "operational", "none"
 
 what kind of announcement it is
+>>>>>>> @stamp

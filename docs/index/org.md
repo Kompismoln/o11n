@@ -118,8 +118,12 @@ canonical name on internet
 
 ### `app.<name>.kind`
 
+<<<<<<< signed
+`org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mobilizon", "photos", "rolf", "wordpress"
+=======
 `org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mobilizon", "photos", "portal", "rolf",
 "status", "wordpress"
+>>>>>>> @stamp
 
 Default: `null`
 

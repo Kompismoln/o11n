@@ -1,4 +1,3 @@
-# nixos/services/nix-build.nix
 {
   config,
   host,

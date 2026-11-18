@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 # Status
 
 A status app is the org's status page: Gatus, which checks what the org runs from the app's host, keeps each check's
@@ -51,3 +53,4 @@ inventory declares.
 ## Work in progress
 
 - Alerts: Gatus mails no one when a check fails.
+>>>>>>> @stamp

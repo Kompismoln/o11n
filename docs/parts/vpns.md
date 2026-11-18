@@ -44,6 +44,8 @@ dns = []
 On a vpn without `dns`, as a mesh, each host has in `/etc/hosts` the names on it of itself and of those it reaches,
 their services' included (`nixos/org/wireguard.nix`).
 
+<<<<<<< signed
+=======
 On a vpn with `dns`, its name servers answer for its `namespace` alone: each host's link on it has the namespace as
 resolved's routing domain, `~<namespace>`, so resolved asks them nothing else, and asks no other server for it. A host
 whose kresd runs, as a vpn's name server or the mail server's resolver, has kresd ask each other vpn it's on for that
@@ -52,6 +54,7 @@ vpn's namespace, of its name servers, without DNSSEC validation, as the namespac
 `/etc/resolv.conf` and not resolved: on a mail server that is kresd, which without these would send the other vpns'
 names to the public DNS and find none.
 
+>>>>>>> @stamp
 A host that would listen on one port for two of its vpns fails evaluation.
 
 The vpn's `peers` has, for each host on it, the hosts it has a tunnel with, and its `reaches` those it reaches: on a hub

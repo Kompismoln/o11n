@@ -15,11 +15,20 @@ clone.
 and which failed, on a terminal each as it ends, with what it took, and in a git checkout logs each to
 `dev/state/logs/<stage>.log`, and how it ended to `dev/state/logs/<stage>.json`, which the hooks read:
 
+<<<<<<< signed
+- `dev/check.sh stamps` ~0.1s, every conflict marker a stamp's
+- `dev/check.sh pending` ~0.2s, what is left to stamp
+=======
 - `dev/check.sh stamps` ~0.2s, every conflict marker a stamp's
 - `dev/check.sh pending` ~0.1s, what is left to stamp
+>>>>>>> @stamp
 - `dev/check.sh stamped` ~0.3s, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as
   `dev/write.sh` stamps it
+<<<<<<< signed
+- `dev/check.sh format` ~2.3s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+=======
 - `dev/check.sh format` ~3.7s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+>>>>>>> @stamp
 - `dev/check.sh lint` ~6.3s, statix, deadnix and shellcheck
 - `dev/check.sh docs` ~2.1s, the references of the docs (`o11n-dev refs check`)
 - `dev/check.sh parts` ~0.2s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
@@ -49,7 +58,11 @@ checkout that has it, with `$MACHINE_CLASS` set, `dev/check.sh` spools to `dev/s
 - `nix-eval-jobs bats eval` ~120s, an evaluation, of the stages named together that build jobs, in the order `vm`,
   `bats`, `eval`; one at a tree evaluated before runs none
 - `nix build .#stages.eval` ~10s, the build of a stage's jobs when none of them is in the store
+<<<<<<< signed
+- `nix build .#stages.bats` ~65s, likewise
+=======
 - `nix build .#stages.bats` ~180s, likewise
+>>>>>>> @stamp
 - `vmTests.<name>`, each VM test the builder ran, with the time its driver says its script took
 - `dev/check.sh <stage>`, each stage that builds no jobs.
 
@@ -100,9 +113,12 @@ Markdown and reflows them.
 A stamp is a git conflict in a doc, from `<<<<<<< signed` to `=======` as the operator last signed it. `o11n-dev stamps`
 writes them, flags a conflict marker that isn't a stamp's, and the stamps pending. The operator stamps them before work
 proceeds.
+<<<<<<< signed
+=======
 
 A doc is a `*.md` but a portal's content in a test inventory, `tests/inventories/*/site/`, which the portal builds from
 and Zola reads no stamp in (`crates/o11n-dev/src/stamps.rs`).
+>>>>>>> @stamp
 
 The hooks write them against `o11n-dev base`: `refs/stamped/<branch>`, which `./dev/operator.sh stamp` sets, what the
 operator last stamped. Until a branch has one, against the commit the turn started at, or else where the branch left the
