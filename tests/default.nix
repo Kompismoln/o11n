@@ -263,6 +263,7 @@ let
         grep -qF '<code>72f0091</code>' "$site/en/notes/index.html"
         ! grep -qF 'note-commit' "$site/en/notes/hello/index.html" || exit 1
         grep -qF '<title>Test AB</title>' "$site/en/atom.xml"
+        grep -qF '<a href="http://status.example.com">Driftstatus</a>' "$site/index.html"
         grep -qF '<title>A note without a commit.</title>' "$site/en/atom.xml"
         grep -qF '<a href="http://www.example.com/policy/">Villkor</a>' "$site/index.html"
         ! grep -qF 'href="http://www.example.com/en/policy/"' "$site/en/index.html"

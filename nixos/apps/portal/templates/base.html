@@ -71,6 +71,9 @@
       <span>{{ config.title }}</span>
       <a href="mailto:{{ org.contact }}">{{ trans(key="contact", lang=lang) }}: {{ org.contact }}</a>
       <a href="{{ home }}atom.xml">{{ trans(key="feed", lang=lang) }}</a>
+      {%- if org.status %}
+      <a href="{{ org.status }}">{{ trans(key="status", lang=lang) }}</a>
+      {%- endif %}
     </div>
   </footer>
 </body>

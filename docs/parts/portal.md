@@ -41,6 +41,7 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   text or a page: a page with `draft = true` isn't on the site, so a section of drafts alone waits to be written. One
   with `extra.on_index = <n>` has its first `n` pages on the start page too, as a blog's latest posts with
   `sort_by = "date"`.
+- A status app whose `portal` is the portal has its link in the footer (`docs/parts/status.md`).
 - Each language has its feed, of the pages with a `date`, at `atom.xml` there; a note's entry is titled by its text.
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
   buttons and links'.
@@ -107,7 +108,3 @@ page and in their section, one with its commit and one without, and that the key
 no form for an invite, is logged in to the drive without being asked again, and logs out, after which the portal's login
 asks again. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and refuses an
 address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an address.
-
-## Work in progress
-
-- A status page of the org's apps, linked from the portal.

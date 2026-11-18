@@ -159,6 +159,15 @@ code = [
   "org/apps/portal.nix",
 ]
 
+[parts.status]
+stage = "drafted"
+layer = "ux"
+doc = "docs/parts/status.md"
+code = [
+  "nixos/apps/status.nix",
+  "org/apps/status.nix",
+]
+
 [parts.photos]
 stage = "drafted"
 layer = "domain"

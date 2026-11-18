@@ -10,6 +10,7 @@ let
     blog
     calendar
     cloud
+    status
     www
     ;
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
@@ -33,6 +34,7 @@ let
         ${nodes.web.networking.primaryIPAddress} = [
           auth.endpoint
           cloud.endpoint
+          status.endpoint
           www.endpoint
         ];
       };
@@ -69,6 +71,18 @@ let
     import ../../nixos/apps/portal.nix {
       app = www;
       inherit lib org pkgs;
+    };
+
+  statusPage =
+    {
+      lib,
+      org,
+      ...
+    }:
+    import ../../nixos/apps/status.nix {
+      app = status;
+      host = org.host.web;
+      inherit lib org;
     };
 
   # Fact: a visitor's browser, which runs the portal's script as it would, with nothing of the test's in between.
@@ -196,6 +210,7 @@ pkgs.testers.runNixOSTest {
           ../../nixos/apps/keycloak.nix
           nextcloud
           portal
+          statusPage
           (principal cloud)
           (principal www)
           (principal org.user.alice)
@@ -396,6 +411,13 @@ pkgs.testers.runNixOSTest {
         assert said["invite_hidden"], said
         assert said["sso"].startswith("${cloud.url}/apps/"), said
         assert said["logged_out"] == "${www.url}/en/blog/" and said["asked_again"], said
+
+    with subtest("the status page watches the apps of its groups and the mail server, and announces"):
+        statuses = "curl -sSf http://${status.endpoint}/api/v1/endpoints/statuses"
+        # Fact: Gatus checks first as it starts, before the apps answer, and again an interval later.
+        web.wait_until_succeeds(f"{statuses} | jq -e 'length == 6 and all(.[]; .results[-1].success)'", timeout=300)
+        announced = json.loads(web.succeed("curl -sSf http://${status.endpoint}/api/v1/config"))["announcements"]
+        assert [a["message"] for a in announced] == ["The status page is up."], announced
 
     with subtest("a Keycloak user without storages logs in, writes nothing, and logs out"):
         carol = {

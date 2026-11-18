@@ -133,6 +133,21 @@ keycloak = "auth"
 realm = "example"
 services = ["cloud", "meet", "auth"]
 
+# Fact: a status page, which watches the portal and the apps it lists, and the mail server.
+[app.status]
+id = 7
+endpoint = "status.example.com"
+ssl = false
+run-on-hosts = ["web"]
+principal.hasPublicKey = false
+kind = "status"
+portal = "www"
+mail = "Mail"
+groups.Services = ["www", "auth", "cloud"]
+announcements = [
+  { timestamp = "2026-11-18T09:00:00+01:00", type = "information", message = "The status page is up." },
+]
+
 [store.box]
 id = 0
 smb = { host = "mx.example.com", share = "alice", login = "alice" }

@@ -814,3 +814,5 @@
 2026-11-17T23:29:14Z	container	5.3	8f3bbec0	dev/check.sh index
 2026-11-17T23:29:14Z	container	5.5	8f3bbec0	dev/check.sh lint
 2026-11-17T23:30:42Z	container	92.8	8f3bbec0	nix-eval-jobs bats eval
+2026-11-17T23:31:13Z	container	1.1	8f3bbec0	dev/check.sh docs
+2026-11-17T23:32:26Z	container	74.0	8f3bbec0	nix-eval-jobs eval

@@ -30,6 +30,7 @@ let
       invite_sent = "Tack! Vi hör av oss.";
       invite_invalid = "Adressen ser inte ut att stämma. Försök igen.";
       invite_failed = "Det gick inte att skicka. Skriv till oss direkt:";
+      status = "Driftstatus";
     };
     en = {
       services = "Services";
@@ -52,6 +53,7 @@ let
       invite_sent = "Thanks! We'll be in touch.";
       invite_invalid = "That address doesn't look right. Try again.";
       invite_failed = "It couldn't be sent. Write to us directly:";
+      status = "Status";
     };
   };
 
@@ -69,6 +71,11 @@ let
       inherit (org.app.${name}) url kind;
     }) app.services;
     invites = app.invites != null;
+    status = lib.findFirst (url: url != null) null (
+      lib.mapAttrsToList (
+        _: other: if other.kind == "status" && other.portal == app.name then other.url else null
+      ) org.app
+    );
     auth = lib.mapNullable (client: {
       inherit issuer;
       inherit (client.representation) clientId;

@@ -55,6 +55,7 @@ let
     photos = ./apps/photos.nix;
     portal = ./apps/portal.nix;
     rolf = ./apps/rolf.nix;
+    status = ./apps/status.nix;
     wordpress = { };
   };
 
