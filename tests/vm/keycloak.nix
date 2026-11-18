@@ -549,6 +549,9 @@ pkgs.testers.runNixOSTest {
         for name in ["alice", "nobody", "alice", "nobody", "alice"]:
             said = mx.succeed(f"{login} -d username={name}")
             assert said == "400", said
+        print(web.succeed("journalctl -u keycloak.service -o verbose --grep user_not_found | head -40"))
+        print(web.succeed("fail2ban-regex 'systemd-journal[journalmatch=_SYSTEMD_UNIT=keycloak.service]' /etc/fail2ban/filter.d/keycloak-auth.conf 2>&1 | tail -20"))
+        print(web.succeed("fail2ban-client status keycloak-auth"))
         web.wait_until_succeeds(f"fail2ban-client get keycloak-auth banned | grep -qF {address}", timeout=60)
         banned = web.succeed("fail2ban-client get keycloak-auth banned")
         assert "203.0.113.9" not in banned, banned
