@@ -83,6 +83,44 @@ in
 {
   # Policy: on the mesh each host peers with each, at its own addresses, dialing those with an endpoint, and keeping
   # the connection open where it has none itself; two without one don't peer.
+  # Policy: a vpn with name servers routes its namespace to them alone, and one without routes nothing.
+  test_routing_domains = {
+    expr = map (vpn: gamma.config.systemd.network.networks."30-${vpn}".domains or null) [
+      "wg0"
+      "wg1"
+    ];
+    expected = [
+      [ "~access" ]
+      null
+    ];
+  };
+
+  # Policy: a kresd, as alpha's for wg0, asks the name servers of another vpn it's on for that vpn's namespace.
+  test_kresd_asks_other_vpns = {
+    expr =
+      let
+        kresd =
+          name:
+          (o11nLib.mkNixosConfigurations (alter {
+            vpn.wg1.dns = [ "beta" ];
+          })).${name}.config.services.kresd;
+      in
+      {
+        alpha = lib.filter (lib.hasInfix "policy.STUB") (lib.splitString "\n" (kresd "alpha").extraConfig);
+        beta = lib.filter (lib.hasInfix "policy.STUB") (lib.splitString "\n" (kresd "beta").extraConfig);
+        asIs = lib.hasInfix "policy.STUB" alpha.config.services.kresd.extraConfig;
+      };
+    expected = {
+      alpha = [
+        "policy.add(policy.suffix(policy.STUB({'fd12:3456:7890:0001::0002', '10.0.1.2'}), {todname('data.')}))"
+      ];
+      beta = [
+        "policy.add(policy.suffix(policy.STUB({'fd12:3456:7890:0000::0001', '10.0.0.1'}), {todname('access.')}))"
+      ];
+      asIs = false;
+    };
+  };
+
   test_mesh_peers = {
     expr = {
       alpha = map (peer: peer.PublicKey) (peers alpha "wg1");

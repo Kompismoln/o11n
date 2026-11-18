@@ -1,0 +1,80 @@
+{%- set org = config.extra -%}
+{%- if section -%}{%- set current = section -%}{%- elif page -%}{%- set current = page -%}{%- endif -%}
+{%- if lang == config.default_language -%}{%- set home = "/" -%}{%- set suffix = "" -%}{%- else -%}{%- set home = "/" ~ lang ~ "/" -%}{%- set suffix = "." ~ lang -%}{%- endif -%}
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% if current and current.title and current.path != home %}{{ current.title }} · {% endif %}{{ config.title }}{% endblock %}</title>
+  {%- if current and current.description %}
+  <meta name="description" content="{{ current.description }}">
+  {%- endif %}
+  {%- if current %}
+  {%- for translation in current.translations %}
+  <link rel="alternate" hreflang="{{ translation.lang }}" href="{{ translation.permalink | safe }}">
+  {%- endfor %}
+  {%- endif %}
+  <link rel="alternate" type="application/atom+xml" title="{{ config.title }}" href="{{ home }}atom.xml">
+  {%- if org.logo %}
+  <link rel="icon" href="{{ org.logo }}">
+  {%- endif %}
+  <link rel="stylesheet" href="/portal.css">
+  <style>:root { --accent: {{ org.accent | safe }}; --logo-height: {{ org.logoHeight | safe }}; }</style>
+  {%- if org.auth %}
+  <script type="application/json" id="auth-config">{{ org.auth | json_encode() | safe }}</script>
+  <script type="module" src="/auth.js"></script>
+  {%- endif %}
+</head>
+<body>
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="{{ home }}">
+        {%- if org.logo %}<img src="{{ org.logo }}" alt="" width="40" height="40">{% endif -%}
+        <span>{{ config.title }}</span>
+      </a>
+      <nav class="nav">
+        {%- set root = get_section(path="_index" ~ suffix ~ ".md", metadata_only=true) %}
+        {%- for path in root.subsections %}
+        {%- set sub = get_section(path=path) %}
+        {%- if sub.content or sub.pages %}
+        <a href="{{ sub.permalink | safe }}">{{ sub.title }}</a>
+        {%- endif %}
+        {%- endfor %}
+      </nav>
+      <div class="tools">
+        {%- if current %}
+        {%- for translation in current.translations %}
+        {%- if translation.lang != lang %}
+        <a class="lang" href="{{ translation.permalink | safe }}" hreflang="{{ translation.lang }}" lang="{{ translation.lang }}">{{ trans(key="language", lang=translation.lang) }}</a>
+        {%- endif %}
+        {%- endfor %}
+        {%- endif %}
+        {%- if org.auth %}
+        <div class="auth" id="auth" hidden>
+          <button type="button" class="button" data-auth="login">{{ trans(key="login", lang=lang) }}</button>
+          <span class="who" data-auth="who" hidden>
+            <span class="muted">{{ trans(key="signed_in_as", lang=lang) }}</span> <strong data-auth="name"></strong>
+            <a href="{{ org.auth.account }}">{{ trans(key="account", lang=lang) }}</a>
+            <button type="button" class="link" data-auth="logout">{{ trans(key="logout", lang=lang) }}</button>
+          </span>
+        </div>
+        {%- endif %}
+      </div>
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock content %}
+  </main>
+  <footer class="site-footer">
+    <div class="bar">
+      <span>{{ config.title }}</span>
+      <a href="mailto:{{ org.contact }}">{{ trans(key="contact", lang=lang) }}: {{ org.contact }}</a>
+      <a href="{{ home }}atom.xml">{{ trans(key="feed", lang=lang) }}</a>
+      {%- if org.status %}
+      <a href="{{ org.status }}">{{ trans(key="status", lang=lang) }}</a>
+      {%- endif %}
+    </div>
+  </footer>
+</body>
+</html>

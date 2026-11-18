@@ -149,6 +149,25 @@ code = [
   "tests/vm/drive.nix",
 ]
 
+[parts.portal]
+stage = "drafted"
+layer = "ux"
+doc = "docs/parts/portal.md"
+code = [
+  "nixos/apps/portal",
+  "nixos/apps/portal.nix",
+  "org/apps/portal.nix",
+]
+
+[parts.status]
+stage = "drafted"
+layer = "ux"
+doc = "docs/parts/status.md"
+code = [
+  "nixos/apps/status.nix",
+  "org/apps/status.nix",
+]
+
 [parts.photos]
 stage = "drafted"
 layer = "domain"

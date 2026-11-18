@@ -70,7 +70,7 @@ fn walk(dir: &Path, found: &mut Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
-fn globbed(pattern: &str, path: &str) -> bool {
+pub fn globbed(pattern: &str, path: &str) -> bool {
     let (pattern, path) = (pattern.as_bytes(), path.as_bytes());
     let (mut p, mut s) = (0, 0);
     let mut star: Option<(usize, usize)> = None;

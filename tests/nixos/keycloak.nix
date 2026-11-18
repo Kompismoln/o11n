@@ -275,9 +275,9 @@ in
   };
 
   test_keycloak_client_in_a_realm_it_keeps = {
-    expr = failed (evalWith "jitsi-realm" app);
+    expr = failed (evalWith "other" app);
     expected = [
-      "app-meet's client is in the realm jitsi-realm, which app-auth doesn't keep: add realms.jitsi-realm under [app.auth], or name one it keeps."
+      "app-meet's client is in the realm other, which app-auth doesn't keep: add realms.other under [app.auth], or name one it keeps."
     ];
   };
 }

@@ -10,6 +10,8 @@ let
     blog
     calendar
     cloud
+    status
+    www
     ;
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
   inherit (shared)
@@ -32,6 +34,8 @@ let
         ${nodes.web.networking.primaryIPAddress} = [
           auth.endpoint
           cloud.endpoint
+          status.endpoint
+          www.endpoint
         ];
       };
       security.pki.certificateFiles = [ "${tls}/ca.crt" ];
@@ -56,6 +60,115 @@ let
         pkgs
         ;
     };
+
+  portal =
+    {
+      lib,
+      org,
+      pkgs,
+      ...
+    }:
+    import ../../nixos/apps/portal.nix {
+      app = www;
+      inherit lib org pkgs;
+    };
+
+  statusPage =
+    {
+      lib,
+      org,
+      ...
+    }:
+    import ../../nixos/apps/status.nix {
+      app = status;
+      host = org.host.web;
+      inherit lib org;
+    };
+
+  # Fact: a visitor's browser, which runs the portal's script as it would, with nothing of the test's in between.
+  visitor =
+    pkgs.writers.writePython3Bin "visitor"
+      {
+        libraries = [ pkgs.python3Packages.playwright ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import json
+        import sys
+        from playwright.sync_api import sync_playwright
+
+        said = {}
+        with sync_playwright() as p:
+            # Accommodating for the inventory's portal, at http, where a browser has no WebCrypto, which PKCE takes,
+            # unless the origin is taken as secure.
+            browser = p.chromium.launch(channel="chromium", args=["--unsafely-treat-insecure-origin-as-secure=${www.url}"])
+            # Accommodating for Chromium, which trusts its own store rather than the test's CA in the system's bundle.
+            page = browser.new_page(ignore_https_errors=True)
+            page.on("pageerror", lambda error: print("pageerror:", error, file=sys.stderr))
+            page.set_default_timeout(15000)
+            page.goto("${www.url}/en/blog/")
+            page.click('[data-auth="login"]')
+            page.fill("#username", "alice")
+            page.fill("#password", sys.argv[1])
+            page.click("#kc-login")
+            page.wait_for_selector('[data-auth="name"]', state="visible")
+            said["returned"] = page.url
+            said["name"] = page.text_content('[data-auth="name"]')
+            page.goto("${www.url}/en/")
+            page.wait_for_selector('[data-auth="name"]', state="visible")
+            said["invite_hidden"] = page.is_hidden("#invite")
+            page.goto("${cloud.url}/login")
+            page.wait_for_url("${cloud.url}/apps/**")
+            said["sso"] = page.url
+            page.goto("${www.url}/en/blog/")
+            page.click('[data-auth="logout"]')
+            page.wait_for_selector('[data-auth="login"]', state="visible")
+            said["logged_out"] = page.url
+            page.click('[data-auth="login"]')
+            page.wait_for_selector("#username")
+            said["asked_again"] = page.url.startswith("${auth.url}/realms/")
+            browser.close()
+        print(json.dumps(said))
+      '';
+
+  # Fact: one invited, who follows the link in their mail, sets their password, and goes on as Keycloak offers.
+  invited =
+    pkgs.writers.writePython3Bin "invited"
+      {
+        libraries = [ pkgs.python3Packages.playwright ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import sys
+        from playwright.sync_api import sync_playwright
+
+        link, password = sys.argv[1:3]
+        with sync_playwright() as p:
+            browser = p.chromium.launch(channel="chromium")
+            page = browser.new_page()
+            page.on("pageerror", lambda error: print("pageerror:", error, file=sys.stderr))
+            page.set_default_timeout(15000)
+            page.goto(link)
+            proceed = page.get_by_text("Click here to proceed")
+            if proceed.count():
+                proceed.click()
+            page.fill("#password-new", password)
+            page.fill("#password-confirm", password)
+            page.locator("[type=submit]").click()
+            # Fact: the realm's profile asks for a name, which the invite leaves to them.
+            page.fill("#firstName", "Auth")
+            page.fill("#lastName", "Example")
+            page.locator("[type=submit]").click()
+            back = page.get_by_text("Back to Application")
+            try:
+                back.wait_for(timeout=5000)
+                back.click()
+            except Exception:
+                pass
+            page.wait_for_url("${www.url}/**")
+            print(page.url)
+            browser.close()
+      '';
 in
 pkgs.testers.runNixOSTest {
   name = "o11n-keycloak";
@@ -96,7 +209,10 @@ pkgs.testers.runNixOSTest {
           ../../nixos/org/mail.nix
           ../../nixos/apps/keycloak.nix
           nextcloud
+          portal
+          statusPage
           (principal cloud)
+          (principal www)
           (principal org.user.alice)
           (principal blog)
           (principal calendar)
@@ -138,8 +254,11 @@ pkgs.testers.runNixOSTest {
         environment.systemPackages = [
           o11n
           pkgs.jq
+          visitor
+          invited
         ];
-        virtualisation.memorySize = 3072;
+        environment.variables.PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+        virtualisation.memorySize = 4096;
         virtualisation.cores = 2;
       };
   };
@@ -263,6 +382,43 @@ pkgs.testers.runNixOSTest {
         users = json.loads(web.succeed(f"{occ} user:list --info --output=json"))
         assert list(users) == ["alice"] and users["alice"]["backend"] == "user_oidc", users
 
+    with subtest("meet's tokens are for meet, which its prosody accepts, by a mapper that's kept as declared"):
+        alice = admin("${realm}/users?username=alice")[0]
+        meet = client("meet")
+        models = f"${realm}/clients/{meet['id']}/protocol-mappers/models"
+
+        def audience():
+            token = admin(
+                f"${realm}/clients/{meet['id']}/evaluate-scopes/generate-example-access-token?userId={alice['id']}&scope=openid"
+            )
+            aud = token.get("aud", [])
+            return aud if isinstance(aud, list) else [aud]
+
+        assert "meet" in audience(), audience()
+        mapper = [model for model in admin(models) if model["name"] == "audience"][0]
+        web.succeed(
+            f"curl -sSf -X DELETE -H 'X-Forwarded-Proto: https' -H 'Authorization: Bearer {token()}'"
+            f" ${local}/admin/realms/{models}/{mapper['id']}"
+        )
+        assert "meet" not in audience() and "account" not in audience(), audience()
+        web.succeed("systemctl restart keycloak-realms.service")
+        assert "meet" in audience(), audience()
+
+    with subtest("the portal logs in with its client and back to where it was, which logs in the realm's other apps"):
+        said = json.loads(web.succeed("visitor \"alice's\""))
+        assert said["returned"] == "${www.url}/en/blog/", said
+        assert said["name"] == "Alice Example", said
+        assert said["invite_hidden"], said
+        assert said["sso"].startswith("${cloud.url}/apps/"), said
+        assert said["logged_out"] == "${www.url}/en/blog/" and said["asked_again"], said
+
+    with subtest("the status page watches the apps of its groups and the mail server, and announces"):
+        statuses = "curl -sSf http://${status.endpoint}/api/v1/endpoints/statuses"
+        # Fact: Gatus checks first as it starts, before the apps answer, and again an interval later.
+        web.wait_until_succeeds(f"{statuses} | jq -e 'length == 6 and all(.[]; .results[-1].success)'", timeout=300)
+        announced = json.loads(web.succeed("curl -sSf http://${status.endpoint}/api/v1/config"))["announcements"]
+        assert [a["message"] for a in announced] == ["The status page is up."], announced
+
     with subtest("a Keycloak user without storages logs in, writes nothing, and logs out"):
         carol = {
             "username": "carol", "email": "carol@example.com", "emailVerified": True,
@@ -340,6 +496,25 @@ pkgs.testers.runNixOSTest {
         user, query = "-u ${auth.principal.mail.address}", "header from ${auth.principal.mail.address}"
         mx.wait_until_succeeds(f"doveadm search {user} {query} | grep -q .", timeout=60)
 
+    tools = "cd ${outputs.context.path} && O11N_ORG_ROOT=$PWD O11N_EXPORT=${orgExport} SOPS_AGE_KEY_FILE=$PWD/keys/root-1"
+
+    with subtest("o11n invites one: a user of the realm, mailed a link to set their password, which leads to the portal"):
+        out = web.succeed(f"{tools} o11n invite ${auth.principal.mail.address} 2>&1")
+        assert "invited ${auth.principal.mail.address} to ${realm} as auth" in out, out
+        user = admin("${realm}/users?username=auth&exact=true")[0]
+        assert user["email"] == "${auth.principal.mail.address}" and user["enabled"], user
+        mailbox, query = "-u ${auth.principal.mail.address}", "header subject 'Update Your Account'"
+        mx.wait_until_succeeds(f"doveadm search {mailbox} {query} | grep -q .", timeout=60)
+        text = html.unescape(mx.succeed(f"doveadm fetch {mailbox} text.utf8 {query}"))
+        link = re.search(r"${pkgs.lib.escapeRegex auth.url}/realms/${realm}/login-actions/action-token\?[^\s\"<>]+", text)
+        assert link and "This link will expire within 7 days." in text, text
+        landed = web.succeed(f"invited '{link.group(0)}' \"auth's\"").strip()
+        assert landed.startswith("${www.url}/"), landed
+
+    with subtest("o11n invites no one who has an account already"):
+        out = web.fail(f"{tools} o11n invite alice@example.com 2>&1")
+        assert "alice@example.com has an account in ${realm} already: alice" in out, out
+
     with subtest("a realm whose mail fails fails the check, with what Keycloak says"):
         mx.succeed("systemctl stop postfix.service")
         out = web.succeed(
@@ -347,5 +522,10 @@ pkgs.testers.runNixOSTest {
             " SOPS_AGE_KEY_FILE=$PWD/keys/root-1 o11n status app-auth 2>&1 || true"
         )
         assert "app-auth keycloak-mail ${realm} fail: ${auth.url}/admin/realms/${realm}/testSMTPConnection answers 500" in out, out
+
+    with subtest("an invite whose mail isn't sent is undone, so that it can be made again"):
+        out = web.fail(f"{tools} o11n invite bob@example.com 2>&1")
+        assert "execute-actions-email answers 500" in out, out
+        assert admin("${realm}/users?username=bob&exact=true") == [], out
   '';
 }

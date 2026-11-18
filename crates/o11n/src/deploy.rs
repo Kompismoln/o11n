@@ -61,9 +61,9 @@ fn shown(command: &mut Command) -> Result<(ExitStatus, String), Error> {
 
 impl Org {
     // Policy: the host is built where it fetches the build from most directly, itself first, among those that answer.
-    pub fn build_host(&self, host: &str, build_host: Option<String>) -> Result<String, Error> {
+    pub fn build_host(&self, host: &str, build_host: Option<&str>) -> Result<String, Error> {
         if let Some(build_host) = build_host {
-            return Ok(build_host);
+            return Ok(build_host.to_owned());
         }
         if self.export.build_hosts.is_empty() {
             return Err(Error::new(
@@ -90,17 +90,43 @@ impl Org {
             })
     }
 
-    pub fn build(&self, host: &str, build_host: &str, nix_options: &[String]) -> Result<String, Error> {
+    // Policy: the hosts that share a build host are evaluated and built together there, in one nix build.
+    fn build(&self, hosts: &[String], build_host: &str, nix_options: &[String]) -> Result<Vec<String>, Error> {
         let org = flake(&self.root)?;
-        if build_host == "localhost" {
-            return output(
+        let builds = if build_host == "localhost" {
+            output(
                 Command::new("nix")
                     .arg("build")
-                    .arg(format!("{org}#nixosConfigurations.{host}.config.system.build.toplevel"))
+                    .args(
+                        hosts
+                            .iter()
+                            .map(|host| format!("{org}#nixosConfigurations.{host}.config.system.build.toplevel")),
+                    )
                     .args(["--no-link", "--print-out-paths"])
                     .args(nix_options),
-            );
+            )?
+        } else {
+            self.build_remotely(&org, hosts, build_host, nix_options)?
+        };
+        let builds: Vec<String> = builds.lines().map(str::to_owned).collect();
+        if builds.len() != hosts.len() {
+            return Err(Error::new(format!(
+                "{build_host} built {} systems for {}: {}",
+                builds.len(),
+                hosts.join(" "),
+                builds.join(" ")
+            )));
         }
+        Ok(builds)
+    }
+
+    fn build_remotely(
+        &self,
+        org: &str,
+        hosts: &[String],
+        build_host: &str,
+        nix_options: &[String],
+    ) -> Result<String, Error> {
         if !self.export.build_hosts.iter().any(|name| name == build_host) {
             return Err(Error::new(format!("{build_host} is not in build-hosts")));
         }
@@ -111,7 +137,7 @@ impl Org {
             )));
         }
         let address = self.export.route(build_host, 22)?;
-        let metadata = output(Command::new("nix").args(["flake", "metadata", "--json"]).arg(&org))?;
+        let metadata = output(Command::new("nix").args(["flake", "metadata", "--json"]).arg(org))?;
         let flake = serde_json::from_str::<serde_json::Value>(&metadata)
             .ok()
             .and_then(|metadata| metadata.get("path")?.as_str().map(str::to_owned))
@@ -125,16 +151,17 @@ impl Org {
                 .command("nix")
                 .args(["flake", "archive", "--to"])
                 .arg(format!("ssh-ng://nix-build@{address}"))
-                .arg(&org),
+                .arg(org),
         )?;
         let out = output(
             acting
                 .command("ssh")
                 .arg("-n")
                 .arg(format!("nix-build@{address}"))
-                .args(["build-system", &flake, host]),
+                .args(["build-system", &flake])
+                .args(hosts),
         )
-        .map_err(|_| Error::new(format!("{build_host} couldn't build {host}")))?;
+        .map_err(|_| Error::new(format!("{build_host} couldn't build {}", hosts.join(" "))))?;
 
         // Dependency: where nix-build has the daemon alone, the daemon gets no client and answers nothing.
         if !out.starts_with("/nix/store/") {
@@ -146,12 +173,70 @@ impl Org {
         Ok(out)
     }
 
-    pub fn apply(&self, host: &str, build_host: &str) -> Result<(), Error> {
-        let address = self.export.route(host, 22)?;
-        log(format!("use {build_host} to build {host} (at {address})"));
-        let build = self.build(host, build_host, &[])?;
-        log(format!("build={build}"));
+    pub fn build_all(
+        &self,
+        hosts: &[String],
+        build_host: Option<&str>,
+        nix_options: &[String],
+    ) -> Result<String, Error> {
+        Ok(self
+            .build_planned(&self.build_hosts(hosts, build_host)?, nix_options)?
+            .join("\n"))
+    }
 
+    fn build_hosts(&self, hosts: &[String], build_host: Option<&str>) -> Result<Vec<(String, String)>, Error> {
+        let mut plan: Vec<(String, String)> = Vec::new();
+        for host in hosts {
+            if !plan.iter().any(|(planned, _)| planned == host) {
+                plan.push((host.clone(), self.build_host(host, build_host)?));
+            }
+        }
+        Ok(plan)
+    }
+
+    fn build_planned(&self, plan: &[(String, String)], nix_options: &[String]) -> Result<Vec<String>, Error> {
+        let mut groups: Vec<(&str, Vec<String>)> = Vec::new();
+        for (host, build_host) in plan {
+            match groups.iter_mut().find(|(name, _)| name == build_host) {
+                Some((_, group)) => group.push(host.clone()),
+                None => groups.push((build_host, vec![host.clone()])),
+            }
+        }
+        let mut built = Vec::new();
+        for (build_host, group) in groups {
+            built.extend(group.iter().cloned().zip(self.build(&group, build_host, nix_options)?));
+        }
+        Ok(plan
+            .iter()
+            .filter_map(|(host, _)| built.iter().find(|(name, _)| name == host))
+            .map(|(_, build)| build.clone())
+            .collect())
+    }
+
+    // Policy: without unit, each host is built and switched before the next is built; with it, every host is built
+    // before any switches, and none switches unless all built.
+    pub fn apply(&self, hosts: &[String], build_host: Option<&str>, unit: bool) -> Result<(), Error> {
+        if !unit {
+            return hosts
+                .iter()
+                .try_for_each(|host| self.apply(std::slice::from_ref(host), build_host, true));
+        }
+        let plan = self.build_hosts(hosts, build_host)?;
+        let mut addresses = Vec::new();
+        for (host, build_host) in &plan {
+            let address = self.export.route(host, 22)?;
+            log(format!("use {build_host} to build {host} (at {address})"));
+            addresses.push(address);
+        }
+        let builds = self.build_planned(&plan, &[])?;
+        for (((host, build_host), address), build) in plan.iter().zip(&addresses).zip(&builds) {
+            log(format!("{host}'s build={build}"));
+            self.switch(host, address, build_host, build)?;
+        }
+        Ok(())
+    }
+
+    fn switch(&self, host: &str, address: &str, build_host: &str, build: &str) -> Result<(), Error> {
         // Policy: from a build host, the host substitutes the build when it switches.
         if build_host == "localhost" && address != "localhost" {
             let acting = self.acting("service-nix-push")?;
@@ -160,13 +245,13 @@ impl Org {
                     .command("nix")
                     .args(["copy", "--to"])
                     .arg(format!("ssh://nix-push@{address}"))
-                    .arg(&build),
+                    .arg(build),
             )?;
         }
 
         log(format!("switching {host} to {build}"));
         let acting = self.acting("service-nix-switch")?;
-        let (status, said) = shown(acting.command("ssh").arg(format!("nix-switch@{address}")).arg(&build))?;
+        let (status, said) = shown(acting.command("ssh").arg(format!("nix-switch@{address}")).arg(build))?;
         if !status.success() && build_host != "localhost" && said.contains("don't know how to build these paths") {
             return Err(Error::new(format!(
                 "{host} couldn't fetch the build from {build_host}. To copy it there instead:\n    \

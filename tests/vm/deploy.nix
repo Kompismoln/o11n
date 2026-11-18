@@ -33,6 +33,7 @@ let
     "web"
     "other"
     "stranded"
+    "paired"
   ];
   orgFlake = pkgs.runCommand "org" { } ''
     mkdir $out
@@ -50,8 +51,8 @@ let
     ''} $out/flake.nix
   '';
 
-  # Accommodating for the sample, which has no other and stranded: each is web under its name, as the routes reach web
-  # for them.
+  # Accommodating for the sample, which has no other, stranded and paired: each is web under its name, as the routes
+  # reach web for them.
   orgExport = pkgs.writeText "org-export.json" (
     builtins.toJSON (
       outputs.org.export
@@ -242,9 +243,9 @@ pkgs.testers.runNixOSTest {
           assert "(current)" in out, out
           operator.fail("ssh -n nix-switch@web --rollback")
 
-      with subtest("build-system takes a flake in the store and a host, and nothing else"):
+      with subtest("build-system takes a flake in the store and hosts, and nothing else"):
           absent = "${builtins.storeDir}/00000000000000000000000000000000-source"
-          for args in ["/etc/org web", f"{absent} web --impure", f"{absent} web#x", absent]:
+          for args in ["/etc/org web", f"{absent} web --impure", f"{absent} web#x", f"{absent} web other#x", absent]:
               out = operator.fail(f"ssh -n nix-build@gw build-system {args} 2>&1")
               assert "usage: build-system" in out, out
           out = operator.fail(f"ssh -n nix-build@gw build-system {absent} web 2>&1")
@@ -286,5 +287,12 @@ pkgs.testers.runNixOSTest {
           operator.succeed("nix-store --check-validity ${standIn.other.outPath}")
           web.succeed("nix-store --check-validity ${standIn.other.outPath}")
           gw.fail("nix-store --check-validity ${standIn.other.outPath}")
+
+      with subtest("o11n apply --unit builds every host before it switches any"):
+          out = operator.fail(
+              f"{tools} O11N_ROUTES='gw=gw web=web paired=web' o11n apply --unit web paired < /dev/null 2>&1"
+          )
+          assert "is not a NixOS system" in out, out
+          gw.succeed("nix-store --check-validity ${standIn.paired.outPath}")
     '';
 }

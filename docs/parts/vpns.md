@@ -44,6 +44,14 @@ dns = []
 On a vpn without `dns`, as a mesh, each host has in `/etc/hosts` the names on it of itself and of those it reaches,
 their services' included (`nixos/org/wireguard.nix`).
 
+On a vpn with `dns`, its name servers answer for its `namespace` alone: each host's link on it has the namespace as
+resolved's routing domain, `~<namespace>`, so resolved asks them nothing else, and asks no other server for it. A host
+whose kresd runs, as a vpn's name server or the mail server's resolver, has kresd ask each other vpn it's on for that
+vpn's namespace, of its name servers, without DNSSEC validation, as the namespace isn't delegated from the public DNS
+(`policy.STUB`). Lix looks names up as `files dns`, whatever `/etc/nsswitch.conf` says, so it asks the servers of
+`/etc/resolv.conf` and not resolved: on a mail server that is kresd, which without these would send the other vpns'
+names to the public DNS and find none.
+
 A host that would listen on one port for two of its vpns fails evaluation.
 
 The vpn's `peers` has, for each host on it, the hosts it has a tunnel with, and its `reaches` those it reaches: on a hub
@@ -69,7 +77,10 @@ its `vpns`.
 - `o11n` dials a host at its `fqdns`, its names on the vpns it's the gateway of, on a mesh, then on another's hub, then
   at its name in each of the org's `namespaces`, and takes the first that answers (`crates/o11n/src/route.rs`);
   `O11N_ROUTES` pins a host to an address instead.
-- `o11n apply <host>` and `o11n build <host>` build on the first that answers of the host's `buildHosts`: the host
-  itself, if it's one of the org's `build-hosts`, those it reaches without a host between, then those through a third
-  host's hub, each in the org's order, and none it doesn't reach, which it couldn't fetch the build from
-  (`crates/o11n/src/deploy.rs`). `--build-host`, or `BUILD_HOST`, names one instead, or `localhost`.
+- `o11n apply <host>...` and `o11n build <host>...` build each host on the first that answers of its `buildHosts`: the
+  host itself, if it's one of the org's `build-hosts`, those it reaches without a host between, then those through a
+  third host's hub, each in the org's order, and none it doesn't reach, which it couldn't fetch the build from
+  (`crates/o11n/src/deploy.rs`). `--build-host`, or `BUILD_HOST`, names one instead, or `localhost`. `o11n build` builds
+  the hosts that share a build host together, in one evaluation there (`build-system`, `nixos/services/nix-build.nix`),
+  and so does `o11n apply --unit`, which builds every host before it switches any; without `--unit`, `o11n apply` builds
+  and switches one host after the other, and stops at the first that fails.

@@ -301,5 +301,16 @@ pkgs.testers.runNixOSTest {
     with subtest("an archive of the app's state leaves out what Immich makes anew"):
         ignored = web.succeed("cat /var/lib/photos/.resticignore")
         assert ignored == "immich/thumbs/\nimmich/encoded-video/\n", repr(ignored)
+
+    with subtest("a root mounted anew, as a switch mounts it, is under a library the app's user owns, as root left it or not"):
+        library = "/var/lib/photos/immich/library"
+        web.succeed("systemctl stop container@photos.service photos-library.service")
+        web.fail(f"mountpoint -q {library}/alice")
+        web.succeed(f"chown root:root {library} && chmod 755 {library}")
+        web.succeed(f"systemctl start $(systemd-escape -p --suffix=mount {library}/alice)")
+        owners = web.succeed(f"stat -c '%U %a' {library} {library}/alice").split("\n")
+        assert owners[:2] == ["photos 700", "photos 750"], owners
+        web.succeed("systemctl start container@photos.service")
+        web.wait_until_succeeds("nixos-container run photos -- systemctl is-active immich-users.service", timeout=300)
   '';
 }

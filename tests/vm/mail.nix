@@ -6,7 +6,7 @@
 let
   inherit (pkgs) lib;
   inherit (outputs) org;
-  inherit (org.app) blog calendar;
+  inherit (org.app) blog calendar www;
   inherit (org.mailserver) dkimSelector endpoint;
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
   inherit (shared)
@@ -73,6 +73,17 @@ let
       app = blog;
       inherit config lib pkgs;
     };
+  portal =
+    {
+      lib,
+      org,
+      pkgs,
+      ...
+    }:
+    import ../../nixos/apps/portal.nix {
+      app = www;
+      inherit lib org pkgs;
+    };
   wpHome = "${blog.principal.home}/wordpress";
   mailPhp = pkgs.writeText "mail.php" ''
     <?php
@@ -126,6 +137,8 @@ pkgs.testers.runNixOSTest {
         ../../nixos/preserve.nix
         ../../nixos/org/mail.nix
         wordpress
+        portal
+        (principal www)
         (principal org.user.alice)
         (principal blog)
         (principal calendar)
@@ -136,6 +149,7 @@ pkgs.testers.runNixOSTest {
       # Accommodating for the test's network, which has no wg0: the principals bind to their loopback addresses as
       # nixos/org/networking.nix routes them.
       networking.localCommands = "ip -6 route replace local ${org.loCidr} dev lo";
+      boot.kernel.sysctl."net.ipv6.ip_nonlocal_bind" = 1;
     };
 
     internet =
@@ -213,6 +227,7 @@ pkgs.testers.runNixOSTest {
     { nodes, ... }:
     ''
       import re
+      import shlex
 
       def received(subject):
           """The headers of the one message elsewhere.test received with subject."""
@@ -305,6 +320,44 @@ pkgs.testers.runNixOSTest {
           sent = web.succeed("curl -sf --resolve ${blog.endpoint}:80:127.0.0.1 http://${blog.endpoint}/mail.php")
           assert sent == "sent", sent
           authenticated(received("from php"), "wordpress@example.org")
+
+      # Fact: each visitor comes from an address of its own, as the portal limits each address's requests.
+      def invite(visitor, *fields):
+          return web.succeed(
+              f"curl -s -o /dev/null -w '%{{http_code}} %{{redirect_url}}' --interface 127.0.0.{visitor}"
+              " --resolve ${www.endpoint}:80:127.0.0.1 http://${www.endpoint}/invite "
+              + " ".join(f"--data-urlencode {shlex.quote(field)}" for field in fields)
+          )
+
+      with subtest("the portal mails a visitor's request for an invite as itself, which they're answered at"):
+          web.wait_for_unit("www-invites.service")
+          web.wait_for_open_port(8080, "${www.principal.bindAddress}")
+          said = invite(2, "email=dave@example.org", "note=Hej, jag vill gärna vara med.", "back=/en/", "lang=en")
+          assert said == "303 ${www.url}/en/?invite=sent#invite", said
+          headers = received("Invite request: dave@example.org")
+          authenticated(headers, "www@${endpoint}")
+          assert re.search(r"^Reply-To: dave@example\.org$", headers, re.M), headers
+          body = internet.succeed("doveadm fetch -u carol@${elsewhere} text.utf8 header subject 'Invite request: dave@example.org'")
+          assert "Hej, jag vill gärna vara med." in body, body
+          assert "To invite them: o11n invite --keycloak auth --realm example dave@example.org" in body, body
+
+      with subtest("the portal takes one address alone, and answers on the site's own pages"):
+          for address in ["not-an-address", "eve@example.org, mallory@example.org", "eve@example.org\r\nBcc: mallory@example.org"]:
+              said = invite(3, f"email={address}", "back=/")
+              assert said == "303 ${www.url}/?invite=invalid#invite", said
+          said = invite(4, "email=erin@example.org", "website=https://spam.example", "back=//elsewhere.test/")
+          assert said == "303 ${www.url}/?invite=sent#invite", said
+          said = web.succeed("curl -s -o /dev/null -w '%{http_code}' --resolve ${www.endpoint}:80:127.0.0.1 http://${www.endpoint}/invite")
+          assert said == "403", said
+
+      with subtest("the portal limits a visitor's requests"):
+          said = [invite(5, "email=frank").split()[0] for _ in range(5)]
+          assert said == ["303"] * 4 + ["429"], said
+
+      with subtest("a request that fills the field people don't see isn't sent"):
+          invite(6, "email=grace@example.org", "back=/")
+          received("Invite request: grace@example.org")
+          internet.fail("doveadm search -u carol@${elsewhere} header subject 'Invite request: erin@example.org' | grep -q .")
 
       with subtest("the calendar logs in over verified TLS and sends as its own domain"):
           web.succeed(

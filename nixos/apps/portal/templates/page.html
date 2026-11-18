@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+{%- if page.title %}
+<article class="wrap">
+  <h1>{{ page.title }}</h1>
+  {%- if page.date %}
+  <p class="muted"><time datetime="{{ page.date }}">{{ page.date | date(format="%Y-%m-%d") }}</time></p>
+  {%- endif %}
+  <div class="prose">{{ page.content | safe }}</div>
+</article>
+{%- else %}
+{%- set note = page %}
+{%- set notes = get_section(path=page.ancestors | last, metadata_only=true) %}
+<section class="wrap">
+  <p><a href="{{ notes.permalink | safe }}">← {{ notes.title }}</a></p>
+  <div class="notes">
+    {% include "partials/note.html" %}
+  </div>
+</section>
+{%- endif %}
+{% endblock content %}

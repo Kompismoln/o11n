@@ -54,6 +54,9 @@ done
 o11n identity create store-box
 o11n secret generate store-box smb-password
 
+o11n identity create app-www
+o11n secret generate app-www mail
+
 o11n identity create app-photos
 for key in ssh-key mail oidc-secret; do
     o11n secret generate app-photos "$key"

@@ -182,21 +182,14 @@ enum Command {
     /// A router that runs `OpenWrt`.
     #[command(subcommand)]
     Openwrt(openwrt::OpenwrtCommand),
-    /// Builds the host's system and prints it.
-    Build {
-        host: String,
-        #[command(flatten)]
-        build_host: BuildHost,
-        /// nix's options, when localhost builds.
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        nix_options: Vec<String>,
-    },
-    /// Builds the host's system and switches the host to it, which substitutes it from the build host.
-    Apply {
-        host: String,
-        #[command(flatten)]
-        build_host: BuildHost,
-    },
+    /// Builds each host's system, together on each build host, and prints them in the hosts' order.
+    Build(Build),
+    /// Builds each host's system and switches the host to it, which substitutes it from the build host, one host after
+    /// the other.
+    Apply(Apply),
+    /// Invites one to the org's keycloak: makes them a user of the realm, and has Keycloak mail them a link to set their
+    /// password, which then leads to the realm's portal, if it has one.
+    Invite(keycloak::Invite),
     /// Encrypts each sops file to its recipients, and each identity to itself, its actors and the root identities, as
     /// the org declares them, where they aren't already.
     Reencrypt {
@@ -276,6 +269,28 @@ impl From {
             .map(|path| std::fs::read_to_string(path).map_err(|e| Error::new(format!("{}: {e}", path.display()))))
             .transpose()
     }
+}
+
+#[derive(Args)]
+struct Build {
+    #[arg(required = true)]
+    hosts: Vec<String>,
+    #[command(flatten)]
+    on: BuildHost,
+    /// nix's options, after --, when localhost builds.
+    #[arg(last = true)]
+    nix_options: Vec<String>,
+}
+
+#[derive(Args)]
+struct Apply {
+    #[arg(required = true)]
+    hosts: Vec<String>,
+    #[command(flatten)]
+    on: BuildHost,
+    /// Builds every host first, together on each build host, and switches none unless all built.
+    #[arg(long)]
+    unit: bool,
 }
 
 #[derive(Args)]
@@ -591,15 +606,12 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
             user,
             command,
         } => org.ssh(&id, &host, user, &command)?,
-        Command::Build {
-            host,
-            build_host,
-            nix_options,
-        } => println!(
+        Command::Build(build) => println!(
             "{}",
-            org.build(&host, &org.build_host(&host, build_host.build_host)?, &nix_options)?
+            org.build_all(&build.hosts, build.on.build_host.as_deref(), &build.nix_options)?
         ),
-        Command::Apply { host, build_host } => org.apply(&host, &org.build_host(&host, build_host.build_host)?)?,
+        Command::Apply(apply) => org.apply(&apply.hosts, apply.on.build_host.as_deref(), apply.unit)?,
+        Command::Invite(invite) => org.invite(&invite)?,
         Command::Reencrypt { rotate } => org.reencrypt(rotate)?,
         Command::Reset { host, how } => org.reset(&host, how)?,
         Command::Unit {
