@@ -354,6 +354,66 @@ in
     ];
   };
 
+  # Policy: a host that proxies through its hub's gateway does so for all but what its tunnels send, which the gateway
+  # itself doesn't.
+  test_proxy_spares_tunnels = {
+    expr =
+      let
+        configurations = o11nLib.mkNixosConfigurations (alter {
+          vpn.wg0.proxy = true;
+        });
+        of =
+          name:
+          let
+            inherit (configurations.${name}.config.systemd) network;
+          in
+          {
+            routes = lib.filter (route: route.Destination == "::/0") network.networks."30-wg0".routes;
+            rules = network.networks."30-wg0".routingPolicyRules;
+            marks = map (vpn: network.netdevs."20-${vpn}".wireguardConfig.FirewallMark or null) [
+              "wg0"
+              "wg1"
+            ];
+          };
+      in
+      {
+        gamma = of "gamma";
+        alpha = of "alpha";
+      };
+    expected = {
+      gamma = {
+        routes = [
+          {
+            Destination = "::/0";
+            Gateway = "fd12:3456:7890:0000::0001";
+            Table = 28433;
+          }
+        ];
+        rules = [
+          {
+            Family = "ipv6";
+            FirewallMark = 28433;
+            InvertRule = true;
+            Table = 28433;
+            Priority = 32800;
+          }
+        ];
+        marks = [
+          28433
+          28433
+        ];
+      };
+      alpha = {
+        routes = [ ];
+        rules = [ ];
+        marks = [
+          null
+          null
+        ];
+      };
+    };
+  };
+
   test_passes = {
     expr = map (name: failing { } name) [
       "alpha"

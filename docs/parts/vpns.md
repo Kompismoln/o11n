@@ -20,6 +20,12 @@ namespace = "access"
 dns = ["gw"]
 ```
 
+With `proxy`, the gateway carries a host's IPv6 where its own networks have no route for it: the host's default route
+through the gateway is in a table of its own, 28433, which a rule at priority 32800, after `main`, has it look up for
+all but what its vpns send, each of which marks its packets 28433 (`nixos/org/wireguard.nix`). A tunnel's packets to its
+peer's endpoint thus go over the host's own networks or nowhere, never through the gateway of another vpn, as they would
+when its router stops advertising a default route.
+
 ## Mesh
 
 A mesh has no gateway: each host peers with each other, directly, so that what one sends another goes over no third.

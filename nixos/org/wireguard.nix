@@ -37,6 +37,16 @@ let
   named = lib.filter (vpn: vpn.dns != [ ] && vpn.namespace != null) vpns;
   askedOf = lib.filter (vpn: !lib.elem host.name vpn.dns) named;
   proxyFor = lib.filter (vpn: host.name == vpn.gateway && vpn.proxy) vpns;
+  proxied = vpn: !mesh vpn && vpn.proxy && host.name != vpn.gateway;
+
+  # Policy: a host that proxies through a gateway does so in a table of its own, which it looks up after main and for
+  # all but what its vpns send, marked, so that what a tunnel sends to its peer's endpoint never goes through another.
+  tunnels = {
+    mark = 28433;
+    table = 28433;
+    priority = 32800;
+  };
+  proxies = lib.any proxied vpns;
 in
 {
 
@@ -211,6 +221,7 @@ in
         wireguardConfig = {
           PrivateKeyFile = config.sops.secrets.${vpn.key}.path;
           ListenPort = lib.mkIf (listens vpn) vpn.members.${host.name}.port;
+          FirewallMark = lib.mkIf proxies tunnels.mark;
         };
         wireguardPeers = map (
           peer:
@@ -275,13 +286,22 @@ in
               Scope = "link";
             }
           ])
-          ++ (lib.optionals (!mesh vpn && vpn.proxy && host.name != vpn.gateway) [
+          ++ (lib.optionals (proxied vpn) [
             {
               Gateway = org.host.${vpn.gateway}.network.${vpn.name}.address;
               Destination = "::/0";
-              Metric = 2048;
+              Table = tunnels.table;
             }
           ]);
+        routingPolicyRules = lib.optionals (proxied vpn) [
+          {
+            Family = "ipv6";
+            FirewallMark = tunnels.mark;
+            InvertRule = true;
+            Table = tunnels.table;
+            Priority = tunnels.priority;
+          }
+        ];
         networkConfig = {
           DHCP = "no";
         };
