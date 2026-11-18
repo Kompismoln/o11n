@@ -214,8 +214,9 @@ in
     };
   };
 
-  # Policy: 5 wrong passwords, or names that aren't a user's, in an hour, at a login or a reset of a password, as
-  # Keycloak logs its events; a missing cookie or an expired code is a browser's, and isn't counted.
+  # Policy: 5 wrong passwords, names that aren't a user's, or tries at a user Keycloak has locked, in an hour, at a login
+  # or a reset of a password, as Keycloak logs its events; a missing cookie or an expired code is a browser's, and isn't
+  # counted.
   services.fail2ban.jails."keycloak-${app.name}" = {
     filter.Definition.failregex = ''\[org\.keycloak\.events\] .*type="(?:LOGIN_ERROR|RESET_PASSWORD_ERROR)", .*ipAddress="<ADDR>", error="(?:invalid_user_credentials|user_not_found|user_temporarily_disabled)"'';
     settings = {

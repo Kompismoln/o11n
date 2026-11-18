@@ -5,7 +5,9 @@ What a host lets in from outside its vpns, and what bans those who try it. A hos
 own addresses, `<prefix>::/48` and `<prefix4>.0.0/16`, are spared, as sshd's penalties spare them (`nixos/org/ssh.nix`).
 It bans with nftables, in sets of its own table, `inet f2b-table`, as iptables refuses the chain of a jail whose name is
 over 24 characters, as a jail named after an app can be. `vmTests.mailboxes` bans an address in each of `mx`'s jails,
-one of them named that long, and finds it in the jail's set.
+one of them named that long, and finds it in the jail's set. A jail that reads the journal opens all of the host's local
+journals, as journald keeps the lines of a service that runs as an app in a journal of the app's uid, which fail2ban
+would otherwise read only if it was there as the jail started.
 
 ## Points and jails
 
@@ -27,10 +29,11 @@ On 80 and 443:
 - `roundcube-auth` (`nixos/apps/mail.nix`): 5 failed logins to Roundcube in an hour, as it logs them, which also limits
   failed logins to 3 a minute from an address.
 - keycloak locks a user out after failed logins (`bruteForceProtected`), and `keycloak-<app>`
-  (`nixos/apps/keycloak.nix`) bans an address after 5 wrong passwords or names that aren't a user's in an hour, at a
-  login or a reset of a password, as Keycloak logs them, a missing cookie or an expired code not counted. Keycloak reads
-  the client's address from `X-Forwarded-For`, which nginx sets to the client's address alone, so that a client can't
-  name another to be banned. `vmTests.keycloak` logs in wrong from `mx`, naming another address, and finds `mx` banned.
+  (`nixos/apps/keycloak.nix`) bans an address after 5 wrong passwords, names that aren't a user's, or tries at a locked
+  user in an hour, at a login or a reset of a password, as Keycloak logs them, a missing cookie or an expired code not
+  counted. Keycloak reads the client's address from `X-Forwarded-For`, which nginx sets to the client's address alone,
+  so that a client can't name another to be banned. `vmTests.keycloak` logs in wrong from `mx`, naming another address,
+  and finds `mx` banned.
 - Nextcloud throttles failed logins itself.
 - `mobilizon-<app>` (`nixos/apps/mobilizon.nix`): 10 names tried in an hour, GETs for a profile, `/@<name>` and what's
   under it, or for a webfinger, that mobilizon answers as not found, as nginx logs them; `eval-fail2ban-mobilizon`
