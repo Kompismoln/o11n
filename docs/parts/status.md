@@ -11,15 +11,8 @@ endpoint = "status.example.com"
 run-on-hosts = ["web"]
 kind = "status"
 portal = "www"
-<<<<<<< signed
-mail = "Mail"
-=======
->>>>>>> @stamp
 groups.Services = ["www", "auth", "drive"]
-<<<<<<< signed
-=======
 groups.Mail = ["mail"]
->>>>>>> @stamp
 announcements = [
   { timestamp = "2026-11-18T09:00:00+01:00", type = "information", message = "The status page is up." },
 ]
@@ -32,15 +25,9 @@ Each runs every `interval`, two minutes by default (`org/apps/status.nix`):
 - each app of `groups`, by its `endpoint`, in the group it's listed under: its `url` answers below 500, and with `ssl`,
   with a certificate that has more than a week left, three weeks after ACME would have renewed it. A redirect is the
   app's answer: the check doesn't follow it, so an app whose login is the keycloak's is up though the keycloak isn't.
-<<<<<<< signed
-- with `mail`, in the group it names, the mail server, `mail.<endpoint>` of `[mailserver]`: submission on 587 takes
-  STARTTLS, and imaps on 993 TLS, each with a certificate that has more than a week left, and smtp on 25 takes a
-  connection.
-=======
 - each mail app of `groups`, in its group, its webmail at its `url` as any app, and its ports at its `endpoint`:
   submission on 587 takes STARTTLS, and imaps on 993 TLS, each with a certificate that has more than a week left, and
   smtp on 25 takes a connection.
->>>>>>> @stamp
 
 The page has the checks by group, the groups by their names, and `announcements`, as Gatus has them: an `outage`, a
 `warning`, `information`, `operational` or `none`, each with its `timestamp` and `message`.
@@ -58,13 +45,8 @@ The page has the checks by group, the groups by their names, and `announcements`
 ## Testing
 
 `vmTests.keycloak` runs `tests/inventories/mail`'s status app on `web`, where every check passes: the portal, the
-<<<<<<< signed
-keycloak and the drive, and the mail server on `mx`, its submission, imaps and smtp; and the page announces what the
-inventory declares.
-=======
 keycloak and the drive, and the mail server on `mx`, its webmail, submission, imaps and smtp; and the page announces
 what the inventory declares.
->>>>>>> @stamp
 
 ## Work in progress
 

@@ -118,11 +118,7 @@ canonical name on internet
 
 ### `app.<name>.kind`
 
-<<<<<<< signed
-`org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mobilizon", "photos", "portal", "rolf",
-=======
 `org/app.nix` · null or one of "django", "drive", "jitsi", "keycloak", "mail", "mobilizon", "photos", "portal", "rolf",
->>>>>>> @stamp
 "status", "wordpress"
 
 Default: `null`
@@ -217,25 +213,6 @@ Default: `{ }`
 
 domains managed by organisation
 
-<<<<<<< signed
-### `domain.<name>.mailbox`
-
-`org/domain.nix` · boolean
-
-Default: `false`
-
-Whether to enable mailbox.
-
-### `domain.<name>.name`
-
-`org/domain.nix` · string
-
-Default: `"‹name›"`
-
-domain name
-
-=======
->>>>>>> @stamp
 ### `endpoint`
 
 `org/default.nix` · string
@@ -621,17 +598,6 @@ Default: `14`
 
 days each host keeps its logs, the journal and nginx's, and fail2ban its record of bans, by which a repeat offender's
 ban grows
-<<<<<<< signed
-
-### `mailserver`
-
-`org/default.nix` · null or (submodule)
-
-Default: `null`
-
-main mailserver
-=======
->>>>>>> @stamp
 
 ### `name`
 

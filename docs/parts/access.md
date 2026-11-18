@@ -6,16 +6,6 @@ own addresses, `<prefix>::/48` and `<prefix4>.0.0/16`, are spared, as sshd's pen
 
 ## Points and jails
 
-<<<<<<< signed
-| Port             | Module                          | Login                       | Jail                                             |
-| ---------------- | ------------------------------- | --------------------------- | ------------------------------------------------ |
-| 22               | `nixos/org/ssh.nix`             | keys alone                  | `sshd`, and sshd's `PerSourcePenalties`          |
-| 2602             | `nixos/org/reverse-tunnel.nix`  | a password, while it's open | `reverse-tunnel`: 5 failures, an hour            |
-| 587, 993         | `nixos/services/mailserver.nix` | a principal's mail password | `postfix-sasl`, `dovecot`: 5 failures in an hour |
-| 25               | `nixos/services/mailserver.nix` | none                        | none: a ban would refuse a sender's mail         |
-| 80, 443          | `nixos/nginx.nix`               | each app's own              | per app, below                                   |
-| a vpn's udp port | `nixos/org/wireguard.nix`       | the peer's key              | none: wireguard answers no one without a key     |
-=======
 | Port             | Module                         | Login                       | Jail                                             |
 | ---------------- | ------------------------------ | --------------------------- | ------------------------------------------------ |
 | 22               | `nixos/org/ssh.nix`            | keys alone                  | `sshd`, and sshd's `PerSourcePenalties`          |
@@ -24,7 +14,6 @@ own addresses, `<prefix>::/48` and `<prefix4>.0.0/16`, are spared, as sshd's pen
 | 25               | `nixos/apps/mail.nix`          | none                        | none: a ban would refuse a sender's mail         |
 | 80, 443          | `nixos/nginx.nix`              | each app's own              | per app, below                                   |
 | a vpn's udp port | `nixos/org/wireguard.nix`      | the peer's key              | none: wireguard answers no one without a key     |
->>>>>>> @stamp
 
 On 80 and 443:
 
@@ -32,13 +21,8 @@ On 80 and 443:
   redirect, or POSTs to `xmlrpc.php` in an hour, as nginx logs them; `eval-fail2ban-wordpress` runs nginx with a host's
   log format and checks the filter against what it logs.
 - each WordPress denies `xmlrpc.php`.
-<<<<<<< signed
-- `roundcube-auth` (`nixos/services/webmail.nix`): 5 failed logins to Roundcube in an hour, as it logs them, which also
-  limits failed logins to 3 a minute from an address.
-=======
 - `roundcube-auth` (`nixos/apps/mail.nix`): 5 failed logins to Roundcube in an hour, as it logs them, which also limits
   failed logins to 3 a minute from an address.
->>>>>>> @stamp
 - keycloak locks a user out after failed logins (`bruteForceProtected`), and reads the client's address from nginx's
   headers.
 - Nextcloud throttles failed logins itself.
