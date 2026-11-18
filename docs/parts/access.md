@@ -26,8 +26,11 @@ On 80 and 443:
 - each WordPress denies `xmlrpc.php`.
 - `roundcube-auth` (`nixos/apps/mail.nix`): 5 failed logins to Roundcube in an hour, as it logs them, which also limits
   failed logins to 3 a minute from an address.
-- keycloak locks a user out after failed logins (`bruteForceProtected`), and reads the client's address from nginx's
-  headers.
+- keycloak locks a user out after failed logins (`bruteForceProtected`), and `keycloak-<app>`
+  (`nixos/apps/keycloak.nix`) bans an address after 5 wrong passwords or names that aren't a user's in an hour, at a
+  login or a reset of a password, as Keycloak logs them, a missing cookie or an expired code not counted. Keycloak reads
+  the client's address from `X-Forwarded-For`, which nginx sets to the client's address alone, so that a client can't
+  name another to be banned. `vmTests.keycloak` logs in wrong from `mx`, naming another address, and finds `mx` banned.
 - Nextcloud throttles failed logins itself.
 - `mobilizon-<app>` (`nixos/apps/mobilizon.nix`): 10 names tried in an hour, GETs for a profile, `/@<name>` and what's
   under it, or for a webfinger, that mobilizon answers as not found, as nginx logs them; `eval-fail2ban-mobilizon`
