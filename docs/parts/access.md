@@ -21,6 +21,8 @@ On 80 and 443:
   redirect, or POSTs to `xmlrpc.php` in an hour, as nginx logs them; `eval-fail2ban-wordpress` runs nginx with a host's
   log format and checks the filter against what it logs.
 - each WordPress denies `xmlrpc.php`.
+- `roundcube-auth` (`nixos/services/webmail.nix`): 5 failed logins to Roundcube in an hour, as it logs them, which also
+  limits failed logins to 3 a minute from an address.
 - keycloak locks a user out after failed logins (`bruteForceProtected`), and reads the client's address from nginx's
   headers.
 - Nextcloud throttles failed logins itself.

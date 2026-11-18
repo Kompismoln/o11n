@@ -176,6 +176,16 @@ let
     secrets.identityFile = "keys/root-${name}";
   };
 
+  # Dependency: nixos/services/dmarc-reports.nix reads the reports in the service's inbox.
+  reports =
+    let
+      service = config.service.dmarc-reports or null;
+    in
+    if service != null && service.principal != null && service.principal.mail.inbox then
+      service
+    else
+      null;
+
   # Policy: a domain is sent from when a principal that sends has its address on it; one it has a sendAs on is its own.
   sentDomains = lib.concatMap (
     entity:
@@ -204,6 +214,7 @@ in
           inherit (domain) mailbox;
           sent = lib.elem name sentDomains;
         }) config.domain;
+        reports = lib.mapNullable (service: service.principal.mail.address) reports;
       }) config.mailserver;
       inherit (context) classes;
       entities =

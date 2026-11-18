@@ -99,7 +99,10 @@ layer = "domain"
 doc = "docs/parts/mail.md"
 code = [
   "nixos/org/mail.nix",
+  "nixos/services/dmarc-reports.nix",
+  "nixos/services/dmarc-reports.sh",
   "nixos/services/mailserver.nix",
+  "nixos/services/webmail.nix",
   "org/mail.nix",
   "org/mailserver.nix",
 ]

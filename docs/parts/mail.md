@@ -3,7 +3,8 @@
 Every principal has `principal.mail` (`org/mail.nix`), which is off until it has an inbox or sends. The org's mail
 server is the host with the `mailserver` service (`nixos/services/mailserver.nix`), which takes `[mailserver]`
 (`org/mailserver.nix`): its `dkimSelector`, its `endpoint`, the domain it's `mail.<endpoint>` of and the principals'
-addresses are on by default, and its `admin`, `admin@<endpoint>` by default, who hears of what goes wrong.
+addresses are on by default, and its `admin`, `admin@<endpoint>` by default, who hears of what goes wrong, and is to be
+a principal's address or alias with an inbox, or the host's evaluation fails.
 
 ## A principal's mail
 
@@ -14,11 +15,52 @@ addresses are on by default, and its `admin`, `admin@<endpoint>` by default, who
 - `mail.sendAs`: it sends as each of these too, an address or, as `@<domain>`, any address on a domain without
   `mailbox`, which no other principal has as its address, an alias or in its `sendAs`. This is how a site sends as its
   own domain while it logs in as the org's.
+- `mail.readers`: the principals, by handle, that read its inbox and its other mailboxes (see Readers).
 
 A principal with either has a `mail` key, a password, and an account at its address on the mail server, which logs in
 with it; one that sends but has no inbox is send-only, and the server refuses mail to it. The server reads the
 password's hash, `<name>/mail-sha512`, so the principal's secrets are to be granted to `host:mailserver`; a host it
 sends from reads the password, so they're granted to that host too.
+
+Each domain with `mailbox` has a postmaster, as RFC 5321 asks: where no principal has `postmaster@<domain>` as its
+address or an alias, it's an alias of the admin's account.
+
+## Readers
+
+A principal's readers, each another principal with an inbox on the same domain, see its mailboxes under their own login,
+as `Shared.<name>` and the folders under it, with Dovecot's shared namespace (`nixos/services/mailserver.nix`): they
+list and read them, and mark them seen for themselves, but neither move nor delete. `mail-readers` sets the ACL of the
+principal's INBOX, which its other mailboxes take theirs from, to name its readers, and takes away any other reader's,
+there and in each mailbox that kept a copy: nothing but `org.toml` grants, as Dovecot's IMAP ACL commands aren't loaded.
+It subscribes each reader to them, as a client such as Roundcube shows the folders its login subscribes to. Dovecot
+takes the domain of `Shared.<name>` from the reader's login, which is why a reader is on the principal's domain, and its
+separator, `.`, as a level of folders, which is why `<name>` has none.
+
+## Webmail
+
+The `webmail` service (`nixos/services/webmail.nix`), beside `mailserver` on its host, serves Roundcube at
+`https://mail.<endpoint>`, with the server's certificate. A principal logs in with its address and mail password, which
+Roundcube logs in to imaps and submission with, as the principal's own client would, so the server holds it to what it
+may send; its readers' mailboxes are among its folders. Its database is on the host's postgresql.
+
+## DMARC reports
+
+The `dmarc-reports` service (`nixos/services/dmarc-reports.nix`) is a principal with an inbox, the address the org's
+`rua` names, and sends, to tell of what it flags. Each hour it logs in to imaps as itself and reads each unflagged
+message in its INBOX (`nixos/services/dmarc-reports.sh`): an aggregate report, as XML, zipped or gzipped, of DMARC 1 or
+DMARCbis. It flags a message, which stays in INBOX, when:
+
+- mail from an address of `mail.<endpoint>`, as it resolves there, fails DKIM or SPF as its From's domain, as when a DNS
+  record has drifted from the server
+- mail from elsewhere passes SPF as one of its domains, which only the server is to
+- it holds no report it can read.
+
+Anything else goes to Archive, which keeps what was sent in the org's `logRetention`, 14 days by default. If it flagged
+anything, the unit fails, and its failure mails the admin (see Failures) its reasons, a line each. A flagged message is
+the admin's to move or delete: unflagged, it's read again.
+
+`o11n status`'s `dmarc` takes each domain's `rua` to name the service's address, and a domain unrelated to the address's
+to authorize it (`docs/parts/o11n.md`, "Status").
 
 ## Sending
 
@@ -76,25 +118,25 @@ o11n configures mobilizon's mailer as its principal is evaluated in `tests/inven
 
 The records the test publishes are its own; `o11n status` checks the org's.
 
-## Moving Kompismoln/org to it
+`vmTests.mailboxes` (`tests/vm/mailboxes.nix`) runs `mx` with `webmail` and `dmarc-reports`, and a client. Mail to
+postmaster reaches the admin. alice, the admin's reader, lists and reads its mailboxes under her own login, and can't
+delete; another principal sees none, and a reader `mail-readers` doesn't know of loses what was granted it. alice logs
+in to Roundcube, which lists the shared folders, and the client's failed logins count in `roundcube-auth`.
+`dmarc-reports` archives a report of a spoof, flags one of the server's own mail failing SPF and a message without a
+report, prunes an old report from Archive, and fails, which mails the admin its reasons; run again, it reads nothing
+anew and succeeds.
 
-- `[mailserver]` loses `host`, `int` and `ext`, and `[role.mailserver]` has the `mailserver` service, beside
-  `dmarc-reports`, with a `[service.mailserver]` table.
-- A user's `mail = true` is `principal.mail = { inbox = true, send = true }`, and its `inboxes` are
-  `principal.mail.aliases`, less `alex@klimatkalendern.nu`, whose domain has no mailbox.
-- `[service.dmarc-reports]` has an `id` and `principal.mail.inbox = true`; its `mail` stays as it is.
-- Each app that sends, such as esse and klimatkalendern, has `principal.mail.send = true` and a `mail` key
-  (`o11n secret generate app-<name> mail`), and `settings.mailServer` goes.
-- esse has `principal.mail.sendAs = ["@esse.nu"]`, and klimatkalendern `["@klimatkalendern.nu"]` and a `from` on it,
-  such as `noreply@klimatkalendern.nu`. Each domain's SPF covers `mail.kompismoln.se`, and `k1._domainkey.<domain>` has
-  the key the server keeps at `/var/dkim/<domain>.k1.txt`.
-- Each principal that archives sends, to tell of its failures, as does the archive service, whose secrets are then
-  granted to `host:archive` and `host:mailserver`.
+## Moving Kompismoln/org to webmail and dmarc-reports
+
+- Each domain the org sends as has `rua=mailto:dmarc-reports@kompismoln.se` in its `_dmarc`, and each but kompismoln.se
+  a `<domain>._report._dmarc.kompismoln.se` TXT `v=DMARC1`, which `o11n status` checks.
+- The postmaster of chatddx.com, sverigesval.org and ahbk.se is the admin's from then on.
 
 ## Work in progress
 
 - Nothing limits how much a principal sends, with rspamd's ratelimit or postfix's anvil.
 - That a principal's secrets are granted to the hosts that read its mail password and hash isn't known at evaluation; a
   host that isn't fails as sops-nix decrypts.
+- `dmarc-reports` reads INBOX alone; a report rspamd took for spam waits in Junk.
 - `o11n status` checks an org's own DNS for its mail (`docs/parts/o11n.md`, "Status"), but not that the DKIM key it
   finds is the server's.

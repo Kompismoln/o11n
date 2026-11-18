@@ -12,7 +12,8 @@ place in that.
 
 Default: `"admin@${endpoint}"`
 
-the address that hears of what goes wrong on the org's hosts, such as a unit that fails
+the address that hears of what goes wrong on the org's hosts, such as a unit that fails, a principal's address or alias
+with an inbox, which is postmaster of each domain with a mailbox no principal is postmaster of
 
 ### `mailserver.dkimSelector`
 
@@ -59,6 +60,15 @@ the other addresses the principal's inbox receives at, as the mail server's alia
 Default: `false`
 
 whether the principal has a mailbox on the mail server, at its address and its aliases
+
+### `<mail>.readers`
+
+`org/mail.nix` · list of string
+
+Default: `[ ]`
+
+the principals, by handle, each with an inbox on the same domain, that read the principal's inbox and its other
+mailboxes as Shared.<name> under their own login
 
 ### `<mail>.send`
 

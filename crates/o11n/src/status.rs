@@ -460,7 +460,7 @@ impl Org {
             Check::Mx(domain) => fails(self.mx(domain)),
             Check::Spf(domain) => fails(self.spf(domain)),
             Check::Dkim(domain) => fails(self.dkim(domain)),
-            Check::Dmarc(domain) => fails(Self::dmarc(domain)),
+            Check::Dmarc(domain) => fails(self.dmarc(domain)),
             Check::KeycloakMail(realm) => self.keycloak_mail(id, entity, realm)?,
             Check::Openwrt => self.openwrt_outcome(id, entity)?,
             Check::Lan(host) => self.lan_outcome(id, entity, host)?,
@@ -548,20 +548,58 @@ impl Org {
         }
     }
 
-    fn dmarc(domain: &str) -> Result<(), Error> {
+    fn dmarc(&self, domain: &str) -> Result<(), Error> {
         let name = format!("_dmarc.{domain}");
         let record = dns::record(&name, "v=DMARC1")?;
-        let policy = record
-            .split(';')
-            .filter_map(|tag| tag.trim().split_once('='))
-            .find(|(tag, _)| tag.trim() == "p")
-            .map(|(_, policy)| policy.trim().to_ascii_lowercase());
-        match policy.as_deref() {
-            Some("none" | "quarantine" | "reject") => Ok(()),
-            _ => Err(Error::new(format!(
-                "{name} has no policy, p=none, quarantine or reject, which receivers take as no DMARC"
-            ))),
+        let tag = |name: &str| {
+            record
+                .split(';')
+                .filter_map(|tag| tag.trim().split_once('='))
+                .find(|(tag, _)| tag.trim().eq_ignore_ascii_case(name))
+                .map(|(_, value)| value.trim().to_owned())
+        };
+        match tag("p").map(|policy| policy.to_ascii_lowercase()).as_deref() {
+            Some("none" | "quarantine" | "reject") => {}
+            _ => {
+                return Err(Error::new(format!(
+                    "{name} has no policy, p=none, quarantine or reject, which receivers take as no DMARC"
+                )));
+            }
         }
+        let Some(reports) = self
+            .export
+            .mailserver
+            .as_ref()
+            .and_then(|mailserver| mailserver.reports.as_deref())
+        else {
+            return Ok(());
+        };
+        // Fact: a rua URI may end in !<size>, the largest report the address takes.
+        let sent = tag("rua").unwrap_or_default().split(',').any(|uri| {
+            uri.trim()
+                .strip_prefix("mailto:")
+                .and_then(|address| address.split('!').next())
+                .is_some_and(|address| address.eq_ignore_ascii_case(reports))
+        });
+        if !sent {
+            return Err(Error::new(format!(
+                "{name} sends its aggregate reports elsewhere than {reports}, which dmarc-reports reads: add mailto:{reports} to its rua"
+            )));
+        }
+        // Fact: a receiver sends a domain's reports to an address on another, but for a subdomain of it or one it's a
+        // subdomain of, only once that domain authorizes it (RFC 7489, 7.1).
+        let at = reports.rsplit_once('@').map_or("", |(_, at)| at).to_ascii_lowercase();
+        let domain = domain.to_ascii_lowercase();
+        let related = |inner: &str, outer: &str| inner == outer || inner.ends_with(&format!(".{outer}"));
+        if related(&domain, &at) || related(&at, &domain) {
+            return Ok(());
+        }
+        let authorization = format!("{domain}._report._dmarc.{at}");
+        dns::record(&authorization, "v=DMARC1").map(|_| ()).map_err(|error| {
+            Error::new(format!(
+                "{error}, without which receivers send {domain}'s reports to no address on {at}: publish {authorization} TXT \"v=DMARC1\""
+            ))
+        })
     }
 
     // Policy: where connections are shared, the host shows its ssh-key on the connection that logs in as locksmith or

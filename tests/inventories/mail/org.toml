@@ -49,6 +49,12 @@ id = 0
 principal.mail = { inbox = true, send = true }
 grants = ["host-*"]
 
+# Fact: the mail server's admin, whose mailboxes alice reads as her own login's Shared.admin.
+[user.admin]
+id = 1
+principal.mail = { inbox = true, readers = ["user-alice"] }
+grants = ["host:mailserver"]
+
 [app.blog]
 id = 0
 endpoint = "www.example.org"
@@ -155,8 +161,16 @@ principal.hasPublicKey = false
 grants = ["host:app-scheduler"]
 
 [role.mailserver]
-services = ["mailserver"]
+services = ["mailserver", "webmail", "dmarc-reports"]
 
 [role.app-scheduler]
 
 [service.mailserver]
+
+[service.webmail]
+
+[service.dmarc-reports]
+id = 0
+principal.hasPublicKey = false
+principal.mail = { inbox = true, send = true }
+grants = ["host:mailserver"]

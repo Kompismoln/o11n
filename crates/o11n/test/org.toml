@@ -70,6 +70,11 @@ grants = [
 
 [service.mailserver]
 
+[service.dmarc-reports]
+id = 0
+principal.hasPublicKey = false
+principal.mail.inbox = true
+
 [service.logs]
 
 [service.nix-remote]

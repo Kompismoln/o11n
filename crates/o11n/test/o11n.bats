@@ -722,7 +722,7 @@ dns() {
   dns example.com TXT 16 '"v=spf1 include:_spf.example.com -all"' '"other"'
   dns _spf.example.com TXT 16 '"v=spf1 ip4:192.0.2.0/24 ip6:2001:db8::/32 -all"'
   dns mail._domainkey.example.com TXT 16 '"v=DKIM1; k=rsa; " "p=MIIB"'
-  dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject"'
+  dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject; rua=mailto:other@example.net,mailto:Dmarc-Reports@example.com!10m"'
   run o11n status host-testhost
   [[ $output == *"host-testhost mx example.com ok"* ]]
   [[ $output == *"host-testhost spf example.com ok"* ]]
@@ -747,6 +747,20 @@ dns() {
   [[ $output == *"user-testuser spf example.org ok"* ]]
   [[ $output == *"user-testuser dkim example.org ok"* ]]
   [[ $output == *"user-testuser dmarc example.org fail: _dmarc.example.org has no v=DMARC1 record"* ]]
+}
+
+@test "status checks that a domain's DMARC reports reach dmarc-reports, which another domain authorizes" {
+  dns _dmarc.example.com TXT 16 '"v=DMARC1; p=reject"'
+  run o11n status host-testhost
+  [[ $output == *"host-testhost dmarc example.com fail: _dmarc.example.com sends its aggregate reports elsewhere than dmarc-reports@example.com, which dmarc-reports reads: add mailto:dmarc-reports@example.com to its rua"* ]]
+
+  dns _dmarc.example.org TXT 16 '"v=DMARC1; p=reject; rua=mailto:dmarc-reports@example.com"'
+  run o11n status user-testuser
+  [[ $output == *"user-testuser dmarc example.org fail: example.org._report._dmarc.example.com has no v=DMARC1 record, without which receivers send example.org's reports to no address on example.com: publish example.org._report._dmarc.example.com TXT \"v=DMARC1\""* ]]
+
+  dns example.org._report._dmarc.example.com TXT 16 '"v=DMARC1"'
+  run o11n status user-testuser
+  [[ $output == *"user-testuser dmarc example.org ok"* ]]
 }
 
 @test "status tells a sops file encrypted to another than it should be" {

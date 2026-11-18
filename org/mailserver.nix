@@ -16,7 +16,7 @@
       default = context.org.endpoint;
     };
     admin = lib.mkOption {
-      description = "the address that hears of what goes wrong on the org's hosts, such as a unit that fails";
+      description = "the address that hears of what goes wrong on the org's hosts, such as a unit that fails, a principal's address or alias with an inbox, which is postmaster of each domain with a mailbox no principal is postmaster of";
       type = lib.types.str;
       default = "admin@${config.endpoint}";
       defaultText = lib.literalExpression ''"admin@''${endpoint}"'';

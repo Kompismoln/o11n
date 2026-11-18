@@ -151,7 +151,7 @@ grants = ["host:archive", "host:mailserver"]
 [service.dmarc-reports]
 id = 12
 principal.hasPublicKey = false
-principal.mail.inbox = true
+principal.mail = { inbox = true, send = true }
 grants = ["host:mailserver"]
 
 [service.domain-sample]
@@ -162,5 +162,5 @@ id = 0
 principal.hasPublicKey = false
 principal.hasSFTP = false
 
-# Every class needs a table, even when empty.
+# Fact: every class needs a table, even when empty.
 [app]

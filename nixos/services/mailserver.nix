@@ -20,6 +20,7 @@ let
       {
         inherit (org) endpoint;
         dkimSelector = "";
+        admin = "";
       }
     else
       org.mailserver;
@@ -28,13 +29,84 @@ let
   mailing = lib.filter (
     entity: entity.principal != null && (entity.principal.mail.inbox || entity.principal.mail.send)
   ) (lib.attrValues org.entities);
+  inboxes = lib.filter (entity: entity.principal.mail.inbox) mailing;
+  byHandle = lib.listToAttrs (map (entity: lib.nameValuePair entity.handle entity) mailing);
+
+  ownerOf =
+    address:
+    lib.findFirst (
+      entity:
+      lib.elem (lib.toLower address) (
+        map lib.toLower ([ entity.principal.mail.address ] ++ entity.principal.mail.aliases)
+      )
+    ) null inboxes;
+  admin = ownerOf cfg.admin;
+
+  # Policy: each domain with mailboxes has a postmaster, as RFC 5321 asks, the admin where no principal is.
+  postmasters = lib.filter (address: ownerOf address == null) (
+    map (domain: "postmaster@${domain}") mailboxDomains
+  );
+  aliasesOf =
+    entity:
+    entity.principal.mail.aliases
+    ++ lib.optionals (admin != null && entity.handle == admin.handle) postmasters;
 
   owned = lib.concatMap (
     entity:
-    map (address: { inherit address entity; }) (
-      [ entity.principal.mail.address ] ++ entity.principal.mail.aliases
-    )
+    map (address: { inherit address entity; }) ([ entity.principal.mail.address ] ++ aliasesOf entity)
   ) mailing;
+
+  # Policy: a principal's readers see its mailboxes as Shared<separator><name>, the private namespace's separator
+  # between, with the rights to list and read them and mark them seen for themselves; the ACL on its INBOX, which the
+  # other mailboxes take theirs from, names them alone, and nothing else grants. Dovecot takes the owner's domain from
+  # the reader's login.
+  separator = config.mailserver.hierarchySeparator;
+  sharing = lib.filter (entity: entity.principal.mail.readers != [ ]) inboxes;
+  readersOf = entity: map (handle: byHandle.${handle}) entity.principal.mail.readers;
+  shares = pkgs.writeText "mail-readers" (
+    lib.concatMapStrings (
+      entity:
+      "${entity.principal.mail.address} ${
+        lib.concatMapStringsSep "," (reader: reader.principal.mail.address) (readersOf entity)
+      }\n"
+    ) inboxes
+  );
+  share = pkgs.writeShellApplication {
+    name = "mail-readers";
+    runtimeInputs = [
+      config.services.dovecot2.package
+      pkgs.gawk
+      pkgs.gnugrep
+    ];
+    text = ''
+      readers() {
+        doveadm -f tab acl get -u "$1" "$2" | awk -F '\t' 'NR > 1 && $1 ~ /^user=/ { print substr($1, 6) }'
+      }
+      while read -r owner wanted; do
+        for reader in $(readers "$owner" INBOX); do
+          [[ ",$wanted," == *",$reader,"* ]] || doveadm acl delete -u "$owner" INBOX "user=$reader"
+        done
+        IFS=, read -ra granted <<<"$wanted"
+        for reader in "''${granted[@]}"; do
+          doveadm acl set -u "$owner" INBOX "user=$reader" lookup read write-seen
+        done
+        mapfile -t mailboxes < <(doveadm mailbox list -u "$owner" | { grep -v -e '^INBOX$' -e '^Shared$' -e ${lib.escapeShellArg "^Shared${separator}"} || true; })
+        # Fact: a mailbox that's made gets a copy of its parent's ACL, which outlives the INBOX's.
+        for mailbox in "''${mailboxes[@]}"; do
+          for reader in $(readers "$owner" "$mailbox"); do
+            [[ ",$wanted," == *",$reader,"* ]] || doveadm acl delete -u "$owner" "$mailbox" "user=$reader"
+          done
+        done
+        doveadm acl recalc -u "$owner"
+        # Fact: a client such as Roundcube shows the folders the login subscribes to alone, and doveadm lists none of a
+        # reader's shared ones.
+        prefix=${lib.escapeShellArg "Shared${separator}"}''${owner%@*}
+        for reader in "''${granted[@]}"; do
+          doveadm mailbox subscribe -u "$reader" "$prefix" "''${mailboxes[@]/#/$prefix${separator}}"
+        done
+      done <${shares}
+    '';
+  };
   sendingAs = lib.concatMap (
     entity: map (address: { inherit address entity; }) entity.principal.mail.sendAs
   ) mailing;
@@ -114,7 +186,42 @@ in
         assertion = org.mailserver != null;
         message = "${host.name} has the mailserver service, which takes its settings from [mailserver]: declare it.";
       }
+      {
+        assertion = org.mailserver == null || admin != null;
+        message = "[mailserver]'s admin, ${cfg.admin}, hears of what goes wrong, and is no principal's address or alias with an inbox: make it one, or set admin under [mailserver].";
+      }
     ]
+    ++ lib.concatMap (
+      entity:
+      let
+        inherit (entity.principal) mail;
+        name = lib.head (lib.splitString "@" mail.address);
+      in
+      [
+        {
+          assertion = mail.inbox;
+          message = "${entity.handle} has readers but no inbox for them to read: set principal.mail.inbox, or drop principal.mail.readers.";
+        }
+        {
+          assertion = !lib.hasInfix separator name;
+          message = "${entity.handle}'s readers see its mailboxes as Shared${separator}${name}, whose ${separator} the mail server takes as a level of folders: change principal.mail.address, or drop principal.mail.readers.";
+        }
+      ]
+      ++ map (
+        handle:
+        let
+          reader = byHandle.${handle} or null;
+        in
+        {
+          assertion =
+            reader != null
+            && handle != entity.handle
+            && reader.principal.mail.inbox
+            && domainOf reader.principal.mail.address == domainOf mail.address;
+          message = "${entity.handle}'s reader ${handle} is to be another principal with an inbox at an address on ${domainOf mail.address}, the domain the mail server takes from its login for Shared${separator}${name}: change principal.mail.readers.";
+        }
+      ) mail.readers
+    ) (lib.filter (entity: entity.principal.mail.readers != [ ]) mailing)
     ++ lib.concatMap (
       entity:
       let
@@ -215,7 +322,7 @@ in
             inherit (entity.principal) mail;
           in
           lib.nameValuePair mail.address {
-            inherit (mail) aliases;
+            aliases = aliasesOf entity;
             catchAll = [ ];
             sendOnly = !mail.inbox;
             hashedPasswordFile = config.sops.secrets."${entity.name}/mail-sha512".path;
@@ -230,17 +337,38 @@ in
       webroot = "/var/lib/acme/acme-challenge";
     };
 
-    services.nginx.virtualHosts.${config.mailserver.fqdn} = {
-      locations."^~ /.well-known/acme-challenge/" = {
-        root = "/var/lib/acme/acme-challenge";
-        extraConfig = ''
-          auth_basic off;
-          auth_request off;
-        '';
+    services.nginx.virtualHosts.${config.mailserver.fqdn}.useACMEHost = config.mailserver.fqdn;
+
+    services.rspamd.localLuaRules = fromLogin;
+
+    services.dovecot2.settings = lib.mkIf (sharing != [ ]) {
+      mail_plugins.acl = true;
+      acl_driver = "vfile";
+      acl_defaults_from_inbox = true;
+      acl_sharing_map."dict file".path = "${config.mailserver.storage.path}/shared-mailboxes.db";
+      "namespace shared" = {
+        type = "shared";
+        inherit separator;
+        prefix = "Shared${separator}$username${separator}";
+        mail_path = "%{owner_home}/mail";
+        mail_index_private_path = "~/shared/%{owner_user}";
+        subscriptions = false;
+        list = "children";
       };
     };
 
-    services.rspamd.localLuaRules = fromLogin;
+    systemd.services.mail-readers = lib.mkIf (sharing != [ ]) {
+      description = "Grant each principal's readers its mailboxes";
+      requires = [ "dovecot.service" ];
+      after = [ "dovecot.service" ];
+      wantedBy = [ "multi-user.target" ];
+      restartTriggers = [ shares ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = lib.getExe share;
+      };
+    };
 
     # Policy: what reads /etc/resolv.conf, as postfix, its TLS policy and rspamd do, asks kresd on loopback, which
     # validates: DANE takes validated answers alone, and blocklists refuse a shared resolver's. What looks up names

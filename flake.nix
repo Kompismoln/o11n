@@ -130,6 +130,12 @@
                 outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
               };
 
+              legacyPackages.vmTests.mailboxes = import ./tests/vm/mailboxes.nix {
+                inherit pkgs;
+                o11nInputs = inputs;
+                outputs = o11nLib.fromInventory { path = ./tests/inventories/mail; };
+              };
+
               legacyPackages.vmTests.drive = import ./tests/vm/drive.nix {
                 inherit pkgs;
                 o11nInputs = inputs;

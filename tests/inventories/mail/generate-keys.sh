@@ -35,6 +35,12 @@ for key in ssh-key passwd mail; do
     o11n secret generate user-alice "$key"
 done
 
+o11n identity create user-admin
+o11n secret generate user-admin mail
+
+o11n identity create service-dmarc-reports
+o11n secret generate service-dmarc-reports mail
+
 for app in blog calendar; do
     o11n identity create "app-$app"
     o11n secret generate "app-$app" ssh-key

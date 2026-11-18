@@ -29,6 +29,8 @@ pub struct Mailserver {
     pub dkim_selector: String,
     #[serde(default)]
     pub domains: BTreeMap<String, Domain>,
+    #[serde(default)]
+    pub reports: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

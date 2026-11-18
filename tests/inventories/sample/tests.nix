@@ -172,6 +172,7 @@ in
         "admin/passwd-sha512" = "user-admin.yaml";
         "admin/restic-key" = "user-admin.yaml";
         "archive/mail-sha512" = "service-archive.yaml";
+        "dmarc-reports/mail" = "service-dmarc-reports.yaml";
         "dmarc-reports/mail-sha512" = "service-dmarc-reports.yaml";
         "nix-remote/secret-key" = "service-nix-remote.yaml";
         "nix-remote/ssh-key" = "service-nix-remote.yaml";
@@ -215,6 +216,7 @@ in
     expr = {
       inherit (gw.config.services.postfix.settings.main) mynetworks authorized_submit_users;
       sendOnly = lib.mapAttrs (_: account: account.sendOnly) gw.config.mailserver.accounts;
+      aliases = lib.mapAttrs (_: account: account.aliases) gw.config.mailserver.accounts;
       postfixSendmail = gw.config.services.postfix.setSendmail;
     };
     expected = {
@@ -227,6 +229,11 @@ in
         "admin@example.com" = false;
         "archive@example.com" = true;
         "dmarc-reports@example.com" = false;
+      };
+      aliases = {
+        "admin@example.com" = [ "postmaster@example.com" ];
+        "archive@example.com" = [ ];
+        "dmarc-reports@example.com" = [ ];
       };
       postfixSendmail = true;
     };
@@ -243,9 +250,15 @@ in
     });
     expected = {
       gw = {
-        accounts.user-admin = {
-          from = "admin@example.com";
-          set_from_header = "on";
+        accounts = {
+          service-dmarc-reports = {
+            from = "dmarc-reports@example.com";
+            set_from_header = "on";
+          };
+          user-admin = {
+            from = "admin@example.com";
+            set_from_header = "on";
+          };
         };
         sendmail = false;
       };
@@ -265,16 +278,19 @@ in
     };
   };
 
-  # Policy: an archive that fails mails the admin as the principal it archives, and the archive service as itself.
+  # Policy: an archive that fails mails the admin as the principal it archives, the archive service as itself, and
+  # dmarc-reports as itself.
   test_mail_failures = {
     expr = {
       inherit (web.config.systemd.services."state-archive@user-admin:web") onFailure;
       archive = web.config.systemd.services.archive.onFailure;
+      dmarc-reports = gw.config.systemd.services.dmarc-reports.onFailure;
       tellers = lib.filter (lib.hasPrefix "mail-failure-") (lib.attrNames web.config.systemd.services);
     };
     expected = {
       onFailure = [ "mail-failure-user-admin@%n.service" ];
       archive = [ "mail-failure-service-archive@%n.service" ];
+      dmarc-reports = [ "mail-failure-service-dmarc-reports@%n.service" ];
       tellers = [
         "mail-failure-service-archive@"
         "mail-failure-user-admin@"
