@@ -562,6 +562,7 @@ in
         DMARC_LOGIN = app.principal.mail.address;
         DMARC_PASSWORD = config.sops.secrets."${app.name}/mail".path;
         DMARC_RETENTION = toString org.logRetention;
+        DMARC_MAILBOXES = toString mailboxDomains;
       };
       serviceConfig = {
         Type = "oneshot";

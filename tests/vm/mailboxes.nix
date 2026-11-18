@@ -26,12 +26,14 @@ let
       security.pki.certificateFiles = [ "${tls}/ca.crt" ];
     };
 
-  # Fact: a receiver's aggregate report on example.com, gzipped as most are, of mail from ip.
+  # Fact: a receiver's aggregate report on domain, gzipped as most are, of mail from ip.
   report =
     name:
     {
       ip,
       spf,
+      dkim ? "pass",
+      domain ? "example.com",
       date ? "Wed, 18 Nov 2026 00:00:00 +0000",
     }:
     pkgs.runCommand "${name}.eml" { nativeBuildInputs = [ pkgs.gzip ]; } ''
@@ -39,18 +41,18 @@ let
       <?xml version="1.0" encoding="UTF-8" ?>
       <feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">
         <report_metadata><org_name>receiver.test</org_name><report_id>${name}</report_id></report_metadata>
-        <policy_published><domain>example.com</domain><p>reject</p></policy_published>
+        <policy_published><domain>${domain}</domain><p>reject</p></policy_published>
         <record>
           <row><source_ip>${ip}</source_ip><count>2</count>
-            <policy_evaluated><disposition>none</disposition><dkim>pass</dkim><spf>${spf}</spf></policy_evaluated>
+            <policy_evaluated><disposition>none</disposition><dkim>${dkim}</dkim><spf>${spf}</spf></policy_evaluated>
           </row>
-          <identifiers><header_from>example.com</header_from></identifiers>
+          <identifiers><header_from>${domain}</header_from></identifiers>
         </record>
       </feedback>
       EOF
       gzip report.xml
       {
-        printf 'From: dmarc@receiver.test\nTo: ${login reports}\nDate: ${date}\nSubject: Report domain: example.com %s\n' ${name}
+        printf 'From: dmarc@receiver.test\nTo: ${login reports}\nDate: ${date}\nSubject: Report domain: ${domain} %s\n' ${name}
         printf 'MIME-Version: 1.0\nContent-Type: application/gzip; name="%s.xml.gz"\nContent-Transfer-Encoding: base64\n\n' ${name}
         base64 report.xml.gz
       } >$out
@@ -100,6 +102,21 @@ pkgs.testers.runNixOSTest {
       trouble = report "trouble" {
         ip = mx;
         spf = "fail";
+      };
+      loose = report "loose" {
+        ip = "192.0.2.10";
+        spf = "pass";
+      };
+      hosted = report "hosted" {
+        ip = "192.0.2.11";
+        spf = "pass";
+        domain = "example.org";
+      };
+      shared = report "shared" {
+        ip = "192.0.2.12";
+        spf = "pass";
+        dkim = "fail";
+        domain = "example.org";
       };
       old = report "old" {
         ip = mx;
@@ -195,16 +212,19 @@ pkgs.testers.runNixOSTest {
           )
 
       with subtest("dmarc-reports archives a clean report, flags trouble and what isn't a report, prunes the old"):
-          for eml in ["${clean}", "${trouble}", "${noise}"]:
+          for eml in ["${clean}", "${trouble}", "${loose}", "${hosted}", "${shared}", "${noise}"]:
               mx.succeed(f"doveadm save -u ${login reports} -m INBOX < {eml}")
           mx.succeed("doveadm save -u ${login reports} -m Archive < ${old}")
           mx.fail("systemctl start mail-dmarc-reports.service")
           assert mails("${login reports}", "mailbox Archive subject clean") == "1"
+          assert mails("${login reports}", "mailbox Archive subject hosted") == "1"
           assert mails("${login reports}", "mailbox Archive subject old") == "0"
-          assert mails("${login reports}", "mailbox INBOX flagged") == "2"
-          assert mails("${login reports}", "mailbox INBOX") == "2"
+          assert mails("${login reports}", "mailbox INBOX flagged") == "4"
+          assert mails("${login reports}", "mailbox INBOX") == "4"
           said = mx.succeed("journalctl -u mail-dmarc-reports.service")
           assert "receiver.test's report trouble on example.com: 2 from ${mx}, ${fqdn}'s, fail SPF as example.com" in said, said
+          assert "receiver.test's report loose on example.com: 2 from 192.0.2.10 pass SPF as example.com, which only ${fqdn} is to" in said, said
+          assert "receiver.test's report shared on example.org: 2 from 192.0.2.12 pass SPF but not DKIM as example.org, whose SPF lets 192.0.2.12 send as it" in said, said
           assert "holds no DMARC report: Not a report" in said, said
 
       with subtest("the admin hears of what's flagged, which isn't read again"):
