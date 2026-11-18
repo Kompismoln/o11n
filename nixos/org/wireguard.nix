@@ -34,41 +34,55 @@ let
 
   isGateway = lib.any (vpn: !mesh vpn && host.name == vpn.gateway) vpns;
   dnsFor = lib.filter (vpn: lib.elem host.name vpn.dns) vpns;
+  named = lib.filter (vpn: vpn.dns != [ ] && vpn.namespace != null) vpns;
+  askedOf = lib.filter (vpn: !lib.elem host.name vpn.dns) named;
   proxyFor = lib.filter (vpn: host.name == vpn.gateway && vpn.proxy) vpns;
 in
 {
 
-  services.kresd = lib.mkIf (dnsFor != [ ]) {
-    enable = true;
+  services.kresd = lib.mkMerge [
+    (lib.mkIf (dnsFor != [ ]) {
+      enable = true;
 
-    listenPlain = builtins.concatMap (vpn: [
-      "[${host.network.${vpn.name}.address}]:53"
-      "${host.network.${vpn.name}.address4}:53"
-    ]) dnsFor;
+      listenPlain = builtins.concatMap (vpn: [
+        "[${host.network.${vpn.name}.address}]:53"
+        "${host.network.${vpn.name}.address4}:53"
+      ]) dnsFor;
 
-    extraConfig = ''
-      modules = { 'hints > iterate' }
-      ${lib.concatStringsSep "\n" (
-        builtins.concatMap (
-          vpn:
-          map (
-            peer:
-            lib.concatStrings (
-              map (
-                member:
-                lib.concatMapStrings (address: "hints['${member.fqdn}'] = '${address}'\n") (
-                  lib.filter (address: address != null) [
-                    member.address
-                    member.address4
-                  ]
-                )
-              ) (onHost vpn peer)
-            )
-          ) (resolved vpn)
-        ) dnsFor
-      )}
-    '';
-  };
+      extraConfig = ''
+        modules = { 'hints > iterate' }
+        ${lib.concatStringsSep "\n" (
+          builtins.concatMap (
+            vpn:
+            map (
+              peer:
+              lib.concatStrings (
+                map (
+                  member:
+                  lib.concatMapStrings (address: "hints['${member.fqdn}'] = '${address}'\n") (
+                    lib.filter (address: address != null) [
+                      member.address
+                      member.address4
+                    ]
+                  )
+                ) (onHost vpn peer)
+              )
+            ) (resolved vpn)
+          ) dnsFor
+        )}
+      '';
+    })
+    # Policy: a kresd on the host, as its own vpns' name server or the mail server's resolver, asks each other vpn's name
+    # servers for its namespace, as resolved does: Lix looks names up with `files dns` alone, which is /etc/resolv.conf,
+    # the mail server's kresd where it runs.
+    (lib.mkIf (config.services.kresd.enable && askedOf != [ ]) {
+      extraConfig = lib.concatMapStrings (vpn: ''
+        policy.add(policy.suffix(policy.STUB({${
+          lib.concatMapStringsSep ", " (address: "'${address}'") host.network.${vpn.name}.dns
+        }}), {todname('${vpn.namespace}.')}))
+      '') askedOf;
+    })
+  ];
 
   systemd.services."systemd-networkd".preStop = lib.concatStringsSep "\n" (
     map (vpn: "${pkgs.iproute2}/bin/ip link delete ${vpn.interface}") (
@@ -249,6 +263,8 @@ in
           "${network.address4}/${toString network.prefixLength4}"
         ];
         inherit (network) dns;
+        # Policy: a vpn's name servers answer for its namespace alone, and are asked nothing else.
+        domains = lib.mkIf (lib.elem vpn named) [ "~${vpn.namespace}" ];
         routes =
           (lib.optionals (routes vpn) [
             {
