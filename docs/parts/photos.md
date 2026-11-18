@@ -71,11 +71,8 @@ fails evaluation.
 - Each of the app's hosts mounts `//<host>/<share>/<path>` at `<home>/immich/library/<user>` under the app's home, as
   the app's user, over SMB 3.1.1, encrypted, logging in as the share's `login` with the store's `smb-password`, which
   the store has to grant the app's hosts, and the container binds it where Immich keeps the user's library.
-<<<<<<< signed
-=======
 - `<app>-library`, a oneshot each mount requires, makes `<home>/immich` and its `library` the app's user's before it's
   mounted, as a host boots and as a switch starts a new mount, for systemd would make them root's.
->>>>>>> @stamp
 - The container starts only once each root is mounted, so that Immich never files a user's originals into the directory
   beneath.
 - Immich alone writes in it: it keeps each original's path in its database, and a file moved, removed or added there

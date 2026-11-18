@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # Portal
 
 A portal is the org's website: a static site that Zola builds from the org's markdown, with the apps it names listed at
@@ -110,4 +108,3 @@ page and in their section, one with its commit and one without, and that the key
 no form for an invite, is logged in to the drive without being asked again, and logs out, after which the portal's login
 asks again. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and refuses an
 address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an address.
->>>>>>> @stamp

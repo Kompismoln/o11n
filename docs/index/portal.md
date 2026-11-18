@@ -1,5 +1,3 @@
-<<<<<<< signed
-=======
 # `portal`
 
 Written by `o11n-dev index` from the options of an org that are declared in the part's code, as `dev/index.nix` reads
@@ -87,4 +85,3 @@ the keycloak realm of the site's client
 Default: `[ ]`
 
 the apps the site lists, in its order, each described in the content's front matter, under extra.services.<app>
->>>>>>> @stamp

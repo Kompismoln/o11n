@@ -46,13 +46,8 @@ An app sends through its own account:
 The mail server's `/etc/resolv.conf` names kresd on loopback, which validates (`nixos/services/mailserver.nix`), and
 postfix, its TLS policy and rspamd read it: postfix delivers over DANE to a receiver that publishes TLSA, and the
 blocklists rspamd asks see the server's own queries, not a shared resolver's, which they refuse. What looks up names
-<<<<<<< signed
-through nss still asks resolved, which knows the vpns' name servers. On a host that is its vpns' name server too, kresd
-listens there as well.
-=======
 through nss still asks resolved, which knows the vpns' name servers, and kresd asks them for their namespaces too
 (`docs/parts/vpns.md`). On a host that is its vpns' name server too, kresd listens there as well.
->>>>>>> @stamp
 
 ## Failures
 
