@@ -291,8 +291,9 @@ let
 
   # Policy: a WordPress site's server, as the host's nginx runs it, passes WordPress's entry points to PHP, which isn't
   # there to answer (502), and denies PHP it only includes, PHP in uploads and dotfiles (403).
-  # Policy: the portal lists the apps it names, in its order, described in each language, shows a page without a title as
-  # a note, with the commit it names, and logs in with the client its keycloak keeps.
+  # Policy: the portal lists the apps it names, in its order, described in each language, under the content's headings
+  # or its own, shows a page without a title as a note, with the commit it names, and logs in with the client its
+  # keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -307,6 +308,8 @@ let
         listed() { grep -o 'card-\(title\|url\)">[^<]*' "$site/$1" | cut -d'>' -f2 | tr '\n' ' '; }
         [[ $(listed index.html) == "Moln cloud.example.com Möten meet.example.com auth auth.example.com " ]]
         [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com " ]]
+        grep -qF '<h2>Det vi har</h2>' "$site/index.html" && grep -qF '<h2>Vill du vara med?</h2>' "$site/index.html"
+        grep -qF '<h2>Services</h2>' "$site/en/index.html" && grep -qF '<h2>Want an account?</h2>' "$site/en/index.html"
         grep -qF '"clientId":"www","issuer":"http://auth.example.com/realms/example"' "$site/index.html"
         grep -qF 'href="http://www.example.com/en/blog/first/"' "$site/en/index.html"
         [[ $(grep -c 'class="note"' "$site/en/index.html") == 2 && $(grep -c 'class="note"' "$site/notes/index.html") == 2 ]]

@@ -22,8 +22,8 @@ let
       not_found = "Sidan finns inte.";
       home = "Till startsidan";
       language = "Svenska";
-      invite_title = "Har du ett IT-behov?";
-      invite_text = "Skriv kort vad det handlar om, så hör vi av oss.";
+      invite_title = "Vill du ha ett konto?";
+      invite_text = "Konton ges på inbjudan. Lämna din adress, och gärna några ord om dig, så hör vi av oss.";
       invite_email = "E-postadress";
       invite_note = "Meddelande (frivilligt)";
       invite_send = "Be om en inbjudan";

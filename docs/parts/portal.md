@@ -37,6 +37,23 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   text = "Files, calendar and contacts."
   ```
 
+<<<<<<< signed
+=======
+- The start page's front matter has the org's wording, in its language: `extra.headings`, of the start page's parts, and
+  `extra.invite`, of the form (see Invites). The site has its own for what it leaves out, and for the rest, as "Log in"
+  or "Feed" (`nixos/apps/portal.nix`):
+
+  ```toml
+  [extra.headings]
+  services = "Services"
+
+  [extra.invite]
+  title = "Want an account?"
+  text = "Accounts are by invitation."
+  sent = "Thanks! We'll be in touch."
+  ```
+
+>>>>>>> @stamp
 - The header has the sections of the start page alone, by their titles, in the order of their `weight`, each once it has
   text or a page: a page with `draft = true` isn't on the site, so a section of drafts alone waits to be written. One
   with `extra.on_index = <n>` has its first `n` pages on the start page too, as a blog's latest posts with
@@ -87,8 +104,14 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
 ## Invites
 
 With `invites`, an address, the start page has a form where a visitor asks for an account: their address, and a message
+<<<<<<< signed
 if they like. It mails the request to `invites`, as the portal, which has to send mail (`principal.mail.send`), with the
 visitor's address as its Reply-To (`nixos/apps/portal/invites.py`).
+=======
+if they like, under `extra.invite`'s `title` and `text`, and `sent` once it's sent. It mails the request to `invites`,
+as the portal, which has to send mail (`principal.mail.send`), with the visitor's address as its Reply-To
+(`nixos/apps/portal/invites.py`).
+>>>>>>> @stamp
 
 - nginx passes a POST to `/invite` alone to `<app>-invites`, a service of the portal's user on its own address, of 16
   KiB at most, and 4 at once from an address, then one a minute; more are answered 429.
@@ -103,8 +126,17 @@ visitor's address as its Reply-To (`nixos/apps/portal/invites.py`).
 
 `eval-portal-mail` builds `tests/inventories/mail`'s portal, `www` on `web`, and checks that it lists its services in
 their order in each language, that a section is in the header once it has a page, that its notes are shown on the start
+<<<<<<< signed
 page and in their section, one with its commit and one without, and that the keycloak keeps its client.
 `vmTests.keycloak` serves it beside the keycloak, where a browser logs alice in from a page of it and back there, finds
 no form for an invite, is logged in to the drive without being asked again, and logs out, after which the portal's login
 asks again. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and refuses an
 address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an address.
+=======
+page and in their section, one with its commit and one without, that it takes the headings the content gives in one
+language and its own in the other, and that the keycloak keeps its client. `vmTests.keycloak` serves it beside the
+keycloak, where a browser logs alice in from a page of it and back there, finds no form for an invite, is logged in to
+the drive without being asked again, and logs out, after which the portal's login asks again. `vmTests.mail` has its
+form mail a request to elsewhere's carol, signed as the portal, and refuses an address of more than one mailbox, a
+return to another site, a GET, and a fifth request at once from an address.
+>>>>>>> @stamp

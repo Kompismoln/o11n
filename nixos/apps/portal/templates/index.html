@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 {%- set org = config.extra -%}
+{%- set headings = section.extra.headings | default(value=[]) -%}
+{%- set invite = section.extra.invite | default(value=[]) -%}
 <section class="hero">
   <div class="wrap">
     <h1>{{ section.title }}</h1>
@@ -12,7 +14,7 @@
 </section>
 {%- if org.services %}
 <section class="wrap" id="services">
-  <h2>{{ trans(key="services", lang=lang) }}</h2>
+  <h2>{% if headings.services %}{{ headings.services }}{% else %}{{ trans(key="services", lang=lang) }}{% endif %}</h2>
   <ul class="cards">
     {%- set described = section.extra.services | default(value=[]) %}
     {%- for service in org.services %}
@@ -32,9 +34,9 @@
 {%- endif %}
 {%- if org.invites %}
 <section class="wrap invite" id="invite" data-auth="guest">
-  <h2>{{ trans(key="invite_title", lang=lang) }}</h2>
-  <p class="muted">{{ trans(key="invite_text", lang=lang) }}</p>
-  <p class="notice" data-invite="sent" hidden>{{ trans(key="invite_sent", lang=lang) }}</p>
+  <h2>{% if invite.title %}{{ invite.title }}{% else %}{{ trans(key="invite_title", lang=lang) }}{% endif %}</h2>
+  <p class="muted">{% if invite.text %}{{ invite.text }}{% else %}{{ trans(key="invite_text", lang=lang) }}{% endif %}</p>
+  <p class="notice" data-invite="sent" hidden>{% if invite.sent %}{{ invite.sent }}{% else %}{{ trans(key="invite_sent", lang=lang) }}{% endif %}</p>
   <p class="notice error" data-invite="invalid" hidden>{{ trans(key="invite_invalid", lang=lang) }}</p>
   <p class="notice error" data-invite="failed" hidden>{{ trans(key="invite_failed", lang=lang) }} <a href="mailto:{{ org.contact }}">{{ org.contact }}</a></p>
   <form class="invite-form" method="post" action="/invite">
