@@ -33,6 +33,10 @@ let
   keycloak = org.app.${client.keycloak};
   realm = keycloak.realms.${client.realm} or { displayName = client.realm; };
   libraries = lib.attrNames app.roots;
+  drops = app.drops or [ ];
+  dropHome = "${app.principal.home}/drop";
+  dropIn = "/var/lib/immich-drop";
+  droppers = lib.unique (map (drop: drop.user) drops);
 
   media = "/var/lib/immich";
   secret = "/run/secrets/oidc-secret";
@@ -99,6 +103,84 @@ let
       ${psql} -f ${quotas}
     '';
   };
+
+  # Policy: what's put in a user's drop folders is uploaded as theirs, and deleted once Immich has it, as it starts, to
+  # catch up, and once nothing written there is open and it's been quiet for 5 seconds: what was last written before
+  # then, in batches, so that a file still being written, or begun meanwhile, is taken only once it's done; what's lost
+  # of what's written as the kernel's queue of events overflows, a write still going tells again. It uploads
+  # with a key of the user's that it makes as it starts and keeps in its runtime directory alone, as Immich makes a key
+  # only for the user who asks, and none for a user before they first log in, whose drops wait for their next.
+  # Fact: Immich keeps a key's SHA-256; Nextcloud writes what it moves in under its own name, rather than a .part's; the
+  # CLI uploads a file it's given by name whatever its extension, and exits nonzero as it can't reach Immich, which
+  # restarts the importer.
+  importer =
+    user:
+    pkgs.writeShellApplication {
+      name = "${cfg.name}-drop-${user}";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.curl
+        pkgs.findutils
+        pkgs.immich-cli
+        pkgs.inotify-tools
+        pkgs.jq
+        postgresql
+      ];
+      text = ''
+        dir=${dropIn}/${user}
+        key=$RUNTIME_DIRECTORY/key
+        take() {
+          if [[ ! -s $key ]]; then
+            token=$(head -c 48 /dev/urandom | base64 | tr -dc A-Za-z0-9)
+            hash=$(printf %s "$token" | sha256sum | cut -d ' ' -f 1)
+            made=$(${psql} -v hash="$hash" <<'EOF'
+        delete from api_key where name = 'o11n-drop'
+          and "userId" in (select id from "user" where "storageLabel" = '${user}');
+        insert into api_key (name, key, "userId", permissions)
+          select 'o11n-drop', decode(:'hash', 'hex'), id, '{asset.upload,user.read}' from "user"
+          where "storageLabel" = '${user}' and "deletedAt" is null
+          returning id;
+        EOF
+            )
+            if [[ -z $made ]]; then
+              echo "${user} is no user of ${cfg.name}'s until they first log in: what's in their drop folders waits for their next drop after that." >&2
+              return
+            fi
+            printf %s "$token" >"$key"
+          fi
+          media=$(curl -gsSf ${lib.escapeShellArg "${local}/api/server/media-types"} |
+            jq -r '.image + .video | map(ltrimstr(".")) | join("|")')
+          find "$dir" -mindepth 1 -name '.*' -prune -o -type f ! -newermt "@$since" \
+            -regextype posix-extended -iregex ".*\.($media)" -print0 |
+            IMMICH_INSTANCE_URL=${lib.escapeShellArg local} IMMICH_API_KEY=$(<"$key") \
+              xargs -0 -r -n 1000 immich upload --delete --delete-duplicates --no-progress
+        }
+        declare -A writing=()
+        note() {
+          case ,$1, in
+          ,START,) ;;
+          *,Q_OVERFLOW,*) writing=() ;;
+          *,ISDIR,*) ;;
+          *,CLOSE_WRITE,* | *,MOVED_TO,* | *,MOVED_FROM,* | *,DELETE,*) unset -v 'writing[$2]' ;;
+          *) writing[$2]=1 ;;
+          esac
+        }
+        while read -r events path; do
+          note "$events" "$path"
+          while read -r -t 5 events path; do
+            note "$events" "$path"
+          done
+          for path in "''${!writing[@]}"; do
+            [[ -e $path ]] || unset -v 'writing[$path]'
+          done
+          if ((''${#writing[@]} == 0)); then
+            since=$(date +%s.%N)
+            take
+          fi
+        done < <(echo START && exec inotifywait -mrq -e create -e modify -e close_write -e moved_to -e moved_from \
+          -e delete --format '%e %w%f' "$dir")
+      '';
+    };
 
   # Policy: what's declared is the app's settings, which Immich then reads from its config file alone, its admin
   # pages showing them as they are; the realm is the only way in, and its login page sends to it.
@@ -277,7 +359,13 @@ in
       "f+ '${app.principal.home}/.resticignore' 0644 ${cfg.user} ${cfg.user} - immich/thumbs/\\nimmich/encoded-video/\\n"
       "d '${cfg.home}' 0700 ${cfg.user} ${cfg.user} - -"
       "d '${cfg.cache}' 0700 ${cfg.user} ${cfg.user} - -"
-    ];
+    ]
+    ++ lib.optional (drops != [ ]) "d '${dropHome}' 0700 ${cfg.user} ${cfg.user} - -"
+    ++ lib.concatMap (drop: [
+      "d '${dropHome}/${drop.user}' 0700 ${cfg.user} ${cfg.user} - -"
+      "d '${dropHome}/${drop.user}/${drop.drive}' 0700 ${cfg.user} ${cfg.user} - -"
+      "d '${drop.path}' 0700 ${cfg.user} ${cfg.user} - -"
+    ]) drops;
 
     systemd.services."container@${cfg.name}" = {
       # Fact: the container binds each secret's file as it starts, and a switch to another of its values restarts
@@ -328,6 +416,12 @@ in
         ${secret} = {
           hostPath = config.sops.secrets.${client.secret.name}.path;
           isReadOnly = true;
+        };
+      }
+      // lib.optionalAttrs (drops != [ ]) {
+        ${dropIn} = {
+          hostPath = dropHome;
+          isReadOnly = false;
         };
       }
       // lib.optionalAttrs sending {
@@ -386,20 +480,42 @@ in
           };
         };
 
-        systemd.services.immich-users = {
-          description = "keep ${cfg.name}'s admin, and its users' libraries and quotas, as declared";
-          after = [ "immich-server.service" ];
-          requires = [ "immich-server.service" ];
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            User = cfg.user;
-            Group = cfg.user;
-            ExecStart = lib.getExe users;
-            TimeoutStartSec = 300;
+        systemd.services = {
+          immich-users = {
+            description = "keep ${cfg.name}'s admin, and its users' libraries and quotas, as declared";
+            after = [ "immich-server.service" ];
+            requires = [ "immich-server.service" ];
+            wantedBy = [ "multi-user.target" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              User = cfg.user;
+              Group = cfg.user;
+              ExecStart = lib.getExe users;
+              TimeoutStartSec = 300;
+            };
           };
-        };
+        }
+        // lib.listToAttrs (
+          map (
+            user:
+            lib.nameValuePair "immich-drop-${user}" {
+              description = "take what's put in ${user}'s drop folders into their library";
+              after = [ "immich-users.service" ];
+              requires = [ "immich-users.service" ];
+              wantedBy = [ "multi-user.target" ];
+              serviceConfig = {
+                User = cfg.user;
+                Group = cfg.user;
+                ExecStart = lib.getExe (importer user);
+                RuntimeDirectory = "immich-drop-${user}";
+                RuntimeDirectoryMode = "0700";
+                Restart = "always";
+                RestartSec = 10;
+              };
+            }
+          ) droppers
+        );
       };
     };
   };

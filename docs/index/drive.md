@@ -47,6 +47,23 @@ Default: `null`
 
 the directory on the app's hosts the storage is of, which nextcloud's user can write in, or null
 
+### `app.<drive>.storages.<name>.<name>.library`
+
+`org/apps/drive.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the photos app whose library of the user the storage is, read-only, from the root's share, or null
+
+### `app.<drive>.storages.<name>.<name>.photos`
+
+`org/apps/drive.nix` · null or impossible (empty enum)
+
+Default: `null`
+
+the photos app the storage is a drop folder of, which takes what's put there into the user's library there, deleting it,
+or null
+
 ### `app.<drive>.storages.<name>.<name>.sftp`
 
 `org/apps/drive.nix` · null or (submodule)

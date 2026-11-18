@@ -5,7 +5,39 @@
 }:
 let
   inherit (outputs) org;
-  inherit (org.app) auth photos;
+  inherit (org.app) auth;
+  # Fact: the inventory's photos, with a drop folder of alice's as org/apps/drive.nix derives it for the drive cloud's
+  # storages.alice.Bilder.photos = "photos", and cloud, with users of its own rather than auth's realm's, whose alice
+  # has the drop folder and a bind of /srv/pub, pub.
+  drop = "${org.app.photos.principal.home}/drop/alice/cloud/Bilder";
+  drops = [
+    {
+      mountPoint = "/Bilder";
+      user = "alice";
+      sharing = false;
+      photos = "photos";
+      drive = "cloud";
+      path = drop;
+      owner = "photos";
+    }
+  ];
+  photos = org.app.photos // {
+    inherit drops;
+  };
+  cloud = pkgs.lib.recursiveUpdate org.app.cloud {
+    client = null;
+    users.alice = false;
+    binds = [
+      {
+        mountPoint = "/pub";
+        user = "alice";
+        sharing = false;
+        path = "/srv/pub";
+      }
+    ];
+    inherit drops;
+  };
+  dav = "${cloud.url}/remote.php/dav/files/alice";
   shared = import ./mail-org.nix { inherit pkgs o11nInputs outputs; };
   inherit (shared)
     tls
@@ -18,9 +50,12 @@ let
   share = "/srv/box/alice";
   root = "${share}/photos";
 
-  picture = pkgs.runCommand "red.jpg" { nativeBuildInputs = [ pkgs.imagemagick ]; } ''
-    magick -size 16x16 xc:red $out
-  '';
+  pictureOf =
+    colour:
+    pkgs.runCommand "${colour}.jpg" { nativeBuildInputs = [ pkgs.imagemagick ]; } ''
+      magick -size 16x16 xc:${colour} $out
+    '';
+  picture = pictureOf "red";
 
   # Fact: the box's server and the apps' endpoints, as the internet's DNS would answer.
   resolving =
@@ -31,9 +66,30 @@ let
         ${nodes.web.networking.primaryIPAddress} = [
           auth.endpoint
           photos.endpoint
+          cloud.endpoint
         ];
       };
       security.pki.certificateFiles = [ "${tls}/ca.crt" ];
+    };
+
+  nextcloud =
+    {
+      config,
+      host,
+      lib,
+      org,
+      pkgs,
+      ...
+    }:
+    import ../../nixos/apps/drive.nix {
+      app = cloud;
+      inherit
+        config
+        host
+        lib
+        org
+        pkgs
+        ;
     };
 
   immich =
@@ -121,12 +177,22 @@ pkgs.testers.runNixOSTest {
           ../../nixos/org/mail.nix
           ../../nixos/apps/keycloak.nix
           immich
+          nextcloud
         ]
-        ++ map principal (org.host.web.principals ++ [ photos ]);
+        ++ map principal (
+          org.host.web.principals
+          ++ [
+            photos
+            cloud
+          ]
+        );
         _module.args = {
-          # Accommodating for the inventory, whose photos runs on no host: here, web has it as a principal.
+          # Accommodating for the inventory, whose photos and cloud run on no host: here, web has them as principals.
           host = org.host.web // {
-            principals = org.host.web.principals ++ [ photos ];
+            principals = org.host.web.principals ++ [
+              photos
+              cloud
+            ];
           };
           app = auth;
         };
@@ -134,12 +200,19 @@ pkgs.testers.runNixOSTest {
           enable = true;
           recommendedProxySettings = true;
         };
-        # Accommodating for the test's network, which has no ACME server: the test's CA signs photos' certificate.
-        services.nginx.virtualHosts.${photos.endpoint} = {
+        # Accommodating for the test's network, which has no ACME server: the test's CA signs the apps' certificates.
+        services.nginx.virtualHosts = lib.genAttrs [ photos.endpoint cloud.endpoint ] (endpoint: {
           enableACME = lib.mkForce false;
-          sslCertificate = "${tls}/${photos.endpoint}.crt";
-          sslCertificateKey = "${tls}/${photos.endpoint}.key";
+          sslCertificate = "${tls}/${endpoint}.crt";
+          sslCertificateKey = "${tls}/${endpoint}.key";
+        });
+        # Accommodating for the test's network, whose addresses are private, which nextcloud fetches from only when let.
+        containers.${cloud.name}.config = {
+          networking.hosts.${nodes.web.networking.primaryIPAddress} = [ cloud.endpoint ];
+          security.pki.certificateFiles = [ "${tls}/ca.crt" ];
+          services.nextcloud.settings.allow_local_remote_servers = true;
         };
+        systemd.tmpfiles.rules = [ "d /srv/pub 0750 ${cloud.name} ${cloud.name} - -" ];
         # Accommodating for the test's network, whose hosts the container resolves as the host does, and which has
         # no internet to fetch machine learning's models from.
         containers.photos.config = {
@@ -161,8 +234,9 @@ pkgs.testers.runNixOSTest {
         networking.localCommands = "ip -6 route replace local ${org.loCidr} dev lo";
         boot.kernel.sysctl."net.ipv6.ip_nonlocal_bind" = 1;
         environment.systemPackages = [ pkgs.jq ];
-        virtualisation.memorySize = 4096;
-        virtualisation.cores = 2;
+        virtualisation.memorySize = 8192;
+        virtualisation.diskSize = 4096;
+        virtualisation.cores = 4;
       };
   };
 
@@ -261,6 +335,22 @@ pkgs.testers.runNixOSTest {
         )
         assert not status.startswith("2"), status
 
+    def dropped(name, source):
+        web.succeed(f"install -o photos -g photos -m 0640 {source} '${drop}/{name}'")
+
+    def originals(user):
+        return sql(
+            'select "originalFileName" from asset join "user" on "user".id = asset."ownerId"'
+            f" where \"storageLabel\" = '{user}' order by 1"
+        ).split()
+
+    with subtest("what's dropped for a user who hasn't logged in waits for them"):
+        dropped("blue.jpg", "${pictureOf "blue"}")
+        web.wait_until_succeeds(
+            "nixos-container run photos -- journalctl -u immich-drop-alice | grep -q 'is no user of photos'", timeout=120
+        )
+        web.succeed("test -f '${drop}/blue.jpg'")
+
     with subtest("a Keycloak user with a box logs in, and what they upload is filed in it"):
         member("alice")
         session = login("alice")
@@ -270,6 +360,19 @@ pkgs.testers.runNixOSTest {
         body, status = upload("alice")
         assert status == "201", f"{status} {body}"
         mx.wait_until_succeeds("test -f ${root}/2024/2024-05-06/red.jpg", timeout=120)
+
+    with subtest("what's dropped is taken into its user's library and deleted, and what Immich doesn't take stays"):
+        dropped("green.jpg", "${pictureOf "green"}")
+        dropped("red.jpg", "${picture}")
+        dropped("notes.txt", "${pkgs.writeText "notes.txt" "notes"}")
+        dropped("yellow.jpg.ocTransferId1.part", "${pictureOf "yellow"}")
+        web.wait_until_succeeds(
+            "! test -e '${drop}/green.jpg' && ! test -e '${drop}/blue.jpg' && ! test -e '${drop}/red.jpg'", timeout=120
+        )
+        assert originals("alice") == ["blue.jpg", "green.jpg", "red.jpg"], originals("alice")
+        left = web.succeed("ls '${drop}'").split()
+        assert left == ["notes.txt", "yellow.jpg.ocTransferId1.part"], left
+        mx.wait_until_succeeds("ls ${root}/*/*/green.jpg", timeout=120)
 
     with subtest("a Keycloak user without a box logs in, and can upload nothing"):
         member("carol")
@@ -288,7 +391,8 @@ pkgs.testers.runNixOSTest {
         web.succeed("systemctl restart container@photos.service")
         web.wait_until_succeeds("nixos-container run photos -- systemctl is-active immich-users.service", timeout=300)
         assets = answer("alice", "POST", "search/metadata", "-H 'Content-Type: application/json'", "--data-raw '{}'")
-        assert [asset["originalFileName"] for asset in assets["assets"]["items"]] == ["red.jpg"], assets
+        names = sorted(asset["originalFileName"] for asset in assets["assets"]["items"])
+        assert names == ["blue.jpg", "green.jpg", "red.jpg"], assets
         admins = sql('select count(*) from "user" where "isAdmin"')
         assert admins == "1", admins
 
@@ -312,5 +416,52 @@ pkgs.testers.runNixOSTest {
         assert owners[:2] == ["photos 700", "photos 750"], owners
         web.succeed("systemctl start container@photos.service")
         web.wait_until_succeeds("nixos-container run photos -- systemctl is-active immich-users.service", timeout=300)
+
+    with subtest("a write that pauses in a drop folder is taken only once it's done"):
+        web.wait_until_succeeds("nixos-container run photos -- systemctl is-active immich-drop-alice.service", timeout=120)
+        web.succeed("head -c 200000 /dev/urandom > /tmp/tail && cat ${pictureOf "orange"} /tmp/tail > /tmp/slow.jpg")
+        size = web.succeed("stat -c %s /tmp/slow.jpg").strip()
+        web.succeed(
+            "runuser -u photos -- sh -c '"
+            "exec 3>\"${drop}/slow.jpg\"; head -c 300 /tmp/slow.jpg >&3; sleep 12; tail -c +301 /tmp/slow.jpg >&3"
+            "' >/dev/null 2>&1 &"
+        )
+        web.sleep(10)
+        web.succeed("test -f '${drop}/slow.jpg'")
+        web.wait_until_succeeds("! test -e '${drop}/slow.jpg'", timeout=120)
+        filed = mx.succeed("stat -c %s $(ls ${root}/*/*/slow.jpg)").strip()
+        assert filed == size, f"{filed} of {size} bytes filed"
+
+    with subtest("a mixed folder the drive moves into a drop folder: its photos and videos taken, the rest left"):
+        web.wait_until_succeeds("nixos-container run ${cloud.name} -- systemctl is-active nextcloud-external.service", timeout=600)
+        web.succeed("nixos-container run ${cloud.name} -- env OC_PASS=alice-password nextcloud-occ user:resetpassword --password-from-env alice")
+        before = len(originals("alice"))
+        web.succeed(
+            "runuser -u ${cloud.name} -- sh -c '"
+            "cd /srv/pub && mkdir -p mixed/a/b mixed/c && "
+            "for i in $(seq 300); do d=mixed/a; [ $((i % 3)) = 0 ] && d=mixed/a/b; [ $((i % 3)) = 1 ] && d=mixed/c; "
+            "{ cat ${picture}; echo $i; } > $d/p$i.jpg; done && "
+            "head -c 300M /dev/urandom > mixed/c/clip.mp4 && "
+            "echo notes > mixed/notes.txt && echo doc > mixed/a/b/doc.pdf"
+            "'"
+        )
+        curl = "curl -sS -u alice:alice-password"
+        web.succeed(f"{curl} -f -X PROPFIND -H 'Depth: 1' '${dav}/pub/' -o /dev/null")
+        moved = web.succeed(
+            f"{curl} -w '\\n%{{http_code}}' -X MOVE -H 'Destination: ${dav}/Bilder/mixed' '${dav}/pub/mixed'"
+        ).strip()
+        assert moved.endswith("201"), f"the move answered {moved}"
+        web.fail("test -e /srv/pub/mixed")
+        web.wait_until_succeeds(
+            "test -z \"$(find '${drop}/mixed' -type f \\( -name '*.jpg' -o -name '*.mp4' \\))\"", timeout=900
+        )
+        taken = len(originals("alice")) - before
+        assert taken == 301, f"{taken} taken"
+        left = sorted(web.succeed("cd '${drop}/mixed' && find . -type f").split())
+        assert left == ["./a/b/doc.pdf", "./notes.txt"], left
+        listed = web.succeed(f"{curl} -f -X PROPFIND -H 'Depth: 1' '${dav}/Bilder/mixed/'")
+        assert "notes.txt" in listed, listed
+        listed = web.succeed(f"{curl} -f -X PROPFIND -H 'Depth: 1' '${dav}/Bilder/mixed/c/'")
+        assert "p1.jpg" not in listed and "clip.mp4" not in listed, listed
   '';
 }

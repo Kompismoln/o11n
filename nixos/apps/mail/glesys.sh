@@ -50,7 +50,7 @@ add() {
 # Policy: a record o11n owns is made what it's to be; one it doesn't is added only where there's none of its kind.
 keep() {
 	local zone=$1 host=$2 type=$3 prefix=$4 data=$5 owned=$6 id was
-	IFS=$'\t' read -r id was < <(found "$host" "$type" "$prefix" | head -n 1)
+	IFS=$'\t' read -r id was < <(found "$host" "$type" "$prefix" | head -n 1) || true
 	if [[ -z ${id:-} ]]; then
 		add "$zone" "$host" "$type" "$data"
 	elif [[ $owned == true && $was != "$data" ]]; then

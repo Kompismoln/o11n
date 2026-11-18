@@ -8,7 +8,10 @@ let
   inherit (outputs) org;
   # Fact: the mail inventory's drive, with users of its own rather than auth's realm's, which vmTests.keycloak runs,
   # and storages and roots as org/apps/drive.nix derives them for storages.bob.pub.bind = "/srv/pub" and
-  # roots.rolf = "app-site", site's home /var/lib/site.
+  # roots.rolf = "app-site", site's home /var/lib/site, and storages.bob.Bilder.library = "photos", whose root of bob
+  # is photos/ in box's share on mx.
+  box = org.entities.store-box;
+  library = "/srv/box/alice/photos";
   cloud = lib.recursiveUpdate org.app.cloud {
     client = null;
     users = {
@@ -28,6 +31,23 @@ let
         user = "bob";
         sharing = false;
         path = "/srv/pub";
+      }
+    ];
+    libraries = [
+      {
+        mountPoint = "/Bilder";
+        user = "bob";
+        sharing = false;
+        photos = "photos";
+        inherit (box.smb) host login;
+        share = "${box.smb.share}/photos";
+        key = {
+          inherit (box) handle;
+          secret = {
+            name = "${box.name}/smb-password";
+            inherit (box.secrets) sopsFile;
+          };
+        };
       }
     ];
   };
@@ -64,6 +84,55 @@ pkgs.testers.runNixOSTest {
 
   node.specialArgs = { inherit org o11nInputs; };
 
+  # Fact: a storage box, whose share alice's is, which logs in as alice with the store's smb-password, and holds a
+  # library Immich has filed.
+  nodes.mx =
+    { config, ... }:
+    {
+      imports = [ inventorySecrets ];
+      sops.secrets."box/smb-password".sopsFile = box.secrets.sopsFile;
+      users.users.alice = {
+        isSystemUser = true;
+        group = "alice";
+      };
+      users.groups.alice = { };
+      systemd.tmpfiles.rules = [
+        "d /srv/box/alice 0700 alice alice - -"
+        "d ${library} 0700 alice alice - -"
+        "d ${library}/2024 0700 alice alice - -"
+        "d ${library}/2024/2024-05-06 0700 alice alice - -"
+        "f ${library}/2024/2024-05-06/red.jpg 0600 alice alice - red"
+      ];
+      services.samba = {
+        enable = true;
+        openFirewall = true;
+        settings = {
+          global = {
+            "server min protocol" = "SMB3_11";
+            "server smb encrypt" = "required";
+          };
+          alice = {
+            path = "/srv/box/alice";
+            "read only" = "no";
+            "valid users" = "alice";
+          };
+        };
+      };
+      systemd.services.samba-password = {
+        before = [ "samba-smbd.service" ];
+        requiredBy = [ "samba-smbd.service" ];
+        path = [ config.services.samba.package ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          password=$(<${config.sops.secrets."box/smb-password".path})
+          printf '%s\n%s\n' "$password" "$password" | smbpasswd -s -a alice
+        '';
+      };
+    };
+
   nodes.web =
     { lib, nodes, ... }:
     {
@@ -74,7 +143,10 @@ pkgs.testers.runNixOSTest {
         (principal cloud)
       ];
       _module.args.host = org.host.web;
-      networking.hosts.${nodes.web.networking.primaryIPAddress} = [ cloud.endpoint ];
+      networking.hosts = {
+        ${nodes.web.networking.primaryIPAddress} = [ cloud.endpoint ];
+        ${nodes.mx.networking.primaryIPAddress} = [ box.smb.host ];
+      };
       security.pki.certificateFiles = [ "${tls}/ca.crt" ];
       services.nginx = {
         enable = true;
@@ -110,7 +182,9 @@ pkgs.testers.runNixOSTest {
     };
 
   testScript = ''
-    start_all()
+    mx.start()
+    mx.wait_for_unit("samba-smbd.service")
+    web.start()
     for unit in ["nextcloud-office", "coolwsd"]:
         web.wait_until_succeeds(f"nixos-container run ${cloud.name} -- systemctl is-active {unit}.service", timeout=600)
 
@@ -180,5 +254,24 @@ pkgs.testers.runNixOSTest {
         assert "from-site.txt" in listed, listed
         said = web.succeed("nextcloud-status-${cloud.name}")
         assert "${cloud.name} root rolf ok" in said.splitlines(), said
+
+    with subtest("a library is read-only in nextcloud, as Immich filed it, and what's filed there after shows"):
+        for folder, held in [("", "2024/"), ("2024/", "2024-05-06/"), ("2024/2024-05-06/", "red.jpg")]:
+            listed = web.succeed(f"curl -sSf -u bob:alice-password -X PROPFIND -H 'Depth: 1' '${dav}/Bilder/{folder}'")
+            assert f"/Bilder/{folder}{held}<" in listed, listed
+        assert web.succeed("curl -sSf -u bob:alice-password '${dav}/Bilder/2024/2024-05-06/red.jpg'").strip() == "red"
+        written = put("Bilder/written.txt", "written")
+        assert not written.startswith("2"), f"bob wrote in his library: {written}"
+        deleted = web.succeed(
+            "curl -s -o /dev/null -w '%{http_code}' -u bob:alice-password -X DELETE '${dav}/Bilder/2024/2024-05-06/red.jpg'"
+        ).strip()
+        assert not deleted.startswith("2"), f"bob deleted from his library: {deleted}"
+        mx.succeed("test -f ${library}/2024/2024-05-06/red.jpg && ! test -e ${library}/written.txt")
+        web.sleep(1)
+        mx.succeed("install -o alice -g alice -m 0600 /dev/null ${library}/2024/2024-05-06/blue.jpg")
+        web.wait_until_succeeds(
+            "curl -sSf -u bob:alice-password -X PROPFIND -H 'Depth: 1' '${dav}/Bilder/2024/2024-05-06/' | grep -q blue.jpg",
+            timeout=30,
+        )
   '';
 }

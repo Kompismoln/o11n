@@ -875,6 +875,136 @@ in
       };
     };
 
+  # Policy: a drop folder is a directory in its photos app's home, of a user it has a root of, on the hosts they both
+  # run on.
+  test_drive_drops =
+    let
+      album = {
+        id = 8;
+        endpoint = "album.example.com";
+        run-on-hosts = [ "laptop" ];
+        kind = "photos";
+        keycloak = "cloud";
+        realm = "example";
+        roots.alice = "store-files";
+      };
+      drops =
+        change:
+        let
+          altered =
+            (alter (
+              lib.recursiveUpdate {
+                store.files.smb = smb;
+                app.album = album;
+                app.cloud.storages.alice."Till bilder".photos = "album";
+              } change
+            )).org.app;
+          tried = builtins.tryEval (
+            builtins.deepSeq [
+              altered.cloud.drops
+              altered.album.drops
+            ] altered
+          );
+        in
+        if tried.success then
+          {
+            cloud = tried.value.cloud.drops;
+            album = map (drop: drop.drive) tried.value.album.drops;
+          }
+        else
+          null;
+      home = (alter { app.album = album; }).org.app.album.principal.home;
+    in
+    {
+      expr = {
+        dropped = drops { };
+        rootless = drops { app.cloud.storages.lisa."Till bilder".photos = "album"; };
+        elsewhere = drops { app.album.run-on-hosts = [ "zhost" ]; };
+        drive = drops { app.cloud.storages.alice."Till bilder".photos = "cloud"; };
+      };
+      expected = {
+        dropped = {
+          cloud = [
+            {
+              mountPoint = "/Till bilder";
+              user = "alice";
+              sharing = false;
+              photos = "album";
+              drive = "cloud";
+              path = "${home}/drop/alice/cloud/Till bilder";
+              owner = "album";
+            }
+          ];
+          album = [ "cloud" ];
+        };
+        rootless = null;
+        elsewhere = null;
+        drive = null;
+      };
+    };
+
+  # Policy: a library is read from its user's root in its photos app, wherever that runs.
+  test_drive_libraries =
+    let
+      libraries =
+        change:
+        let
+          altered =
+            (alter (
+              lib.recursiveUpdate {
+                store.files.smb = smb;
+                app.album = {
+                  id = 8;
+                  endpoint = "album.example.com";
+                  run-on-hosts = [ "zhost" ];
+                  kind = "photos";
+                  keycloak = "cloud";
+                  realm = "example";
+                  roots.alice = "store-files";
+                };
+                app.cloud.storages.alice.Bilder.library = "album";
+              } change
+            )).org.app.cloud;
+          tried = builtins.tryEval (builtins.deepSeq altered.libraries altered.libraries);
+        in
+        if tried.success then
+          map (library: {
+            inherit (library)
+              mountPoint
+              user
+              photos
+              host
+              share
+              login
+              ;
+            key = library.key.handle;
+          }) tried.value
+        else
+          null;
+    in
+    {
+      expr = {
+        library = libraries { };
+        rootless = libraries { app.cloud.storages.lisa.Bilder.library = "album"; };
+        drive = libraries { app.cloud.storages.alice.Bilder.library = "cloud"; };
+      };
+      expected = {
+        library = [
+          {
+            mountPoint = "/Bilder";
+            user = "alice";
+            photos = "album";
+            host = "files.example.com";
+            share = "files/photos";
+            login = "files";
+            key = "store-files";
+          }
+        ];
+        rootless = null;
+        drive = null;
+      };
+    };
+
   # Policy: a root is a directory of a store's share or of an entity's home, its kind's name by default, which no
   # other root is; a photos app's is a share's alone.
   test_roots =

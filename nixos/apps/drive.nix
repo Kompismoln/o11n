@@ -291,7 +291,26 @@ let
     };
 
   mounts = app.mounts.${host.name} or [ ];
-  binds = app.binds or [ ];
+  # Policy: a drop folder is a bind of its directory in its photos app's home, which the host mounts as the app's
+  # user's, and what's written there is written as the photos app.
+  drops = app.drops or [ ];
+  dropOf = drop: "${cfg.home}/drops/${drop.user}${drop.mountPoint}";
+  # Policy: a library is its root's directory of the share, which the host mounts read-only as the app's user's, so
+  # that Nextcloud shows it as Immich files it and writes nothing there.
+  libraries = app.libraries or [ ];
+  libraryOf = library: "${cfg.home}/libraries/${library.user}${library.mountPoint}";
+  libraryCredentialsOf = handle: "${app.name}/libraries/${handle}-smb-credentials";
+  binds =
+    (app.binds or [ ])
+    ++ map (drop: {
+      inherit (drop) mountPoint user sharing;
+      path = dropOf drop;
+    }) drops
+    ++ map (library: {
+      inherit (library) mountPoint user sharing;
+      path = libraryOf library;
+      readOnly = true;
+    }) libraries;
   bindOf = bind: "/srv/binds/${bind.user}${bind.mountPoint}";
   # Policy: a user without a root has the files no one can write in, which their storages are folders in.
   unrooted = lib.attrNames (lib.filterAttrs (_: rooted: !rooted) (app.users or { }));
@@ -307,6 +326,15 @@ let
   # there is written as its owner.
   homes = app.homes or [ ];
   roots = shares ++ homes;
+  bound =
+    map (home: {
+      inherit (home) path owner;
+      at = dataOf home.user;
+    }) homes
+    ++ map (drop: {
+      inherit (drop) path owner;
+      at = dropOf drop;
+    }) drops;
   contained = [
     app.secrets
   ]
@@ -569,7 +597,7 @@ in
           inherit (share.key.secret) sopsFile;
           key = share.key.secret.name;
         }
-      ) shares
+      ) (shares ++ libraries)
     );
 
     sops.templates = lib.listToAttrs (
@@ -582,6 +610,15 @@ in
           '';
         }
       ) shares
+      ++ map (
+        library:
+        lib.nameValuePair (libraryCredentialsOf library.key.handle) {
+          content = ''
+            username=${library.login}
+            password=${config.sops.placeholder.${passwordOf library.key.handle}}
+          '';
+        }
+      ) libraries
     );
 
     # Policy: a root in a share is mounted as the app's user, and the container starts only once it is, so that Nextcloud never
@@ -622,6 +659,10 @@ in
       assertion = builtins.pathExists mount.server.changes.hostKey;
       message = "Nextcloud ${cfg.name} follows what changes in ${mount.user}'s ${mount.mountPoint} on ${mount.server.host} by ssh, verifying its host's ssh-key, which it has none of: o11n host pull-ssh-key on that host.";
     }) followed
+    ++ map (drop: {
+      assertion = config.users.users ? ${drop.owner};
+      message = "Nextcloud ${cfg.name} mounts ${drop.user}'s ${drop.mountPoint} from ${drop.path}, a drop folder of ${drop.photos}, which isn't on ${host.name}: run ${drop.photos} on ${host.name}.";
+    }) drops
     ++ map (home: {
       assertion = config.users.users ? ${home.owner};
       message = "Nextcloud ${cfg.name} mounts ${home.user}'s root from ${home.path}, whose owner, ${home.owner}, isn't on ${host.name}: run the owner on ${host.name}, or root ${home.user} elsewhere.";
@@ -641,30 +682,56 @@ in
     };
 
     systemd.tmpfiles.rules =
-      lib.optionals (roots != [ ]) [
+      lib.optionals (roots ++ drops ++ libraries != [ ]) [
         "d '${cfg.home}' 0750 ${cfg.user} ${cfg.user} - -"
-        "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
       ]
+      ++ lib.optional (roots != [ ]) "d '${cfg.home}/data' 0750 ${cfg.user} ${cfg.user} - -"
+      ++ lib.optional (drops != [ ]) "d '${cfg.home}/drops' 0750 ${cfg.user} ${cfg.user} - -"
+      ++ lib.optional (libraries != [ ]) "d '${cfg.home}/libraries' 0750 ${cfg.user} ${cfg.user} - -"
       ++ map (home: "d '${home.path}' 0750 ${home.owner} ${home.owner} - -") homes;
 
-    system.fsPackages = lib.optional (homes != [ ]) pkgs.bindfs;
+    system.fsPackages =
+      lib.optional (bound != [ ]) pkgs.bindfs ++ lib.optional (libraries != [ ]) pkgs.cifs-utils;
 
-    # Fact: a mount unit with nofail isn't ordered before local-fs.target, so it can follow systemd-tmpfiles-setup,
-    # which makes the directories it mounts and mounts in.
-    systemd.mounts = map (home: {
-      what = home.path;
-      where = dataOf home.user;
-      type = "fuse.bindfs";
-      options = lib.concatStringsSep "," [
-        "force-user=${cfg.user}"
-        "force-group=${cfg.user}"
-        "create-for-user=${home.owner}"
-        "create-for-group=${home.owner}"
-        "nofail"
-      ];
-      after = [ "systemd-tmpfiles-setup.service" ];
-      wantedBy = [ "multi-user.target" ];
-    }) homes;
+    systemd.mounts =
+      # Fact: a mount unit, unlike fileSystems, which a NixOS test's VM replaces with its own. cifs caches a directory's
+      # entries for 30 seconds, without its mtime, which Nextcloud would take as read with what it lists then, and miss
+      # what Immich files meanwhile for good: nohandlecache.
+      map (library: {
+        what = "//${library.host}/${library.share}";
+        where = libraryOf library;
+        type = "cifs";
+        options = lib.concatStringsSep "," [
+          "ro"
+          "credentials=${config.sops.templates.${libraryCredentialsOf library.key.handle}.path}"
+          "uid=${toString cfg.uid}"
+          "gid=${toString cfg.gid}"
+          "dir_mode=0550"
+          "file_mode=0440"
+          "vers=3.1.1"
+          "seal"
+          "nohandlecache"
+        ];
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        wantedBy = [ "multi-user.target" ];
+      }) libraries
+      # Fact: a mount unit with nofail isn't ordered before local-fs.target, so it can follow systemd-tmpfiles-setup,
+      # which makes the directories it mounts and mounts in.
+      ++ map (mount: {
+        what = mount.path;
+        where = mount.at;
+        type = "fuse.bindfs";
+        options = lib.concatStringsSep "," [
+          "force-user=${cfg.user}"
+          "force-group=${cfg.user}"
+          "create-for-user=${mount.owner}"
+          "create-for-group=${mount.owner}"
+          "nofail"
+        ];
+        after = [ "systemd-tmpfiles-setup.service" ];
+        wantedBy = [ "multi-user.target" ];
+      }) bound;
 
     systemd.services = {
       # Fact: the container binds each secret's file as it starts, and a switch to another of its values restarts
@@ -673,7 +740,8 @@ in
         restartTriggers = map (file: builtins.hashFile "sha256" file) (
           lib.unique (map (secret: secret.sopsFile) contained)
         );
-        unitConfig.RequiresMountsFor = map (root: dataOf root.user) roots;
+        unitConfig.RequiresMountsFor =
+          map (root: dataOf root.user) roots ++ map dropOf drops ++ map libraryOf libraries;
         serviceConfig = {
           TimeoutStopSec = 10;
           KillMode = "mixed";
@@ -705,8 +773,15 @@ in
             };
           in
           {
+            # Policy: a request answers within an hour, as a move between storages, which Nextcloud makes in one, takes
+            # as long as copying what's moved.
+            # Fact: Nextcloud's WebDAV has no time limit, and goes on as its client gives up.
             "/" = {
               proxyPass = "http://[${cfg.bindAddress}]:${toString cfg.port}";
+              extraConfig = ''
+                proxy_read_timeout 3600s;
+                proxy_send_timeout 3600s;
+              '';
             };
             "^~ /browser" = office;
             "^~ /hosting/discovery" = office;
@@ -759,7 +834,7 @@ in
             bind:
             lib.nameValuePair (bindOf bind) {
               hostPath = bind.path;
-              isReadOnly = false;
+              isReadOnly = bind.readOnly or false;
             }
           ) binds
           ++ map (
@@ -854,6 +929,7 @@ in
             phpOptions = {
               "opcache.interned_strings_buffer" = 23;
             };
+            fastcgiTimeout = 3600;
             configureRedis = true;
             caching = {
               redis = true;

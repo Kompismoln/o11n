@@ -16,6 +16,16 @@
       description = "the keycloak realm of Immich's client";
       type = lib.types.str;
     };
+    drops = lib.mkOption {
+      description = "the drop folders of drives that the app takes into its users' libraries, each with its user and its directory in the app's home";
+      internal = true;
+      readOnly = true;
+      type = lib.types.listOf lib.types.raw;
+      default = lib.filter (drop: drop.photos == config.name) (
+        lib.concatMap (app: if app.kind == "drive" then app.drops else [ ]) (lib.attrValues context.org.app)
+      );
+      defaultText = lib.literalMD "each drive's `drops` of this app";
+    };
     client = lib.mkOption {
       description = "Immich's client, which the keycloak app keeps in the realm, as Keycloak's admin API represents it";
       internal = true;
