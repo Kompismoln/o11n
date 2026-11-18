@@ -96,8 +96,10 @@ back what it kept and reloads that, so that changes that lock `o11n` out undo th
 ## GleSYS
 
 For a router's `glesys` (`docs/parts/networks.md`), o11n derives `/etc/o11n/glesys`, which lists the records of each
-domain of `records` once, with the API key, and updates the A record that isn't the WAN address, and says so, or why it
-couldn't, to the router's log as `o11n-glesys`. It runs once the WAN is up, by `/etc/hotplug.d/iface/90-o11n-glesys`,
-and every 15 minutes, by `/etc/crontabs/root`, which `o11n openwrt apply` has cron read anew. It sends the key as a
-Basic `Authorization` header, which `ucode` encodes. The image leaves the script out, as it holds the key, until it's
-applied.
+domain of `records` once, with the API key, and updates the A record that isn't the WAN address, and the AAAA record of
+each of `records6` that isn't the first prefix of `wan6` that the router assigns its lan with the record's suffix, as
+odhcpd advertises it, and says so, or why it couldn't, to the router's log as `o11n-glesys`. It compares addresses as
+`ucode` writes them, so that GleSYS's form of one isn't a change. It runs once `wan` or `wan6` is up and as `wan6`
+changes, which its prefix does, by `/etc/hotplug.d/iface/90-o11n-glesys`, and every 15 minutes, by `/etc/crontabs/root`,
+which `o11n openwrt apply` has cron read anew. It sends the key as a Basic `Authorization` header, which `ucode`
+encodes. The image leaves the script out, as it holds the key, until it's applied.

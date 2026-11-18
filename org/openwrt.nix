@@ -92,13 +92,22 @@ let
 
   script = changes: "set -eu\n" + lib.concatStrings (lib.attrValues changes) + "uci commit\n";
 
-  # Policy: the router, which alone knows when its WAN address changes, updates the A records that name it, once its
-  # WAN is up and every 15 minutes after, and only those that differ.
+  # Policy: the router updates the records, as it alone knows when its WAN address and the prefix it delegates change.
   byDomain = lib.optionalAttrs (glesysOf != null) (
     lib.mapAttrs (_: fqdns: map (fqdn: lib.head (lib.splitString "." fqdn)) fqdns) (
       lib.groupBy (fqdn: lib.concatStringsSep "." (lib.tail (lib.splitString "." fqdn))) glesysOf.records
     )
   );
+
+  keepLine =
+    domain: name: type: given: address:
+    "\t[ -z \"\$${given}\" ] || keep ${
+      lib.escapeShellArgs [
+        domain
+        name
+        type
+      ]
+    } \"${address}\"\n";
 
   glesys = lib.optionalAttrs (glesysOf != null) {
     "/etc/o11n/glesys" = ''
@@ -107,34 +116,56 @@ let
       key='@o11n-secret:${glesysOf.key}@'
       # Fact: GleSYS answers uclient-fetch's --user and --password with 401, and a Basic header with the same with 200.
       auth=$(ucode -e 'print(b64enc(ARGV[0] + ":" + ARGV[1]))' -- ${lib.escapeShellArg glesysOf.account} "$key")
-      ip=$(ifstatus wan | jsonfilter -e '@["ipv4-address"][0].address')
-      [ -n "$ip" ] || exit 0
+      wan=$(ifstatus wan 2>/dev/null) || wan='{}'
+      wan6=$(ifstatus wan6 2>/dev/null) || wan6='{}'
+      ip=$(ucode -e 'print(json(ARGV[0])["ipv4-address"]?.[0]?.address ?? "")' -- "$wan")
+      # Fact: the lan's /64, which odhcpd advertises, is the first of what the router assigns the lan of its prefix.
+      prefix=$(ucode -e 'print(json(ARGV[0])["ipv6-prefix"]?.[0]?.assigned?.lan?.address ?? "")' -- "$wan6")
+      [ -n "$ip$prefix" ] || exit 0
       api() {
       	uclient-fetch -q -O - --header="Authorization: Basic $auth" --header='Accept: application/json' \
       		--post-data="$2" "https://api.glesys.com/domain/$1"
       }
+      six() {
+      	ucode -e 'let p = iptoarr(ARGV[0]), s = iptoarr(ARGV[1]); print(arrtoip(map(p, (b, i) => b | s[i])))' -- "$prefix" "$1"
+      }
+      # Policy: an address GleSYS has is compared as the router writes one, so that another form of it isn't a change.
+      keep() {
+      	found=$(ucode -e '
+      		for (let r in json(ARGV[0]).response?.records ?? [])
+      			if (r.host == ARGV[1] && r.type == ARGV[2]) { print(r.recordid, " ", arrtoip(iptoarr(r.data)) ?? r.data, "\n"); break; }
+      	' -- "$records" "$2" "$3")
+      	id=''${found%% *}
+      	data=''${found#* }
+      	if [ -z "$found" ]; then
+      		logger -t o11n-glesys "$1 has no $3 record $2"
+      	elif [ "$data" != "$4" ]; then
+      		api updaterecord "recordid=$id&data=$4" >/dev/null &&
+      			logger -t o11n-glesys "$2.$1 $3 is $4, was $data" ||
+      			logger -t o11n-glesys "updating $2.$1 $3 to $4 failed"
+      	fi
+      }
       ${lib.concatStrings (
         lib.mapAttrsToList (domain: names: ''
           if records=$(api listrecords ${lib.escapeShellArg "domainname=${domain}"}); then
-          	for name in ${lib.escapeShellArgs names}; do
-          		record="@.response.records[@.host=\"$name\" && @.type=\"A\"]"
-          		id=$(echo "$records" | jsonfilter -e "$record.recordid")
-          		data=$(echo "$records" | jsonfilter -e "$record.data")
-          		if [ -z "$id" ]; then
-          			logger -t o11n-glesys "${domain} has no A record $name"
-          		elif [ "$data" != "$ip" ]; then
-          			api updaterecord "recordid=$id&data=$ip" >/dev/null &&
-          				logger -t o11n-glesys "$name.${domain} is $ip, was $data" ||
-          				logger -t o11n-glesys "updating $name.${domain} to $ip failed"
-          		fi
-          	done
-          else
+          ${
+            lib.concatMapStrings (
+              name:
+              keepLine domain name "A" "ip" "$ip"
+              + lib.optionalString (glesysOf.records6 ? "${name}.${domain}") (
+                keepLine domain name "AAAA" "prefix"
+                  "$(six ${lib.escapeShellArg glesysOf.records6."${name}.${domain}"})"
+              )
+            ) names
+          }else
           	logger -t o11n-glesys "listing the records of ${domain} failed"
           fi
         '') byDomain
       )}'';
     "/etc/hotplug.d/iface/90-o11n-glesys" = ''
-      [ "$ACTION" = ifup ] && [ "$INTERFACE" = wan ] && sh /etc/o11n/glesys &
+      case "$ACTION:$INTERFACE" in
+      ifup:wan | ifup:wan6 | ifupdate:wan6) sh /etc/o11n/glesys & ;;
+      esac
     '';
     "/etc/crontabs/root" = ''
       */15 * * * * sh /etc/o11n/glesys

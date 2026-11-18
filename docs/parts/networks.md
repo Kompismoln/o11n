@@ -55,7 +55,10 @@ set as any other. From the hosts behind it, o11n derives:
 ### GleSYS
 
 A router with `glesys` keeps its WAN address in the account's DNS, as the A record of each of its `records`, by default
-the `endpoint` of each host behind it that has one, as the hosts behind its NAT share its address:
+the `endpoint` of each host behind it that has one, as the hosts behind its NAT share its address. On IPv6, where each
+has its own, it keeps the AAAA record of each of its `records6`, by default each of `records` that is a host's
+`endpoint`, as the prefix it delegates to its lan with the host's `suffix`; as the prefix changes with the ISP's lease,
+so do the records:
 
 ```toml
 [host.windsor]
@@ -66,4 +69,5 @@ glesys = { account = "CL12345" }
 ```
 
 The API key is the host's secret `key`. As the address changes, the key has to let any address in, and needs nothing but
-the domain API.
+the domain API. The router updates the records it finds and logs those it doesn't: an AAAA record is created by hand
+once, as an A record is.

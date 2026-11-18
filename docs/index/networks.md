@@ -226,7 +226,8 @@ the ports the router forwards, each `{ host, vpn, port }`: each port a host behi
 
 Default: `null`
 
-the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, or null
+the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, and the
+addresses of the hosts behind it on IPv6, as the AAAA record of each of `records6`, or null
 
 ### `host.<name>.router.glesys.account`
 
@@ -249,6 +250,16 @@ the host's secret that is the account's API key, which may update its DNS record
 Default: the `endpoint` of each host behind the router that has one
 
 the names whose A record is the router's WAN address, each `<name>.<domain>` of a domain of the account's
+
+### `host.<name>.router.glesys.records6`
+
+`org/router.nix` · attribute set of string matching the pattern ::[0-9a-f]{1,4}(:[0-9a-f]{1,4}){0,3}
+
+Default: each of `records` that is the `endpoint` of a host behind the router, by the `suffix` of its network on the
+`lan`
+
+the names whose AAAA record is the prefix the router delegates to its lan with a suffix, each `<name>.<domain>` of
+`records` by the suffix
 
 ### `host.<name>.router.lan`
 

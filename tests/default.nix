@@ -182,6 +182,57 @@ let
         touch $out
       '';
 
+  # Policy: the router's GleSYS updater writes its WAN address to each A record and the prefix it delegates to its lan
+  # with a host's suffix to each AAAA record, but for those that have it already, in whatever form.
+  openwrtChecks.eval-openwrt-glesys =
+    pkgs.runCommand "eval-openwrt-glesys"
+      {
+        nativeBuildInputs = [ pkgs.ucode ];
+        script = inventories.mesh.org.host.windsor.openwrt.files."/etc/o11n/glesys";
+      }
+      ''
+        mkdir bin
+        cat > bin/ifstatus <<'EOF'
+        #!/bin/sh
+        case $1 in
+        wan) echo '{ "ipv4-address": [ { "address": "203.0.113.7", "mask": 24 } ] }' ;;
+        wan6) echo '{ "ipv6-prefix": [ { "address": "2001:db8:0:9d00::", "mask": 56, "assigned": { "lan": { "address": "2001:db8:0:9d00::", "mask": 60 } } } ] }' ;;
+        *) exit 1 ;;
+        esac
+        EOF
+        cat > bin/uclient-fetch <<'EOF'
+        #!/bin/sh
+        for arg; do case $arg in --post-data=*) data=''${arg#--post-data=} ;; esac; done
+        echo "''${arg##*/} $data" >> "$PWD/calls"
+        case $* in
+        */listrecords) cat <<'JSON'
+        { "response": { "records": [
+          { "recordid": 1, "host": "alpha", "type": "A", "data": "198.51.100.1" },
+          { "recordid": 2, "host": "alpha", "type": "AAAA", "data": "2001:db8:0:9d00::fba" },
+          { "recordid": 3, "host": "beta", "type": "A", "data": "203.0.113.7" },
+          { "recordid": 4, "host": "beta", "type": "AAAA", "data": "2001:0db8:0000:9d00:0000:0000:0000:000b" },
+          { "recordid": 5, "host": "gamma", "type": "AAAA", "data": "2001:db8::1" }
+        ] } }
+        JSON
+        ;;
+        esac
+        EOF
+        printf '#!/bin/sh\nshift 2\necho "$*" >> "$PWD/log"\n' > bin/logger
+        chmod +x bin/*
+        export PATH=$PWD/bin:$PATH
+        sh -c "$script"
+        diff calls - <<'EOF'
+        listrecords domainname=example.com
+        updaterecord recordid=1&data=203.0.113.7
+        updaterecord recordid=2&data=2001:db8:0:9d00::a
+        EOF
+        diff log - <<'EOF'
+        alpha.example.com A is 203.0.113.7, was 198.51.100.1
+        alpha.example.com AAAA is 2001:db8:0:9d00::a, was 2001:db8:0:9d00::fba
+        EOF
+        touch $out
+      '';
+
   # Policy: a WordPress jail's filter is checked against what nginx logs, run with the host's own log format: a failed
   # login, one answered under load, a POST to xmlrpc.php, however many its slashes, and a login at an altpoint are
   # matched, a login, a GET and another app's requests aren't.

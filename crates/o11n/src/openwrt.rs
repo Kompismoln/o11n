@@ -279,32 +279,47 @@ impl Org {
         }
     }
 
-    // Policy: the record is the router's WAN address as a public resolver has it, or the updater's last word says why
-    // not.
     pub fn glesys_outcome(&self, id: &str, entity: &Entity, record: &str) -> Result<Outcome, Outcome> {
         let said = self.on_router(
             id,
             entity,
-            "ifstatus wan | jsonfilter -e '@[\"ipv4-address\"][0].address'; echo o11n-log; \
-             logread -e o11n-glesys | tail -n 1",
+            "ifstatus wan | jsonfilter -e '@[\"ipv4-address\"][0].address'; echo o11n-prefix; \
+             ifstatus wan6 2>/dev/null | jsonfilter -e '@[\"ipv6-prefix\"][0].assigned.lan.address'; \
+             echo o11n-log; logread -e o11n-glesys | tail -n 1",
         )?;
-        let (wan, last) = said.split_once("o11n-log\n").unwrap_or((&said, ""));
-        let (wan, last) = (wan.trim(), last.trim());
+        let (wan, rest) = said.split_once("o11n-prefix\n").unwrap_or((&said, ""));
+        let (prefix, last) = rest.split_once("o11n-log\n").unwrap_or((rest, ""));
+        let (wan, prefix, last) = (wan.trim(), prefix.trim(), last.trim());
+        let last = if last.is_empty() { "nothing" } else { last };
+        let fail = |error: Error| Outcome::Fail(error.to_string());
         if wan.is_empty() {
             return Ok(Outcome::Fail("the router has no WAN address".into()));
         }
-        let records = dns::lookup(record, dns::Type::A).map_err(|error| Outcome::Fail(error.to_string()))?;
-        if records.iter().any(|address| address == wan) {
+        let records = dns::lookup(record, dns::Type::A).map_err(fail)?;
+        if !records.iter().any(|address| address == wan) {
+            return Ok(Outcome::Fail(format!(
+                "{record} is {}, not the router's WAN address {wan}; o11n-glesys last logged: {last}",
+                listed(&records)
+            )));
+        }
+        let Some(suffix) = entity.router.as_ref().and_then(|router| router.records6.get(record)) else {
+            return Ok(Outcome::Ok);
+        };
+        let Some(expected) = joined(prefix, suffix) else {
+            return Ok(Outcome::Fail(format!(
+                "the router delegates no prefix to its lan, which {record}'s AAAA takes with {suffix}"
+            )));
+        };
+        let records = dns::lookup(record, dns::Type::Aaaa).map_err(fail)?;
+        if records
+            .iter()
+            .any(|address| address.parse::<Ipv6Addr>().is_ok_and(|address| address == expected))
+        {
             return Ok(Outcome::Ok);
         }
         Ok(Outcome::Fail(format!(
-            "{record} is {}, not the router's WAN address {wan}; o11n-glesys last logged: {}",
-            if records.is_empty() {
-                "nothing".to_owned()
-            } else {
-                records.join(", ")
-            },
-            if last.is_empty() { "nothing" } else { last }
+            "{record} AAAA is {}, not {expected}, the router's lan prefix {prefix} with {suffix}; o11n-glesys last logged: {last}",
+            listed(&records)
         )))
     }
 
@@ -438,10 +453,34 @@ impl Org {
     }
 }
 
+fn listed(records: &[String]) -> String {
+    if records.is_empty() {
+        "nothing".to_owned()
+    } else {
+        records.join(", ")
+    }
+}
+
+// Dependency: org/openwrt.nix's GleSYS updater makes a record's address so, each bit of the prefix's or the suffix's.
+fn joined(prefix: &str, suffix: &str) -> Option<Ipv6Addr> {
+    let prefix: Ipv6Addr = prefix.parse().ok()?;
+    let suffix: Ipv6Addr = suffix.parse().ok()?;
+    Some(Ipv6Addr::from(prefix.to_bits() | suffix.to_bits()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::util::TempDir;
+
+    #[test]
+    fn a_prefix_and_a_suffix_join() {
+        assert_eq!(
+            joined("2001:db8:0:9d00::", "::19"),
+            Some("2001:db8:0:9d00::19".parse().unwrap())
+        );
+        assert_eq!(joined("", "::19"), None);
+    }
 
     #[test]
     fn markers_take_their_secrets() {

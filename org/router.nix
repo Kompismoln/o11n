@@ -82,10 +82,10 @@ in
           dmz;
     };
     glesys = lib.mkOption {
-      description = "the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, or null";
+      description = "the GleSYS account whose DNS the router keeps its WAN address in, as the A record of each of `records`, and the addresses of the hosts behind it on IPv6, as the AAAA record of each of `records6`, or null";
       default = null;
       type = lib.types.nullOr (
-        lib.types.submodule {
+        lib.types.submodule (glesys: {
           options = {
             account = lib.mkOption {
               description = "the account, as GleSYS names it";
@@ -103,8 +103,27 @@ in
               default = lib.filter (endpoint: endpoint != null) (map (other: other.endpoint) behind);
               defaultText = lib.literalMD "the `endpoint` of each host behind the router that has one";
             };
+            records6 = lib.mkOption {
+              description = "the names whose AAAA record is the prefix the router delegates to its lan with a suffix, each `<name>.<domain>` of `records` by the suffix";
+              type = lib.types.attrsOf (lib.types.strMatching "::[0-9a-f]{1,4}(:[0-9a-f]{1,4}){0,3}");
+              default = lib.listToAttrs (
+                map (other: lib.nameValuePair other.endpoint config.lan.${other.name}.suffix) (
+                  lib.filter (other: lib.elem other.endpoint glesys.config.records) behind
+                )
+              );
+              defaultText = lib.literalMD "each of `records` that is the `endpoint` of a host behind the router, by the `suffix` of its network on the `lan`";
+              apply =
+                records6:
+                lib.throwIf (lib.any (record: !lib.elem record glesys.config.records) (lib.attrNames records6))
+                  "host.${host.name}.router.glesys.records6: ${
+                    lib.concatStringsSep " and " (
+                      lib.filter (record: !lib.elem record glesys.config.records) (lib.attrNames records6)
+                    )
+                  } isn't of records, whose domains the router lists: add it there."
+                  records6;
+            };
           };
-        }
+        })
       );
     };
     lan = lib.mkOption {

@@ -98,6 +98,8 @@ pub struct Router {
     pub address4: String,
     pub lan: BTreeMap<String, Lan>,
     pub records: Vec<String>,
+    #[serde(default)]
+    pub records6: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
