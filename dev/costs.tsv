@@ -876,3 +876,8 @@
 2026-11-18T16:09:45Z	container	8.3	813d8565	dev/check.sh lint
 2026-11-18T16:14:39Z	container	302.4	813d8565	nix-eval-jobs eval
 2026-11-18T16:14:56Z	container	15.5	813d8565	nix build .#stages.eval
+2026-11-18T16:15:32Z	container	0.1	813d8565	dev/check.sh parts
+2026-11-18T16:15:34Z	container	1.6	813d8565	dev/check.sh docs
+2026-11-18T16:15:36Z	container	3.6	813d8565	dev/check.sh format
+2026-11-18T16:15:37Z	container	4.7	813d8565	dev/check.sh index
+2026-11-18T16:15:37Z	container	4.9	813d8565	dev/check.sh lint
