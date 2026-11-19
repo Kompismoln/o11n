@@ -8,6 +8,15 @@ const base64url = (bytes) =>
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 
+// Policy: the visitor's tokens are the site's, in each of its tabs, and are renewed as a page of it loads: so a page
+// shows the visitor logged in as long as the realm has them so, and logged out once it no longer does, however their
+// session ended.
+const stored = () => JSON.parse(localStorage.getItem("auth.tokens") || "null");
+const store = (tokens) =>
+  tokens
+    ? localStorage.setItem("auth.tokens", JSON.stringify({ id_token: tokens.id_token, refresh_token: tokens.refresh_token }))
+    : localStorage.removeItem("auth.tokens");
+
 const random = () => base64url(crypto.getRandomValues(new Uint8Array(32)));
 
 const claims = (token) => {
@@ -35,8 +44,8 @@ async function login() {
 }
 
 function logout() {
-  const token = sessionStorage.getItem("auth.id_token");
-  sessionStorage.removeItem("auth.id_token");
+  const token = stored()?.id_token;
+  store(null);
   const params = new URLSearchParams({ client_id: config.clientId, post_logout_redirect_uri: here() });
   if (token) params.set("id_token_hint", token);
   location.assign(`${endpoint}/logout?${params}`);
@@ -46,37 +55,55 @@ function logout() {
 // carry it.
 async function landed() {
   const params = new URLSearchParams(location.search);
-  if (!params.has("state")) return;
+  if (!params.has("state")) return renew();
   const code = params.get("code");
   const state = params.get("state");
   const pending = JSON.parse(sessionStorage.getItem("auth.pending") || "null");
   sessionStorage.removeItem("auth.pending");
   for (const key of ["code", "state", "session_state", "iss", "error", "error_description"]) params.delete(key);
   history.replaceState(null, "", here() + (params.size ? `?${params}` : "") + location.hash);
-  if (!code || !pending || pending.state !== state) return;
-  sessionStorage.setItem("auth.id_token", await exchange(code, pending.verifier));
+  if (!code || !pending || pending.state !== state) return renew();
+  store(
+    await token({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: here(),
+      code_verifier: pending.verifier,
+    }),
+  );
 }
 
-async function exchange(code, verifier) {
+// Policy: a renewal the realm refuses, as it does once the visitor's session has ended, logs the page out; one it
+// doesn't answer leaves the tokens be.
+async function renew() {
+  const refresh = stored()?.refresh_token;
+  if (!refresh) return;
+  try {
+    store(await token({ grant_type: "refresh_token", refresh_token: refresh }));
+  } catch (error) {
+    if (error.refused) store(null);
+    throw error;
+  }
+}
+
+async function token(form) {
   const response = await fetch(`${endpoint}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: config.clientId,
-      code,
-      redirect_uri: here(),
-      code_verifier: verifier,
-    }),
+    body: new URLSearchParams({ client_id: config.clientId, ...form }),
   });
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-  return (await response.json()).id_token;
+  if (!response.ok) {
+    const error = new Error(`${response.status} ${await response.text()}`);
+    error.refused = response.status >= 400 && response.status < 500;
+    throw error;
+  }
+  return response.json();
 }
 
 function show() {
   const root = document.getElementById("auth");
-  const token = sessionStorage.getItem("auth.id_token");
-  const who = token && claims(token);
+  const id = stored()?.id_token;
+  const who = id && claims(id);
   root.querySelector('[data-auth="login"]').hidden = Boolean(who);
   root.querySelector('[data-auth="who"]').hidden = !who;
   if (who) root.querySelector('[data-auth="name"]').textContent = who.name || who.preferred_username;

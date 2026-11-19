@@ -292,8 +292,9 @@ in
       internal = true;
       readOnly = true;
       type = lib.types.raw;
-      # Dependency: nixos/apps/drive.nix logs in with user_oidc, whose code route is /apps/user_oidc/code, and
-      # which proves its code with PKCE where the realm offers it.
+      # Dependency: nixos/apps/drive.nix logs in with user_oidc, whose code route is /apps/user_oidc/code, which
+      # proves its code with PKCE where the realm offers it, and which takes a logout from the realm at
+      # /apps/user_oidc/backchannel-logout/<provider>, its provider named as the realm is.
       default = lib.mapNullable (keycloak: {
         inherit keycloak;
         inherit (config) realm;
@@ -318,13 +319,18 @@ in
             "${config.url}/apps/user_oidc/code"
             "${config.url}/index.php/apps/user_oidc/code"
           ];
+          # Policy: logging out of the realm logs out of Nextcloud, which Keycloak tells as it ends the user's session.
           attributes = {
             "pkce.code.challenge.method" = "S256";
             "post.logout.redirect.uris" = "${config.url}/*";
+            "backchannel.logout.url" =
+              "${config.url}/index.php/apps/user_oidc/backchannel-logout/"
+              + lib.escapeURL (org.app.${keycloak}.realms.${config.realm}.displayName or config.realm);
+            "backchannel.logout.session.required" = "true";
           };
         };
       }) config.keycloak;
-      defaultText = lib.literalMD "a confidential client with the app's `oidc-secret`, or null without a `keycloak`";
+      defaultText = lib.literalMD "a confidential client with the app's `oidc-secret`, which logs out of nextcloud as the realm does, or null without a `keycloak`";
     };
   };
 }

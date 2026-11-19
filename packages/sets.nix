@@ -79,6 +79,7 @@ rec {
     mtr
     unixtools.arp
     wakeonlan
+    nftables
   ];
 
   data-processing = [

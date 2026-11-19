@@ -40,7 +40,8 @@ are:
 - Any user of the realm gets in: Immich makes them its user as they first log in, with their Keycloak username as their
   storage label, which names their library, `library/<username>`.
 - Logging out of the realm logs out of the app: Keycloak calls its `/api/oauth/backchannel-logout` as it ends the user's
-  session.
+  session, the one the app's session logged in with alone; the app's session outlives it otherwise
+  (`docs/parts/keycloak.md`).
 - With a keycloak over http, Immich takes its issuer over http too (`allowInsecureRequests`).
 
 ## Users

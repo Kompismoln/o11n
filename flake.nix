@@ -65,7 +65,7 @@
             let
               categories = import ./tests {
                 inherit pkgs o11nLib;
-                inherit (config.packages) o11n o11n-dev;
+                inherit (config.packages) gate o11n o11n-dev;
               };
               stage =
                 name: checks:
@@ -92,6 +92,7 @@
               };
 
               packages = {
+                gate = pkgs.callPackage ./packages/gate.nix { };
                 gost = pkgs.callPackage ./packages/gost.nix { };
                 o11n = pkgs.callPackage ./packages/o11n.nix { };
                 o11n-dev = pkgs.callPackage ./packages/o11n-dev.nix { };

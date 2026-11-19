@@ -152,6 +152,12 @@ code = [
   "tests/vm/drive.nix",
 ]
 
+[parts.gate]
+stage = "drafted"
+layer = "platform"
+doc = "docs/parts/gate.md"
+code = ["crates/gate", "packages/gate.nix"]
+
 [parts.portal]
 stage = "drafted"
 layer = "ux"

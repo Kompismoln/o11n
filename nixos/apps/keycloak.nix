@@ -32,6 +32,10 @@ let
     editUsernameAllowed = false;
     resetPasswordAllowed = true;
     bruteForceProtected = true;
+    # Policy: a login lasts the org's authSessionLength whether it's used or not, as Immich's web app never renews it,
+    # and would be asked again sooner than the apps that do.
+    ssoSessionIdleTimeout = org.authSessionLength * 86400;
+    ssoSessionMaxLifespan = org.authSessionLength * 86400;
     # Dependency: nixos/apps/mail.nix serves submission at the app's endpoint, on 587 with STARTTLS.
     smtpServer = {
       host = if mail.server == null then "" else org.app.${mail.server}.endpoint;

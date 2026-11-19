@@ -314,6 +314,7 @@ in
         );
         alone = lib.all (part: lib.hasInfix part script) [
           "config:app:set user_oidc allow_multiple_user_backends --type=string --value=0"
+          "config:app:set user_oidc store_login_token --type=string --value=1 --lazy"
           ''select(.value.backend == "Database" and .value.enabled)''
           ''user:disable "$user"''
         ];

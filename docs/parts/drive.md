@@ -122,7 +122,11 @@ A drive with a `keycloak` has its users log in with the realm alone (`docs/parts
 - `nextcloud-oidc` disables each user of nextcloud's own each time it starts, and none can reset their password
 - a client logs in with an app password, which login flow v2 makes once its user has logged in with the realm, and never
   with a password, as `token_auth_enforced` has it
-- user_oidc sets a user's display name and email to the realm's each time they log in.
+- user_oidc sets a user's display name and email to the realm's each time they log in
+- a browser's session lasts as long as the user's in the realm: user_oidc keeps its login's tokens, as
+  `store_login_token` is on, renews them as they expire, and logs out when the realm refuses to; and Keycloak calls
+  user_oidc's `/index.php/apps/user_oidc/backchannel-logout/<realm's displayName>` as it ends the user's session, which
+  ends the session that logged in with it.
 
 Nextcloud installs with no admin, and none is made: its settings are o11n's, and `nextcloud-occ` in the container
 manages the rest.

@@ -101,6 +101,7 @@ let
             inherit app;
             org = {
               postgres = "17";
+              authSessionLength = 14;
               app = apps realm;
             };
             host.name = "web";
@@ -213,6 +214,8 @@ in
         displayName
         registrationAllowed
         editUsernameAllowed
+        ssoSessionIdleTimeout
+        ssoSessionMaxLifespan
         smtpServer
         ;
       credentials = realms.serviceConfig.LoadCredential;
@@ -225,6 +228,8 @@ in
       displayName = "Example";
       registrationAllowed = false;
       editUsernameAllowed = false;
+      ssoSessionIdleTimeout = 14 * 86400;
+      ssoSessionMaxLifespan = 14 * 86400;
       smtpServer = {
         host = "mail.example.com";
         port = "587";

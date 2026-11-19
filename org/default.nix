@@ -47,6 +47,11 @@
       type = lib.types.ints.positive;
       default = 14;
     };
+    authSessionLength = lib.mkOption {
+      description = "days a browser's login with a keycloak's realm lasts, from the password typed to the next, which each app's session in the browser lasts no longer than; a device's own credentials last until they're revoked";
+      type = lib.types.ints.positive;
+      default = 14;
+    };
     prefix = lib.mkOption {
       description = "ipv6 private prefix";
       type = context.types.globalPrefix6;

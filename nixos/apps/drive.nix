@@ -46,7 +46,9 @@ let
   # Policy: a Keycloak user is the Nextcloud user of the same name, which the realm lets no one take or rename to, and
   # the realm is the only way in: the login page sends to it, the users of nextcloud's own are disabled, and a client
   # logs in with an app password, which login flow v2 makes once the user has logged in with the realm. Any user of the
-  # realm gets in, as one refused would have no way to log out of it, and one nothing declares can write nothing.
+  # realm gets in, as one refused would have no way to log out of it, and one nothing declares can write nothing. A
+  # browser's session lasts as the realm's: user_oidc keeps its login's tokens, renews them as they expire, and logs
+  # out when the realm no longer does.
   oidc =
     { config, ... }:
     let
@@ -84,6 +86,7 @@ let
             --discoveryuri=${keycloak.url}/realms/${client.realm}/.well-known/openid-configuration \
             --unique-uid=0 --mapping-uid=preferred_username
           ${occ} config:app:set user_oidc allow_multiple_user_backends --type=string --value=0
+          ${occ} config:app:set user_oidc store_login_token --type=string --value=1 --lazy
           users=$(${occ} user:list --info --limit=0 --output=json)
           jq -r 'to_entries[] | select(.value.backend == "Database" and .value.enabled) | .key' <<<"$users" |
             while IFS= read -r user; do

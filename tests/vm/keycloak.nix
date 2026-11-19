@@ -117,6 +117,10 @@ let
             page.goto("${www.url}/en/")
             page.wait_for_selector('[data-auth="name"]', state="visible")
             said["invite_hidden"] = page.is_hidden("#invite")
+            tab = page.context.new_page()
+            tab.goto("${www.url}/en/blog/")
+            tab.wait_for_selector('[data-auth="name"]', state="visible")
+            tab.close()
             page.goto("${cloud.url}/login")
             page.wait_for_url("${cloud.url}/apps/**")
             said["sso"] = page.url
@@ -127,6 +131,9 @@ let
             page.click('[data-auth="login"]')
             page.wait_for_selector("#username")
             said["asked_again"] = page.url.startswith("${auth.url}/realms/")
+            page.goto("${cloud.url}/apps/files/")
+            page.wait_for_selector("#username")
+            said["cloud_logged_out"] = page.url.startswith("${auth.url}/realms/")
             browser.close()
         print(json.dumps(said))
       '';
@@ -302,6 +309,8 @@ pkgs.testers.runNixOSTest {
         settings = admin("${realm}")
         assert settings["displayName"] == "Example", settings
         assert not settings["registrationAllowed"] and not settings["editUsernameAllowed"], settings
+        lasts = (settings["ssoSessionIdleTimeout"], settings["ssoSessionMaxLifespan"])
+        assert lasts == (14 * 86400, 14 * 86400), lasts
         smtp = settings["smtpServer"]
         assert (smtp["host"], smtp["port"], smtp["from"], smtp["user"]) == (
             "${fqdn}", "587", "${auth.principal.mail.address}", "${auth.principal.mail.address}"
@@ -405,13 +414,14 @@ pkgs.testers.runNixOSTest {
         web.succeed("systemctl restart keycloak-realms.service")
         assert "meet" in audience(), audience()
 
-    with subtest("the portal logs in with its client and back to where it was, which logs in the realm's other apps"):
+    with subtest("the portal logs in with its client and back to where it was, which logs in and out of the realm's other apps"):
         said = json.loads(web.succeed("visitor \"alice's\""))
         assert said["returned"] == "${www.url}/en/blog/", said
         assert said["name"] == "Alice Example", said
         assert said["invite_hidden"], said
         assert said["sso"].startswith("${cloud.url}/apps/"), said
         assert said["logged_out"] == "${www.url}/en/blog/" and said["asked_again"], said
+        assert said["cloud_logged_out"], said
 
     with subtest("the status page watches the apps of its groups, and the mail server's webmail and ports, and announces"):
         statuses = "curl -sSf http://${status.endpoint}/api/v1/endpoints/statuses"

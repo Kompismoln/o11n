@@ -1,6 +1,7 @@
 {
   pkgs,
   o11nLib,
+  gate,
   o11n,
   o11n-dev,
 }:
@@ -564,7 +565,11 @@ in
     // fail2banChecks
     // nginxChecks
     // portalChecks
-    // systemChecks;
+    // systemChecks
+    // {
+      # Fact: its build runs its tests and clippy.
+      build-gate = gate;
+    };
 }
 // lib.mapAttrs (name: check: if lib.isDerivation check then { ${name} = check; } else check) (
   import ./source.nix {
