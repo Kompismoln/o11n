@@ -1,3 +1,5 @@
+<<<<<<< signed
+=======
 # Gate
 
 The gate is a login with a Keycloak realm in front of an app that has none of its own: nginx asks it of each request,
@@ -82,3 +84,4 @@ made; it lasts until it's revoked at `<prefix>/devices`, which lists the user's,
 `crates/gate/src/testdata/issuer.pk8`, a throwaway key: a login, its refusals and its callback asked again, a session
 renewed and ended with the realm's, the paths of `per-user`, a device by the login flow and by a profile, a revoked
 device, back-channel logout and logout, and that sessions end and devices last across a restart.
+>>>>>>> @stamp

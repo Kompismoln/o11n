@@ -181,6 +181,8 @@ Default: `"files"`
 
 the folder in the app's home the site is built from
 
+<<<<<<< signed
+=======
 ### `authSessionLength`
 
 `org/default.nix` · positive integer, meaning >0
@@ -190,6 +192,7 @@ Default: `14`
 days a browser's login with a keycloak's realm lasts, from the password typed to the next, which each app's session in
 the browser lasts no longer than; a device's own credentials last until they're revoked
 
+>>>>>>> @stamp
 ### `build-hosts`
 
 `org/default.nix` · list of impossible (empty enum)

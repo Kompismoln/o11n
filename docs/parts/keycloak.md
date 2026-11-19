@@ -14,8 +14,11 @@ included.
 - Each of its `realms` is a realm that `keycloak-realms`, a oneshot after Keycloak, logs in as `o11n` to keep as
   declared each time it runs: created when it's missing, and its settings put, with its display name. Registration is
   off, and a user can't rename their account, as an app matches a user by username; a user can reset their password.
+<<<<<<< signed
+=======
 - A realm's login lasts the org's `authSessionLength`, 14 days by default, from the password typed, used or not
   (`ssoSessionIdleTimeout` and `ssoSessionMaxLifespan`); see Sessions.
+>>>>>>> @stamp
 - A realm mails as the app, which logs in to submission on its mail server with its `mail` key, so an app with realms
   has `principal.mail = { inbox = true, send = true }`, or fails evaluation.
 - `o11n`'s account has the app's address, where Keycloak sends a realm's test mail.
@@ -34,6 +37,8 @@ included.
   client's. A drive's is one, with its `keycloak` and `realm` (`org/apps/drive.nix`), and a photos app's
   (`org/apps/photos.nix`).
 
+<<<<<<< signed
+=======
 ## Sessions
 
 An app's session in a browser lasts no longer than the realm's it logged in with, so that the realm's logout, as the
@@ -51,6 +56,7 @@ A device has credentials of its own, which last until they're revoked, whatever 
 drive's client its app password, a gate's device its password (`docs/parts/gate.md`), and Immich's mobile app its
 session, which the realm's logout ends only from the browser session it logged in with.
 
+>>>>>>> @stamp
 ## Drive
 
 A drive with a `keycloak` has `user_oidc`, and `nextcloud-oidc`, a oneshot in its container after `nextcloud-setup`,
@@ -82,6 +88,15 @@ has Keycloak mail them a link to set their password, which lasts `--days`, 7 by 
 ## Testing
 
 `vmTests.keycloak` (`tests/vm/keycloak.nix`) runs `tests/inventories/mail`'s `auth` on `web`, beside its mail server on
+<<<<<<< signed
+`mx`: Keycloak bootstraps `o11n` alone, keeps the realm as declared, and `meet`'s client, a jitsi on no host, which it
+puts back as declared after it's changed by hand, its audience mapper included, which makes its tokens for `meet`, and
+`cloud`'s, a drive on `web` too, with its secret: the drive's login sends alice to the realm, which makes alice its
+user, bob, a user of Nextcloud's own, is disabled, and the drive keeps its apps. `o11n status` has Keycloak mail the app
+over verified TLS, and fail with what Keycloak says when the server is down. `o11n invite` invites the app's own
+address, whose mail a browser follows to set a password and a name, and lands on the portal; it refuses alice's, who has
+an account, and an invite whose mail fails leaves no user.
+=======
 `mx`: Keycloak bootstraps `o11n` alone, keeps the realm as declared, its logins' length included, and `meet`'s client, a
 jitsi on no host, which it puts back as declared after it's changed by hand, its audience mapper included, which makes
 its tokens for `meet`, and `cloud`'s, a drive on `web` too, with its secret: the drive's login sends alice to the realm,
@@ -89,6 +104,7 @@ which makes alice its user, bob, a user of Nextcloud's own, is disabled, and the
 Keycloak mail the app over verified TLS, and fail with what Keycloak says when the server is down. `o11n invite` invites
 the app's own address, whose mail a browser follows to set a password and a name, and lands on the portal; it refuses
 alice's, who has an account, and an invite whose mail fails leaves no user.
+>>>>>>> @stamp
 
 ## Setting up: Kompismoln/org's keycloak as auth.kompismoln.se
 

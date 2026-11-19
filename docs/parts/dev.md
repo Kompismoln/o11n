@@ -22,7 +22,7 @@ and which failed, on a terminal each as it ends, with what it took, and in a git
 - `dev/check.sh format` ~2.4s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
 - `dev/check.sh lint` ~4s, statix, deadnix and shellcheck
 - `dev/check.sh docs` ~1.4s, the references of the docs (`o11n-dev refs check`)
-- `dev/check.sh parts` ~0.2s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
+- `dev/check.sh parts` ~0.1s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
 - `dev/check.sh index` ~4.3s, that `docs/index/` is as `dev/write.sh index` writes it (`o11n-dev index check`)
 - `dev/check.sh eval`, which builds the jobs of `.#jobs.eval`
 - `dev/check.sh bats`, which builds the jobs of `.#jobs.bats`, the tests of `crates/o11n/test` and those of `dev/test`
@@ -48,7 +48,11 @@ checkout that has it, with `$MACHINE_CLASS` set, `dev/check.sh` spools to `dev/s
 
 - `nix-eval-jobs bats eval` ~120s, an evaluation, of the stages named together that build jobs, in the order `vm`,
   `bats`, `eval`; one at a tree evaluated before runs none
+<<<<<<< signed
+- `nix build .#stages.eval` ~10s, the build of a stage's jobs when none of them is in the store
+=======
 - `nix build .#stages.eval` ~16s, the build of a stage's jobs when none of them is in the store
+>>>>>>> @stamp
 - `nix build .#stages.bats` ~180s, likewise
 - `vmTests.<name>`, each VM test the builder ran, with the time its driver says its script took
 - `dev/check.sh <stage>`, each stage that builds no jobs.

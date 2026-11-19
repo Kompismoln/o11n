@@ -76,9 +76,13 @@ It flags a message, which stays in INBOX, when:
 
 - mail from an address of the app's `endpoint`, as it resolves there, fails DKIM or SPF as its From's domain, as when a
   DNS record has drifted from the server
+<<<<<<< signed
+- mail from elsewhere passes SPF as one of its domains, which only the server is to
+=======
 - mail from elsewhere passes SPF as one of its domains with `mailbox`, which only the server is to
 - mail from elsewhere passes SPF but not DKIM as another, whose SPF names its provider's shared hosts, which pass for
   anyone they send for, while the provider signs the domain's own mail
+>>>>>>> @stamp
 - it holds no report it can read.
 
 Anything else goes to Archive, which keeps what was sent in the org's `logRetention`, 14 days by default. If it flagged
@@ -177,10 +181,15 @@ The records the test publishes are its own; `o11n status` checks the org's.
 alice, the admin's reader, lists and reads its mailboxes under her own login, and can't delete; another principal sees
 none, and a reader `mail-readers` doesn't know of loses what was granted it. alice logs in to Roundcube, which lists the
 shared folders, and the client's failed logins count in `roundcube-auth`. `mail-dmarc-reports` archives a report of a
+<<<<<<< signed
+spoof, flags one of the server's own mail failing SPF and a message without a report, prunes an old report from Archive,
+and fails, which mails the admin its reasons; run again, it reads nothing anew and succeeds.
+=======
 spoof and one of mail from elsewhere signed as a domain without `mailbox`, flags one of the server's own mail failing
 SPF, one of mail from elsewhere passing SPF as a domain with `mailbox`, one passing SPF but not DKIM as one without, and
 a message without a report, prunes an old report from Archive, and fails, which mails the admin its reasons; run again,
 it reads nothing anew and succeeds.
+>>>>>>> @stamp
 
 ## Moving Kompismoln/org to the mail app
 
