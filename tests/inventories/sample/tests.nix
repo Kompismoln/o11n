@@ -62,6 +62,7 @@ in
             "10.0.0.0/24"
           ];
           Endpoint = "gw.example.com:51820";
+          PersistentKeepalive = 25;
         }
       ];
     };

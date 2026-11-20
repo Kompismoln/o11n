@@ -11,6 +11,11 @@ and which forwards between them, so that everything one sends another goes throu
 hosts is meant to go over: a gateway that has `proxy` also carries the IPv6 of the others, and its `dns` resolve their
 names.
 
+Each client dials the gateway at its `endpoint`, and the gateway knows a client's address only from what it last heard
+from it, and none once its interface is recreated. So both keep each tunnel alive, every `keepalive` seconds: a client,
+so that the gateway has its address back and the NAT it's behind keeps its mapping; the gateway, so that a client whose
+dialed address went stale follows it to where it sends from (`nixos/org/wireguard.nix`).
+
 ```toml
 [vpn.wg0]
 id = 0

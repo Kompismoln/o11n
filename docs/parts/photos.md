@@ -105,8 +105,8 @@ them and a duplicate, and leaves a text file and a `.part`; of a write that paus
 taken only once it's done; and of the drive, on `web` beside it, which moves a folder of 300 photos, a video of 300 MB
 and two documents in from a bind, the photos and video taken and the documents left in their folders.
 `tests/inventories/allotments/tests.nix` has a photos app's root in a share alone, and a drop folder of a user with a
-root, on the hosts the drive runs on, and `tests/nixos/drive.nix` the drive's bindfs of it, and a library of a user with
-a root, which `tests/nixos/drive.nix` mounts read-only.
+root, on the hosts the drive runs on, and `tests/nixos/drive-photos.nix` the drive's bindfs of it, and a library of a
+user with a root, which it mounts read-only.
 
 ## Setting up: Kompismoln/org's photos and photos-dev
 

@@ -148,6 +148,11 @@ doc = "docs/parts/drive.md"
 code = [
   "nixos/apps/drive.nix",
   "org/apps/drive.nix",
+  "tests/nixos/drive",
+  "tests/nixos/drive-external.nix",
+  "tests/nixos/drive-login.nix",
+  "tests/nixos/drive-photos.nix",
+  "tests/nixos/drive-roots.nix",
   "tests/nixos/drive.nix",
   "tests/vm/drive.nix",
 ]

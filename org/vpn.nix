@@ -88,7 +88,7 @@
       defaultText = lib.literalExpression ''if topology == "mesh" then 52000 + 100 * id else 51820 + id'';
     };
     keepalive = lib.mkOption {
-      description = "port allocated for the vpn";
+      description = "seconds between the keepalives a host on the vpn sends each peer it keeps alive";
       default = 25;
       type = lib.types.int;
     };

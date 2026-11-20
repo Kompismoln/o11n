@@ -182,41 +182,6 @@ SPF, one of mail from elsewhere passing SPF as a domain with `mailbox`, one pass
 a message without a report, prunes an old report from Archive, and fails, which mails the admin its reasons; run again,
 it reads nothing anew and succeeds.
 
-## Moving Kompismoln/org to the mail app
-
-Nothing on helsinki moves: the mailboxes, the DKIM keys, rspamd's and Roundcube's database stay where they are, and
-`mail.kompismoln.se` is the server's name as it was.
-
-1. Drop `[mailserver]`, `[service.mailserver]`, `[service.webmail]` and `[service.dmarc-reports]`, and the services of
-   `[role.mailserver]`, which stays for what is granted `host:mailserver`.
-2. Declare the app, with the next id `o11n next-id app` says, its principal the reports' inbox as the service's was:
-
-   ```toml
-   [app.mail]
-   id = <id>
-   endpoint = "mail.kompismoln.se"
-   run-on-hosts = ["helsinki"]
-   kind = "mail"
-   dkimSelector = "k1"
-   grants = ["host:mailserver"]
-   principal.hasHome = false
-   principal.hasPublicKey = false
-   principal.mail = { address = "dmarc-reports@kompismoln.se", inbox = true, send = true, readers = ["user-alex"] }
-   ```
-
-3. `o11n identity create app-mail` and `o11n secret generate app-mail mail`, and remove `service-dmarc-reports`'s files
-   from `enc/` and `public-keys/`.
-4. In `[app.status]`, drop `mail` and add `groups.Mail = ["mail"]`.
-5. In `[app.www]`, add `"mail"` to `services`, and describe it in `site/_index.md` and `site/_index.en.md` under
-   `[extra.services.mail]`.
-6. Keep the records of kompismoln.se, ahbk.se and esse.nu, which are GleSYS's: under `[app.mail]`,
-   `keys.glesys-key = "passphrase"` and
-   `glesys = { account = "cl44748", dmarc = "quarantine", zones = ["kompismoln.se", "ahbk.se", "esse.nu"] }`, and a key
-   of the account's for the domain API, limited to helsinki's addresses, stored with
-   `o11n secret generate app-mail glesys-key --from <file>`. Their DMARC records become `p=quarantine`, as esse.nu's
-   was, with `rua=mailto:dmarc-reports@kompismoln.se`, and kompismoln.se gets each other domain's authorization; esse.nu
-   keeps its SPF record, which names websupport's and mandrill's.
-
 ## Work in progress
 
 - Nothing limits how much a principal sends, with rspamd's ratelimit or postfix's anvil.

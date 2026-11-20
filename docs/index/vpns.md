@@ -98,7 +98,7 @@ interface for the vpn
 
 Default: `25`
 
-port allocated for the vpn
+seconds between the keepalives a host on the vpn sends each peer it keeps alive
 
 ### `vpn.<name>.key`
 

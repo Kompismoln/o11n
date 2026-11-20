@@ -243,10 +243,10 @@ in
                     ) (onHost vpn peer)
                   );
             };
-            serverConfig = {
+            dials = {
               Endpoint = "${peer.endpoint}:${toString vpn.members.${peer.name}.port}";
             };
-            clientConfig = {
+            keepsAlive = {
               PersistentKeepalive = vpn.keepalive;
             };
           in
@@ -254,10 +254,13 @@ in
           # for the replies; a peer without one dials it.
           if mesh vpn then
             base
-            // lib.optionalAttrs (peer.endpoint != null) serverConfig
-            // lib.optionalAttrs (host.endpoint == null) clientConfig
+            // lib.optionalAttrs (peer.endpoint != null) dials
+            // lib.optionalAttrs (host.endpoint == null) keepsAlive
+          # Policy: on a hub, both keep alive: a client, as a gateway whose interface was recreated knows no client's
+          # endpoint until it hears from it; the gateway, so that a client whose dialed address went stale follows it to
+          # where it sends from.
           else
-            base // (if peer.name == vpn.gateway then serverConfig else clientConfig)
+            base // keepsAlive // lib.optionalAttrs (peer.name == vpn.gateway) dials
         ) (map (peer: org.host.${peer}) vpn.peers.${host.name});
       }
     );

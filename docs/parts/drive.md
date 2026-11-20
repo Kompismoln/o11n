@@ -166,42 +166,20 @@ oneshots put back as they start.
 
 ## Testing
 
-- `tests/nixos/drive.nix` evaluates its apps, office, login, retention, secret, instanceid, the roots it mounts and the
-  storages it binds, and `tests/inventories/allotments/tests.nix` the roots and storages an org declares, their paths
-  and collisions, and a root in a rolf app's home.
+- Five checks evaluate a drive, each of the apps of `tests/nixos/drive/lib.nix` it reads once, as all of them in one
+  outgrow what `dev/check.sh` gives an evaluation on a machine with less memory free: `tests/nixos/drive.nix` its
+  database, office and what it has without a keycloak or external storages, `tests/nixos/drive-login.nix` its login,
+  apps, retention, secret and instanceid, `tests/nixos/drive-external.nix` its external storages and the changes it
+  follows, `tests/nixos/drive-roots.nix` the roots it mounts and the storages it binds, and
+  `tests/nixos/drive-photos.nix` its drop folders and libraries.
+- `tests/inventories/allotments/tests.nix` evaluates the roots and storages an org declares, their paths and collisions,
+  and a root in a rolf app's home.
 - `vmTests.drive` converts a document with its office, keeps its discovery, restarts it with its home made anew and its
   database as it was, writes in a bind and not in files without a root, writes in a root in an entity's home as the
   entity and reads what the entity writes there, and reads a library from a Samba share on `mx`, writes and deletes
   nothing there, and sees what's filed there after.
 - `vmTests.keycloak` (`docs/parts/keycloak.md`) runs the login, a Keycloak user without a root who logs in, can't write
   and logs out, the user of Nextcloud's own it disables, and the apps it keeps.
-
-## Migrating: Kompismoln/org's drive and drive-dev to roots
-
-Each root moves into a directory of its share or home, `drive/`, which Nextcloud reads at the same place as before, so
-its database stays as it is. Do drive-dev, on stationary, first, and drive, on helsinki, once drive-dev is as it should
-be, with `app` the app's name. Kompismoln/org declares the roots: each store's `smb`, `[app.drive.roots]`, and
-sverigesval's `source = "drive/files"`.
-
-1. Stop the container, and the site whose home holds rolf's root, with `site` the site's app's name, as root on the
-   host, `o11n ssh service-rescue <host> --user root`:
-
-   ```sh
-   systemctl stop container@$app $site
-   ```
-
-2. Move rolf's root into `drive/` in the site's home, each of Nextcloud's directories that's there:
-
-   ```sh
-   cd /var/lib/$site && install -d -o $site -g $site drive
-   for dir in files files_trashbin files_versions uploads cache; do [[ -e $dir ]] && mv $dir drive/; done
-   ```
-
-   and, for drive, each user's into `drive/` in their store's share: on the storage box, make `drive` at the share's
-   root and move each of the same directories that's there into it.
-
-3. Apply the host; the container starts once each root is mounted from its directory, and the site builds from
-   `drive/files`. `o11n status app-<app>` has `drive-root <user> <host> ok` for each.
 
 ## Work in progress
 
