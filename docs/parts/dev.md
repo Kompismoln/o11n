@@ -48,11 +48,7 @@ checkout that has it, with `$MACHINE_CLASS` set, `dev/check.sh` spools to `dev/s
 
 - `nix-eval-jobs bats eval` ~120s, an evaluation, of the stages named together that build jobs, in the order `vm`,
   `bats`, `eval`; one at a tree evaluated before runs none
-<<<<<<< signed
-- `nix build .#stages.eval` ~10s, the build of a stage's jobs when none of them is in the store
-=======
 - `nix build .#stages.eval` ~16s, the build of a stage's jobs when none of them is in the store
->>>>>>> @stamp
 - `nix build .#stages.bats` ~180s, likewise
 - `vmTests.<name>`, each VM test the builder ran, with the time its driver says its script took
 - `dev/check.sh <stage>`, each stage that builds no jobs.

@@ -92,25 +92,14 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
 (`docs/parts/keycloak.md`).
 
 - "Log in" sends the visitor to the realm and back to the page they were on, where the site's script exchanges the code
-<<<<<<< signed
-  for the visitor's ID token in the browser and drops it from the address; the header then has the visitor's name, a
-  link to the realm's account console, and "Log out" (`nixos/apps/portal/static/auth.js`).
-=======
   for the visitor's tokens in the browser and drops it from the address; the header then has the visitor's name, a link
   to the realm's account console, and "Log out" (`nixos/apps/portal/static/auth.js`).
 - The tokens are the site's, in each of its tabs, and each page renews them as it loads: it shows the visitor logged in
   as long as the realm has them so, and logged out once the realm refuses, however their session ended.
->>>>>>> @stamp
 - The visitor is logged in to the realm, so another app of it logs them in without asking for their password again.
-<<<<<<< signed
-- "Log out" ends the visitor's session in the realm, and returns to the page: the next login asks for their password. An
-  app with a session of its own, as a drive, keeps it until it ends.
-- The token is the tab's alone, and the site's script reads nothing from it but the name it shows.
-=======
 - "Log out" ends the visitor's session in the realm, and returns to the page: the next login asks for their password,
   and each app the realm tells of it logs out too (`docs/parts/keycloak.md`).
 - The site's script reads nothing of the tokens but the name it shows.
->>>>>>> @stamp
 
 ## Invites
 
@@ -134,14 +123,7 @@ as the portal, which has to send mail (`principal.mail.send`), with the visitor'
 their order in each language, that a section is in the header once it has a page, that its notes are shown on the start
 page and in their section, one with its commit and one without, that it takes the headings the content gives in one
 language and its own in the other, and that the keycloak keeps its client. `vmTests.keycloak` serves it beside the
-<<<<<<< signed
-keycloak, where a browser logs alice in from a page of it and back there, finds no form for an invite, is logged in to
-the drive without being asked again, and logs out, after which the portal's login asks again. `vmTests.mail` has its
-form mail a request to elsewhere's carol, signed as the portal, and refuses an address of more than one mailbox, a
-return to another site, a GET, and a fifth request at once from an address.
-=======
 keycloak, where a browser logs alice in from a page of it and back there, and in its other tabs, finds no form for an
 invite, is logged in to the drive without being asked again, and logs out, after which the portal's login asks again,
 and the drive's. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and refuses an
 address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an address.
->>>>>>> @stamp
