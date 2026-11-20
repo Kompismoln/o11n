@@ -215,6 +215,7 @@ pkgs.testers.runNixOSTest {
           resolving
           ../../nixos/preserve.nix
           ../../nixos/org/mail.nix
+          ../../nixos/org/fail2ban.nix
           ../../nixos/apps/keycloak.nix
           nextcloud
           portal
@@ -538,5 +539,20 @@ pkgs.testers.runNixOSTest {
         out = web.fail(f"{tools} o11n invite bob@example.com 2>&1")
         assert "execute-actions-email answers 500" in out, out
         assert admin("${realm}/users?username=bob&exact=true") == [], out
+
+    with subtest("wrong passwords and unknown names ban their address, not the X-Forwarded-For it sends"):
+        address = web.succeed("getent ahostsv4 mx | head -1 | cut -d' ' -f1").strip()
+        login = (
+            "curl -sS -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 203.0.113.9' -d grant_type=password"
+            " -d client_id=admin-cli -d password=wrong ${auth.url}/realms/${realm}/protocol/openid-connect/token"
+        )
+        for name in ["alice", "nobody", "alice", "nobody", "alice"]:
+            said = mx.succeed(f"{login} -d username={name}")
+            assert said == "400", said
+        web.wait_until_succeeds(f"fail2ban-client get keycloak-auth banned | grep -qF {address}", timeout=60)
+        banned = web.succeed("fail2ban-client get keycloak-auth banned")
+        assert "203.0.113.9" not in banned, banned
+        web.succeed(f"${pkgs.nftables}/bin/nft list set inet f2b-table addr-set-keycloak-auth | grep -qF {address}")
+        mx.fail("curl -sS --max-time 5 ${auth.url}/realms/${realm}")
   '';
 }

@@ -199,9 +199,31 @@ in
       proxy_buffers 4 32k;
       proxy_busy_buffers_size 32k;
     '';
+    # Policy: X-Forwarded-For is the client's address alone, as Keycloak logs the first of it as a login's, which the
+    # jail bans; nginx's recommended headers would keep what the client sent ahead of it.
     locations."/" = {
-      recommendedProxySettings = true;
+      recommendedProxySettings = false;
       proxyPass = local;
+      extraConfig = ''
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+      '';
+    };
+  };
+
+  # Policy: 5 wrong passwords, names that aren't a user's, or tries at a user Keycloak has locked, in an hour, at a login
+  # or a reset of a password, as Keycloak logs its events; a missing cookie or an expired code is a browser's, and isn't
+  # counted.
+  services.fail2ban.jails."keycloak-${app.name}" = {
+    filter.Definition.failregex = ''\[org\.keycloak\.events\] .*type="(?:LOGIN_ERROR|RESET_PASSWORD_ERROR)", .*ipAddress="<ADDR>", error="(?:invalid_user_credentials|user_not_found|user_temporarily_disabled)"'';
+    settings = {
+      journalmatch = "_SYSTEMD_UNIT=keycloak.service";
+      port = "http,https";
+      maxretry = 5;
+      findtime = "1h";
     };
   };
 
