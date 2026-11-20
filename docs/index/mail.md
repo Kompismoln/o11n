@@ -117,6 +117,16 @@ Default: `false`
 
 whether the principal has a mailbox on the mail server, at its address and its aliases
 
+### `<mail>.managers`
+
+`org/mail.nix` · list of string
+
+Default: `[ ]`
+
+the principals, by handle, each with an inbox on the same domain, that read the principal's inbox and its other
+mailboxes as Shared.<name> under their own login, as readers do, and also flag, move and delete mail and make and remove
+folders there
+
 ### `<mail>.readers`
 
 `org/mail.nix` · list of string

@@ -36,6 +36,12 @@
       type = with lib.types; listOf str;
       example = [ "user-alice" ];
     };
+    managers = lib.mkOption {
+      description = "the principals, by handle, each with an inbox on the same domain, that read the principal's inbox and its other mailboxes as Shared.<name> under their own login, as readers do, and also flag, move and delete mail and make and remove folders there";
+      default = [ ];
+      type = with lib.types; listOf str;
+      example = [ "user-alice" ];
+    };
     send = lib.mkOption {
       description = "whether the principal sends mail, as its address, by logging in to the mail server from the hosts it's on, as it does to tell of its failures";
       default = false;

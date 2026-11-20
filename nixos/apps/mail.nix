@@ -119,20 +119,47 @@ let
     entity:
     map (address: { inherit address entity; }) ([ entity.principal.mail.address ] ++ aliasesOf entity)
   ) mailing;
+  received = map lib.toLower (
+    lib.concatMap (entity: [ entity.principal.mail.address ] ++ aliasesOf entity) inboxes
+  );
+  invitedHere = lib.filter (
+    other:
+    other.kind == "portal"
+    && other.invites != null
+    && lib.elem (lib.toLower (domainOf other.invites)) mailboxDomains
+  ) (lib.attrValues org.app);
 
-  # Policy: a principal's readers see its mailboxes as Shared<separator><name>, the private namespace's separator
-  # between, with the rights to list and read them and mark them seen for themselves; the ACL on its INBOX, which the
-  # other mailboxes take theirs from, names them alone, and nothing else grants. Dovecot takes the owner's domain from
-  # the reader's login.
+  # Policy: a principal's readers and managers see its mailboxes as Shared<separator><name>, the private namespace's
+  # separator between: readers list and read them and mark them seen for themselves, managers also flag, move and delete
+  # mail and make and remove folders. Each mailbox's ACL names them alone, with their rights, and nothing else grants.
+  # Dovecot takes the owner's domain from the grantee's login.
   separator = config.mailserver.hierarchySeparator;
-  sharing = lib.filter (entity: entity.principal.mail.readers != [ ]) inboxes;
-  readersOf = entity: map (handle: byHandle.${handle}) entity.principal.mail.readers;
+  sharedWith = entity: entity.principal.mail.readers ++ entity.principal.mail.managers;
+  sharing = lib.filter (entity: sharedWith entity != [ ]) inboxes;
+  readRights = [
+    "lookup"
+    "read"
+    "write-seen"
+  ];
+  manageRights = readRights ++ [
+    "write"
+    "write-deleted"
+    "insert"
+    "expunge"
+    "create"
+    "delete"
+  ];
+  grantsOf =
+    entity:
+    let
+      grant =
+        rights: handle: "${byHandle.${handle}.principal.mail.address}:${lib.concatStringsSep "," rights}";
+    in
+    map (grant readRights) entity.principal.mail.readers
+    ++ map (grant manageRights) entity.principal.mail.managers;
   shares = pkgs.writeText "mail-readers" (
     lib.concatMapStrings (
-      entity:
-      "${entity.principal.mail.address} ${
-        lib.concatMapStringsSep "," (reader: reader.principal.mail.address) (readersOf entity)
-      }\n"
+      entity: "${lib.concatStringsSep " " ([ entity.principal.mail.address ] ++ grantsOf entity)}\n"
     ) inboxes
   );
   share = pkgs.writeShellApplication {
@@ -143,31 +170,34 @@ let
       pkgs.gnugrep
     ];
     text = ''
-      readers() {
+      granted() {
         doveadm -f tab acl get -u "$1" "$2" | awk -F '\t' 'NR > 1 && $1 ~ /^user=/ { print substr($1, 6) }'
       }
-      while read -r owner wanted; do
-        for reader in $(readers "$owner" INBOX); do
-          [[ ",$wanted," == *",$reader,"* ]] || doveadm acl delete -u "$owner" INBOX "user=$reader"
-        done
-        IFS=, read -ra granted <<<"$wanted"
-        for reader in "''${granted[@]}"; do
-          doveadm acl set -u "$owner" INBOX "user=$reader" lookup read write-seen
+      while read -r owner grants; do
+        declare -A wanted=()
+        read -ra entries <<<"$grants"
+        for entry in "''${entries[@]}"; do
+          wanted[''${entry%%:*}]=''${entry#*:}
         done
         mapfile -t mailboxes < <(doveadm mailbox list -u "$owner" | { grep -v -e '^INBOX$' -e '^Shared$' -e ${lib.escapeShellArg "^Shared${separator}"} || true; })
         # Fact: a mailbox that's made gets a copy of its parent's ACL, which outlives the INBOX's.
-        for mailbox in "''${mailboxes[@]}"; do
-          for reader in $(readers "$owner" "$mailbox"); do
-            [[ ",$wanted," == *",$reader,"* ]] || doveadm acl delete -u "$owner" "$mailbox" "user=$reader"
+        for mailbox in INBOX "''${mailboxes[@]}"; do
+          for grantee in $(granted "$owner" "$mailbox"); do
+            [[ -v "wanted[$grantee]" ]] || doveadm acl delete -u "$owner" "$mailbox" "user=$grantee"
+          done
+          for grantee in "''${!wanted[@]}"; do
+            IFS=, read -ra rights <<<"''${wanted[$grantee]}"
+            doveadm acl set -u "$owner" "$mailbox" "user=$grantee" "''${rights[@]}"
           done
         done
         doveadm acl recalc -u "$owner"
         # Fact: a client such as Roundcube shows the folders the login subscribes to alone, and doveadm lists none of a
-        # reader's shared ones.
+        # grantee's shared ones.
         prefix=${lib.escapeShellArg "Shared${separator}"}''${owner%@*}
-        for reader in "''${granted[@]}"; do
-          doveadm mailbox subscribe -u "$reader" "$prefix" "''${mailboxes[@]/#/$prefix${separator}}"
+        for grantee in "''${!wanted[@]}"; do
+          doveadm mailbox subscribe -u "$grantee" "$prefix" "''${mailboxes[@]/#/$prefix${separator}}"
         done
+        unset wanted
       done <${shares}
     '';
   };
@@ -289,32 +319,41 @@ in
       let
         inherit (entity.principal) mail;
         name = lib.head (lib.splitString "@" mail.address);
+        grantee =
+          kind: handle:
+          let
+            other = byHandle.${handle} or null;
+          in
+          {
+            assertion =
+              other != null
+              && handle != entity.handle
+              && other.principal.mail.inbox
+              && domainOf other.principal.mail.address == domainOf mail.address;
+            message = "${entity.handle}'s ${kind} ${handle} is to be another principal with an inbox at an address on ${domainOf mail.address}, the domain the mail server takes from its login for Shared${separator}${name}: change principal.mail.${kind}s.";
+          };
       in
       [
         {
           assertion = mail.inbox;
-          message = "${entity.handle} has readers but no inbox for them to read: set principal.mail.inbox, or drop principal.mail.readers.";
+          message = "${entity.handle} has readers or managers but no inbox for them: set principal.mail.inbox, or drop principal.mail.readers and principal.mail.managers.";
         }
         {
           assertion = !lib.hasInfix separator name;
-          message = "${entity.handle}'s readers see its mailboxes as Shared${separator}${name}, whose ${separator} the mail server takes as a level of folders: change principal.mail.address, or drop principal.mail.readers.";
+          message = "${entity.handle}'s readers and managers see its mailboxes as Shared${separator}${name}, whose ${separator} the mail server takes as a level of folders: change principal.mail.address, or drop principal.mail.readers and principal.mail.managers.";
         }
       ]
-      ++ map (
-        handle:
-        let
-          reader = byHandle.${handle} or null;
-        in
-        {
-          assertion =
-            reader != null
-            && handle != entity.handle
-            && reader.principal.mail.inbox
-            && domainOf reader.principal.mail.address == domainOf mail.address;
-          message = "${entity.handle}'s reader ${handle} is to be another principal with an inbox at an address on ${domainOf mail.address}, the domain the mail server takes from its login for Shared${separator}${name}: change principal.mail.readers.";
-        }
-      ) mail.readers
-    ) (lib.filter (entity: entity.principal.mail.readers != [ ]) mailing)
+      ++ map (grantee "reader") mail.readers
+      ++ map (grantee "manager") mail.managers
+      ++ map (handle: {
+        assertion = !lib.elem handle mail.readers;
+        message = "${entity.handle} has ${handle} as a reader and a manager, who reads as it manages: drop it from principal.mail.readers.";
+      }) mail.managers
+    ) (lib.filter (entity: sharedWith entity != [ ]) mailing)
+    ++ map (portal: {
+      assertion = lib.elem (lib.toLower portal.invites) received;
+      message = "app.${portal.name} mails requests for an invite to ${portal.invites}, on ${domainOf portal.invites}, where no principal's inbox has it: add it to a principal's principal.mail.aliases, or change invites under [app.${portal.name}].";
+    }) invitedHere
     ++ lib.concatMap (
       entity:
       let
@@ -460,7 +499,7 @@ in
     };
 
     systemd.services.mail-readers = lib.mkIf (sharing != [ ]) {
-      description = "Grant each principal's readers its mailboxes";
+      description = "Grant each principal's readers and managers its mailboxes";
       requires = [ "dovecot.service" ];
       after = [ "dovecot.service" ];
       wantedBy = [ "multi-user.target" ];

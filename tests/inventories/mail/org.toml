@@ -93,9 +93,8 @@ kind = "jitsi"
 keycloak = "auth"
 realm = "example"
 
-# Fact: a drive whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and
-# whose user alice has a bind of a directory in its home; only
-# vmTests.keycloak runs it, on web.
+# Fact: a drive whose confidential client auth keeps, with the secret web decrypts as the app-scheduler, and whose user
+# alice has a bind of a directory in its home; only vmTests.keycloak runs it, on web.
 [app.cloud]
 id = 4
 endpoint = "cloud.example.com"
@@ -120,7 +119,8 @@ realm = "example"
 roots.alice = "store-box"
 
 # Fact: the mail server, whose principal reads the DMARC reports in its inbox, the address the domains' rua names, and
-# which keeps the records of example.com and example.org at GleSYS, as eval-mail-glesys plays it.
+# alice manages as her own login's Shared.dmarc-reports, and which keeps the records of example.com and example.org at
+# GleSYS, as eval-mail-glesys plays it.
 [app.mail]
 id = 8
 endpoint = "mail.example.com"
@@ -128,7 +128,7 @@ run-on-hosts = ["mx"]
 grants = ["host:mailserver"]
 principal.hasHome = false
 principal.hasPublicKey = false
-principal.mail = { address = "dmarc-reports@example.com", inbox = true, send = true }
+principal.mail = { address = "dmarc-reports@example.com", inbox = true, send = true, managers = ["user-alice"] }
 kind = "mail"
 dkimSelector = "s1"
 keys.glesys-key = "passphrase"

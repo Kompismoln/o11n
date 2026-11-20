@@ -40,6 +40,8 @@ evaluation, saying what to declare instead (`org/default.nix`, `org/apps/status.
   `mailbox`, on its own server's domains, which no other principal has as its address, an alias or in its `sendAs`. This
   is how a site sends as its own domain while it logs in as the org's.
 - `mail.readers`: the principals, by handle, that read its inbox and its other mailboxes (see Readers).
+- `mail.managers`: the principals, by handle, that manage them: read, flag, move and delete mail, and make and remove
+  folders (see Readers).
 
 A principal with either has a `mail` key, a password, and an account at its address on its server, which logs in with
 it; one that sends but has no inbox is send-only, and the server refuses mail to it. The server reads the password's
@@ -51,14 +53,15 @@ address or an alias, it's an alias of the admin's account on the domain's server
 
 ## Readers
 
-A principal's readers, each another principal with an inbox on the same domain, see its mailboxes under their own login,
-as `Shared.<name>` and the folders under it, with Dovecot's shared namespace (`nixos/apps/mail.nix`): they list and read
-them, and mark them seen for themselves, but neither move nor delete. `mail-readers` sets the ACL of the principal's
-INBOX, which its other mailboxes take theirs from, to name its readers, and takes away any other reader's, there and in
-each mailbox that kept a copy: nothing but `org.toml` grants, as Dovecot's IMAP ACL commands aren't loaded. It
-subscribes each reader to them, as a client such as Roundcube shows the folders its login subscribes to. Dovecot takes
-the domain of `Shared.<name>` from the reader's login, which is why a reader is on the principal's domain, and its
-separator, `.`, as a level of folders, which is why `<name>` has none.
+A principal's readers and managers, each another principal with an inbox on the same domain, see its mailboxes under
+their own login, as `Shared.<name>` and the folders under it, with Dovecot's shared namespace (`nixos/apps/mail.nix`).
+Readers list and read them, and mark them seen for themselves, but neither move nor delete; managers also flag, move and
+delete mail, and make and remove folders. A principal is one or the other, not both. `mail-readers` sets the ACL of the
+principal's INBOX and of each other mailbox, which kept a copy of its parent's as it was made, to name its readers and
+managers with their rights, and takes away any other's: nothing but `org.toml` grants, as Dovecot's IMAP ACL commands
+aren't loaded. It subscribes each of them to the mailboxes, as a client such as Roundcube shows the folders its login
+subscribes to. Dovecot takes the domain of `Shared.<name>` from the login, which is why a reader or manager is on the
+principal's domain, and its separator, `.`, as a level of folders, which is why `<name>` has none.
 
 ## Webmail
 
@@ -180,7 +183,8 @@ shared folders, and the client's failed logins count in `roundcube-auth`. `mail-
 spoof and one of mail from elsewhere signed as a domain without `mailbox`, flags one of the server's own mail failing
 SPF, one of mail from elsewhere passing SPF as a domain with `mailbox`, one passing SPF but not DKIM as one without, and
 a message without a report, prunes an old report from Archive, and fails, which mails the admin its reasons; run again,
-it reads nothing anew and succeeds.
+it reads nothing anew and succeeds. alice, the reports' manager, flags, deletes and moves them and makes a folder under
+her own login, with the rights `mail-readers` gives her in Archive in place of a reader's it had kept.
 
 ## Work in progress
 

@@ -106,7 +106,8 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
 With `invites`, an address, the start page has a form where a visitor asks for an account: their address, and a message
 if they like, under `extra.invite`'s `title` and `text`, and `sent` once it's sent. It mails the request to `invites`,
 as the portal, which has to send mail (`principal.mail.send`), with the visitor's address as its Reply-To
-(`nixos/apps/portal/invites.py`).
+(`nixos/apps/portal/invites.py`). An address on a domain with `mailbox` is to be one a principal's inbox has, as its
+address or an alias, or its mail server fails to evaluate, as the server would refuse the request.
 
 - nginx passes a POST to `/invite` alone to `<app>-invites`, a service of the portal's user on its own address, of 16
   KiB at most, and 4 at once from an address, then one a minute; more are answered 429.
@@ -127,3 +128,5 @@ keycloak, where a browser logs alice in from a page of it and back there, and in
 invite, is logged in to the drive without being asked again, and logs out, after which the portal's login asks again,
 and the drive's. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and refuses an
 address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an address.
+`eval-inventory-mail` fails the mail server's evaluation for an address on its domain that no inbox has, a send-only
+principal's among them, and not for an alias, whatever its case, a postmaster, or an address elsewhere.

@@ -15,14 +15,14 @@ clone.
 and which failed, on a terminal each as it ends, with what it took, and in a git checkout logs each to
 `dev/state/logs/<stage>.log`, and how it ended to `dev/state/logs/<stage>.json`, which the hooks read:
 
-- `dev/check.sh stamps` ~0.2s, every conflict marker a stamp's
-- `dev/check.sh pending` ~0.1s, what is left to stamp
+- `dev/check.sh stamps` ~0.4s, every conflict marker a stamp's
+- `dev/check.sh pending` ~0.2s, what is left to stamp
 - `dev/check.sh stamped` ~0.3s, each change to a doc since `STAMPED`, or else `o11n-dev base`, stamped, as
   `dev/write.sh` stamps it
-- `dev/check.sh format` ~2.4s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
+- `dev/check.sh format` ~3.9s, the Nix, the Rust and the docs that hold no stamps pending, as `dev/write.sh` writes them
 - `dev/check.sh lint` ~4s, statix, deadnix and shellcheck
 - `dev/check.sh docs` ~1.4s, the references of the docs (`o11n-dev refs check`)
-- `dev/check.sh parts` ~0.1s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
+- `dev/check.sh parts` ~0.3s, that `dev/parts.toml` holds what it declares (`o11n-dev parts check`)
 - `dev/check.sh index` ~4.3s, that `docs/index/` is as `dev/write.sh index` writes it (`o11n-dev index check`)
 - `dev/check.sh eval`, which builds the jobs of `.#jobs.eval`
 - `dev/check.sh bats`, which builds the jobs of `.#jobs.bats`, the tests of `crates/o11n/test` and those of `dev/test`

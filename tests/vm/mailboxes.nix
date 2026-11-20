@@ -244,5 +244,28 @@ pkgs.testers.runNixOSTest {
           body = mx.succeed("doveadm fetch -u ${login admin} text.utf8 header subject 'mx: mail-dmarc-reports.service failed'")
           assert "fail SPF as example.com" in body, body
           mx.succeed("systemctl start mail-dmarc-reports.service")
+
+      with subtest("alice manages the reports' mailboxes as Shared.dmarc-reports, with the rights the org declares"):
+          mx.succeed("doveadm acl set -u ${login reports} Archive user=${login alice} lookup read")
+          mx.succeed("systemctl restart mail-readers.service")
+          granted = mx.succeed("doveadm acl get -u ${login reports} Archive")
+          assert re.search(r"user=${login alice}\s.*\bexpunge\b", granted), granted
+
+          def uid(subject):
+              return mx.succeed(f"doveadm search -u ${login reports} mailbox INBOX subject {subject}").split()[1]
+
+          def flags(subject):
+              return mx.succeed(f"doveadm fetch -u ${login reports} flags mailbox INBOX subject {subject}")
+
+          inbox = "Shared.dmarc-reports"
+          client.succeed(imap("alice", "${login alice}", inbox, f"-X 'UID STORE {uid('loose')} +FLAGS (\\Answered)'"))
+          assert "Answered" in flags("loose"), flags("loose")
+          client.succeed(imap("alice", "${login alice}", inbox, f"-X 'UID STORE {uid('shared')} +FLAGS (\\Deleted)'"))
+          assert "Deleted" in flags("shared"), flags("shared")
+          client.succeed(imap("alice", "${login alice}", inbox, f"-X 'UID MOVE {uid('trouble')} {inbox}.Archive'"))
+          assert mails("${login reports}", "mailbox Archive subject trouble") == "1"
+          assert mails("${login reports}", "mailbox INBOX subject trouble") == "0"
+          client.succeed(imap("alice", "${login alice}", "", f"-X 'CREATE {inbox}.Kept'"))
+          mx.succeed("doveadm mailbox list -u ${login reports} | grep -qx Kept")
     '';
 }
