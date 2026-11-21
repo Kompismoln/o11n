@@ -60,7 +60,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
 - A status app whose `portal` is the portal has its link in the footer (`docs/parts/status.md`).
 - Each language has its feed, of the pages with a `date`, at `atom.xml` there; a note's entry is titled by its text.
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
-  buttons and links'.
+  buttons and links', and the box of a list item that begins with `[x]` or `[ ]`, a task, which has no bullet
+  (`nixos/apps/portal/static/portal.css`).
 - o11n has the site's templates, style and script (`nixos/apps/portal/`), and a page that isn't there is the site's
   `404.html`.
 
