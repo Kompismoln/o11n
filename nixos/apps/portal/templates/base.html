@@ -28,6 +28,12 @@
   {%- if org.logo %}
   <link rel="icon" href="{{ org.logo }}">
   {%- endif %}
+  <script>
+    try {
+      const theme = localStorage.getItem("theme");
+      if (theme) document.documentElement.dataset.theme = theme;
+    } catch {}
+  </script>
   <link rel="stylesheet" href="/portal.css">
   <style>:root { --accent: {{ org.accent | safe }}; --logo-height: {{ org.logoHeight | safe }}; }</style>
   {%- if org.auth %}
@@ -36,7 +42,7 @@
   {%- endif %}
 </head>
 <body>
-  <header class="site-header">
+  <header class="site-header{% if org.accentHeader %} on-accent{% endif %}">
     <div class="bar">
       <a class="brand" href="{{ home }}">
         {%- if org.logo %}<img src="{{ org.logo }}" alt="" width="40" height="40">{% endif -%}
@@ -62,9 +68,12 @@
           {%- endif %}
           {%- endfor %}
           {%- endif %}
+          <button type="button" class="icon-button theme-toggle" aria-label="{{ trans(key="theme", lang=lang) }}" title="{{ trans(key="theme", lang=lang) }}" hidden>
+            <span class="icon" aria-hidden="true"></span>
+          </button>
           {%- if org.auth %}
           <div class="auth" id="auth" hidden>
-            <button type="button" class="button" data-auth="login">{{ trans(key="login", lang=lang) }}</button>
+            <button type="button" class="icon-button" data-auth="login" aria-label="{{ trans(key="login", lang=lang) }}" title="{{ trans(key="login", lang=lang) }}"><span class="icon" aria-hidden="true"></span></button>
             <span class="who" data-auth="who" hidden>
               <span class="muted">{{ trans(key="signed_in_as", lang=lang) }}</span> <strong data-auth="name"></strong>
               <a href="{{ org.auth.account }}">{{ trans(key="account", lang=lang) }}</a>
@@ -83,6 +92,20 @@
       header.classList.add("collapsible");
       toggle.addEventListener("click", () => {
         toggle.setAttribute("aria-expanded", toggle.getAttribute("aria-expanded") !== "true");
+      });
+      const root = document.documentElement;
+      const system = matchMedia("(prefers-color-scheme: dark)");
+      const theme = header.querySelector(".theme-toggle");
+      theme.hidden = false;
+      theme.addEventListener("click", () => {
+        const preferred = system.matches ? "dark" : "light";
+        const next = (root.dataset.theme ?? preferred) === "dark" ? "light" : "dark";
+        try {
+          if (next === preferred) localStorage.removeItem("theme");
+          else localStorage.setItem("theme", next);
+        } catch {}
+        if (next === preferred) delete root.dataset.theme;
+        else root.dataset.theme = next;
       });
     }
   </script>

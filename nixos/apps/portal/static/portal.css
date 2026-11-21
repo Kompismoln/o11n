@@ -1,23 +1,23 @@
 :root {
   --accent: #2563eb;
-  --bg: #fafaf9;
-  --surface: #ffffff;
-  --text: #1c1917;
-  --muted: #57534e;
-  --line: #e7e5e4;
+  --bg: light-dark(#fafaf9, #0c0a09);
+  --surface: light-dark(#ffffff, #1c1917);
+  --text: light-dark(#1c1917, #f5f5f4);
+  --muted: light-dark(#57534e, #a8a29e);
+  --line: light-dark(#e7e5e4, #292524);
+  --sunset: #f29d38;
+  --sunset-text: light-dark(#a8500c, #f4a340);
   --radius: 14px;
   --width: 64rem;
   color-scheme: light dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0c0a09;
-    --surface: #1c1917;
-    --text: #f5f5f4;
-    --muted: #a8a29e;
-    --line: #292524;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -103,8 +103,15 @@ h2 {
 }
 
 .site-header {
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  --header-bg: color-mix(in srgb, var(--bg) 85%, transparent);
+  --header-brand: var(--accent);
+  --header-text: var(--text);
+  --header-muted: var(--muted);
+  --header-hover: var(--accent);
+  --header-line: var(--line);
+  --header-mark: var(--accent);
+  border-bottom: 1px solid var(--header-line);
+  background: var(--header-bg);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
@@ -129,7 +136,21 @@ h2 {
 
 .brand,
 .brand:hover {
-  color: var(--accent);
+  color: var(--header-brand);
+}
+
+.site-header.on-accent {
+  --header-bg: light-dark(var(--accent), color-mix(in srgb, var(--bg) 85%, transparent));
+  --header-brand: #fff;
+  --header-text: light-dark(#fff, var(--text));
+  --header-muted: light-dark(rgb(255 255 255 / 0.82), var(--muted));
+  --header-hover: light-dark(#fff, var(--accent));
+  --header-line: light-dark(rgb(255 255 255 / 0.3), var(--line));
+  --header-mark: light-dark(#fff, var(--accent));
+}
+
+.on-accent .brand img {
+  color-scheme: dark;
 }
 
 .brand img {
@@ -169,7 +190,7 @@ h2 {
     padding: 0;
     border: 0;
     background: none;
-    color: var(--text);
+    color: var(--header-text);
     cursor: pointer;
   }
 
@@ -224,7 +245,7 @@ h2 {
     gap: 0.5rem;
     margin-top: -0.5rem;
     padding: 0.5rem 0 1rem;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--header-line);
   }
 
   .collapsible .menu-toggle[aria-expanded="false"] + .menu {
@@ -247,19 +268,26 @@ h2 {
 }
 
 .nav a,
-.tools a {
+.tools a,
+.tools .muted,
+.tools .link {
   text-decoration: none;
-  color: var(--muted);
+  color: var(--header-muted);
+}
+
+.tools strong {
+  color: var(--header-text);
 }
 
 .nav a:hover,
-.tools a:hover {
-  color: var(--accent);
+.tools a:hover,
+.tools .link:hover {
+  color: var(--header-hover);
 }
 
 .nav a[aria-current] {
-  color: var(--text);
-  text-decoration: underline 2px var(--accent);
+  color: var(--header-text);
+  text-decoration: underline 2px var(--header-mark);
   text-underline-offset: 0.45em;
 }
 
@@ -268,6 +296,49 @@ h2 {
   align-items: center;
   gap: 1rem;
   font-size: 0.95rem;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--header-line);
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+}
+
+.icon-button .icon {
+  background: var(--header-muted);
+}
+
+.icon-button:hover {
+  border-color: var(--header-hover);
+}
+
+.icon-button:hover .icon {
+  background: var(--header-hover);
+}
+
+[data-auth="login"] .icon {
+  --icon: url(/icons/user-round.svg);
+  background: var(--header-text);
+}
+
+.theme-toggle .icon {
+  --icon: url(/icons/moon.svg);
+}
+
+:root[data-theme="dark"] .theme-toggle .icon {
+  --icon: url(/icons/sun.svg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .icon {
+    --icon: url(/icons/sun.svg);
+  }
 }
 
 .auth .who {
@@ -771,6 +842,26 @@ html {
 
 .prose .tags-quiet {
   margin: -0.25rem 0 2.75rem;
+}
+
+.disclaimer {
+  margin: 2.5rem 0;
+  padding: 1rem 1.25rem;
+  border-block: 1px solid color-mix(in srgb, var(--sunset) 70%, transparent);
+  background: color-mix(in srgb, var(--sunset) 12%, transparent);
+}
+
+.disclaimer .eyebrow {
+  margin-bottom: 0.4rem;
+  color: var(--sunset-text);
+}
+
+.disclaimer p {
+  margin: 0;
+}
+
+.disclaimer p + p {
+  margin-top: 0.75rem;
 }
 
 .experience {

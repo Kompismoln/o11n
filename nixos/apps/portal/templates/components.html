@@ -19,3 +19,12 @@
   {%- endif %}
 </aside>
 {% endcomponent experience %}
+
+{% component disclaimer(title="") %}
+<aside class="disclaimer">
+  {%- if title %}
+  <p class="eyebrow">{{ title }}</p>
+  {%- endif %}
+  {{ body | markdown | safe }}
+</aside>
+{% endcomponent disclaimer %}

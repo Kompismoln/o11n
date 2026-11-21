@@ -16,6 +16,7 @@ let
       posts = "Inlägg";
       all_posts = "Alla inlägg";
       menu = "Meny";
+      theme = "Ljust eller mörkt läge";
       login = "Logga in";
       logout = "Logga ut";
       account = "Konto";
@@ -61,6 +62,7 @@ let
       posts = "Posts";
       all_posts = "All posts";
       menu = "Menu";
+      theme = "Light or dark mode";
       login = "Log in";
       logout = "Log out";
       account = "Account";
@@ -111,7 +113,7 @@ let
     inherit (org) name contact;
     logo =
       if app.logo == null then null else "/logo.${lib.last (lib.splitString "." (baseNameOf app.logo))}";
-    inherit (app) accent logoHeight;
+    inherit (app) accent accentHeader logoHeight;
     services = map (name: {
       inherit name;
       inherit (org.app.${name}) url kind;

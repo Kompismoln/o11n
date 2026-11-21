@@ -32,6 +32,17 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   headings, its text from that heading to the next is a band of its own after its pages, as a CV is (see CV), and the
   rest of the text after the band; a band that names no `##` of the section fails the site's build
   (`nixos/apps/portal/templates/section.html`).
+- A text may set a paragraph apart as a disclaimer, in a sunset's orange, under a `title` if it has one
+  (`nixos/apps/portal/templates/components.html`):
+
+  ```markdown
+  {% <disclaimer title="Right now"> %}
+
+  What the text above doesn't say.
+
+  {% </disclaimer> %}
+  ```
+
 - The start page lists each app of `services`, in their order, by `extra.services.<app>` in its front matter, `title`
   and `text`, or its name without, and its `url`, which the org gives it, a mail app's its webmail
   (`docs/parts/mail.md`):
@@ -67,6 +78,12 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
   buttons and links', and the box of a list item that begins with `[x]` or `[ ]`, a task, which has no bullet; a link
   right after the task's first emphasis is a chip (`nixos/apps/portal/static/portal.css`).
+- With `accentHeader`, the header is in the `accent` in light mode, with white on it, and its logo as dark mode has it,
+  and in dark mode as without, but for the site's name in white. The logo has it so by an SVG's `prefers-color-scheme`,
+  which follows the header's (`nixos/apps/portal/static/portal.css`).
+- The header switches the site between light and dark. The site is as the visitor's system has it until they switch, and
+  keeps what they chose in their browser, until they switch back to what their system has
+  (`nixos/apps/portal/templates/base.html`).
 - o11n has the site's templates, style and script (`nixos/apps/portal/`), and a page that isn't there is the site's
   `404.html`.
 
@@ -190,9 +207,10 @@ With a `keycloak`, the site has a login: a public client of the portal's name in
 to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as it keeps jitsi's
 (`docs/parts/keycloak.md`).
 
-- "Log in" sends the visitor to the realm and back to the page they were on, where the site's script exchanges the code
-  for the visitor's tokens in the browser and drops it from the address; the header then has the visitor's name, a link
-  to the realm's account console, and "Log out" (`nixos/apps/portal/static/auth.js`).
+- "Log in", a user's icon in the header, sends the visitor to the realm and back to the page they were on, where the
+  site's script exchanges the code for the visitor's tokens in the browser and drops it from the address; the header
+  then has the visitor's name, a link to the realm's account console, and "Log out"
+  (`nixos/apps/portal/static/auth.js`).
 - The tokens are the site's, in each of its tabs, and each page renews them as it loads: it shows the visitor logged in
   as long as the realm has them so, and logged out once the realm refuses, however their session ended.
 - The visitor is logged in to the realm, so another app of it logs them in without asking for their password again.

@@ -292,9 +292,10 @@ let
       '';
 
   # Policy: the portal lists the apps it names, in its order, described in each language, under the content's headings
-  # or its own, shows a page without a title as a note, with the commit it names, a section's description, its CV in its
-  # language with its availability by month and its contacts, summaries alone, which its chips and its boxes of experience
-  # link to, and links its PDF of all, with the page's address, and logs in with the client its keycloak keeps.
+  # or its own, shows a page without a title as a note, with the commit it names, a section's description, disclaimers,
+  # its CV in its language with its availability by month and its contacts, summaries alone, which its chips and its
+  # boxes of experience link to, and links its PDF of all, with the page's address, switches between light and dark, has
+  # its header in its accent, and logs in with the client its keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -334,6 +335,10 @@ let
         grep -qF '<li data-month="2026-12">' "$site/about/index.html"
         grep -qF '<span class="value">10%</span>' "$site/about/index.html"
         grep -qF '<p class="eyebrow">Erfarenhet</p>' "$site/about/index.html"
+        grep -qF '<p class="eyebrow">Just nu</p>' "$site/about/index.html" && grep -qF '<p>Alice är på semester.</p>' "$site/about/index.html"
+        grep -qF 'class="icon-button theme-toggle" aria-label="Light or dark mode"' "$site/en/index.html"
+        grep -qF '<header class="site-header on-accent">' "$site/index.html"
+        grep -qF 'data-auth="login" aria-label="Logga in"' "$site/index.html"
         grep -qF 'Föreningens <a href="http://www.example.com/policy/">e-post</a>.' "$site/about/index.html"
         [[ $(grep -c '<a href="#skill-wireguard">WireGuard</a>' "$site/about/index.html") == 2 ]]
         grep -qF '<span class="month">jan&nbsp;→</span>' "$site/about/index.html"

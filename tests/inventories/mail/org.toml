@@ -147,6 +147,7 @@ principal.mail.send = true
 kind = "portal"
 invites = "carol@elsewhere.test"
 logo = "site-logo.svg"
+accentHeader = true
 keycloak = "auth"
 realm = "example"
 services = ["cloud", "meet", "auth", "mail"]

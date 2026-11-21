@@ -40,6 +40,11 @@
       type = lib.types.str;
       default = "#2563eb";
     };
+    accentHeader = lib.mkOption {
+      description = "whether the header is the accent color in light mode, with white on it, and its logo as dark mode has it";
+      type = lib.types.bool;
+      default = false;
+    };
     services = lib.mkOption {
       description = "the apps the site lists, in its order, each described in the content's front matter, under extra.services.<app>";
       type = lib.types.listOf context.types.app.ref;

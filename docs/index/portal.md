@@ -14,6 +14,14 @@ Default: `"#2563eb"`
 
 the site's accent color, as CSS takes it
 
+### `app.<portal>.accentHeader`
+
+`org/apps/portal.nix` · boolean
+
+Default: `false`
+
+whether the header is the accent color in light mode, with white on it, and its logo as dark mode has it
+
 ### `app.<portal>.content`
 
 `org/apps/portal.nix` · path of a file in the org

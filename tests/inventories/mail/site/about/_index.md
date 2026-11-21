@@ -12,3 +12,9 @@ Alice hjälper till.
 Föreningens [e-post](@/policy/_index.md).
 
 {% </experience> %}
+
+{% <disclaimer title="Just nu"> %}
+
+Alice är på semester.
+
+{% </disclaimer> %}
