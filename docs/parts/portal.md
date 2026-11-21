@@ -28,7 +28,10 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   default language, `_index.en.md` the same in English, at `/en/`, and a page in each the same way. A page has a link to
   each language it's in.
 - The start page is the content's `_index.md`: its `title` and `description` head it, then its text.
-- Any other section has its `title` and `description` above its text.
+- Any other section has its `title` and `description` above its text. With `extra.band`, the id of one of its `##`
+  headings, its text from that heading to the next is a band of its own after its pages, as a CV is (see CV), and the
+  rest of the text after the band; a band that names no `##` of the section fails the site's build
+  (`nixos/apps/portal/templates/section.html`).
 - The start page lists each app of `services`, in their order, by `extra.services.<app>` in its front matter, `title`
   and `text`, or its name without, and its `url`, which the org gives it, a mail app's its webmail
   (`docs/parts/mail.md`):

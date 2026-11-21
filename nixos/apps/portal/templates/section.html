@@ -5,8 +5,19 @@
   {%- if section.description %}
   <p class="lead">{{ section.description }}</p>
   {%- endif %}
-  {%- if section.content %}
-  <div class="prose">{{ section.content | safe }}</div>
+  {%- set content = section.content %}
+  {%- set band = "" %}
+  {%- set rest = [] %}
+  {%- if section.extra.band %}
+  {%- set marker = '<h2 id="' ~ section.extra.band ~ '"' %}
+  {%- set halves = section.content | split(pat=marker) %}
+  {%- if halves | length != 2 %}{{ throw(message="extra.band names " ~ section.extra.band ~ ", which is no h2 of the section's own") }}{% endif %}
+  {%- set content = halves | first %}
+  {%- set rest = halves | last | split(pat="<h2 ") %}
+  {%- set band = marker ~ rest | first %}
+  {%- endif %}
+  {%- if content %}
+  <div class="prose">{{ content | safe }}</div>
   {%- endif %}
   <ul class="posts">
     {%- for post in section.pages %}
@@ -27,6 +38,18 @@
     {%- endfor %}
   </div>
 </section>
+{%- if band %}
+<section class="band">
+  <div class="wrap">
+    <div class="prose">{{ band | safe }}</div>
+  </div>
+</section>
+{%- endif %}
+{%- if rest | length > 1 %}
+<section class="wrap">
+  <div class="prose">{% for part in rest %}{% if not loop.first %}<h2 {{ part | safe }}{% endif %}{% endfor %}</div>
+</section>
+{%- endif %}
 {%- if lang == config.default_language %}{% set suffix = "" %}{% else %}{% set suffix = "." ~ lang %}{% endif %}
 {%- set cv = load_data(path=section.colocated_path ~ "cv" ~ suffix ~ ".toml", required=false) %}
 {%- if cv %}

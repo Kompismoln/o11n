@@ -443,11 +443,26 @@ html {
   scroll-behavior: smooth;
 }
 
-.cv-band {
+.cv-band,
+.band {
   margin-top: 4rem;
   padding: 3rem 0 1rem;
   border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
   background: linear-gradient(color-mix(in srgb, var(--accent) 7%, var(--bg)), var(--bg) 24rem);
+}
+
+.band + .wrap {
+  margin-top: 2rem;
+}
+
+.band .prose > h2:first-child {
+  margin-top: 0;
+  font-size: 2rem;
+}
+
+.band .prose h3 {
+  margin-top: 2.25rem;
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
 }
 
 .cv {
