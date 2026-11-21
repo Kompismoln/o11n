@@ -28,7 +28,10 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   default language, `_index.en.md` the same in English, at `/en/`, and a page in each the same way. A page has a link to
   each language it's in.
 - The start page is the content's `_index.md`: its `title` and `description` head it, then its text.
-- Any other section has its `title` and `description` above its text.
+- Any other section has its `title` and `description` above its text. With `extra.band`, the id of one of its `##`
+  headings, its text from that heading to the next is a band of its own after its pages, as a CV is (see CV), and the
+  rest of the text after the band; a band that names no `##` of the section fails the site's build
+  (`nixos/apps/portal/templates/section.html`).
 - The start page lists each app of `services`, in their order, by `extra.services.<app>` in its front matter, `title`
   and `text`, or its name without, and its `url`, which the org gives it, a mail app's its webmail
   (`docs/parts/mail.md`):
@@ -58,9 +61,12 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   with `extra.on_index = <n>` has its first `n` pages on the start page too, as a blog's latest posts with
   `sort_by = "date"`.
 - A status app whose `portal` is the portal has its link in the footer (`docs/parts/status.md`).
-- Each language has its feed, of the pages with a `date`, at `atom.xml` there; a note's entry is titled by its text.
+- Each language has its feed, of the pages with a `date`, at `atom.xml` there; a note's entry is titled by its text. The
+  footer links it, and the head names it, once a section of the start page or the start page itself has such a page
+  (`nixos/apps/portal/templates/base.html`).
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
-  buttons and links'.
+  buttons and links', and the box of a list item that begins with `[x]` or `[ ]`, a task, which has no bullet
+  (`nixos/apps/portal/static/portal.css`).
 - o11n has the site's templates, style and script (`nixos/apps/portal/`), and a page that isn't there is the site's
   `404.html`.
 

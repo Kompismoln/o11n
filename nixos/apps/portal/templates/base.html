@@ -1,6 +1,13 @@
 {%- set org = config.extra -%}
 {%- if section -%}{%- set current = section -%}{%- elif page -%}{%- set current = page -%}{%- endif -%}
 {%- if lang == config.default_language -%}{%- set home = "/" -%}{%- set suffix = "" -%}{%- else -%}{%- set home = "/" ~ lang ~ "/" -%}{%- set suffix = "." ~ lang -%}{%- endif -%}
+{%- set root = get_section(path="_index" ~ suffix ~ ".md") -%}
+{%- set_global feed = false -%}
+{%- for p in root.pages %}{% if p.date %}{% set_global feed = true %}{% endif %}{% endfor -%}
+{%- for path in root.subsections -%}
+{%- set sub = get_section(path=path) -%}
+{%- for p in sub.pages %}{% if p.date %}{% set_global feed = true %}{% endif %}{% endfor -%}
+{%- endfor -%}
 <!doctype html>
 <html lang="{{ lang }}">
 <head>
@@ -15,7 +22,9 @@
   <link rel="alternate" hreflang="{{ translation.lang }}" href="{{ translation.permalink | safe }}">
   {%- endfor %}
   {%- endif %}
+  {%- if feed %}
   <link rel="alternate" type="application/atom+xml" title="{{ config.title }}" href="{{ home }}atom.xml">
+  {%- endif %}
   {%- if org.logo %}
   <link rel="icon" href="{{ org.logo }}">
   {%- endif %}
@@ -34,7 +43,6 @@
         <span>{{ config.title }}</span>
       </a>
       <nav class="nav">
-        {%- set root = get_section(path="_index" ~ suffix ~ ".md", metadata_only=true) %}
         {%- for path in root.subsections %}
         {%- set sub = get_section(path=path) %}
         {%- if sub.content or sub.pages %}
@@ -70,7 +78,9 @@
     <div class="bar">
       <span>{{ config.title }}</span>
       <a href="mailto:{{ org.contact }}">{{ trans(key="contact", lang=lang) }}: {{ org.contact }}</a>
+      {%- if feed %}
       <a href="{{ home }}atom.xml">{{ trans(key="feed", lang=lang) }}</a>
+      {%- endif %}
       {%- if org.status %}
       <a href="{{ org.status }}">{{ trans(key="status", lang=lang) }}</a>
       {%- endif %}
