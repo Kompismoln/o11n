@@ -60,7 +60,7 @@
       <h2>{{ cv.name }}</h2>
       {%- if cv.title or cv.availability %}
       <p class="cv-title">
-        <span>{% if cv.title %}{{ cv.title }}{% endif %}{% if cv.title and cv.location %}&nbsp;· {% endif %}{% if cv.location %}{{ cv.location }}{% endif %}</span>
+        <span>{{ cv.title | default(value="") }}</span>
         {%- if cv.availability %}
         <span class="pill">{{ cv.availability }}</span>
         {%- endif %}
@@ -71,7 +71,7 @@
         <p class="muted">{{ trans(key="cv_available", lang=lang) }}</p>
         <ol class="months">
           {%- for entry in cv.available %}
-          <li data-month="{{ entry.month }}" tabindex="0">
+          <li data-month="{{ entry.month }}">
             <span class="value">{{ entry.percent }}%</span>
             <span class="track"><span style="height: {{ entry.percent }}%"></span></span>
             <span class="month">{{ trans(key="month_" ~ entry.month[5:], lang=lang) }}{% if loop.last %}&nbsp;→{% endif %}</span>
@@ -126,6 +126,9 @@
         {%- if "github.com" in link.url %}{% set icon = "github" %}{% elif "linkedin.com" in link.url %}{% set icon = "linkedin" %}{% else %}{% set icon = "link" %}{% endif %}
         <li><span class="icon icon-{{ icon }}" aria-hidden="true"></span><a href="{{ link.url }}">{{ link.name }}</a></li>
         {%- endfor %}
+        {%- if cv.location %}
+        <li class="muted"><span class="icon icon-map-pin" aria-hidden="true"></span>{{ cv.location }}</li>
+        {%- endif %}
         {%- if cv.business %}
         <li class="muted"><span class="icon icon-briefcase" aria-hidden="true"></span>{{ cv.business }}</li>
         {%- endif %}

@@ -5,3 +5,17 @@
   {%- endfor %}
 </ul>
 {% endcomponent skills %}
+
+{% component experience(title, skills=[]) %}
+<aside class="experience">
+  <p class="eyebrow">{{ title }}</p>
+  {{ body | markdown | safe }}
+  {%- if skills %}
+  <ul class="tags tags-quiet">
+    {%- for item in skills %}
+    <li><a href="#skill-{{ item | slugify }}">{{ item }}</a></li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+</aside>
+{% endcomponent experience %}

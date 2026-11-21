@@ -65,8 +65,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   footer links it, and the head names it, once a section of the start page or the start page itself has such a page
   (`nixos/apps/portal/templates/base.html`).
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
-  buttons and links', and the box of a list item that begins with `[x]` or `[ ]`, a task, which has no bullet
-  (`nixos/apps/portal/static/portal.css`).
+  buttons and links', and the box of a list item that begins with `[x]` or `[ ]`, a task, which has no bullet; a link
+  right after the task's first emphasis is a chip (`nixos/apps/portal/static/portal.css`).
 - o11n has the site's templates, style and script (`nixos/apps/portal/`), and a page that isn't there is the site's
   `404.html`.
 
@@ -139,18 +139,28 @@ level = "fluent"
 ```
 
 - `name` alone is required, and each part is in order, as it has it.
-- The site has the `title` and `location` in a box, with the `availability` at its end, shows a role by its `summary`,
-  and leaves its `points`, `education` and `languages` to the PDF.
-- `available` is a bar a month, under the box, its percent shown as the visitor points at it; the site leaves out a
-  month once the next has begun, as the visitor's clock has it (`nixos/apps/portal/static/cv.js`), and the PDF has each.
-- The `email`, the `links` and the `business` are a card of contacts beside the CV, or after it on a narrow screen, with
-  the link to the PDF, and at the right of the PDF's head, each with an icon of Lucide's
+- The site has the `title` in a box, with the `availability` at its end, shows a role by its `summary`, and leaves its
+  `points`, `education` and `languages` to the PDF.
+- `available` is a bar a month, under the box, with its percent above it; the site leaves out a month once the next has
+  begun, as the visitor's clock has it (`nixos/apps/portal/static/cv.js`), and the PDF has each.
+- The `email`, the `links`, the `location` and the `business` are a card of contacts beside the CV, or after it on a
+  narrow screen, with the link to the PDF, and at the right of the PDF's head, each with an icon of Lucide's
   (`nixos/apps/portal/static/icons/`): a link's is GitHub's or LinkedIn's by its address, or a link's. The PDF has the
   section's address at the foot of each page.
 - The section's text may end a part with a row of its skills, each a chip that links to it in the CV, as a component:
 
   ```markdown
   {{ <skills items={["NixOS", "WireGuard"]} /> }}
+  ```
+
+  Or with a box of what the part rests on, its text under a `title` and its skills, if any, as chips at its foot:
+
+  ```markdown
+  {% <experience title="Experience" skills={["NixOS"]}> %}
+
+  What was done, and where.
+
+  {% </experience> %}
   ```
 
   A chip that names a skill the CV in the section's language doesn't have fails the site's build, which says which

@@ -42,7 +42,7 @@ let
       cv_languages = "Språk";
       cv_present = "nu";
       cv_download = "Ladda ner CV (PDF)";
-      cv_available = "Tillgänglighet";
+      cv_available = "Tillgänglighet, andel av heltid";
       month_01 = "jan";
       month_02 = "feb";
       month_03 = "mar";
@@ -87,7 +87,7 @@ let
       cv_languages = "Languages";
       cv_present = "present";
       cv_download = "Download CV (PDF)";
-      cv_available = "Availability";
+      cv_available = "Availability, share of full time";
       month_01 = "Jan";
       month_02 = "Feb";
       month_03 = "Mar";
@@ -135,6 +135,7 @@ let
     default_language = defaultLanguage;
     compile_sass = false;
     build_search_index = false;
+    markdown.insert_anchor_links = "heading";
     generate_feeds = true;
     feed_filenames = [ "atom.xml" ];
     translations = strings.${defaultLanguage};

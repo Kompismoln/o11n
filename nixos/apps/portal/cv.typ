@@ -41,6 +41,7 @@
 #let contact = (
   (if "email" in cv { (row("mail", link("mailto:" + cv.email, cv.email)),) } else { () })
     + links
+    + (if "location" in cv { (row("map-pin", cv.location),) } else { () })
     + (if "business" in cv { (row("briefcase", cv.business),) } else { () })
 )
 
@@ -52,9 +53,8 @@
     #if "title" in cv {
       block(above: 0.6em, text(size: 12pt, weight: "medium", fill: accent, cv.title))
     }
-    #let facts = ("location", "availability").filter(key => key in cv).map(key => cv.at(key))
-    #if facts.len() > 0 {
-      block(above: 0.6em, text(fill: muted, facts.join(" · ")))
+    #if "availability" in cv {
+      block(above: 0.6em, text(fill: muted, cv.availability))
     }
   ],
   if contact.len() > 0 {
@@ -69,6 +69,7 @@
     column-gutter: 2pt,
     row-gutter: 3pt,
     align: center + bottom,
+    ..cv.available.map(entry => text(size: 8pt, weight: "semibold", str(entry.percent) + "%")),
     ..cv.available.map(entry => box(width: 1.1cm, height: 0.9cm, fill: accent.transparentize(88%), radius: (top: 2pt))[
       #place(bottom, rect(width: 100%, height: entry.percent * 1%, fill: accent, radius: (top: 2pt)))
     ]),

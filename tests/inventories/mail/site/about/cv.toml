@@ -2,6 +2,7 @@ name = "Alice"
 title = "Driftansvarig"
 availability = "Tillgänglig från januari"
 email = "alice@example.com"
+location = "Stockholm"
 business = "Enskild firma med F-skatt"
 profile = ["Alice driftar."]
 

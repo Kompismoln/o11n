@@ -293,8 +293,8 @@ let
 
   # Policy: the portal lists the apps it names, in its order, described in each language, under the content's headings
   # or its own, shows a page without a title as a note, with the commit it names, a section's description, its CV in its
-  # language with its availability by month and its contacts, summaries alone, which its chips link to, and links its PDF
-  # of all, with the page's address, and logs in with the client its keycloak keeps.
+  # language with its availability by month and its contacts, summaries alone, which its chips and its boxes of experience
+  # link to, and links its PDF of all, with the page's address, and logs in with the client its keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -331,12 +331,18 @@ let
         grep -qF '<span class="pill">Tillgänglig från januari</span>' "$site/about/index.html"
         grep -qF '<a href="#skill-wireguard">WireGuard</a>' "$site/about/index.html"
         grep -qF '<li id="skill-wireguard">WireGuard</li>' "$site/about/index.html"
-        grep -qF '<li data-month="2026-12" tabindex="0">' "$site/about/index.html"
+        grep -qF '<li data-month="2026-12">' "$site/about/index.html"
+        grep -qF '<span class="value">10%</span>' "$site/about/index.html"
+        grep -qF '<p class="eyebrow">Erfarenhet</p>' "$site/about/index.html"
+        grep -qF 'Föreningens <a href="http://www.example.com/policy/">e-post</a>.' "$site/about/index.html"
+        [[ $(grep -c '<a href="#skill-wireguard">WireGuard</a>' "$site/about/index.html") == 2 ]]
         grep -qF '<span class="month">jan&nbsp;→</span>' "$site/about/index.html"
         grep -qF '<a href="mailto:alice@example.com">alice@example.com</a>' "$site/about/index.html"
         grep -qF '<span class="icon icon-github" aria-hidden="true"></span><a href="https://github.com/alice">GitHub</a>' \
           "$site/about/index.html"
         grep -qF 'icon-briefcase" aria-hidden="true"></span>Enskild firma med F-skatt</li>' "$site/about/index.html"
+        grep -qF 'icon-map-pin" aria-hidden="true"></span>Stockholm</li>' "$site/about/index.html"
+        ! grep -qF 'Driftansvarig&nbsp;·' "$site/about/index.html" || exit 1
         [[ -f $site/icons/github.svg ]]
         grep -qF '<span class="cv-period">2020–nu</span>' "$site/about/index.html"
         ! grep -qF 'Satte upp' "$site/about/index.html" || exit 1
@@ -347,6 +353,8 @@ let
         pdftotext "$site/about/cv.en.pdf" - | grep -qF '2018–2020'
         pdftotext "$site/about/cv.pdf" - | grep -qF 'alice@example.com'
         pdftotext "$site/about/cv.pdf" - | grep -qF 'Enskild firma med F-skatt'
+        pdftotext "$site/about/cv.pdf" - | grep -qF 'Stockholm'
+        pdftotext "$site/about/cv.pdf" - | grep -qF '100%'
         pdftotext "$site/about/cv.pdf" - | grep -qF 'www.example.com/about/'
         pdftotext "$site/about/cv.en.pdf" - | grep -qF 'www.example.com/en/about/'
         jq -e '.[] | select(.representation.clientId == "www") | .realm == "example" and .representation.publicClient

@@ -70,6 +70,31 @@ h2 {
   margin: 2.5rem 0 1rem;
 }
 
+.heading-link {
+  position: relative;
+  text-decoration: none;
+}
+
+.heading-link:hover {
+  color: inherit;
+}
+
+.heading-link::before {
+  content: "#";
+  content: "#" / "";
+  position: absolute;
+  right: 100%;
+  padding-right: 0.3em;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+:is(h1, h2, h3, h4, h5, h6):hover > .heading-link::before,
+.heading-link:focus-visible::before {
+  opacity: 1;
+}
+
 .bar,
 .wrap {
   max-width: var(--width);
@@ -100,6 +125,11 @@ h2 {
   gap: 0.6rem;
   font-weight: 700;
   text-decoration: none;
+}
+
+.brand,
+.brand:hover {
+  color: var(--accent);
 }
 
 .brand img {
@@ -227,6 +257,12 @@ h2 {
   color: var(--accent);
 }
 
+.nav a[aria-current] {
+  color: var(--text);
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 0.45em;
+}
+
 .tools {
   display: flex;
   align-items: center;
@@ -308,6 +344,10 @@ h2 {
 
 .prose li:has(> input[type="checkbox"]) {
   list-style: none;
+}
+
+.prose li:has(> input[type="checkbox"]):has(> br) {
+  margin-bottom: 0.6rem;
 }
 
 .prose li > input[type="checkbox"] {
@@ -649,6 +689,10 @@ html {
   --icon: url(/icons/briefcase.svg);
 }
 
+.icon-map-pin {
+  --icon: url(/icons/map-pin.svg);
+}
+
 .cv h2 {
   margin-top: 0.25rem;
 }
@@ -729,13 +773,35 @@ html {
   margin: -0.25rem 0 2.75rem;
 }
 
+.experience {
+  margin: 1.25rem 0 2.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+}
+
+.experience .eyebrow {
+  margin-bottom: 0.4rem;
+}
+
+.experience p {
+  margin: 0;
+}
+
+.prose .experience .tags-quiet {
+  margin: 0.75rem 0 0;
+}
+
 .tags-quiet li {
   padding: 0;
   border: 0;
   background: none;
 }
 
-.tags-quiet a {
+.tags-quiet a,
+.prose li:has(> input[type="checkbox"]) > strong + a {
   display: block;
   padding: 0.05rem 0.6rem;
   border-radius: 999px;
@@ -745,8 +811,15 @@ html {
   background: color-mix(in srgb, var(--accent) 9%, transparent);
 }
 
-.tags-quiet a:hover {
+.tags-quiet a:hover,
+.prose li:has(> input[type="checkbox"]) > strong + a:hover {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.prose li:has(> input[type="checkbox"]) > strong + a {
+  display: inline-block;
+  margin-left: 0.15rem;
+  line-height: 1.5;
 }
 
 .tags li:target {
@@ -778,7 +851,6 @@ html {
   gap: 0.3rem;
   width: 3.25rem;
   padding-top: 1.4rem;
-  outline: none;
 }
 
 .months .track {
@@ -806,11 +878,4 @@ html {
   top: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.months li:hover .value,
-.months li:focus-visible .value {
-  opacity: 1;
 }
