@@ -107,10 +107,113 @@ h2 {
   width: auto;
 }
 
+.menu {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  flex: 1;
+}
+
 .nav {
   display: flex;
   gap: 1.25rem;
   flex: 1;
+}
+
+.menu-toggle {
+  display: none;
+}
+
+@media (max-width: 48rem) {
+  .collapsible .brand {
+    min-height: 4rem;
+  }
+
+  .collapsible .menu-toggle {
+    display: grid;
+    place-items: center;
+    margin-left: auto;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .menu-toggle span,
+  .menu-toggle span::before,
+  .menu-toggle span::after {
+    display: block;
+    width: 1.4rem;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+    transition:
+      transform 0.2s,
+      background 0.2s;
+  }
+
+  .menu-toggle span {
+    position: relative;
+  }
+
+  .menu-toggle span::before,
+  .menu-toggle span::after {
+    content: "";
+    position: absolute;
+    left: 0;
+  }
+
+  .menu-toggle span::before {
+    top: -0.45rem;
+  }
+
+  .menu-toggle span::after {
+    top: 0.45rem;
+  }
+
+  .menu-toggle[aria-expanded="true"] span {
+    background: transparent;
+  }
+
+  .menu-toggle[aria-expanded="true"] span::before {
+    transform: translateY(0.45rem) rotate(45deg);
+  }
+
+  .menu-toggle[aria-expanded="true"] span::after {
+    transform: translateY(-0.45rem) rotate(-45deg);
+  }
+
+  .collapsible .menu {
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin-top: -0.5rem;
+    padding: 0.5rem 0 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .collapsible .menu-toggle[aria-expanded="false"] + .menu {
+    display: none;
+  }
+
+  .collapsible .nav {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .collapsible .nav a {
+    padding: 0.5rem 0;
+    font-size: 1.1rem;
+  }
+
+  .collapsible .tools {
+    flex-wrap: wrap;
+  }
 }
 
 .nav a,

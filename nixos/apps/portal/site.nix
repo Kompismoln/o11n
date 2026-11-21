@@ -15,6 +15,7 @@ let
       services = "Tjänster";
       posts = "Inlägg";
       all_posts = "Alla inlägg";
+      menu = "Meny";
       login = "Logga in";
       logout = "Logga ut";
       account = "Konto";
@@ -59,6 +60,7 @@ let
       services = "Services";
       posts = "Posts";
       all_posts = "All posts";
+      menu = "Menu";
       login = "Log in";
       logout = "Log out";
       account = "Account";

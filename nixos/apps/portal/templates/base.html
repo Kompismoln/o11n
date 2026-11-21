@@ -42,35 +42,50 @@
         {%- if org.logo %}<img src="{{ org.logo }}" alt="" width="40" height="40">{% endif -%}
         <span>{{ config.title }}</span>
       </a>
-      <nav class="nav">
-        {%- for path in root.subsections %}
-        {%- set sub = get_section(path=path) %}
-        {%- if sub.content or sub.pages %}
-        <a href="{{ sub.permalink | safe }}">{{ sub.title }}</a>
-        {%- endif %}
-        {%- endfor %}
-      </nav>
-      <div class="tools">
-        {%- if current %}
-        {%- for translation in current.translations %}
-        {%- if translation.lang != lang %}
-        <a class="lang" href="{{ translation.permalink | safe }}" hreflang="{{ translation.lang }}" lang="{{ translation.lang }}">{{ trans(key="language", lang=translation.lang) }}</a>
-        {%- endif %}
-        {%- endfor %}
-        {%- endif %}
-        {%- if org.auth %}
-        <div class="auth" id="auth" hidden>
-          <button type="button" class="button" data-auth="login">{{ trans(key="login", lang=lang) }}</button>
-          <span class="who" data-auth="who" hidden>
-            <span class="muted">{{ trans(key="signed_in_as", lang=lang) }}</span> <strong data-auth="name"></strong>
-            <a href="{{ org.auth.account }}">{{ trans(key="account", lang=lang) }}</a>
-            <button type="button" class="link" data-auth="logout">{{ trans(key="logout", lang=lang) }}</button>
-          </span>
+      <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="menu" aria-label="{{ trans(key="menu", lang=lang) }}">
+        <span></span>
+      </button>
+      <div class="menu" id="menu">
+        <nav class="nav">
+          {%- for path in root.subsections %}
+          {%- set sub = get_section(path=path) %}
+          {%- if sub.content or sub.pages %}
+          <a href="{{ sub.permalink | safe }}">{{ sub.title }}</a>
+          {%- endif %}
+          {%- endfor %}
+        </nav>
+        <div class="tools">
+          {%- if current %}
+          {%- for translation in current.translations %}
+          {%- if translation.lang != lang %}
+          <a class="lang" href="{{ translation.permalink | safe }}" hreflang="{{ translation.lang }}" lang="{{ translation.lang }}">{{ trans(key="language", lang=translation.lang) }}</a>
+          {%- endif %}
+          {%- endfor %}
+          {%- endif %}
+          {%- if org.auth %}
+          <div class="auth" id="auth" hidden>
+            <button type="button" class="button" data-auth="login">{{ trans(key="login", lang=lang) }}</button>
+            <span class="who" data-auth="who" hidden>
+              <span class="muted">{{ trans(key="signed_in_as", lang=lang) }}</span> <strong data-auth="name"></strong>
+              <a href="{{ org.auth.account }}">{{ trans(key="account", lang=lang) }}</a>
+              <button type="button" class="link" data-auth="logout">{{ trans(key="logout", lang=lang) }}</button>
+            </span>
+          </div>
+          {%- endif %}
         </div>
-        {%- endif %}
       </div>
     </div>
   </header>
+  <script>
+    {
+      const header = document.currentScript.previousElementSibling;
+      const toggle = header.querySelector(".menu-toggle");
+      header.classList.add("collapsible");
+      toggle.addEventListener("click", () => {
+        toggle.setAttribute("aria-expanded", toggle.getAttribute("aria-expanded") !== "true");
+      });
+    }
+  </script>
   <main>
     {% block content %}{% endblock content %}
   </main>
