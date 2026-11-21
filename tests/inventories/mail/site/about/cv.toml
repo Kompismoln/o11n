@@ -1,0 +1,32 @@
+name = "Alice"
+title = "Driftansvarig"
+availability = "Tillgänglig från januari"
+email = "alice@example.com"
+business = "Enskild firma med F-skatt"
+profile = ["Alice driftar."]
+
+[[links]]
+name = "GitHub"
+url = "https://github.com/alice"
+
+[[available]]
+month = "2026-12"
+percent = 10
+
+[[available]]
+month = "2027-01"
+percent = 100
+
+[[skills]]
+group = "Drift"
+items = ["NixOS", "WireGuard"]
+
+[[experience]]
+from = 2020
+role = "Frilans"
+summary = "Driftar för föreningar."
+points = ["Satte upp e-post för föreningen."]
+
+[[languages]]
+name = "Svenska"
+level = "modersmål"

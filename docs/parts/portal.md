@@ -28,6 +28,7 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   default language, `_index.en.md` the same in English, at `/en/`, and a page in each the same way. A page has a link to
   each language it's in.
 - The start page is the content's `_index.md`: its `title` and `description` head it, then its text.
+- Any other section has its `title` and `description` above its text.
 - The start page lists each app of `services`, in their order, by `extra.services.<app>` in its front matter, `title`
   and `text`, or its name without, and its `url`, which the org gives it, a mail app's its webmail
   (`docs/parts/mail.md`):
@@ -85,6 +86,88 @@ The rescue stick phones home.
 
 The site has a commit's repo, rev and subject only as the note gives them: it fetches nothing.
 
+### CV
+
+A section with a `cv.toml` beside its `_index.md`, `cv.en.toml` in English, has a CV, which the site shows after the
+section, on a band of its own under "About me", and as a PDF that Typst sets in Inter, linked under it at `cv.pdf`,
+`cv.en.pdf` (`nixos/apps/portal/cv.typ`):
+
+```toml
+name = "Alice"
+title = "Operations"
+location = "Stockholm"
+availability = "Available from January"
+email = "alice@example.com"
+business = "Sole trader, registered for F-tax"
+profile = ["A paragraph.", "Another."]
+
+[[links]]
+name = "GitHub"
+url = "https://github.com/alice"
+
+[[available]]
+month = "2027-01"
+percent = 50 # until the next, the last for good
+
+[[skills]]
+group = "Infrastructure"
+items = ["NixOS", "WireGuard"]
+
+[[experience]]
+from = 2018
+to = 2020 # without, to the present
+employer = "Example AB"
+role = "Developer"
+summary = "What the role was."
+points = ["What came of it."]
+
+[[education]]
+title = "BSc"
+from = 2009
+to = 2014
+text = "Its direction."
+
+[[languages]]
+name = "English"
+level = "fluent"
+```
+
+- `name` alone is required, and each part is in order, as it has it.
+- The site has the `title` and `location` in a box, with the `availability` at its end, shows a role by its `summary`,
+  and leaves its `points`, `education` and `languages` to the PDF.
+- `available` is a bar a month, under the box, its percent shown as the visitor points at it; the site leaves out a
+  month once the next has begun, as the visitor's clock has it (`nixos/apps/portal/static/cv.js`), and the PDF has each.
+- The `email`, the `links` and the `business` are a card of contacts beside the CV, or after it on a narrow screen, with
+  the link to the PDF, and at the right of the PDF's head, each with an icon of Lucide's
+  (`nixos/apps/portal/static/icons/`): a link's is GitHub's or LinkedIn's by its address, or a link's. The PDF has the
+  section's address at the foot of each page.
+- The section's text may end a part with a row of its skills, each a chip that links to it in the CV, as a component:
+
+  ```markdown
+  {{ <skills items={["NixOS", "WireGuard"]} /> }}
+  ```
+
+  A chip that names a skill the CV in the section's language doesn't have fails the site's build, which says which
+  (`nixos/apps/portal/site.nix`).
+
+- The PDF's headings are the site's, in the CV's language, and its accent the site's `accent` if a hex color, or else
+  its text color.
+- The site serves the TOML as it does the section's other files.
+
+## Preview
+
+`o11n site [app] [-- <zola serve's arguments>]`, from the org's clone, serves a portal's site from its content there,
+the org's one portal or the one named, with `zola serve`, at `http://127.0.0.1:1111` unless `--port` says otherwise, as
+the portal builds it, and again as the content changes, each CV's PDF too (`crates/o11n/src/site.rs`).
+
+- It builds `portals.<system>.<app>.serve` of the org's flake, which has `content` as a place in the org
+  (`lib/default.nix`), from the org's `o11n`: a change to o11n's templates is seen once the org's o11n has it.
+- The site and the server are built alike (`nixos/apps/portal/site.nix`), but for the server's address in place of the
+  portal's.
+- A CV added while it runs has its PDF once it's started again.
+- The keycloak refuses its login, as it returns to the portal's address alone, and the form for an invite has no service
+  to post to.
+
 ## Login
 
 With a `keycloak`, the site has a login: a public client of the portal's name in the `realm`, with PKCE, which returns
@@ -123,10 +206,12 @@ address or an alias, or its mail server fails to evaluate, as the server would r
 `eval-portal-mail` builds `tests/inventories/mail`'s portal, `www` on `web`, and checks that it lists its services in
 their order in each language, that a section is in the header once it has a page, that its notes are shown on the start
 page and in their section, one with its commit and one without, that it takes the headings the content gives in one
-language and its own in the other, and that the keycloak keeps its client. `vmTests.keycloak` serves it beside the
-keycloak, where a browser logs alice in from a page of it and back there, and in its other tabs, finds no form for an
-invite, is logged in to the drive without being asked again, and logs out, after which the portal's login asks again,
-and the drive's. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and refuses an
-address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an address.
-`eval-inventory-mail` fails the mail server's evaluation for an address on its domain that no inbox has, a send-only
-principal's among them, and not for an alias, whatever its case, a postmaster, or an address elsewhere.
+language and its own in the other, that a section shows its description, and the CV of its language with summaries
+alone, which its chips link to, and links its PDF, which has the points, and that the keycloak keeps its client.
+`eval-portal-chips` fails a site's build for a chip that names a skill the CV doesn't have. `vmTests.keycloak` serves it
+beside the keycloak, where a browser logs alice in from a page of it and back there, and in its other tabs, finds no
+form for an invite, is logged in to the drive without being asked again, and logs out, after which the portal's login
+asks again, and the drive's. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and
+refuses an address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an
+address. `eval-inventory-mail` fails the mail server's evaluation for an address on its domain that no inbox has, a
+send-only principal's among them, and not for an alias, whatever its case, a postmaster, or an address elsewhere.

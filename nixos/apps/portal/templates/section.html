@@ -2,6 +2,9 @@
 {% block content %}
 <section class="wrap">
   <h1>{{ section.title }}</h1>
+  {%- if section.description %}
+  <p class="lead">{{ section.description }}</p>
+  {%- endif %}
   {%- if section.content %}
   <div class="prose">{{ section.content | safe }}</div>
   {%- endif %}
@@ -24,4 +27,89 @@
     {%- endfor %}
   </div>
 </section>
+{%- if lang == config.default_language %}{% set suffix = "" %}{% else %}{% set suffix = "." ~ lang %}{% endif %}
+{%- set cv = load_data(path=section.colocated_path ~ "cv" ~ suffix ~ ".toml", required=false) %}
+{%- if cv %}
+<section class="cv-band" id="cv">
+  <div class="wrap cv">
+    <div class="cv-main">
+      <p class="eyebrow">{{ trans(key="cv_about", lang=lang) }}</p>
+      <h2>{{ cv.name }}</h2>
+      {%- if cv.title or cv.availability %}
+      <p class="cv-title">
+        <span>{% if cv.title %}{{ cv.title }}{% endif %}{% if cv.title and cv.location %}&nbsp;· {% endif %}{% if cv.location %}{{ cv.location }}{% endif %}</span>
+        {%- if cv.availability %}
+        <span class="pill">{{ cv.availability }}</span>
+        {%- endif %}
+      </p>
+      {%- endif %}
+      {%- if cv.available %}
+      <div class="stripe">
+        <p class="muted">{{ trans(key="cv_available", lang=lang) }}</p>
+        <ol class="months">
+          {%- for entry in cv.available %}
+          <li data-month="{{ entry.month }}" tabindex="0">
+            <span class="value">{{ entry.percent }}%</span>
+            <span class="track"><span style="height: {{ entry.percent }}%"></span></span>
+            <span class="month">{{ trans(key="month_" ~ entry.month[5:], lang=lang) }}{% if loop.last %}&nbsp;→{% endif %}</span>
+          </li>
+          {%- endfor %}
+        </ol>
+        <script type="module" src="/cv.js"></script>
+      </div>
+      {%- endif %}
+      {%- if cv.profile %}
+      <div class="prose">
+        {%- for paragraph in cv.profile %}
+        <p>{{ paragraph }}</p>
+        {%- endfor %}
+      </div>
+      {%- endif %}
+      {%- if cv.skills %}
+      <h3>{{ trans(key="cv_skills", lang=lang) }}</h3>
+      <dl class="cv-skills" id="cv-skills">
+        {%- for skill in cv.skills %}
+        <div>
+          <dt>{{ skill.group }}</dt>
+          <dd><ul class="tags">{% for item in skill.items %}<li id="skill-{{ item | slugify }}">{{ item }}</li>{% endfor %}</ul></dd>
+        </div>
+        {%- endfor %}
+      </dl>
+      {%- endif %}
+      {%- if cv.experience %}
+      <h3>{{ trans(key="cv_experience", lang=lang) }}</h3>
+      <ul class="posts">
+        {%- for entry in cv.experience %}
+        <li>
+          <strong>{{ entry.role }}</strong>{% if entry.employer %} · {{ entry.employer }}{% endif %}
+          {%- if entry.from %}
+          <span class="cv-period">{{ entry.from }}–{% if entry.to %}{{ entry.to }}{% else %}{{ trans(key="cv_present", lang=lang) }}{% endif %}</span>
+          {%- endif %}
+          {%- if entry.summary %}
+          <p>{{ entry.summary }}</p>
+          {%- endif %}
+        </li>
+        {%- endfor %}
+      </ul>
+      {%- endif %}
+    </div>
+    <aside class="cv-contact">
+      <p class="muted">{{ trans(key="contact", lang=lang) }}</p>
+      <ul>
+        {%- if cv.email %}
+        <li><span class="icon icon-mail" aria-hidden="true"></span><a href="mailto:{{ cv.email }}">{{ cv.email }}</a></li>
+        {%- endif %}
+        {%- for link in cv.links | default(value=[]) %}
+        {%- if "github.com" in link.url %}{% set icon = "github" %}{% elif "linkedin.com" in link.url %}{% set icon = "linkedin" %}{% else %}{% set icon = "link" %}{% endif %}
+        <li><span class="icon icon-{{ icon }}" aria-hidden="true"></span><a href="{{ link.url }}">{{ link.name }}</a></li>
+        {%- endfor %}
+        {%- if cv.business %}
+        <li class="muted"><span class="icon icon-briefcase" aria-hidden="true"></span>{{ cv.business }}</li>
+        {%- endif %}
+      </ul>
+      <a class="button" href="/{{ section.colocated_path }}cv{{ suffix }}.pdf">{{ trans(key="cv_download", lang=lang) }}</a>
+    </aside>
+  </div>
+</section>
+{%- endif %}
 {% endblock content %}

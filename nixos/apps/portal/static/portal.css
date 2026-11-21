@@ -407,3 +407,270 @@ main > .wrap:first-child {
   font-size: 0.85rem;
   text-decoration: none;
 }
+
+a.button {
+  display: inline-block;
+  text-decoration: none;
+}
+
+a.button:hover {
+  color: #fff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.cv-band {
+  margin-top: 4rem;
+  padding: 3rem 0 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+  background: linear-gradient(color-mix(in srgb, var(--accent) 7%, var(--bg)), var(--bg) 24rem);
+}
+
+.cv {
+  display: grid;
+  grid-template-columns: minmax(0, 42rem) minmax(15rem, 17.5rem);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (max-width: 62rem) {
+  .cv {
+    grid-template-columns: minmax(0, 42rem);
+  }
+}
+
+.cv-contact {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.95rem;
+}
+
+.cv-contact p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.cv-contact ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.cv-contact li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.cv-contact a:not(.button) {
+  text-decoration: none;
+}
+
+.cv-contact .button {
+  justify-self: start;
+  margin-top: 0.25rem;
+}
+
+.icon {
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  background: var(--muted);
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.icon-mail {
+  --icon: url(/icons/mail.svg);
+}
+
+.icon-github {
+  --icon: url(/icons/github.svg);
+}
+
+.icon-linkedin {
+  --icon: url(/icons/linkedin.svg);
+}
+
+.icon-link {
+  --icon: url(/icons/link.svg);
+}
+
+.icon-briefcase {
+  --icon: url(/icons/briefcase.svg);
+}
+
+.cv h2 {
+  margin-top: 0.25rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.cv-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.pill {
+  padding: 0.1rem 0.65rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.cv h3 {
+  margin: 2rem 0 0.75rem;
+}
+
+.cv-skills {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+}
+
+.cv-skills dt {
+  font-weight: 600;
+}
+
+.cv-skills dd {
+  margin: 0.35rem 0 0;
+}
+
+.tags {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tags li {
+  padding: 0.1rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+.cv-period {
+  margin-left: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.prose .tags-quiet {
+  margin: -0.25rem 0 2.75rem;
+}
+
+.tags-quiet li {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.tags-quiet a {
+  display: block;
+  padding: 0.05rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.tags-quiet a:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.tags li:target {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.stripe {
+  margin: 1.25rem 0 1.5rem;
+}
+
+.stripe p {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.months {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 2px;
+}
+
+.months li {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  width: 3.25rem;
+  padding-top: 1.4rem;
+  outline: none;
+}
+
+.months .track {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 1.5rem;
+  height: 3rem;
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.months .track span {
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+}
+
+.months .month {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.months .value {
+  position: absolute;
+  top: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.months li:hover .value,
+.months li:focus-visible .value {
+  opacity: 1;
+}

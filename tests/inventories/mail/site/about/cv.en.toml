@@ -1,0 +1,10 @@
+name = "Alice"
+title = "Operations"
+
+[[experience]]
+from = 2018
+to = 2020
+employer = "Example AB"
+role = "Developer"
+summary = "Developed for clients."
+points = ["Set up mail for the club."]

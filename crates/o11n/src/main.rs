@@ -15,6 +15,7 @@ mod postgresql;
 mod remote;
 mod route;
 mod secrets;
+mod site;
 mod sops;
 mod ssh;
 mod state;
@@ -179,6 +180,13 @@ enum Command {
     },
     #[command(subcommand)]
     Remote(builder::RemoteCommand),
+    /// Serves a portal's site, from the org's clone as it changes, with Zola: the portal, when the org has more than
+    /// one, and after `--`, the arguments of `zola serve`, as `--port`.
+    Site {
+        app: Option<String>,
+        #[arg(last = true)]
+        zola: Vec<String>,
+    },
     /// A router that runs `OpenWrt`.
     #[command(subcommand)]
     Openwrt(openwrt::OpenwrtCommand),
@@ -636,6 +644,9 @@ fn run(cli: Cli) -> Result<(), Error> {
     // Policy: the remote builder serves o11n's own tree as well as an org's, so it reads no export.
     if let Command::Remote(command) = cli.command {
         return builder::remote(&cli.org, command);
+    }
+    if let Command::Site { app, zola } = &cli.command {
+        return site::serve(&cli.org, app.as_deref(), zola);
     }
     let json = match &cli.export {
         Some(path) => Export::read(path)?,

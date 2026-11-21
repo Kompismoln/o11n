@@ -291,18 +291,20 @@ let
         touch $out
       '';
 
-  # Policy: a WordPress site's server, as the host's nginx runs it, passes WordPress's entry points to PHP, which isn't
-  # there to answer (502), and denies PHP it only includes, PHP in uploads and dotfiles (403).
   # Policy: the portal lists the apps it names, in its order, described in each language, under the content's headings
-  # or its own, shows a page without a title as a note, with the commit it names, and logs in with the client its
-  # keycloak keeps.
+  # or its own, shows a page without a title as a note, with the commit it names, a section's description, its CV in its
+  # language with its availability by month and its contacts, summaries alone, which its chips link to, and links its PDF
+  # of all, with the page's address, and logs in with the client its keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
     in
     pkgs.runCommand "eval-portal-mail"
       {
-        nativeBuildInputs = [ pkgs.jq ];
+        nativeBuildInputs = [
+          pkgs.jq
+          pkgs.poppler-utils
+        ];
         site = config.services.nginx.virtualHosts."www.example.com".root;
         clients = config.systemd.services.keycloak-realms.environment.CLIENTS;
       }
@@ -323,10 +325,83 @@ let
         grep -qF '<title>A note without a commit.</title>' "$site/en/atom.xml"
         grep -qF '<a href="http://www.example.com/policy/">Villkor</a>' "$site/index.html"
         ! grep -qF 'href="http://www.example.com/en/policy/"' "$site/en/index.html"
+        grep -qF '<p>Driftar för föreningar.</p>' "$site/about/index.html"
+        grep -qF '<p class="lead">Vi som driftar.</p>' "$site/about/index.html"
+        grep -qF '<span class="pill">Tillgänglig från januari</span>' "$site/about/index.html"
+        grep -qF '<a href="#skill-wireguard">WireGuard</a>' "$site/about/index.html"
+        grep -qF '<li id="skill-wireguard">WireGuard</li>' "$site/about/index.html"
+        grep -qF '<li data-month="2026-12" tabindex="0">' "$site/about/index.html"
+        grep -qF '<span class="month">jan&nbsp;→</span>' "$site/about/index.html"
+        grep -qF '<a href="mailto:alice@example.com">alice@example.com</a>' "$site/about/index.html"
+        grep -qF '<span class="icon icon-github" aria-hidden="true"></span><a href="https://github.com/alice">GitHub</a>' \
+          "$site/about/index.html"
+        grep -qF 'icon-briefcase" aria-hidden="true"></span>Enskild firma med F-skatt</li>' "$site/about/index.html"
+        [[ -f $site/icons/github.svg ]]
+        grep -qF '<span class="cv-period">2020–nu</span>' "$site/about/index.html"
+        ! grep -qF 'Satte upp' "$site/about/index.html" || exit 1
+        grep -qF 'href="/about/cv.pdf"' "$site/about/index.html" && grep -qF 'href="/about/cv.en.pdf"' "$site/en/about/index.html"
+        grep -qF 'Example AB' "$site/en/about/index.html" && ! grep -qF 'Driftar' "$site/en/about/index.html" || exit 1
+        pdftotext "$site/about/cv.pdf" - | grep -qF 'Satte upp e-post för föreningen.'
+        pdftotext "$site/about/cv.pdf" - | grep -qF 'TEKNISK KOMPETENS'
+        pdftotext "$site/about/cv.en.pdf" - | grep -qF '2018–2020'
+        pdftotext "$site/about/cv.pdf" - | grep -qF 'alice@example.com'
+        pdftotext "$site/about/cv.pdf" - | grep -qF 'Enskild firma med F-skatt'
+        pdftotext "$site/about/cv.pdf" - | grep -qF 'www.example.com/about/'
+        pdftotext "$site/about/cv.en.pdf" - | grep -qF 'www.example.com/en/about/'
         jq -e '.[] | select(.representation.clientId == "www") | .realm == "example" and .representation.publicClient
           and .representation.redirectUris == ["http://www.example.com/*"]' <<<"$clients"
         touch $out
       '';
+
+  # Policy: a site whose section has a chip that names a skill its CV doesn't have fails to build, and says which.
+  portalChecks.eval-portal-chips =
+    let
+      inherit (inventories.mail) org;
+      content = pkgs.runCommand "content" { } ''
+        cp -r ${./inventories/mail/site} $out
+        chmod -R u+w $out
+        echo '{{ <skills items={["Ansible"]} /> }}' >> $out/about/_index.md
+      '';
+      inherit
+        (import ../nixos/apps/portal/site.nix {
+          inherit lib org pkgs;
+          app = org.app.www // {
+            inherit content;
+          };
+        })
+        site
+        ;
+    in
+    pkgs.runCommand "eval-portal-chips" { } ''
+      grep -qF "about/index.html: a chip names ansible, a skill the section's CV in its language doesn't have" \
+        ${pkgs.testers.testBuildFailure site}/testBuildFailure.log
+      touch $out
+    '';
+
+  # Policy: `o11n site` serves a portal's content where it is, as it is and again as it changes, with each CV's PDF, and
+  # leaves nothing behind once it's stopped.
+  portalChecks.eval-portal-serve =
+    let
+      portal = inventories.mail.portals.x86_64-linux.www;
+    in
+    pkgs.runCommand "eval-portal-serve" { nativeBuildInputs = [ pkgs.curl ]; } ''
+      cp -r ${./inventories/mail + "/${portal.content}"} content
+      chmod -R u+w content
+      export TMPDIR=$PWD/tmp
+      mkdir tmp
+      ${portal.serve} content --port 8111 &
+      serves() { for _ in $(seq 100); do [[ $(curl -sf "http://127.0.0.1:8111$1") == *"$2"* ]] && return; sleep 0.2; done; return 1; }
+      serves /about/ 'Driftar för föreningar.'
+      serves /about/cv.pdf '%PDF'
+      sed -i 's/Driftar för föreningar/Driftar för klubbar/' content/about/cv.toml
+      serves /about/ 'Driftar för klubbar.'
+      sed -i 's/Alice hjälper till/Alice hjälper gärna till/' content/about/_index.md
+      serves /about/ 'Alice hjälper gärna till.'
+      kill -TERM %1
+      wait %1 || true
+      [[ -z $(ls tmp) ]]
+      touch $out
+    '';
 
   # Policy: the mail server adds an MX where none is its own and an SPF record where there's none, makes its DKIM key and
   # DMARC record what they are to be, and authorizes each other domain's reports in the reports' zone, against a GleSYS
@@ -408,6 +483,8 @@ let
         touch $out
       '';
 
+  # Policy: a WordPress site's server, as the host's nginx runs it, passes WordPress's entry points to PHP, which isn't
+  # there to answer (502), and denies PHP it only includes, PHP in uploads and dotfiles (403).
   nginxChecks.eval-nginx-wordpress =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;

@@ -1,0 +1,7 @@
+{% component skills(items) %}
+<ul class="tags tags-quiet">
+  {%- for item in items %}
+  <li><a href="#skill-{{ item | slugify }}">{{ item }}</a></li>
+  {%- endfor %}
+</ul>
+{% endcomponent skills %}

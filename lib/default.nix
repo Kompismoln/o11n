@@ -45,7 +45,29 @@ rec {
     homeConfigurations = mkHomeConfigurations context;
     nixosConfigurations = mkNixosConfigurations context;
     openwrtConfigurations = mkOpenwrtConfigurations context;
+    portals = mkPortals context;
   };
+
+  # Policy: a portal's site builds and serves on each system, from the org as it is, its content by its place in the
+  # org, for `o11n site` to serve from the org's own checkout.
+  mkPortals =
+    context:
+    lib.genAttrs lib.systems.flakeExposed (
+      system:
+      lib.mapAttrs (
+        _: app:
+        import ../nixos/apps/portal/site.nix {
+          inherit app lib;
+          inherit (context) org;
+          pkgs = o11nInputs.nixpkgs.legacyPackages.${system};
+        }
+        // {
+          content = builtins.unsafeDiscardStringContext (
+            lib.removePrefix "${toString context.path}/" (toString app.content)
+          );
+        }
+      ) (lib.filterAttrs (_: app: app.kind == "portal") context.org.app)
+    );
 
   # Policy: a router's configuration is the files o11n writes on it, as a tree, and its image, which holds those
   # without a secret; the image is built on x86_64-linux, the only system OpenWrt's ImageBuilder runs on.
