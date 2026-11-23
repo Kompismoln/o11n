@@ -56,6 +56,12 @@
       default = null;
       example = "join@example.com";
     };
+    inquiries = lib.mkOption {
+      description = "the address the form of a section with `extra.inquiry` mails a visitor's inquiry to, or null for no such form";
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "sales@example.com";
+    };
     keycloak = lib.mkOption {
       description = "the keycloak app the site's visitors log in with, or null for no login";
       type = lib.types.nullOr context.types.app.ref;

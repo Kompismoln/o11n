@@ -122,11 +122,26 @@ let
   received = map lib.toLower (
     lib.concatMap (entity: [ entity.principal.mail.address ] ++ aliasesOf entity) inboxes
   );
-  invitedHere = lib.filter (
+  formsHere = lib.concatMap (
     other:
-    other.kind == "portal"
-    && other.invites != null
-    && lib.elem (lib.toLower (domainOf other.invites)) mailboxDomains
+    lib.optionals (other.kind == "portal") (
+      lib.filter
+        (form: form.address != null && lib.elem (lib.toLower (domainOf form.address)) mailboxDomains)
+        [
+          {
+            portal = other;
+            option = "invites";
+            address = other.invites;
+            what = "requests for an invite";
+          }
+          {
+            portal = other;
+            option = "inquiries";
+            address = other.inquiries;
+            what = "inquiries";
+          }
+        ]
+    )
   ) (lib.attrValues org.app);
 
   # Policy: a principal's readers and managers see its mailboxes as Shared<separator><name>, the private namespace's
@@ -350,10 +365,10 @@ in
         message = "${entity.handle} has ${handle} as a reader and a manager, who reads as it manages: drop it from principal.mail.readers.";
       }) mail.managers
     ) (lib.filter (entity: sharedWith entity != [ ]) mailing)
-    ++ map (portal: {
-      assertion = lib.elem (lib.toLower portal.invites) received;
-      message = "app.${portal.name} mails requests for an invite to ${portal.invites}, on ${domainOf portal.invites}, where no principal's inbox has it: add it to a principal's principal.mail.aliases, or change invites under [app.${portal.name}].";
-    }) invitedHere
+    ++ map (form: {
+      assertion = lib.elem (lib.toLower form.address) received;
+      message = "app.${form.portal.name} mails ${form.what} to ${form.address}, on ${domainOf form.address}, where no principal's inbox has it: add it to a principal's principal.mail.aliases, or change ${form.option} under [app.${form.portal.name}].";
+    }) formsHere
     ++ lib.concatMap (
       entity:
       let

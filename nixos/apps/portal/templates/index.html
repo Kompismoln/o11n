@@ -33,13 +33,13 @@
 </section>
 {%- endif %}
 {%- if org.invites %}
-<section class="wrap invite" id="invite" data-auth="guest">
+<section class="wrap invite" id="invite" data-form="invite" data-auth="guest">
   <h2>{% if invite.title %}{{ invite.title }}{% else %}{{ trans(key="invite_title", lang=lang) }}{% endif %}</h2>
   <p class="muted">{% if invite.text %}{{ invite.text }}{% else %}{{ trans(key="invite_text", lang=lang) }}{% endif %}</p>
-  <p class="notice" data-invite="sent" hidden>{% if invite.sent %}{{ invite.sent }}{% else %}{{ trans(key="invite_sent", lang=lang) }}{% endif %}</p>
-  <p class="notice error" data-invite="invalid" hidden>{{ trans(key="invite_invalid", lang=lang) }}</p>
-  <p class="notice error" data-invite="failed" hidden>{{ trans(key="invite_failed", lang=lang) }} <a href="mailto:{{ org.contact }}">{{ org.contact }}</a></p>
-  <form class="invite-form" method="post" action="/invite">
+  <p class="notice" data-status="sent" hidden>{% if invite.sent %}{{ invite.sent }}{% else %}{{ trans(key="invite_sent", lang=lang) }}{% endif %}</p>
+  <p class="notice error" data-status="invalid" hidden>{{ trans(key="invite_invalid", lang=lang) }}</p>
+  <p class="notice error" data-status="failed" hidden>{{ trans(key="invite_failed", lang=lang) }} <a href="mailto:{{ org.contact }}">{{ org.contact }}</a></p>
+  <form class="visitor-form" method="post" action="/invite">
     <input type="hidden" name="back" value="{{ section.path }}">
     <input type="hidden" name="lang" value="{{ lang }}">
     <label>{{ trans(key="invite_email", lang=lang) }}
@@ -53,7 +53,7 @@
     </label>
     <button type="submit" class="button">{{ trans(key="invite_send", lang=lang) }}</button>
   </form>
-  <script type="module" src="/invite.js"></script>
+  <script type="module" src="/forms.js"></script>
 </section>
 {%- endif %}
 {%- for path in section.subsections %}

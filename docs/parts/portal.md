@@ -43,6 +43,40 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   {% </disclaimer> %}
   ```
 
+- A text may have its points as numbered cards, each with an icon of Lucide's (`nixos/apps/portal/static/icons/`) in a
+  tone, `accent`, `sunset`, `forest` or `bloom`, a title and a sentence:
+
+  ```markdown
+  {{ <points items={[["unplug", "accent", "Stay independent", "What is built runs without us."]]} /> }}
+  ```
+
+- A sandbox is a test environment, where AI works on test data, a review, and the systems it reaches once reviewed, each
+  with a title and a note, and its text is the caption:
+
+  ```markdown
+  {% <sandbox test={["Test environment", "Mistakes stay here."]} ai="AI" data="Test data"
+    review={["Review", "Alice reads the code."]} live={["Your systems", "Real data."]}> %}
+
+  Nothing reaches your systems unreviewed.
+
+  {% </sandbox> %}
+  ```
+
+- A foundation is `##` headings of the text as blocks on another, its text under it, each with an icon and a link to its
+  heading, and a `label` that names it for a screen reader:
+
+  ```markdown
+  {% <foundation label="Services" items={[["workflow", "Automate"], ["cable", "Integrate"]]}
+    base={["server", "Operations"]}> %}
+
+  Servers and backup.
+
+  {% </foundation> %}
+  ```
+
+- An icon a component names that the site doesn't have fails the site's build, which says which
+  (`nixos/apps/portal/site.nix`).
+
 - The start page lists each app of `services`, in their order, by `extra.services.<app>` in its front matter, `title`
   and `text`, or its name without, and its `url`, which the org gives it, a mail app's its webmail
   (`docs/parts/mail.md`):
@@ -54,8 +88,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   ```
 
 - The start page's front matter has the org's wording, in its language: `extra.headings`, of the start page's parts, and
-  `extra.invite`, of the form (see Invites). The site has its own for what it leaves out, and for the rest, as "Log in"
-  or "Feed" (`nixos/apps/portal.nix`):
+  `extra.invite`, of the form (see Forms). The site has its own for what it leaves out, and for the rest, as "Log in" or
+  "Feed" (`nixos/apps/portal.nix`):
 
   ```toml
   [extra.headings]
@@ -218,34 +252,51 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
   and each app the realm tells of it logs out too (`docs/parts/keycloak.md`).
 - The site's script reads nothing of the tokens but the name it shows.
 
-## Invites
+## Forms
 
 With `invites`, an address, the start page has a form where a visitor asks for an account: their address, and a message
-if they like, under `extra.invite`'s `title` and `text`, and `sent` once it's sent. It mails the request to `invites`,
-as the portal, which has to send mail (`principal.mail.send`), with the visitor's address as its Reply-To
-(`nixos/apps/portal/invites.py`). An address on a domain with `mailbox` is to be one a principal's inbox has, as its
-address or an alias, or its mail server fails to evaluate, as the server would refuse the request.
+if they like, under `extra.invite`'s `title` and `text`, and `sent` once it's sent. With `inquiries`, an address, a
+section whose front matter has `extra.inquiry` has a form after its text, at `#inquiry`, where a visitor writes: their
+address, and a message that begins as `extra.inquiry` has it, for them to fill in.
 
-- nginx passes a POST to `/invite` alone to `<app>-invites`, a service of the portal's user on its own address, of 16
-  KiB at most, and 4 at once from an address, then one a minute; more are answered 429.
+```toml
+[extra]
+inquiry = """
+We need help with …
+"""
+```
+
+A form mails what's sent to its address, `invites` or `inquiries`, as the portal, which has to send mail
+(`principal.mail.send`), with the visitor's address as its Reply-To (`nixos/apps/portal/forms.py`). An address on a
+domain with `mailbox` is to be one a principal's inbox has, as its address or an alias, or its mail server fails to
+evaluate, as the server would refuse the mail. A section with `extra.inquiry` fails the site's build when the portal has
+no `inquiries` (`nixos/apps/portal/templates/section.html`).
+
+- nginx passes a POST to `/invite` or `/inquiry` alone, each once the portal has its address, to `<app>-forms`, a
+  service of the portal's user on its own address, of 16 KiB at most, and 4 at once from an address, then one a minute,
+  of either; more are answered 429.
 - The service takes an address of one mailbox alone, and sends the visitor back to the page of the form, on the site,
-  where the form tells them it's sent, or that the address doesn't look right, or to write to the org's `contact`.
+  where the form tells them it's sent, or that the address doesn't look right, or to write to the org's `contact`, or
+  for an inquiry, to `inquiries`.
 - A request that fills in the form's field that people don't see, a bot's, is told it's sent, and isn't.
-- The form isn't on the page for a visitor who is logged in.
-- The mail ends with the command that invites the visitor, `o11n invite`, with the portal's keycloak and realm, and the
-  visitor's address quoted for a shell (`docs/parts/keycloak.md`).
+- The form for an invite isn't on the page for a visitor who is logged in.
+- The mail of a request for an invite ends with the command that invites the visitor, `o11n invite`, with the portal's
+  keycloak and realm, and the visitor's address quoted for a shell (`docs/parts/keycloak.md`).
 
 ## Testing
 
 `eval-portal-mail` builds `tests/inventories/mail`'s portal, `www` on `web`, and checks that it lists its services in
 their order in each language, that a section is in the header once it has a page, that its notes are shown on the start
 page and in their section, one with its commit and one without, that it takes the headings the content gives in one
-language and its own in the other, that a section shows its description, and the CV of its language with summaries
-alone, which its chips link to, and links its PDF, which has the points, and that the keycloak keeps its client.
-`eval-portal-chips` fails a site's build for a chip that names a skill the CV doesn't have. `vmTests.keycloak` serves it
-beside the keycloak, where a browser logs alice in from a page of it and back there, and in its other tabs, finds no
-form for an invite, is logged in to the drive without being asked again, and logs out, after which the portal's login
-asks again, and the drive's. `vmTests.mail` has its form mail a request to elsewhere's carol, signed as the portal, and
-refuses an address of more than one mailbox, a return to another site, a GET, and a fifth request at once from an
-address. `eval-inventory-mail` fails the mail server's evaluation for an address on its domain that no inbox has, a
-send-only principal's among them, and not for an alias, whatever its case, a postmaster, or an address elsewhere.
+language and its own in the other, that a section shows its description, its points, its sandbox, its foundation, which
+links its headings, and its form for inquiries, and the CV of its language with summaries alone, which its chips link
+to, and links its PDF, which has the points, and that the keycloak keeps its client. `eval-portal-chips` fails a site's
+build for a chip that names a skill the CV doesn't have. `eval-portal-icons` fails it for an icon the site doesn't have,
+and `eval-portal-inquiry` for a form for inquiries without `inquiries`. `vmTests.keycloak` serves it beside the
+keycloak, where a browser logs alice in from a page of it and back there, and in its other tabs, finds no form for an
+invite, is logged in to the drive without being asked again, and logs out, after which the portal's login asks again,
+and the drive's. `vmTests.mail` has its forms mail a request for an invite and an inquiry to elsewhere's carol, signed
+as the portal, and refuses an address of more than one mailbox, a return to another site, a GET, and a fifth request at
+once from an address. `eval-inventory-mail` fails the mail server's evaluation for an address on its domain that no
+inbox has, a send-only principal's among them, and not for an alias, whatever its case, a postmaster, or an address
+elsewhere, for `invites` and `inquiries` alike.

@@ -27,6 +27,7 @@ let
       ) config.assertions
     );
   invites = failing "invite";
+  inquiries = failing "inquiries";
   managers = failing "manager";
 
   maps = mx.config.services.postfix.submissionOptions.smtpd_sender_login_maps;
@@ -94,7 +95,8 @@ in
     };
   };
 
-  # Policy: a portal mails requests for an invite to an address the mail server of its domain has a mailbox at.
+  # Policy: a portal mails requests for an invite and inquiries to an address the mail server of its domain has a
+  # mailbox at.
   test_invites_received = {
     expr = {
       elsewhere = invites { } "mx";
@@ -105,6 +107,7 @@ in
       postmaster = invites { app.www.invites = "postmaster@example.com"; } "mx";
       sendOnly = invites { app.www.invites = "photos@example.com"; } "mx";
       unowned = invites { app.www.invites = "join@example.com"; } "mx";
+      inquiry = inquiries { app.www.inquiries = "sales@example.com"; } "mx";
     };
     expected = {
       elsewhere = [ ];
@@ -115,6 +118,9 @@ in
       ];
       unowned = [
         "app.www mails requests for an invite to join@example.com, on example.com, where no principal's inbox has it: add it to a principal's principal.mail.aliases, or change invites under [app.www]."
+      ];
+      inquiry = [
+        "app.www mails inquiries to sales@example.com, on example.com, where no principal's inbox has it: add it to a principal's principal.mail.aliases, or change inquiries under [app.www]."
       ];
     };
   };

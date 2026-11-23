@@ -34,6 +34,11 @@ let
       invite_sent = "Tack! Vi hör av oss.";
       invite_invalid = "Adressen ser inte ut att stämma. Försök igen.";
       invite_failed = "Det gick inte att skicka. Skriv till oss direkt:";
+      inquiry_email = "Din e-postadress";
+      inquiry_text = "Meddelande";
+      inquiry_send = "Skicka";
+      inquiry_sent = "Tack! Meddelandet är skickat, och du får svar till din adress.";
+      inquiry_failed = "Det gick inte att skicka. Skriv direkt till";
       status = "Driftstatus";
       cv_about = "Om mig";
       cv_profile = "Profil";
@@ -80,6 +85,11 @@ let
       invite_sent = "Thanks! We'll be in touch.";
       invite_invalid = "That address doesn't look right. Try again.";
       invite_failed = "It couldn't be sent. Write to us directly:";
+      inquiry_email = "Your email address";
+      inquiry_text = "Message";
+      inquiry_send = "Send";
+      inquiry_sent = "Thanks! Your message is sent, and you'll get an answer at your address.";
+      inquiry_failed = "It couldn't be sent. Write directly to";
       status = "Status";
       cv_about = "About me";
       cv_profile = "Profile";
@@ -119,6 +129,7 @@ let
       inherit (org.app.${name}) url kind;
     }) app.services;
     invites = app.invites != null;
+    inherit (app) inquiries;
     status = lib.findFirst (url: url != null) null (
       lib.mapAttrsToList (
         _: other: if other.kind == "status" && other.portal == app.name then other.url else null
@@ -195,6 +206,21 @@ let
     exit $status
   '';
 
+  # Policy: an icon a component names is one the site has.
+  icons = pkgs.writeShellScript "${app.name}-icons" ''
+    set -euo pipefail
+    status=0
+    while IFS= read -r -d "" page; do
+      for icon in $(grep -o 'url(/icons/[^)]*\.svg)' "$page" | sed 's|^url(/icons/||; s|\.svg)$||' | sort -u); do
+        if [[ ! -f $1/icons/$icon.svg ]]; then
+          echo "''${page#"$1"/}: a component names the icon $icon, which the site doesn't have" >&2
+          status=1
+        fi
+      done
+    done < <(find "$1" -name index.html -print0)
+    exit $status
+  '';
+
   stringsJson = pkgs.writeText "${app.name}-strings.json" (builtins.toJSON strings);
 
   # Accommodating for Zola, which makes its HTTP client as it starts, and fails without CA certificates.
@@ -223,6 +249,7 @@ in
         cp -r ${app.content} content
         zola build --output-dir $out
         ${chips} $out
+        ${icons} $out
         ${cv} compile content $out
       '';
 

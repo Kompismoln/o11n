@@ -31,6 +31,14 @@ Default: `"site"`
 the directory in the org of the site's markdown, as Zola's content directory, in the default language and each other's
 `<name>.<language>.md`
 
+### `app.<portal>.inquiries`
+
+`org/apps/portal.nix` · null or string
+
+Default: `null`
+
+the address the form of a section with `extra.inquiry` mails a visitor's inquiry to, or null for no such form
+
 ### `app.<portal>.invites`
 
 `org/apps/portal.nix` · null or string

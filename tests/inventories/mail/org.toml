@@ -135,7 +135,7 @@ keys.glesys-key = "passphrase"
 glesys = { account = "CL12345", dmarc = "quarantine", zones = ["example.com", "example.org"] }
 
 # Fact: a portal whose public client auth keeps, which lists the apps with an endpoint, and mails requests for an
-# invite to elsewhere's carol, whose mail the mail test reads.
+# invite and inquiries to elsewhere's carol, whose mail the mail test reads.
 [app.www]
 id = 6
 endpoint = "www.example.com"
@@ -146,6 +146,7 @@ principal.hasPublicKey = false
 principal.mail.send = true
 kind = "portal"
 invites = "carol@elsewhere.test"
+inquiries = "carol@elsewhere.test"
 logo = "site-logo.svg"
 accentHeader = true
 keycloak = "auth"

@@ -28,3 +28,52 @@
   {{ body | markdown | safe }}
 </aside>
 {% endcomponent disclaimer %}
+
+{% component sandbox(test, ai, data, review, live) %}
+<figure class="sandbox">
+  <ol>
+    <li class="sandbox-test">
+      <p class="eyebrow">{{ test[0] }}</p>
+      <p class="sandbox-nodes">
+        <span class="sandbox-ai"><span class="icon icon-sparkles" aria-hidden="true"></span>{{ ai }}</span>
+        <span class="sandbox-swap" aria-hidden="true">⇄</span>
+        <span class="sandbox-data"><span class="icon icon-database" aria-hidden="true"></span>{{ data }}</span>
+      </p>
+      <p class="sandbox-note">{{ test[1] }}</p>
+    </li>
+    <li class="sandbox-review">
+      <p class="sandbox-head"><span class="icon icon-shield-check" aria-hidden="true"></span>{{ review[0] }}</p>
+      <p class="sandbox-note">{{ review[1] }}</p>
+    </li>
+    <li class="sandbox-live">
+      <p class="sandbox-head"><span class="icon icon-building-2" aria-hidden="true"></span>{{ live[0] }}</p>
+      <p class="sandbox-note">{{ live[1] }}</p>
+    </li>
+  </ol>
+  <figcaption>{{ body | markdown(inline=true) | safe }}</figcaption>
+</figure>
+{% endcomponent sandbox %}
+
+{% component foundation(label, items, base) %}
+<nav class="foundation" aria-label="{{ label }}">
+  <ul>
+    {%- for item in items %}
+    <li><a href="#{{ item[1] | slugify }}"><span class="icon" style="--icon: url(/icons/{{ item[0] }}.svg)" aria-hidden="true"></span>{{ item[1] }}</a></li>
+    {%- endfor %}
+  </ul>
+  <a class="foundation-base" href="#{{ base[1] | slugify }}"><span class="icon" style="--icon: url(/icons/{{ base[0] }}.svg)" aria-hidden="true"></span><span><strong>{{ base[1] }}</strong><span class="foundation-parts">{{ body | markdown(inline=true) | safe }}</span></span></a>
+</nav>
+{% endcomponent foundation %}
+
+{% component points(items) %}
+<div class="points">
+  <ol>
+    {%- for item in items %}
+    <li class="tone-{{ item[1] }}">
+      <span class="points-tile" aria-hidden="true"><span class="icon" style="--icon: url(/icons/{{ item[0] }}.svg)"></span></span>
+      <p><strong>{{ item[2] }}</strong>{{ item[3] }}</p>
+    </li>
+    {%- endfor %}
+  </ol>
+</div>
+{% endcomponent points %}

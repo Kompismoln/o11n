@@ -50,6 +50,31 @@
   <div class="prose">{% for part in rest %}{% if not loop.first %}<h2 {{ part | safe }}{% endif %}{% endfor %}</div>
 </section>
 {%- endif %}
+{%- if section.extra.inquiry %}
+{%- if not config.extra.inquiries %}{{ throw(message="the section " ~ section.path ~ " has extra.inquiry, a form that mails the portal's inquiries, which it has no address for") }}{% endif %}
+<section class="wrap" id="inquiry" data-form="inquiry">
+  <div class="prose">
+    <p class="notice" data-status="sent" hidden>{{ trans(key="inquiry_sent", lang=lang) }}</p>
+    <p class="notice error" data-status="invalid" hidden>{{ trans(key="invite_invalid", lang=lang) }}</p>
+    <p class="notice error" data-status="failed" hidden>{{ trans(key="inquiry_failed", lang=lang) }} <a href="mailto:{{ config.extra.inquiries }}">{{ config.extra.inquiries }}</a>.</p>
+    <form class="visitor-form" method="post" action="/inquiry">
+      <input type="hidden" name="back" value="{{ section.path }}">
+      <input type="hidden" name="lang" value="{{ lang }}">
+      <label>{{ trans(key="inquiry_email", lang=lang) }}
+        <input type="email" name="email" required maxlength="254" autocomplete="email">
+      </label>
+      <label>{{ trans(key="inquiry_text", lang=lang) }}
+        <textarea name="text" rows="8" maxlength="4000" required>{{ section.extra.inquiry | trim }}</textarea>
+      </label>
+      <label class="trap" aria-hidden="true">Website
+        <input type="text" name="website" tabindex="-1" autocomplete="off">
+      </label>
+      <button type="submit" class="button">{{ trans(key="inquiry_send", lang=lang) }}</button>
+    </form>
+  </div>
+  <script type="module" src="/forms.js"></script>
+</section>
+{%- endif %}
 {%- if lang == config.default_language %}{% set suffix = "" %}{% else %}{% set suffix = "." ~ lang %}{% endif %}
 {%- set cv = load_data(path=section.colocated_path ~ "cv" ~ suffix ~ ".toml", required=false) %}
 {%- if cv %}

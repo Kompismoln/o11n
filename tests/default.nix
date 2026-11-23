@@ -293,9 +293,10 @@ let
 
   # Policy: the portal lists the apps it names, in its order, described in each language, under the content's headings
   # or its own, shows a page without a title as a note, with the commit it names, a section's description, disclaimers,
-  # its CV in its language with its availability by month and its contacts, summaries alone, which its chips and its
-  # boxes of experience link to, and links its PDF of all, with the page's address, switches between light and dark, has
-  # its header in its accent, and logs in with the client its keycloak keeps.
+  # points, a sandbox and a foundation that links its section's headings, a form for inquiries, its CV in its language
+  # with its availability by month and its contacts, summaries alone, which its chips and its boxes of experience link
+  # to, and links its PDF of all, with the page's address, switches between light and dark, has its header in its
+  # accent, and logs in with the client its keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -336,6 +337,20 @@ let
         grep -qF '<span class="value">10%</span>' "$site/about/index.html"
         grep -qF '<p class="eyebrow">Erfarenhet</p>' "$site/about/index.html"
         grep -qF '<p class="eyebrow">Just nu</p>' "$site/about/index.html" && grep -qF '<p>Alice är på semester.</p>' "$site/about/index.html"
+        grep -qF '<li class="tone-accent">' "$site/about/index.html"
+        grep -qF '<p><strong>Förbli oberoende</strong>Det vi bygger går att sköta utan oss.</p>' "$site/about/index.html"
+        grep -qF '<figcaption>Inget når era system ogranskat.</figcaption>' "$site/about/index.html"
+        grep -qF '<p class="sandbox-head"><span class="icon icon-shield-check" aria-hidden="true"></span>Granskning</p>' \
+          "$site/about/index.html"
+        grep -qF '<nav class="foundation" aria-label="Uppdrag">' "$site/about/index.html"
+        grep -qF '<form class="visitor-form" method="post" action="/inquiry">' "$site/about/index.html"
+        grep -qF '<textarea name="text" rows="8" maxlength="4000" required>Vi behöver hjälp med …</textarea>' "$site/about/index.html"
+        grep -qF '<input type="hidden" name="back" value="/about/">' "$site/about/index.html"
+        grep -qF '<a href="mailto:carol@elsewhere.test">carol@elsewhere.test</a>' "$site/about/index.html"
+        ! grep -qF 'action="/inquiry"' "$site/en/about/index.html" || exit 1
+        grep -qF '<li><a href="#automatisera">' "$site/about/index.html" && grep -qF '<h2 id="automatisera"' "$site/about/index.html"
+        grep -qF '<a class="foundation-base" href="#drift">' "$site/about/index.html" && grep -qF '<h2 id="drift"' "$site/about/index.html"
+        [[ -f $site/icons/unplug.svg && -f $site/icons/shield-check.svg ]]
         grep -qF 'class="icon-button theme-toggle" aria-label="Light or dark mode"' "$site/en/index.html"
         grep -qF '<header class="site-header on-accent">' "$site/index.html"
         grep -qF 'data-auth="login" aria-label="Logga in"' "$site/index.html"
@@ -388,6 +403,51 @@ let
     in
     pkgs.runCommand "eval-portal-chips" { } ''
       grep -qF "about/index.html: a chip names ansible, a skill the section's CV in its language doesn't have" \
+        ${pkgs.testers.testBuildFailure site}/testBuildFailure.log
+      touch $out
+    '';
+
+  # Policy: a site whose component names an icon the site doesn't have fails to build, and says which.
+  portalChecks.eval-portal-icons =
+    let
+      inherit (inventories.mail) org;
+      content = pkgs.runCommand "content" { } ''
+        cp -r ${./inventories/mail/site} $out
+        chmod -R u+w $out
+        echo '{{ <points items={[["rocket", "accent", "Fort", "Snabbt."]]} /> }}' >> $out/about/_index.md
+      '';
+      inherit
+        (import ../nixos/apps/portal/site.nix {
+          inherit lib org pkgs;
+          app = org.app.www // {
+            inherit content;
+          };
+        })
+        site
+        ;
+    in
+    pkgs.runCommand "eval-portal-icons" { } ''
+      grep -qF "about/index.html: a component names the icon rocket, which the site doesn't have" \
+        ${pkgs.testers.testBuildFailure site}/testBuildFailure.log
+      touch $out
+    '';
+
+  # Policy: a site whose section has a form for inquiries fails to build when the portal has no address for them.
+  portalChecks.eval-portal-inquiry =
+    let
+      inherit (inventories.mail) org;
+      inherit
+        (import ../nixos/apps/portal/site.nix {
+          inherit lib org pkgs;
+          app = org.app.www // {
+            inquiries = null;
+          };
+        })
+        site
+        ;
+    in
+    pkgs.runCommand "eval-portal-inquiry" { } ''
+      grep -qF "the section /about/ has extra.inquiry, a form that mails the portal's inquiries, which it has no address for" \
         ${pkgs.testers.testBuildFailure site}/testBuildFailure.log
       touch $out
     '';

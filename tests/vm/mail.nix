@@ -324,17 +324,17 @@ pkgs.testers.runNixOSTest {
           authenticated(received("from php"), "wordpress@example.org")
 
       # Fact: each visitor comes from an address of its own, as the portal limits each address's requests.
-      def invite(visitor, *fields):
+      def form(kind, visitor, *fields):
           return web.succeed(
               f"curl -s -o /dev/null -w '%{{http_code}} %{{redirect_url}}' --interface 127.0.0.{visitor}"
-              " --resolve ${www.endpoint}:80:127.0.0.1 http://${www.endpoint}/invite "
+              f" --resolve ${www.endpoint}:80:127.0.0.1 http://${www.endpoint}/{kind} "
               + " ".join(f"--data-urlencode {shlex.quote(field)}" for field in fields)
           )
 
       with subtest("the portal mails a visitor's request for an invite as itself, which they're answered at"):
-          web.wait_for_unit("www-invites.service")
+          web.wait_for_unit("www-forms.service")
           web.wait_for_open_port(8080, "${www.principal.bindAddress}")
-          said = invite(2, "email=dave@example.org", "note=Hej, jag vill gärna vara med.", "back=/en/", "lang=en")
+          said = form("invite", 2, "email=dave@example.org", "note=Hej, jag vill gärna vara med.", "back=/en/", "lang=en")
           assert said == "303 ${www.url}/en/?invite=sent#invite", said
           headers = received("Invite request: dave@example.org")
           authenticated(headers, "www@${endpoint}")
@@ -343,21 +343,30 @@ pkgs.testers.runNixOSTest {
           assert "Hej, jag vill gärna vara med." in body, body
           assert "To invite them: o11n invite --keycloak auth --realm example dave@example.org" in body, body
 
+      with subtest("the portal mails a visitor's inquiry as itself, which they're answered at"):
+          said = form("inquiry", 7, "email=heidi@example.org", "text=Vi behöver hjälp med backup.", "back=/about/", "lang=sv")
+          assert said == "303 ${www.url}/about/?inquiry=sent#inquiry", said
+          headers = received("Inquiry: heidi@example.org")
+          authenticated(headers, "www@${endpoint}")
+          assert re.search(r"^Reply-To: heidi@example\.org$", headers, re.M), headers
+          body = internet.succeed("doveadm fetch -u carol@${elsewhere} text.utf8 header subject 'Inquiry: heidi@example.org'")
+          assert "Vi behöver hjälp med backup." in body, body
+
       with subtest("the portal takes one address alone, and answers on the site's own pages"):
           for address in ["not-an-address", "eve@example.org, mallory@example.org", "eve@example.org\r\nBcc: mallory@example.org"]:
-              said = invite(3, f"email={address}", "back=/")
+              said = form("invite", 3, f"email={address}", "back=/")
               assert said == "303 ${www.url}/?invite=invalid#invite", said
-          said = invite(4, "email=erin@example.org", "website=https://spam.example", "back=//elsewhere.test/")
+          said = form("invite", 4, "email=erin@example.org", "website=https://spam.example", "back=//elsewhere.test/")
           assert said == "303 ${www.url}/?invite=sent#invite", said
           said = web.succeed("curl -s -o /dev/null -w '%{http_code}' --resolve ${www.endpoint}:80:127.0.0.1 http://${www.endpoint}/invite")
           assert said == "403", said
 
       with subtest("the portal limits a visitor's requests"):
-          said = [invite(5, "email=frank").split()[0] for _ in range(5)]
+          said = [form("invite", 5, "email=frank").split()[0] for _ in range(5)]
           assert said == ["303"] * 4 + ["429"], said
 
       with subtest("a request that fills the field people don't see isn't sent"):
-          invite(6, "email=grace@example.org", "back=/")
+          form("invite", 6, "email=grace@example.org", "back=/")
           received("Invite request: grace@example.org")
           internet.fail("doveadm search -u carol@${elsewhere} header subject 'Invite request: erin@example.org' | grep -q .")
 
