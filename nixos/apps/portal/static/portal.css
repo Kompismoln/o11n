@@ -5,11 +5,13 @@
   --text: light-dark(#1c1917, #f5f5f4);
   --muted: light-dark(#57534e, #a8a29e);
   --line: light-dark(#e7e5e4, #292524);
-  --sunset: #f29d38;
-  --sunset-text: light-dark(#a8500c, #f4a340);
+  --sunset: #f2c335;
+  --sunset-text: light-dark(#8a6200, #f2c94c);
   --accent-line: light-dark(var(--accent), color-mix(in srgb, var(--accent) 60%, white));
   --forest: light-dark(#2f6b3a, #7cc48a);
   --bloom: light-dark(#a3367a, #e79ac9);
+  --earth: light-dark(#5b4636, #2a2019);
+  --earth-text: #efe5da;
   --radius: 14px;
   --width: 64rem;
   color-scheme: light dark;
@@ -152,6 +154,46 @@ h2 {
   --header-mark: light-dark(#fff, var(--accent));
 }
 
+/* Fact: the gradients reach 4rem, the header's first row, and the rest of a header that's open on a narrow screen is
+   their last color; its clouds keep off the middle of that row, where its text is. Below the header, a band fades the
+   sky into the page, over it and without taking room in it. */
+.site-header.sky {
+  --horizon: color-mix(in srgb, var(--accent) 72%, white);
+  border-bottom-color: light-dark(transparent, var(--line));
+  background:
+    linear-gradient(to top, light-dark(var(--horizon), transparent), transparent 1.6rem),
+    linear-gradient(light-dark(var(--accent), transparent), light-dark(color-mix(in srgb, var(--accent) 90%, white), transparent) 4rem),
+    var(--header-bg);
+}
+
+.site-header.sky::after {
+  content: "";
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 2.5rem;
+  pointer-events: none;
+  background: linear-gradient(
+    light-dark(var(--horizon), transparent),
+    light-dark(color-mix(in srgb, var(--horizon) 55%, transparent), transparent) 35%,
+    light-dark(color-mix(in srgb, var(--horizon) 20%, transparent), transparent) 65%,
+    transparent
+  );
+}
+
+.site-header.sky::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4rem;
+  z-index: -1;
+  pointer-events: none;
+  background: light-dark(rgb(255 255 255 / 0.7), transparent);
+  mask-image: url(/cirrus.svg), linear-gradient(#000 0 0.8rem, transparent 1.15rem 2.9rem, #000 3.3rem, transparent 4rem);
+  mask-size: 1600px 100%, 100% 100%;
+  mask-repeat: repeat-x, no-repeat;
+  mask-composite: intersect;
+}
+
 .on-accent .brand img {
   color-scheme: dark;
 }
@@ -179,15 +221,57 @@ h2 {
   display: none;
 }
 
+.theme-toggle {
+  margin-inline: auto;
+}
+
+/* Fact: on a wide screen the menu's nav and tools are the bar's own, so that the mode switch, between them, takes the
+   room left in the middle. */
+@media (min-width: 48.0625rem) {
+  .menu {
+    display: contents;
+  }
+
+  .nav {
+    flex: none;
+    order: 1;
+  }
+
+  .theme-toggle {
+    order: 2;
+  }
+
+  .tools {
+    order: 3;
+  }
+}
+
 @media (max-width: 48rem) {
+  .collapsible .bar {
+    display: grid;
+    grid-template-columns: minmax(0, auto) 1fr auto;
+    column-gap: 0.75rem;
+  }
+
   .collapsible .brand {
     min-height: 4rem;
+    min-width: 0;
+  }
+
+  .collapsible .brand span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .collapsible .theme-toggle {
+    justify-self: center;
+    margin: 0;
   }
 
   .collapsible .menu-toggle {
     display: grid;
     place-items: center;
-    margin-left: auto;
     width: 2.75rem;
     height: 2.75rem;
     padding: 0;
@@ -242,6 +326,7 @@ h2 {
   }
 
   .collapsible .menu {
+    grid-column: 1 / -1;
     flex-basis: 100%;
     flex-direction: column;
     align-items: stretch;
@@ -330,18 +415,27 @@ h2 {
   background: var(--header-text);
 }
 
-.theme-toggle .icon {
-  --icon: url(/icons/moon.svg);
+.theme-toggle,
+.theme-toggle:hover {
+  border-color: transparent;
 }
 
-:root[data-theme="dark"] .theme-toggle .icon {
-  --icon: url(/icons/sun.svg);
+.theme-toggle .orb {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 63% 62%, light-dark(transparent, rgb(105 105 96 / 0.45)) 0 10%, transparent 12%),
+    radial-gradient(circle at 36% 70%, light-dark(transparent, rgb(105 105 96 / 0.35)) 0 7%, transparent 9%),
+    radial-gradient(circle at 68% 30%, light-dark(transparent, rgb(105 105 96 / 0.3)) 0 6%, transparent 8%),
+    radial-gradient(circle at 34% 30%, light-dark(#fffbe3, #ffffff), light-dark(#ffd84a, #e6e6de) 38%, light-dark(#f7a400, #b8b8ad) 80%, light-dark(#e08600, #8e8e85));
+  box-shadow: 0 0 0.6rem 0.1rem light-dark(rgb(255 200 60 / 0.8), rgb(220 228 255 / 0.25));
+  transition: box-shadow 0.2s, transform 0.2s;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .theme-toggle .icon {
-    --icon: url(/icons/sun.svg);
-  }
+.theme-toggle:hover .orb {
+  box-shadow: 0 0 0.9rem 0.25rem light-dark(rgb(255 200 60 / 0.9), rgb(220 228 255 / 0.4));
+  transform: scale(1.06);
 }
 
 .auth .who {
@@ -353,8 +447,8 @@ h2 {
 .button {
   font: inherit;
   font-weight: 600;
-  color: #fff;
-  background: var(--accent);
+  color: light-dark(#fff, #0d2112);
+  background: var(--forest);
   border: 0;
   border-radius: 999px;
   padding: 0.4rem 1rem;
@@ -514,10 +608,43 @@ h2 {
 }
 
 .site-footer {
+  position: relative;
   margin-top: 4rem;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--earth-text);
+  background: var(--earth);
   font-size: 0.9rem;
+}
+
+.tulip {
+  position: absolute;
+  bottom: calc(100% - 1px);
+  left: 75%;
+  translate: -50%;
+  overflow: visible;
+}
+
+.tulip-leaf {
+  fill: var(--forest);
+}
+
+.tulip-stem {
+  fill: none;
+  stroke: var(--forest);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.tulip-petal {
+  fill: var(--bloom);
+}
+
+.tulip-heart {
+  fill: color-mix(in srgb, var(--bloom) 70%, white);
+}
+
+.site-footer a {
+  color: inherit;
+  text-decoration-color: color-mix(in srgb, var(--earth-text) 50%, transparent);
 }
 
 .site-footer .bar {
@@ -654,6 +781,19 @@ a.button {
 
 a.button:hover {
   color: #fff;
+  color: light-dark(#fff, #0d2112);
+}
+
+.prose p:has(> a.button:first-child) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  margin: 1.75rem 0 2.5rem;
+}
+
+.prose a.button + .muted {
+  font-size: 0.95rem;
 }
 
 html {
@@ -777,7 +917,7 @@ html {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--bloom);
 }
 
 .cv-title {
@@ -867,12 +1007,35 @@ html {
   margin-top: 0.75rem;
 }
 
+.disclaimer-compact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin: 0 0 2rem;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--sunset) 60%, transparent);
+  border-radius: 1rem;
+  font-size: 0.95rem;
+}
+
+.disclaimer-compact strong {
+  color: var(--sunset-text);
+}
+
+.disclaimer-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--sunset-text);
+}
+
 .experience {
   margin: 1.25rem 0 2.75rem;
   padding: 1rem 1.25rem;
   border-radius: var(--radius);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--bloom);
   background: var(--surface);
 }
 

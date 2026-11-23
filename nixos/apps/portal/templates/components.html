@@ -20,13 +20,21 @@
 </aside>
 {% endcomponent experience %}
 
-{% component disclaimer(title="") %}
+{% component disclaimer(title="", compact=false) %}
+{%- if compact %}
+<p class="disclaimer disclaimer-compact">
+  <span class="disclaimer-dot" aria-hidden="true"></span>
+  {%- if title %}<strong>{{ title }}</strong>{% endif %}
+  <span>{{ body | markdown(inline=true) | safe }}</span>
+</p>
+{%- else %}
 <aside class="disclaimer">
   {%- if title %}
   <p class="eyebrow">{{ title }}</p>
   {%- endif %}
   {{ body | markdown | safe }}
 </aside>
+{%- endif %}
 {% endcomponent disclaimer %}
 
 {% component sandbox(test, ai, data, review, live) %}

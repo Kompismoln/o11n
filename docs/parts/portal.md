@@ -32,7 +32,7 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   headings, its text from that heading to the next is a band of its own after its pages, as a CV is (see CV), and the
   rest of the text after the band; a band that names no `##` of the section fails the site's build
   (`nixos/apps/portal/templates/section.html`).
-- A text may set a paragraph apart as a disclaimer, in a sunset's orange, under a `title` if it has one
+- A text may set a paragraph apart as a disclaimer, in an afternoon's yellow, under a `title` if it has one
   (`nixos/apps/portal/templates/components.html`):
 
   ```markdown
@@ -42,6 +42,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
 
   {% </disclaimer> %}
   ```
+
+  With compact={true}, it's one line in a rounded box with a dot before its title, and its text is inline markdown.
 
 - A text may have its points as numbered cards, each with an icon of Lucide's, or `screwdriver`, drawn in its style
   (`nixos/apps/portal/static/icons/`), in a tone, `accent`, `sunset`, `forest` or `bloom`, a title and a sentence. Two
@@ -111,14 +113,22 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   footer links it, and the head names it, once a section of the start page or the start page itself has such a page
   (`nixos/apps/portal/templates/base.html`).
 - `logo`, a file in the org, is in the header, `logoHeight` tall, and the site's icon, and `accent`, a CSS color, is its
-  buttons and links', and the box of a list item that begins with `[x]` or `[ ]`, a task, which has no bullet; a link
-  right after the task's first emphasis is a chip (`nixos/apps/portal/static/portal.css`).
+  links', and the box of a list item that begins with `[x]` or `[ ]`, a task, which has no bullet; a link right after
+  the task's first emphasis is a chip (`nixos/apps/portal/static/portal.css`).
+- The rest of the site's colors each have a part: `forest` green is what sends or makes something, its buttons; `bloom`
+  pink is a detail, a label above a part and an example's edge; `sunset`, an afternoon's yellow, is a heads-up, a
+  disclaimer; and an earth brown is the footer, which anchors the page, with a tulip of the green and the pink growing
+  from its edge, in the middle of its right half (`nixos/apps/portal/static/portal.css`).
 - With `accentHeader`, the header is in the `accent` in light mode, with white on it, and its logo as dark mode has it,
   and in dark mode as without, but for the site's name in white. The logo has it so by an SVG's `prefers-color-scheme`,
   which follows the header's (`nixos/apps/portal/static/portal.css`).
-- The header switches the site between light and dark. The site is as the visitor's system has it until they switch, and
-  keeps what they chose in their browser, until they switch back to what their system has
-  (`nixos/apps/portal/templates/base.html`).
+- With `skyHeader` too, the header is a sky in light mode: the `accent` at its top, paler toward its foot, and thin
+  clouds (`nixos/apps/portal/static/cirrus.svg`) above and below its text but not across it. It has no line at its foot,
+  and fades into the page below it instead. A `skyHeader` without `accentHeader` fails evaluation.
+- The header switches the site between light and dark, with a sun in light mode and a moon in dark, each a shining
+  sphere of CSS's, in the middle of the room between the nav and the tools, or on a narrow screen between the site's
+  name and the menu's button. The site is as the visitor's system has it until they switch, and keeps what they chose in
+  their browser, until they switch back to what their system has (`nixos/apps/portal/templates/base.html`).
 - o11n has the site's templates, style and script (`nixos/apps/portal/`), and a page that isn't there is the site's
   `404.html`.
 

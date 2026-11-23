@@ -39,6 +39,10 @@ in
       message = "app.${app.name} logs in with ${app.keycloak}, in no realm: set realm under [app.${app.name}].";
     }
     {
+      assertion = !app.skyHeader || app.accentHeader;
+      message = "app.${app.name}'s header is a sky, which is drawn on the accent header: set accentHeader = true under [app.${app.name}].";
+    }
+    {
       assertion = app.invites == null || app.principal.mail.send;
       message = "app.${app.name} mails requests for an invite to ${app.invites}, as itself, which sends no mail: set principal.mail.send under [app.${app.name}].";
     }

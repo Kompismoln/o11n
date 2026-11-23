@@ -101,3 +101,11 @@ the keycloak realm of the site's client
 Default: `[ ]`
 
 the apps the site lists, in its order, each described in the content's front matter, under extra.services.<app>
+
+### `app.<portal>.skyHeader`
+
+`org/apps/portal.nix` · boolean
+
+Default: `false`
+
+whether the accent header is a sky in light mode: paler toward its foot, with thin clouds above and below its text

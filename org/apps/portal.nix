@@ -45,6 +45,11 @@
       type = lib.types.bool;
       default = false;
     };
+    skyHeader = lib.mkOption {
+      description = "whether the accent header is a sky in light mode: paler toward its foot, with thin clouds above and below its text";
+      type = lib.types.bool;
+      default = false;
+    };
     services = lib.mkOption {
       description = "the apps the site lists, in its order, each described in the content's front matter, under extra.services.<app>";
       type = lib.types.listOf context.types.app.ref;
