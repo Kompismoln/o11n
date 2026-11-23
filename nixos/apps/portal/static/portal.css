@@ -1171,6 +1171,10 @@ html {
   .points ol {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .points li:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }
 
 .points li {

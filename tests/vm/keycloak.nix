@@ -126,6 +126,13 @@ let
             page.wait_for_url("${cloud.url}/apps/**")
             said["sso"] = page.url
             page.goto("${www.url}/en/blog/")
+            page.evaluate("localStorage.removeItem('auth.tokens')")
+            tab = context.new_page()
+            tab.goto("${www.url}/en/")
+            tab.wait_for_selector('[data-auth="name"]', state="visible")
+            said["silent"] = tab.text_content('[data-auth="name"]')
+            tab.close()
+            page.goto("${www.url}/en/blog/")
             page.click('[data-auth="logout"]')
             page.wait_for_selector('[data-auth="login"]', state="visible")
             said["logged_out"] = page.url
@@ -416,12 +423,13 @@ pkgs.testers.runNixOSTest {
         web.succeed("systemctl restart keycloak-realms.service")
         assert "meet" in audience(), audience()
 
-    with subtest("the portal logs in with its client and back to where it was, which logs in and out of the realm's other apps"):
+    with subtest("the portal logs in with its client and back to where it was, which logs in and out of the realm's other apps, and a tab without its tokens finds the realm's session by itself"):
         said = json.loads(web.succeed("visitor \"alice's\""))
         assert said["returned"] == "${www.url}/en/blog/", said
         assert said["name"] == "Alice Example", said
         assert said["invite_hidden"], said
         assert said["sso"].startswith("${cloud.url}/apps/"), said
+        assert said["silent"] == "Alice Example", said
         assert said["logged_out"] == "${www.url}/en/blog/" and said["asked_again"], said
         assert said["cloud_logged_out"], said
 

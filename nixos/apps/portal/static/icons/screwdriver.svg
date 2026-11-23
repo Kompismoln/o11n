@@ -1,0 +1,17 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <g transform="rotate(45 12 12)">
+    <path d="M12 -0.5V9" />
+    <path d="M9 12V10.5a1.5 1.5 0 0 1 1.5-1.5h3a1.5 1.5 0 0 1 1.5 1.5V12" />
+    <rect x="8.5" y="12" width="7" height="12.5" rx="2.5" />
+  </g>
+</svg>

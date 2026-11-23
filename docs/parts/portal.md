@@ -43,8 +43,9 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   {% </disclaimer> %}
   ```
 
-- A text may have its points as numbered cards, each with an icon of Lucide's (`nixos/apps/portal/static/icons/`) in a
-  tone, `accent`, `sunset`, `forest` or `bloom`, a title and a sentence:
+- A text may have its points as numbered cards, each with an icon of Lucide's, or `screwdriver`, drawn in its style
+  (`nixos/apps/portal/static/icons/`), in a tone, `accent`, `sunset`, `forest` or `bloom`, a title and a sentence. Two
+  cards share a row where there's room, and an odd one out last spans it (`nixos/apps/portal/static/portal.css`):
 
   ```markdown
   {{ <points items={[["unplug", "accent", "Stay independent", "What is built runs without us."]]} /> }}
@@ -247,6 +248,9 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
   (`nixos/apps/portal/static/auth.js`).
 - The tokens are the site's, in each of its tabs, and each page renews them as it loads: it shows the visitor logged in
   as long as the realm has them so, and logged out once the realm refuses, however their session ended.
+- A visitor without tokens is asked after once a tab, in a frame they don't see that returns to the site's
+  `silent.html`: a session they have with another app of the realm logs the page in without a click, and none, or a
+  realm that hasn't answered in five seconds, leaves them logged out.
 - The visitor is logged in to the realm, so another app of it logs them in without asking for their password again.
 - "Log out" ends the visitor's session in the realm, and returns to the page: the next login asks for their password,
   and each app the realm tells of it logs out too (`docs/parts/keycloak.md`).

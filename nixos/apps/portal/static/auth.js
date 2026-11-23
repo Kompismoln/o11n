@@ -24,23 +24,70 @@ const claims = (token) => {
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(payload, (c) => c.charCodeAt(0))));
 };
 
-async function login() {
+async function authorize(redirect_uri, extra = {}) {
   const verifier = random();
   const state = random();
-  sessionStorage.setItem("auth.pending", JSON.stringify({ verifier, state }));
   const challenge = base64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
-  location.assign(
+  const url =
     `${endpoint}/auth?` +
-      new URLSearchParams({
-        client_id: config.clientId,
-        response_type: "code",
-        scope: "openid",
-        redirect_uri: here(),
-        state,
-        code_challenge: challenge,
-        code_challenge_method: "S256",
+    new URLSearchParams({
+      client_id: config.clientId,
+      response_type: "code",
+      scope: "openid",
+      redirect_uri,
+      state,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      ...extra,
+    });
+  return { url, verifier, state };
+}
+
+async function login() {
+  const { url, verifier, state } = await authorize(here());
+  sessionStorage.setItem("auth.pending", JSON.stringify({ verifier, state }));
+  location.assign(url);
+}
+
+// Policy: a visitor without tokens is asked after once a tab, in a frame they don't see, so that a session they have
+// with another app of the realm logs the page in without a click; a realm that doesn't answer in time leaves them be.
+async function silent() {
+  if (sessionStorage.getItem("auth.checked")) return;
+  sessionStorage.setItem("auth.checked", "1");
+  const redirect = location.origin + "/silent.html";
+  const { url, verifier, state } = await authorize(redirect, { prompt: "none" });
+  const frame = document.createElement("iframe");
+  frame.hidden = true;
+  const landed = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("the realm didn't answer")), 5000);
+    frame.addEventListener("load", () => {
+      let address;
+      try {
+        address = new URL(frame.contentWindow.location.href);
+      } catch {
+        return;
+      }
+      if (address.origin + address.pathname !== redirect) return;
+      clearTimeout(timer);
+      resolve(address.searchParams);
+    });
+  });
+  frame.src = url;
+  document.body.append(frame);
+  try {
+    const params = await landed;
+    if (params.get("state") !== state || !params.has("code")) return;
+    store(
+      await token({
+        grant_type: "authorization_code",
+        code: params.get("code"),
+        redirect_uri: redirect,
+        code_verifier: verifier,
       }),
-  );
+    );
+  } finally {
+    frame.remove();
+  }
 }
 
 function logout() {
@@ -77,7 +124,7 @@ async function landed() {
 // doesn't answer leaves the tokens be.
 async function renew() {
   const refresh = stored()?.refresh_token;
-  if (!refresh) return;
+  if (!refresh) return silent();
   try {
     store(await token({ grant_type: "refresh_token", refresh_token: refresh }));
   } catch (error) {
