@@ -103,7 +103,8 @@ let
             # unless the origin is taken as secure.
             browser = p.chromium.launch(channel="chromium", args=["--unsafely-treat-insecure-origin-as-secure=${www.url}"])
             # Accommodating for Chromium, which trusts its own store rather than the test's CA in the system's bundle.
-            page = browser.new_page(ignore_https_errors=True)
+            context = browser.new_context(ignore_https_errors=True)
+            page = context.new_page()
             page.on("pageerror", lambda error: print("pageerror:", error, file=sys.stderr))
             page.set_default_timeout(15000)
             page.goto("${www.url}/en/blog/")
@@ -117,7 +118,7 @@ let
             page.goto("${www.url}/en/")
             page.wait_for_selector('[data-auth="name"]', state="visible")
             said["invite_hidden"] = page.is_hidden("#invite")
-            tab = page.context.new_page()
+            tab = context.new_page()
             tab.goto("${www.url}/en/blog/")
             tab.wait_for_selector('[data-auth="name"]', state="visible")
             tab.close()
