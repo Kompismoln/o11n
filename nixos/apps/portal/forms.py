@@ -39,7 +39,7 @@ def inquiry(address, text, page, language):
 
 # Fact: nginx passes a form's path here only when the portal has its address.
 FORMS = {
-    "/invite": ("invite", invites, lambda field: request(field("email"), field("note")[:2000], field("back"), field("lang")[:8])),
+    "/invite": ("invite", invites, lambda field: request(field("email"), field("note")[:4000], field("back"), field("lang")[:8])),
     "/inquiry": ("inquiry", inquiries, lambda field: inquiry(field("email"), field("text")[:4000], field("back"), field("lang")[:8])),
 }
 

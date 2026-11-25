@@ -5,6 +5,18 @@
   context,
   ...
 }:
+let
+  hosts = lib.filter (host: lib.elem config.name host.vpns) (lib.attrValues context.org.host);
+
+  mesh = config.topology == "mesh";
+
+  onHost =
+    peer:
+    [ config.members.${peer.name} ]
+    ++ lib.attrValues (
+      lib.filterAttrs (name: member: member.host == peer.name && name != peer.name) config.members
+    );
+in
 {
   options = {
     enable = lib.mkEnableOption "a wireguard vpn" // {
@@ -84,7 +96,7 @@
     port = lib.mkOption {
       description = "the port the vpn listens on: on a hub the gateway's, on a mesh the first of its range, whose host with id n listens on the port plus n, so that hosts behind one NAT listen on ports of their own";
       type = lib.types.port;
-      default = if config.topology == "mesh" then 52000 + 100 * config.id else 51820 + config.id;
+      default = if mesh then 52000 + 100 * config.id else 51820 + config.id;
       defaultText = lib.literalExpression ''if topology == "mesh" then 52000 + 100 * id else 51820 + id'';
     };
     keepalive = lib.mkOption {
@@ -161,7 +173,6 @@
       );
       default =
         let
-          hosts = lib.filter (host: lib.elem config.name host.vpns) (lib.attrValues context.org.host);
           services = lib.filter (service: service.vpn == config.name && service.principal != null) (
             lib.attrValues context.org.service
           );
@@ -177,7 +188,7 @@
               fqdn = "${host.name}.${config.namespace}";
               inherit (config) key;
               port =
-                if config.topology == "mesh" then
+                if mesh then
                   config.port + host.ids.int
                 else if host.name == config.gateway then
                   config.port
@@ -211,12 +222,11 @@
       type = lib.types.attrsOf (lib.types.listOf lib.types.str);
       default =
         let
-          hosts = lib.filter (host: lib.elem config.name host.vpns) (lib.attrValues context.org.host);
           tunnel =
             host: peer:
             host.name != peer.name
             && (
-              if config.topology == "mesh" then
+              if mesh then
                 host.endpoint != null || peer.endpoint != null
               else
                 host.name == config.gateway || peer.name == config.gateway
@@ -234,11 +244,58 @@
       readOnly = true;
       type = lib.types.attrsOf (lib.types.listOf lib.types.str);
       default =
-        if config.topology == "mesh" then
+        if mesh then
           config.peers
         else
           lib.mapAttrs (name: _: lib.filter (other: other != name) (lib.attrNames config.peers)) config.peers;
       defaultText = lib.literalMD "`peers` on a mesh, and on a hub each host by each other";
+    };
+    tunnels = lib.mkOption {
+      description = "each host on the vpn, by what its interface on it has: the port it listens on, if it does, and a tunnel with each of its `peers`, by the peer's public key, the addresses the tunnel carries, the endpoint the host dials it at, if it does, and the seconds between the keepalives the host sends it, if it does";
+      readOnly = true;
+      type = lib.types.attrsOf lib.types.raw;
+      default = lib.listToAttrs (
+        map (
+          host:
+          lib.nameValuePair host.name {
+            listenPort =
+              if (if mesh then host.endpoint != null else host.name == config.gateway) then
+                config.members.${host.name}.port
+              else
+                null;
+            peers = map (
+              name:
+              let
+                peer = context.org.host.${name};
+                dials = peer.endpoint != null && (mesh || peer.name == config.gateway);
+              in
+              {
+                host = peer.name;
+                publicKey = peer.publicKeys.${config.key};
+                allowedIPs =
+                  if peer.name == config.gateway then
+                    [
+                      config.address
+                      config.address4
+                    ]
+                    ++ lib.optionals config.proxy [ "::/0" ]
+                  else
+                    lib.concatMap (
+                      member:
+                      [ "${member.address}/128" ] ++ lib.optional (member.address4 != null) "${member.address4}/32"
+                    ) (onHost peer);
+                endpoint = if dials then "${peer.endpoint}:${toString config.members.${peer.name}.port}" else null;
+                # Policy: on a mesh, a host without an endpoint keeps its NAT's mapping open for the replies of each
+                # peer; on a hub, both ends keep alive: a client, as a gateway whose interface was recreated knows no
+                # client's endpoint until it hears from it, and the gateway, so that a client whose dialed address
+                # went stale follows it to where it sends from.
+                keepalive = if !mesh || host.endpoint == null then config.keepalive else null;
+              }
+            ) config.peers.${host.name};
+          }
+        ) hosts
+      );
+      defaultText = lib.literalMD "each host whose `vpns` has the vpn, by its listening port, if it's a hub's gateway or on a mesh with an endpoint, and its `peers`, each with its public key, its addresses, or the vpn's for a hub's gateway, the endpoint of one that has it on a mesh or is a hub's gateway, and `keepalive` but on a mesh from a host with an endpoint";
     };
     allowedTCPPorts = lib.mkOption {
       description = "force all peers to allow these tcp ports in the vpn";

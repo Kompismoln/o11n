@@ -7,6 +7,9 @@ services = "Det vi har"
 
 [extra.invite]
 title = "Vill du vara med?"
+message = """
+Hej! Jag vill gärna vara med.
+"""
 
 [extra.services.cloud]
 title = "Moln"

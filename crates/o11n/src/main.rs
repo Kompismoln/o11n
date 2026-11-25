@@ -24,6 +24,7 @@ mod store;
 mod torrent;
 mod util;
 mod version;
+mod wireguard;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -187,6 +188,9 @@ enum Command {
         #[arg(last = true)]
         zola: Vec<String>,
     },
+    /// The host's interface on the vpn, its private key in it, as wg-quick and `WireGuard`'s apps, as on Windows, import
+    /// it: for a host o11n doesn't configure.
+    Wireguard { host: String, vpn: String },
     /// A router that runs `OpenWrt`.
     #[command(subcommand)]
     Openwrt(openwrt::OpenwrtCommand),
@@ -631,6 +635,7 @@ fn act(org: &Org, command: Command) -> Result<(), Error> {
         Command::Tunnel { server, action } => org.tunnel(&server, action)?,
         Command::Image { variant } => org.image(&variant)?,
         Command::Openwrt(command) => org.openwrt(command)?,
+        Command::Wireguard { host, vpn } => print!("{}", org.wireguard(&host, &vpn)?),
         Command::State(command) => state(org, command)?,
         Command::Status { groups, list, failed } => org.status(&groups, list, failed)?,
         Command::Logs { groups, since } => org.logs(&groups, &since)?,

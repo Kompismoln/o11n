@@ -2,19 +2,20 @@
 {% block content %}
 {%- set org = config.extra -%}
 {%- set headings = section.extra.headings | default(value=[]) -%}
-{%- set invite = section.extra.invite | default(value=[]) -%}
+<div class="storefront">
 <section class="hero">
   <div class="wrap">
     <h1>{{ section.title }}</h1>
     {%- if section.description %}
     <p class="lead">{{ section.description }}</p>
     {%- endif %}
-    <div class="prose">{{ section.content | safe }}</div>
   </div>
 </section>
 {%- if org.services %}
-<section class="wrap" id="services">
-  <h2>{% if headings.services %}{{ headings.services }}{% else %}{{ trans(key="services", lang=lang) }}{% endif %}</h2>
+<section class="wrap" id="services" aria-label="{% if headings.services %}{{ headings.services }}{% else %}{{ trans(key="services", lang=lang) }}{% endif %}">
+  {%- if headings.services %}
+  <h2>{{ headings.services }}</h2>
+  {%- endif %}
   <ul class="cards">
     {%- set described = section.extra.services | default(value=[]) %}
     {%- for service in org.services %}
@@ -32,29 +33,15 @@
   </ul>
 </section>
 {%- endif %}
-{%- if org.invites %}
-<section class="wrap invite" id="invite" data-form="invite" data-auth="guest">
-  <h2>{% if invite.title %}{{ invite.title }}{% else %}{{ trans(key="invite_title", lang=lang) }}{% endif %}</h2>
-  <p class="muted">{% if invite.text %}{{ invite.text }}{% else %}{{ trans(key="invite_text", lang=lang) }}{% endif %}</p>
-  <p class="notice" data-status="sent" hidden>{% if invite.sent %}{{ invite.sent }}{% else %}{{ trans(key="invite_sent", lang=lang) }}{% endif %}</p>
-  <p class="notice error" data-status="invalid" hidden>{{ trans(key="invite_invalid", lang=lang) }}</p>
-  <p class="notice error" data-status="failed" hidden>{{ trans(key="invite_failed", lang=lang) }} <a href="mailto:{{ org.contact }}">{{ org.contact }}</a></p>
-  <form class="visitor-form" method="post" action="/invite">
-    <input type="hidden" name="back" value="{{ section.path }}">
-    <input type="hidden" name="lang" value="{{ lang }}">
-    <label>{{ trans(key="invite_email", lang=lang) }}
-      <input type="email" name="email" required maxlength="254" autocomplete="email">
-    </label>
-    <label>{{ trans(key="invite_note", lang=lang) }}
-      <textarea name="note" rows="3" maxlength="2000"></textarea>
-    </label>
-    <label class="trap" aria-hidden="true">Website
-      <input type="text" name="website" tabindex="-1" autocomplete="off">
-    </label>
-    <button type="submit" class="button">{{ trans(key="invite_send", lang=lang) }}</button>
-  </form>
-  <script type="module" src="/forms.js"></script>
+{%- if section.content %}
+<section class="wrap index-text">
+  <div class="prose">{{ section.content | safe }}</div>
 </section>
+{%- endif %}
+</div>
+{%- if section.extra.invite is defined %}
+{%- set kind = "invite" %}
+{% include "partials/form.html" %}
 {%- endif %}
 {%- for path in section.subsections %}
 {%- set sub = get_section(path=path) %}

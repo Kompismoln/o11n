@@ -291,12 +291,13 @@ let
         touch $out
       '';
 
-  # Policy: the portal lists the apps it names, in its order, described in each language, under the content's headings
-  # or its own, shows a page without a title as a note, with the commit it names, a section's description, disclaimers,
-  # points, a sandbox and a foundation that links its section's headings, a form for inquiries, its CV in its language
-  # with its availability by month and its contacts, summaries alone, which its chips and its boxes of experience link
-  # to, and links its PDF of all, with the page's address, switches between light and dark, has its header in its
-  # accent, and logs in with the client its keycloak keeps.
+  # Policy: the portal lists the apps it names, in its order, described in each language, under the content's heading
+  # if it gives one, and the start page's text after them, leaves out of the header a section that asks to be, shows a
+  # page without a title as a note, with the commit it names, a section's description, callouts, points, a sandbox and
+  # a foundation that links its section's headings, its forms for inquiries and invites as it words them, its CV in
+  # its language with its availability by month and its contacts, summaries alone, which its chips and its boxes of
+  # experience link to, and links its PDF of all, with the page's address, switches between light and dark, has its
+  # header in its accent, and logs in with the client its keycloak keeps.
   portalChecks.eval-portal-mail =
     let
       inherit (inventories.mail.nixosConfigurations.web) config;
@@ -315,7 +316,9 @@ let
         [[ $(listed index.html) == "Moln cloud.example.com Möten meet.example.com auth auth.example.com E-post mail.example.com " ]]
         [[ $(listed en/index.html) == "Cloud cloud.example.com meet meet.example.com auth auth.example.com mail mail.example.com " ]]
         grep -qF '<h2>Det vi har</h2>' "$site/index.html" && grep -qF '<h2>Vill du vara med?</h2>' "$site/index.html"
-        grep -qF '<h2>Services</h2>' "$site/en/index.html" && grep -qF '<h2>Want an account?</h2>' "$site/en/index.html"
+        ! grep -qF '<h2>Services</h2>' "$site/en/index.html" || exit 1
+        grep -qF '<section class="wrap" id="services" aria-label="Services">' "$site/en/index.html"
+        grep -qF '<h2>Want an account?</h2>' "$site/en/index.html"
         grep -qF '"clientId":"www","issuer":"http://auth.example.com/realms/example"' "$site/index.html"
         grep -qF 'href="http://www.example.com/en/blog/first/"' "$site/en/index.html"
         [[ $(grep -c 'class="note"' "$site/en/index.html") == 2 && $(grep -c 'class="note"' "$site/notes/index.html") == 2 ]]
@@ -326,8 +329,12 @@ let
         grep -qF '<a href="/en/atom.xml">Feed</a>' "$site/en/index.html"
         grep -qF '<a href="http://status.example.com">Driftstatus</a>' "$site/index.html"
         grep -qF '<title>A note without a commit.</title>' "$site/en/atom.xml"
-        grep -qF '<a href="http://www.example.com/policy/">Villkor</a>' "$site/index.html"
-        ! grep -qF 'href="http://www.example.com/en/policy/"' "$site/en/index.html"
+        ! grep -qF '<a href="http://www.example.com/policy/">Villkor</a>' "$site/index.html" || exit 1
+        [[ -f $site/policy/index.html ]]
+        [[ $(grep -n 'id="services"' "$site/index.html" | cut -d: -f1) -lt $(grep -n '<p>Välkommen.</p>' "$site/index.html" | cut -d: -f1) ]]
+        grep -qF '<form class="visitor-form" method="post" action="/invite">' "$site/about/index.html"
+        grep -qF '<h2>Vill du ha ett konto?</h2>' "$site/about/index.html"
+        ! grep -qF 'action="/invite"' "$site/blog/index.html" || exit 1
         grep -qF '<p>Driftar för föreningar.</p>' "$site/about/index.html"
         grep -qF '<p class="lead">Vi som driftar.</p>' "$site/about/index.html"
         grep -qF '<span class="pill">Tillgänglig från januari</span>' "$site/about/index.html"
@@ -344,8 +351,11 @@ let
           "$site/about/index.html"
         grep -qF '<nav class="foundation" aria-label="Uppdrag">' "$site/about/index.html"
         grep -qF '<form class="visitor-form" method="post" action="/inquiry">' "$site/about/index.html"
-        grep -qF '<textarea name="text" rows="8" maxlength="4000" required>Vi behöver hjälp med …</textarea>' "$site/about/index.html"
+        grep -qF '<textarea name="text" rows="5" maxlength="4000">Vi behöver hjälp med …</textarea>' "$site/about/index.html"
         grep -qF '<input type="hidden" name="back" value="/about/">' "$site/about/index.html"
+        grep -qF '<p class="notice" data-status="sent" hidden>Tack, vi hör av oss!</p>' "$site/about/index.html"
+        grep -qF '<textarea name="note" rows="5" maxlength="4000">Hej! Jag vill gärna vara med.</textarea>' "$site/index.html"
+        grep -qF '<textarea name="note" rows="5" maxlength="4000"></textarea>' "$site/en/index.html"
         grep -qF '<a href="mailto:carol@elsewhere.test">carol@elsewhere.test</a>' "$site/about/index.html"
         ! grep -qF 'action="/inquiry"' "$site/en/about/index.html" || exit 1
         grep -qF '<li><a href="#automatisera">' "$site/about/index.html" && grep -qF '<h2 id="automatisera"' "$site/about/index.html"
@@ -448,6 +458,52 @@ let
     in
     pkgs.runCommand "eval-portal-inquiry" { } ''
       grep -qF "the section /about/ has extra.inquiry, a form that mails the portal's inquiries, which it has no address for" \
+        ${pkgs.testers.testBuildFailure site}/testBuildFailure.log
+      touch $out
+    '';
+
+  # Policy: a site whose section has a form for an invite fails to build when the portal has no address for them.
+  portalChecks.eval-portal-invite =
+    let
+      inherit (inventories.mail) org;
+      inherit
+        (import ../nixos/apps/portal/site.nix {
+          inherit lib org pkgs;
+          app = org.app.www // {
+            invites = null;
+          };
+        })
+        site
+        ;
+    in
+    pkgs.runCommand "eval-portal-invite" { } ''
+      grep -qF "has extra.invite, a form that mails the portal's requests for an invite, which it has no address for" \
+        ${pkgs.testers.testBuildFailure site}/testBuildFailure.log
+      touch $out
+    '';
+
+  # Policy: a section whose extra.inquiry is the text its form begins with, as it once was, fails the site's build, and
+  # says where the text goes.
+  portalChecks.eval-portal-inquiry-text =
+    let
+      inherit (inventories.mail) org;
+      content = pkgs.runCommand "content" { } ''
+        cp -r ${./inventories/mail/site} $out
+        chmod -R u+w $out
+        sed -i 's/^\[extra.inquiry\]$/[extra]/; s/^message = """$/inquiry = """/; /^sent = /d' $out/about/_index.md
+      '';
+      inherit
+        (import ../nixos/apps/portal/site.nix {
+          inherit lib org pkgs;
+          app = org.app.www // {
+            inherit content;
+          };
+        })
+        site
+        ;
+    in
+    pkgs.runCommand "eval-portal-inquiry-text" { } ''
+      grep -qF "the section /about/ has extra.inquiry as text, which its form begins with: put it under [extra.inquiry] as message" \
         ${pkgs.testers.testBuildFailure site}/testBuildFailure.log
       touch $out
     '';

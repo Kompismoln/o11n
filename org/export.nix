@@ -172,6 +172,26 @@ let
       allotments = map (allotment: {
         inherit (allotment) id path replicas;
       }) (lib.filter (allotment: allotment.replicas != [ ]) entity.allotments);
+      # Dependency: crates/o11n/src/wireguard.rs writes a host's interface on a vpn from it, as wg-quick reads one.
+      wireguard = lib.listToAttrs (
+        map (
+          vpn:
+          let
+            network = entity.network.${vpn.name};
+            tunnel = vpn.tunnels.${entity.name};
+          in
+          lib.nameValuePair vpn.name {
+            inherit (vpn) key;
+            inherit (network) dns;
+            inherit (tunnel) listenPort;
+            addresses = [
+              "${network.address}/${toString network.prefixLength}"
+              "${network.address4}/${toString network.prefixLength4}"
+            ];
+            peers = map (peer: peer // { publicKey = relative peer.publicKey; }) tunnel.peers;
+          }
+        ) (lib.filter (vpn: vpn.enable) (map (name: context.org.vpn.${name}) entity.vpns))
+      );
     }
     // lib.optionalAttrs (entity.class == "host" && entity.openwrt != null) {
       openwrt = {

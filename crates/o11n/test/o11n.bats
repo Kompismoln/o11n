@@ -379,6 +379,31 @@ setup() {
   fails "wg1-key isn't one of host-lorem's keys: age-key, syncthing-user-testuser.testhost, wg0-key"
 }
 
+@test "wireguard writes a host's interface on a vpn as wg-quick reads it, its private key in it" {
+  o11n identity create host-testhost
+  o11n identity create host-ipsum
+  o11n secret generate host-testhost wg0-key
+  o11n secret generate host-ipsum wg0-key
+
+  o11n wireguard ipsum wg0 2>/dev/null >"$BATS_TEST_TMPDIR/wg0.conf"
+  diff - "$BATS_TEST_TMPDIR/wg0.conf" <<EOF
+[Interface]
+PrivateKey = $(o11n secret show host-ipsum wg0-key 2>/dev/null)
+Address = fd12:3456:7890:0000::0003/64, 10.0.0.3/24
+DNS = fd12:3456:7890:0000::0001, 10.0.0.1
+
+# testhost
+[Peer]
+PublicKey = $(cat public-keys/host-testhost-wg0-key.pub)
+AllowedIPs = fd12:3456:7890:0000::/64, 10.0.0.0/24
+Endpoint = stationary.kompismoln.se:51820
+PersistentKeepalive = 25
+EOF
+
+  run o11n wireguard ipsum wg1
+  fails "ipsum isn't on wg1: add wg1 to [host.ipsum] vpns, of wg0"
+}
+
 @test "a host has a luks-key only with an encrypted disk" {
   [ "$(o11n keys host-testhost)" = "$(printf '%s\n' age-key luks-key syncthing-user-testuser.testhost wg0-key wg1-key wg2-key)" ]
   run o11n secret generate host-lorem luks-key

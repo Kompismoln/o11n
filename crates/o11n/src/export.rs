@@ -83,6 +83,8 @@ pub struct Entity {
     #[serde(default)]
     pub allotments: Vec<Allotment>,
     #[serde(default)]
+    pub wireguard: BTreeMap<String, crate::wireguard::Interface>,
+    #[serde(default)]
     pub keycloak: Option<Keycloak>,
     #[serde(default)]
     pub database: Option<Database>,

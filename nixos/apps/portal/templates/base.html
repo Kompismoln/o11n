@@ -58,7 +58,7 @@
         <nav class="nav">
           {%- for path in root.subsections %}
           {%- set sub = get_section(path=path) %}
-          {%- if sub.content or sub.pages %}
+          {%- if (sub.content or sub.pages) and sub.extra.menu | default(value=true) %}
           <a href="{{ sub.permalink | safe }}"{% if current and current.path is starting_with(pat=sub.path) %} aria-current="{% if current.path == sub.path %}page{% else %}true{% endif %}"{% endif %}>{{ sub.title }}</a>
           {%- endif %}
           {%- endfor %}

@@ -480,7 +480,15 @@ h2 {
 
 .hero {
   padding: clamp(3rem, 10vw, 6rem) 0 2rem;
-  background: radial-gradient(60rem 24rem at 10% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
+}
+
+.storefront {
+  padding-bottom: 4rem;
+  background: radial-gradient(
+    140% 100% at 10% 0%,
+    color-mix(in srgb, var(--accent) 18%, transparent),
+    transparent
+  );
 }
 
 .lead {
@@ -710,6 +718,10 @@ h2 {
 .notice.error {
   border-color: #dc2626;
   background: color-mix(in srgb, #dc2626 10%, transparent);
+}
+
+.index-text {
+  margin-top: 2.5rem;
 }
 
 main > .wrap:first-child {
@@ -987,27 +999,27 @@ html {
   margin: -0.25rem 0 2.75rem;
 }
 
-.disclaimer {
+.callout {
   margin: 2.5rem 0;
   padding: 1rem 1.25rem;
   border-block: 1px solid color-mix(in srgb, var(--sunset) 70%, transparent);
   background: color-mix(in srgb, var(--sunset) 12%, transparent);
 }
 
-.disclaimer .eyebrow {
+.callout .eyebrow {
   margin-bottom: 0.4rem;
   color: var(--sunset-text);
 }
 
-.disclaimer p {
+.callout p {
   margin: 0;
 }
 
-.disclaimer p + p {
+.callout p + p {
   margin-top: 0.75rem;
 }
 
-.disclaimer-compact {
+.callout-compact {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1019,11 +1031,11 @@ html {
   font-size: 0.95rem;
 }
 
-.disclaimer-compact strong {
+.callout-compact strong {
   color: var(--sunset-text);
 }
 
-.disclaimer-dot {
+.callout-dot {
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 50%;

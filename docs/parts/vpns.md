@@ -76,6 +76,24 @@ on the vpn it would go over:
 
 An endpoint is dialed at what it resolves to, so a host on IPv6 alone is reached only from those that have IPv6.
 
+A host's interface on a vpn is its `tunnels`: the port it listens on, as a hub's gateway or a host with an endpoint on a
+mesh, and of each of its `peers` the public key, the addresses the tunnel carries, the endpoint it dials and the
+keepalive it sends, which NixOS configures with networkd (`org/vpn.nix`, `nixos/org/wireguard.nix`).
+
+## Clients
+
+A host o11n doesn't configure, as one with `nixos = false` on Windows, is on a vpn as any other, with a key of its own
+the org holds, and its peers, the gateway of a hub, have a tunnel with it. `o11n wireguard <host> <vpn>` prints its
+interface on the vpn as wg-quick and WireGuard's apps import it, its private key from the host's sops file and each
+peer's public key from its file (`crates/o11n/src/wireguard.rs`):
+
+```sh
+o11n wireguard laptop wg0 > wg0.conf
+```
+
+Its `DNS` is the vpn's name servers, which such a client asks for every name, not its namespace alone, as wg-quick has
+no routing domain; on a vpn without `dns` it has none, and no `/etc/hosts` of the names on it.
+
 ## Routes
 
 Two hosts may share more than one vpn, and what isn't tied to one goes over the most direct that works. A host's

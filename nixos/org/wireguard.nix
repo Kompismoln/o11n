@@ -22,7 +22,8 @@ let
 
   routes = vpn: mesh vpn || host.name == vpn.gateway;
 
-  listens = vpn: if mesh vpn then host.endpoint != null else host.name == vpn.gateway;
+  listenPort = vpn: vpn.tunnels.${host.name}.listenPort;
+  listened = lib.filter (port: port != null) (map listenPort vpns);
 
   # Policy: the host first, then its principals by name.
   onHost =
@@ -130,7 +131,7 @@ in
     };
 
     firewall = {
-      allowedUDPPorts = map (vpn: vpn.members.${host.name}.port) (lib.filter listens vpns);
+      allowedUDPPorts = listened;
       trustedInterfaces = map (vpn: vpn.interface) (builtins.filter (vpn: vpn.trusted) vpns);
       interfaces = lib.mkMerge [
         (lib.listToAttrs (
@@ -177,21 +178,16 @@ in
         }
       ]
     ) vpns
-    ++ (
-      let
-        ports = map (vpn: vpn.members.${host.name}.port) (lib.filter listens vpns);
-      in
-      [
-        {
-          assertion = lib.allUnique ports;
-          message = "${host.name} listens on ${
-            lib.concatMapStringsSep ", " toString (
-              lib.unique (lib.filter (port: lib.count (other: other == port) ports > 1) ports)
-            )
-          } for more than one of its vpns: set the port of one of them apart.";
-        }
-      ]
-    );
+    ++ [
+      {
+        assertion = lib.allUnique listened;
+        message = "${host.name} listens on ${
+          lib.concatMapStringsSep ", " toString (
+            lib.unique (lib.filter (port: lib.count (other: other == port) listened > 1) listened)
+          )
+        } for more than one of its vpns: set the port of one of them apart.";
+      }
+    ];
 
   sops.secrets = lib.listToAttrs (
     map (
@@ -220,48 +216,18 @@ in
         };
         wireguardConfig = {
           PrivateKeyFile = config.sops.secrets.${vpn.key}.path;
-          ListenPort = lib.mkIf (listens vpn) vpn.members.${host.name}.port;
+          ListenPort = lib.mkIf (listenPort vpn != null) (listenPort vpn);
           FirewallMark = lib.mkIf proxies tunnels.mark;
         };
         wireguardPeers = map (
           peer:
-          let
-            base = {
-              PublicKey = builtins.readFile peer.publicKeys.${vpn.key};
-              AllowedIPs =
-                if peer.name == vpn.gateway then
-                  [
-                    vpn.address
-                    vpn.address4
-                  ]
-                  ++ (lib.optionals vpn.proxy [ "::/0" ])
-                else
-                  lib.concatLists (
-                    map (
-                      member:
-                      [ "${member.address}/128" ] ++ lib.optional (member.address4 != null) "${member.address4}/32"
-                    ) (onHost vpn peer)
-                  );
-            };
-            dials = {
-              Endpoint = "${peer.endpoint}:${toString vpn.members.${peer.name}.port}";
-            };
-            keepsAlive = {
-              PersistentKeepalive = vpn.keepalive;
-            };
-          in
-          # Policy: on a mesh, a host without an endpoint dials each peer that has one and keeps its NAT's mapping open
-          # for the replies; a peer without one dials it.
-          if mesh vpn then
-            base
-            // lib.optionalAttrs (peer.endpoint != null) dials
-            // lib.optionalAttrs (host.endpoint == null) keepsAlive
-          # Policy: on a hub, both keep alive: a client, as a gateway whose interface was recreated knows no client's
-          # endpoint until it hears from it; the gateway, so that a client whose dialed address went stale follows it to
-          # where it sends from.
-          else
-            base // keepsAlive // lib.optionalAttrs (peer.name == vpn.gateway) dials
-        ) (map (peer: org.host.${peer}) vpn.peers.${host.name});
+          {
+            PublicKey = builtins.readFile peer.publicKey;
+            AllowedIPs = peer.allowedIPs;
+          }
+          // lib.optionalAttrs (peer.endpoint != null) { Endpoint = peer.endpoint; }
+          // lib.optionalAttrs (peer.keepalive != null) { PersistentKeepalive = peer.keepalive; }
+        ) vpn.tunnels.${host.name}.peers;
       }
     );
 

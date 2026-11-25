@@ -20,22 +20,22 @@
 </aside>
 {% endcomponent experience %}
 
-{% component disclaimer(title="", compact=false) %}
+{% component callout(title="", compact=false) %}
 {%- if compact %}
-<p class="disclaimer disclaimer-compact">
-  <span class="disclaimer-dot" aria-hidden="true"></span>
+<p class="callout callout-compact">
+  <span class="callout-dot" aria-hidden="true"></span>
   {%- if title %}<strong>{{ title }}</strong>{% endif %}
   <span>{{ body | markdown(inline=true) | safe }}</span>
 </p>
 {%- else %}
-<aside class="disclaimer">
+<aside class="callout">
   {%- if title %}
   <p class="eyebrow">{{ title }}</p>
   {%- endif %}
   {{ body | markdown | safe }}
 </aside>
 {%- endif %}
-{% endcomponent disclaimer %}
+{% endcomponent callout %}
 
 {% component sandbox(test, ai, data, review, live) %}
 <figure class="sandbox">

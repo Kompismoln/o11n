@@ -269,3 +269,15 @@ the endpoint of either, so that two without one don't reach each other
 `org/vpn.nix` · boolean
 
 disable firewalls on this vpn
+
+### `vpn.<name>.tunnels`
+
+`org/vpn.nix` · attribute set of raw value
+
+Default: each host whose `vpns` has the vpn, by its listening port, if it's a hub's gateway or on a mesh with an
+endpoint, and its `peers`, each with its public key, its addresses, or the vpn's for a hub's gateway, the endpoint of
+one that has it on a mesh or is a hub's gateway, and `keepalive` but on a mesh from a host with an endpoint
+
+each host on the vpn, by what its interface on it has: the port it listens on, if it does, and a tunnel with each of its
+`peers`, by the peer's public key, the addresses the tunnel carries, the endpoint the host dials it at, if it does, and
+the seconds between the keepalives the host sends it, if it does

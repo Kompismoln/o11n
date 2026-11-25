@@ -27,20 +27,22 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
 - `languages`, Swedish and English by default, are the site's, the first its default: `_index.md` is a section in the
   default language, `_index.en.md` the same in English, at `/en/`, and a page in each the same way. A page has a link to
   each language it's in.
-- The start page is the content's `_index.md`: its `title` and `description` head it, then its text.
+- The start page is the content's `_index.md`: its `title` and `description` head it, then its apps (see below), then
+  its text, on one surface, the storefront, under a faint tint of the `accent`, and, with `extra.invite`, the form for
+  an invite (see Forms) (`nixos/apps/portal/templates/index.html`).
 - Any other section has its `title` and `description` above its text. With `extra.band`, the id of one of its `##`
   headings, its text from that heading to the next is a band of its own after its pages, as a CV is (see CV), and the
   rest of the text after the band; a band that names no `##` of the section fails the site's build
   (`nixos/apps/portal/templates/section.html`).
-- A text may set a paragraph apart as a disclaimer, in an afternoon's yellow, under a `title` if it has one
+- A text may set a paragraph apart as a callout, a heads-up in an afternoon's yellow, under a `title` if it has one
   (`nixos/apps/portal/templates/components.html`):
 
   ```markdown
-  {% <disclaimer title="Right now"> %}
+  {% <callout title="Right now"> %}
 
   What the text above doesn't say.
 
-  {% </disclaimer> %}
+  {% </callout> %}
   ```
 
   With compact={true}, it's one line in a rounded box with a dot before its title, and its text is inline markdown.
@@ -91,8 +93,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   ```
 
 - The start page's front matter has the org's wording, in its language: `extra.headings`, of the start page's parts, and
-  `extra.invite`, of the form (see Forms). The site has its own for what it leaves out, and for the rest, as "Log in" or
-  "Feed" (`nixos/apps/portal.nix`):
+  a section's `extra.invite`, of the form (see Forms). The site has its own for what it leaves out, and for the rest, as
+  "Log in" or "Feed" (`nixos/apps/portal.nix`), but for the apps, which have no heading without `headings.services`:
 
   ```toml
   [extra.headings]
@@ -106,7 +108,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
 
 - The header has the sections of the start page alone, by their titles, in the order of their `weight`, each once it has
   text or a page: a page with `draft = true` isn't on the site, so a section of drafts alone waits to be written. One
-  with `extra.on_index = <n>` has its first `n` pages on the start page too, as a blog's latest posts with
+  with `extra.menu = false` isn't in the header, and keeps its address, for the links of other texts. One with
+  `extra.on_index = <n>` has its first `n` pages on the start page too, as a blog's latest posts with
   `sort_by = "date"`.
 - A status app whose `portal` is the portal has its link in the footer (`docs/parts/status.md`).
 - Each language has its feed, of the pages with a `date`, at `atom.xml` there; a note's entry is titled by its text. The
@@ -117,8 +120,8 @@ a directory with an `_index.md`, a page any other `.md`, and front matter is TOM
   the task's first emphasis is a chip (`nixos/apps/portal/static/portal.css`).
 - The rest of the site's colors each have a part: `forest` green is what sends or makes something, its buttons; `bloom`
   pink is a detail, a label above a part and an example's edge; `sunset`, an afternoon's yellow, is a heads-up, a
-  disclaimer; and an earth brown is the footer, which anchors the page, with a tulip of the green and the pink growing
-  from its edge, in the middle of its right half (`nixos/apps/portal/static/portal.css`).
+  callout; and an earth brown is the footer, which anchors the page, with a tulip of the green and the pink growing from
+  its edge, in the middle of its right half (`nixos/apps/portal/static/portal.css`).
 - With `accentHeader`, the header is in the `accent` in light mode, with white on it, and its logo as dark mode has it,
   and in dark mode as without, but for the site's name in white. The logo has it so by an SVG's `prefers-color-scheme`,
   which follows the header's (`nixos/apps/portal/static/portal.css`).
@@ -268,14 +271,17 @@ to any of the site's pages (`org/apps/portal.nix`), and the keycloak keeps it as
 
 ## Forms
 
-With `invites`, an address, the start page has a form where a visitor asks for an account: their address, and a message
-if they like, under `extra.invite`'s `title` and `text`, and `sent` once it's sent. With `inquiries`, an address, a
-section whose front matter has `extra.inquiry` has a form after its text, at `#inquiry`, where a visitor writes: their
-address, and a message that begins as `extra.inquiry` has it, for them to fill in.
+A section, the start page among them, has a form after its text for each of `extra.invite` and `extra.inquiry` its front
+matter has, at `#invite` and `#inquiry` (`nixos/apps/portal/templates/partials/form.html`): with `invites`, an address,
+where a visitor asks for an account, and with `inquiries`, an address, where a visitor writes. Both are a table of the
+same keys, and the forms alike but for what they're for: a `title` and `text` above the form, for an invite by default
+the site's own, the visitor's address and a message, which begins as `message` has it, for them to fill in, and `sent`
+once it's sent:
 
 ```toml
-[extra]
-inquiry = """
+[extra.inquiry]
+title = "Hosting for you"
+message = """
 We need help with …
 """
 ```
@@ -283,8 +289,9 @@ We need help with …
 A form mails what's sent to its address, `invites` or `inquiries`, as the portal, which has to send mail
 (`principal.mail.send`), with the visitor's address as its Reply-To (`nixos/apps/portal/forms.py`). An address on a
 domain with `mailbox` is to be one a principal's inbox has, as its address or an alias, or its mail server fails to
-evaluate, as the server would refuse the mail. A section with `extra.inquiry` fails the site's build when the portal has
-no `inquiries` (`nixos/apps/portal/templates/section.html`).
+evaluate, as the server would refuse the mail. A section with `extra.invite` fails the site's build when the portal has
+no `invites`, one with `extra.inquiry` when it has no `inquiries`, and so does one whose `extra.invite` or
+`extra.inquiry` is the text its form begins with rather than a table.
 
 - nginx passes a POST to `/invite` or `/inquiry` alone, each once the portal has its address, to `<app>-forms`, a
   service of the portal's user on its own address, of 16 KiB at most, and 4 at once from an address, then one a minute,
@@ -292,6 +299,7 @@ no `inquiries` (`nixos/apps/portal/templates/section.html`).
 - The service takes an address of one mailbox alone, and sends the visitor back to the page of the form, on the site,
   where the form tells them it's sent, or that the address doesn't look right, or to write to the org's `contact`, or
   for an inquiry, to `inquiries`.
+- A message is up to 4000 characters, and may be left as it begins, or empty.
 - A request that fills in the form's field that people don't see, a bot's, is told it's sent, and isn't.
 - The form for an invite isn't on the page for a visitor who is logged in.
 - The mail of a request for an invite ends with the command that invites the visitor, `o11n invite`, with the portal's
@@ -300,13 +308,16 @@ no `inquiries` (`nixos/apps/portal/templates/section.html`).
 ## Testing
 
 `eval-portal-mail` builds `tests/inventories/mail`'s portal, `www` on `web`, and checks that it lists its services in
-their order in each language, that a section is in the header once it has a page, that its notes are shown on the start
-page and in their section, one with its commit and one without, that it takes the headings the content gives in one
-language and its own in the other, that a section shows its description, its points, its sandbox, its foundation, which
-links its headings, and its form for inquiries, and the CV of its language with summaries alone, which its chips link
-to, and links its PDF, which has the points, and that the keycloak keeps its client. `eval-portal-chips` fails a site's
-build for a chip that names a skill the CV doesn't have. `eval-portal-icons` fails it for an icon the site doesn't have,
-and `eval-portal-inquiry` for a form for inquiries without `inquiries`. `vmTests.keycloak` serves it beside the
+their order in each language, and its text after them, that a section is in the header once it has a page, and one with
+`extra.menu = false` isn't, but is built, that its notes are shown on the start page and in their section, one with its
+commit and one without, that it takes the headings the content gives in one language and its own in the other, that a
+section shows its description, its points, its sandbox, its foundation, which links its headings, its form for
+inquiries, with its message and `sent`, and its form for an invite with its message in one language and none in the
+other, and a section's own, and the CV of its language with summaries alone, which its chips link to, and links its PDF,
+which has the points, and that the keycloak keeps its client. `eval-portal-chips` fails a site's build for a chip that
+names a skill the CV doesn't have. `eval-portal-icons` fails it for an icon the site doesn't have, and
+`eval-portal-invite` for a form for an invite without `invites`, `eval-portal-inquiry` for a form for inquiries without
+`inquiries`, and `eval-portal-inquiry-text` for an `extra.inquiry` that is text. `vmTests.keycloak` serves it beside the
 keycloak, where a browser logs alice in from a page of it and back there, and in its other tabs, finds no form for an
 invite, is logged in to the drive without being asked again, and logs out, after which the portal's login asks again,
 and the drive's. `vmTests.mail` has its forms mail a request for an invite and an inquiry to elsewhere's carol, signed

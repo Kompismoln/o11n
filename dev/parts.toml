@@ -85,7 +85,7 @@ code = ["crates/o11n/src/openwrt.rs", "org/openwrt.nix"]
 stage = "drafted"
 layer = "domain"
 doc = "docs/parts/vpns.md"
-code = ["nixos/org/wireguard.nix", "org/vpn.nix", "tests/inventories/mesh"]
+code = ["crates/o11n/src/wireguard.rs", "nixos/org/wireguard.nix", "org/vpn.nix", "tests/inventories/mesh"]
 
 [parts.access]
 stage = "drafted"

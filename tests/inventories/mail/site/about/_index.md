@@ -2,10 +2,13 @@
 title = "Om oss"
 description = "Vi som driftar."
 
-[extra]
-inquiry = """
+[extra.inquiry]
+message = """
 Vi behöver hjälp med …
 """
+sent = "Tack, vi hör av oss!"
+
+[extra.invite]
 +++
 
 Alice hjälper till.
@@ -18,11 +21,11 @@ Föreningens [e-post](@/policy/_index.md).
 
 {% </experience> %}
 
-{% <disclaimer title="Just nu"> %}
+{% <callout title="Just nu"> %}
 
 Alice är på semester.
 
-{% </disclaimer> %}
+{% </callout> %}
 
 {{ <points items={[["unplug", "accent", "Förbli oberoende", "Det vi bygger går att sköta utan oss."]]} /> }}
 
