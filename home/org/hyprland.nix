@@ -54,6 +54,22 @@ in
     };
   };
 
+  # Fact: without a cursor theme, Hyprland draws its own fallback cursor.
+  home.pointerCursor = {
+    enable = true;
+    package = pkgs.adwaita-icon-theme;
+    name = "Adwaita";
+    size = 24;
+  };
+
+  # Fact: xdg-desktop-portal-hyprland lacks the metadata cursor mode, which browsers' WebRTC asks for, and hides the
+  # cursor instead; 2 embeds it.
+  xdg.configFile."hypr/xdph.conf".text = ''
+    screencopy {
+      cursor_mode = 2
+    }
+  '';
+
   xdg.mimeApps.enable = true;
 
   xdg.mimeApps.defaultApplications = {
